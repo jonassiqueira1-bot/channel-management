@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { MOCK_EMPRESAS as INITIAL_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
+import { useCompanies } from '../hooks/useCompanies'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
@@ -83,9 +83,6 @@ const EMPTY_FORM = {
   status: 'negociacao', origem: '', responsavel: '', site: '', telefone: '', email: '',
   franquia_ar_id: null, franquia_ar_nome: '',
 }
-
-// ─── Mock data (importado de src/data/mockEmpresas.js — compartilhado com Unidades)
-const MOCK_EMPRESAS = INITIAL_EMPRESAS
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -1046,8 +1043,8 @@ export default function Empresas() {
   const [filterSeg, setFilterSeg]       = useLocalState('empresas:filterSeg', '')
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   const [view, setView]                 = useLocalState('empresas:view', 'table')
-  // ── estado efêmero (não persiste) ────────────────────────────────────────
-  const [empresas, setEmpresas]         = useState(MOCK_EMPRESAS)
+  // ── dados via Supabase (com fallback mock automático) ────────────────────
+  const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
   const [modal, setModal]               = useState(null)
   const [selected, setSelected]         = useState(new Set()) // ids selecionados
   const [bulkAction, setBulkAction]     = useState('')        // ação em lote
@@ -1106,11 +1103,10 @@ export default function Empresas() {
     const ids = [...selected]
     if (action === 'delete') {
       if (!window.confirm(`Excluir ${ids.length} empresa(s) permanentemente?`)) return
-      setEmpresas(prev => prev.filter(e => !ids.includes(e.id)))
+      removeMany(ids)
       clearSelection()
     } else if (action) {
-      // alterar status
-      setEmpresas(prev => prev.map(e => ids.includes(e.id) ? { ...e, status: action } : e))
+      bulkSetStatus(ids, action)
       clearSelection()
     }
   }
@@ -1167,15 +1163,15 @@ export default function Empresas() {
 
   function handleSave(form) {
     if (modal?.editing) {
-      setEmpresas(prev => prev.map(e => e.id === modal.editing.id ? { ...e, ...form } : e))
+      updateEmpresa(modal.editing.id, form)
     } else {
-      setEmpresas(prev => [...prev, { ...form, id: Date.now(), mrr:0, contratos:0, contatos:0, criado: new Date().toISOString().slice(0,10) }])
+      addEmpresa(form)
     }
     setModal(null)
   }
 
   function handleDelete(id) {
-    setEmpresas(prev => prev.filter(e => e.id !== id))
+    removeEmpresa(id)
     setModal(null)
   }
 
@@ -1330,7 +1326,7 @@ export default function Empresas() {
           onDownloadTemplate={handleDownloadTemplate}
           existingEmpresas={empresas}
           onImport={(rows, log) => {
-            setEmpresas(prev => [...prev, ...rows])
+            importMany(rows)
             setImportLogs(prev => [log, ...prev])
             setImportModal(false)
           }}
