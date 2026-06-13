@@ -55,34 +55,44 @@ export function useProfile() {
     try {
       // 1. Perfil
       const { data: prof, error: profErr } = await supabase
-        .from('perfis')
+        .from('profiles')
         .select('*')
         .eq('id', session.user.id)
         .single()
 
       if (profErr) {
-        // Tabela não existe no Supabase (ambiente demo) — usa perfil mock
+        // Perfil não encontrado — usa fallback mínimo sem dados mock
         const fallback = {
-          ...DEV_PROFILE,
-          id:    session.user.id,
-          email: session.user.email,
-          avatar: initials(session.user.email?.split('@')[0] || 'U'),
+          id:           session.user.id,
+          nome:         session.user.email?.split('@')[0] || 'Usuário',
+          email:        session.user.email,
+          avatar:       initials(session.user.email?.split('@')[0] || 'U'),
+          papel:        'admin_isv',
+          role:         'admin_isv',
+          tenant_id:    null,
+          branch_id:    null,
+          status:       'ativo',
         }
         setProfile(fallback)
-        setCompany(MOCK_COMPANIES.find(c => c.id === fallback.empresa_id) || null)
         setLoading(false)
         return
       }
 
-      const hydrated = { ...prof, email: session.user.email, avatar: initials(prof.nome) }
+      const hydrated = {
+        ...prof,
+        email:  session.user.email,
+        avatar: initials(prof.nome),
+        papel:  prof.role || prof.papel || 'admin_isv',
+      }
       setProfile(hydrated)
 
-      // 2. Empresa (companies nova tabela com fallback para empresas legada)
-      if (prof.empresa_id) {
+      // 2. Empresa
+      if (prof.empresa_id || prof.company_id) {
+        const empresaId = prof.empresa_id || prof.company_id
         const { data: comp } = await supabase
           .from('companies')
           .select('*')
-          .eq('id', prof.empresa_id)
+          .eq('id', empresaId)
           .single()
         setCompany(comp || null)
       }
@@ -103,7 +113,7 @@ export function useProfile() {
       return { ok: true }
     }
     const { error } = await supabase
-      .from('perfis')
+      .from('profiles')
       .update({ nome: patch.nome, phone: patch.phone, cargo: patch.cargo, avatar_url: patch.avatar_url })
       .eq('id', profile.id)
     if (error) return { ok: false, message: error.message }
