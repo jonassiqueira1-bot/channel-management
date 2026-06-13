@@ -3,6 +3,8 @@ import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_ACOES, TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 const ACCENT = '#6366F1'
 
@@ -176,6 +178,54 @@ function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
   const empresasAtivas = MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
+  const { sections: acSections, fieldById: acFieldById } = useFormLayout('actions')
+
+  function renderAcaoField(key) {
+    switch (key) {
+      case 'titulo':
+        return <input style={inp} value={form.titulo} autoFocus onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3" />
+      case 'tipo':
+        return null  // TipoAcaoDropdown fixo no topo
+      case 'status':
+        return isEditing ? (
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+            {Object.entries(STATUS_ACAO).map(([k, cfg]) => {
+              const ativo = form.status === k
+              return (
+                <button key={k} type="button" onClick={() => set('status', k)}
+                  style={{ padding:'6px 13px', borderRadius:8, cursor:'pointer', fontFamily:'var(--font)', fontSize:12, fontWeight: ativo ? 700 : 500,
+                    border:`1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
+                    background: ativo ? cfg.bg : 'none', color: ativo ? cfg.text : 'var(--text-soft)', transition:'all 0.15s' }}>
+                  {cfg.label}
+                </button>
+              )
+            })}
+          </div>
+        ) : null
+      case 'prioridade':    return null
+      case 'responsavel':
+        return (
+          <select style={inp} value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
+            {RESPONSAVEIS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+          </select>
+        )
+      case 'empresa_id':
+        return (
+          <select style={inp} value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}>
+            <option value="">— Selecione —</option>
+            {empresasAtivas.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
+          </select>
+        )
+      case 'oportunidade_id': return null
+      case 'data_prevista':
+        return <input type="date" style={inp} value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)} />
+      case 'data_conclusao':
+        return <input type="date" style={inp} value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
+      case 'descricao':
+        return <textarea style={{ ...inp, height:72, resize:'vertical' }} value={form.descricao || ''} placeholder="Objetivos, conteúdo programático, observações…" onChange={e => set('descricao', e.target.value)} />
+      default: return null
+    }
+  }
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -230,89 +280,17 @@ function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
           <div style={ov.body}>
 
-            {/* Tipo — dropdown inline flutuante */}
+            {/* Tipo — dropdown inline flutuante — fixo */}
             <TipoAcaoDropdown value={form.tipo} onChange={v => set('tipo', v)} tiposMap={tiposMap} />
 
-            {/* Título */}
-            <Field label="Título *">
-              <input style={inp} value={form.titulo} autoFocus
-                onChange={e => set('titulo', e.target.value)}
-                placeholder="Ex: Treinamento Técnico Plataforma v3" />
-            </Field>
-
-            {/* Unidade + Responsável */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label="Unidade / Franquia *">
-                <select style={inp} value={form.empresa_id}
-                  onChange={e => set('empresa_id', e.target.value)}>
-                  <option value="">— Selecione —</option>
-                  {empresasAtivas.map(e => (
-                    <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Responsável ISV">
-                <select style={inp} value={form.responsavel_id}
-                  onChange={e => set('responsavel_id', e.target.value)}>
-                  {RESPONSAVEIS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
-                </select>
-              </Field>
-            </div>
-
-            {/* Datas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <Field label="Data de início *">
-                <input type="date" style={inp} value={form.data_inicio}
-                  onChange={e => set('data_inicio', e.target.value)} />
-              </Field>
-              <Field label="Data de término">
-                <input type="date" style={inp} value={form.data_fim || ''}
-                  onChange={e => set('data_fim', e.target.value)} />
-              </Field>
-            </div>
-
-            {/* Local + Vagas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14 }}>
-              <Field label="Local / Formato">
-                <input style={inp} value={form.local || ''} placeholder="Ex: Online — Zoom, São Paulo — Sede"
-                  onChange={e => set('local', e.target.value)} />
-              </Field>
-              <Field label="Vagas">
-                <input type="number" min="1" style={inp} value={form.vagas || ''}
-                  placeholder="—" onChange={e => set('vagas', e.target.value)} />
-              </Field>
-            </div>
-
-            {/* Descrição */}
-            <Field label="Descrição">
-              <textarea style={{ ...inp, height: 72, resize: 'vertical' }}
-                value={form.descricao || ''} placeholder="Objetivos, conteúdo programático, observações…"
-                onChange={e => set('descricao', e.target.value)} />
-            </Field>
-
-            {/* Status */}
-            {isEditing && (
-              <Field label="Status">
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {Object.entries(STATUS_ACAO).map(([k, cfg]) => {
-                    const ativo = form.status === k
-                    return (
-                      <button key={k} type="button" onClick={() => set('status', k)}
-                        style={{
-                          padding: '6px 13px', borderRadius: 8, cursor: 'pointer',
-                          fontFamily: 'var(--font)', fontSize: 12, fontWeight: ativo ? 700 : 500,
-                          border: `1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
-                          background: ativo ? cfg.bg : 'none',
-                          color: ativo ? cfg.text : 'var(--text-soft)',
-                          transition: 'all 0.15s',
-                        }}>
-                        {cfg.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </Field>
-            )}
+            {/* Campos configuráveis via Conf. de Campos */}
+            <DynamicFormLayout
+              sections={acSections}
+              fieldById={acFieldById}
+              renderField={renderAcaoField}
+              sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+              labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
+            />
 
           </div>
 

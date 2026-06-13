@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import SearchSelect from '../components/SearchSelect'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCPF(v) {
@@ -353,6 +355,56 @@ function FuncionarioModal({ onClose, onSave, onDelete, initial, companies }) {
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
+  const { sections: veSections, fieldById: veFieldById } = useFormLayout('sellers')
+
+  function renderVendedorField(key) {
+    switch (key) {
+      case 'nome':
+        return <input style={m.input} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo" required />
+      case 'email':
+        return <input style={m.input} type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
+      case 'telefone':
+        return <input style={m.input} value={form.telefone} onChange={e => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+      case 'cargo':
+        return (
+          <select style={m.input} value={form.role} onChange={e => set('role', e.target.value)}>
+            {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        )
+      case 'status':
+        return (
+          <select style={m.input} value={form.status} onChange={e => set('status', e.target.value)}>
+            {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        )
+      case 'regiao':
+        return (
+          <select style={m.input} value={form.regiao} onChange={e => set('regiao', e.target.value)}>
+            <option value="">Selecionar…</option>
+            {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
+          </select>
+        )
+      case 'equipe':
+        return (
+          <SearchSelect
+            options={franchiseOptions}
+            value={form.franquia_id}
+            onChange={(id, nome) => setForm(f => ({ ...f, franquia_id: id, franquia_nome: nome || '' }))}
+            placeholder="Pesquisar franquia…"
+            allowClear
+            inputStyle={m.input}
+          />
+        )
+      case 'data_admissao': return null
+      case 'meta_mensal':
+        return <input style={m.input} type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0,00" />
+      case 'comissao_perc': return null
+      case 'observacoes':
+        return <textarea style={{ ...m.input, resize:'vertical', minHeight:72 }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
+      default: return null
+    }
+  }
+
   function handleSubmit(e) {
     e.preventDefault()
     if (!form.nome.trim()) return
@@ -371,78 +423,13 @@ function FuncionarioModal({ onClose, onSave, onDelete, initial, companies }) {
         </div>
         <form onSubmit={handleSubmit} style={{ display:'contents' }}>
           <div style={m.body}>
-            <SectionLabel>Dados Pessoais</SectionLabel>
-            <div style={m.grid2}>
-              <Field label="Nome" required>
-                <input style={m.input} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo" required />
-              </Field>
-              <Field label="CPF">
-                <input style={m.input} value={form.cpf}
-                  onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00" />
-              </Field>
-            </div>
-            <div style={m.grid2}>
-              <Field label="E-mail">
-                <input style={m.input} type="email" value={form.email}
-                  onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
-              </Field>
-              <Field label="Telefone">
-                <input style={m.input} value={form.telefone}
-                  onChange={e => set('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
-              </Field>
-            </div>
-
-            <SectionLabel>Atuação</SectionLabel>
-            <div style={m.grid2}>
-              <Field label="Role" required>
-                <select style={m.input} value={form.role} onChange={e => set('role', e.target.value)}>
-                  {Object.entries(ROLES).map(([k, v]) => (
-                    <option key={k} value={k}>{v.label}</option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Região">
-                <select style={m.input} value={form.regiao} onChange={e => set('regiao', e.target.value)}>
-                  <option value="">Selecionar…</option>
-                  {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
-                </select>
-              </Field>
-            </div>
-            <div style={m.grid2}>
-              <Field label="Empresa">
-                <CompanySearch
-                  value={form.company_id}
-                  valueName={companyName}
-                  onChange={id => set('company_id', id)}
-                  companies={companies}
-                />
-              </Field>
-              <Field label="Status">
-                <select style={m.input} value={form.status} onChange={e => set('status', e.target.value)}>
-                  {Object.entries(STATUS_MAP).map(([k, v]) => (
-                    <option key={k} value={k}>{v.label}</option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <Field label="Franquia">
-              <SearchSelect
-                options={franchiseOptions}
-                value={form.franquia_id}
-                onChange={(id, nome) => setForm(f => ({ ...f, franquia_id: id, franquia_nome: nome || '' }))}
-                placeholder="Pesquisar franquia…"
-                allowClear
-                inputStyle={m.input}
-              />
-            </Field>
-            <Field label="Meta Mensal (R$)">
-              <input style={m.input} type="number" min="0" value={form.meta_mensal}
-                onChange={e => set('meta_mensal', e.target.value)} placeholder="0,00" />
-            </Field>
-            <Field label="Observações">
-              <textarea style={{ ...m.input, resize:'vertical', minHeight:72 }} value={form.observacoes}
-                onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
-            </Field>
+            <DynamicFormLayout
+              sections={veSections}
+              fieldById={veFieldById}
+              renderField={renderVendedorField}
+              sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+              labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
+            />
           </div>
           <div style={m.footer}>
             {initial

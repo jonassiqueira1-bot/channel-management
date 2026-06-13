@@ -5,6 +5,8 @@ import { MOCK_PAGAMENTOS, PAGAMENTOS_STORAGE_KEY, STATUS_PAGAMENTO } from '../da
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 const ACCENT = '#6366F1'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -945,6 +947,33 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
   const rInp = { ...inp, paddingLeft:28, fontFamily:'var(--mono)', fontWeight:600 }
   const statusOptions = Object.entries(STATUS_PAGAMENTO).map(([k, v]) => ({ value: k, label: v.label }))
 
+  const { sections: pgSections, fieldById: pgFieldById } = useFormLayout('payments')
+
+  function renderPagamentoField(key) {
+    switch (key) {
+      case 'referencia':
+        return <input style={inp} value={form.contract_numero} placeholder="CTR-2024-001" onChange={e => set('contract_numero', e.target.value)} />
+      case 'empresa_id':
+        return <input style={inp} value={form.company_nome} placeholder="Nome da empresa" onChange={e => set('company_nome', e.target.value)} />
+      case 'tipo':        return null
+      case 'status':
+        return (
+          <select style={inp} value={form.status} onChange={e => set('status', e.target.value)}>
+            {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )
+      case 'valor':       return null  // calculado a partir dos componentes CDU/SMS/Serviços
+      case 'vencimento':
+        return <input type="date" style={inp} value={form.due_date} onChange={e => set('due_date', e.target.value)} />
+      case 'data_pagamento':
+        return <input type="month" style={inp} value={form.reference_month.slice(0, 7)} onChange={e => set('reference_month', e.target.value + '-01')} />
+      case 'descricao':
+        return <input style={inp} value={form.notes || ''} placeholder="Observações opcionais…" onChange={e => set('notes', e.target.value)} />
+      case 'observacoes': return null
+      default:            return null
+    }
+  }
+
   return (
     <div style={ov.wrap} onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ ...ov.modal, maxWidth: 560 }}>
@@ -957,36 +986,16 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
         </div>
 
         <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
-          {/* Contrato + Empresa */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <div>
-              <label style={SL}>Nº Contrato <span style={{ color:'var(--red)' }}>*</span></label>
-              <input style={inp} value={form.contract_numero} placeholder="CTR-2024-001"
-                onChange={e => set('contract_numero', e.target.value)} />
-            </div>
-            <div>
-              <label style={SL}>Empresa <span style={{ color:'var(--red)' }}>*</span></label>
-              <input style={inp} value={form.company_nome} placeholder="Nome da empresa"
-                onChange={e => set('company_nome', e.target.value)} />
-            </div>
-          </div>
+          {/* Campos configuráveis via Conf. de Campos */}
+          <DynamicFormLayout
+            sections={pgSections}
+            fieldById={pgFieldById}
+            renderField={renderPagamentoField}
+            sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+            labelStyle={SL}
+          />
 
-          {/* Competência + Vencimento */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-            <div>
-              <label style={SL}>Competência (mês referência)</label>
-              <input type="month" style={inp}
-                value={form.reference_month.slice(0, 7)}
-                onChange={e => set('reference_month', e.target.value + '-01')} />
-            </div>
-            <div>
-              <label style={SL}>Vencimento</label>
-              <input type="date" style={inp} value={form.due_date}
-                onChange={e => set('due_date', e.target.value)} />
-            </div>
-          </div>
-
-          {/* Valores */}
+          {/* Composição de valores — fixo */}
           <div>
             <label style={{ ...SL, marginBottom:10 }}>Composição de valores</label>
             <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:14 }}>
@@ -1017,20 +1026,6 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
             </div>
           </div>
 
-          {/* Status */}
-          <div>
-            <label style={SL}>Status</label>
-            <select style={inp} value={form.status} onChange={e => set('status', e.target.value)}>
-              {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          {/* Observações */}
-          <div>
-            <label style={SL}>Observações</label>
-            <input style={inp} value={form.notes} placeholder="Observações opcionais…"
-              onChange={e => set('notes', e.target.value)} />
-          </div>
         </div>
 
         <div style={ov.footer}>

@@ -9,6 +9,8 @@ import {
 import { useLocalState } from '../hooks/useLocalState'
 import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 const ACCENT = 'var(--accent)'
 
@@ -218,7 +220,45 @@ function KanbanColuna({ fase, projetos, blockedIds, execTotals, onEdit, onDragSt
 // ─── Novo Projeto Modal ───────────────────────────────────────────────────────
 function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, phase: defaultPhase || 'iniciacao', current_phase_index: defaultPhaseIndex || 1 })
-  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
+  const { sections, fieldById } = useFormLayout('projects')
+
+  function renderField(key) {
+    switch (key) {
+      case 'name':
+        return <input style={ms.inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Implantação ERP — Empresa X" />
+      case 'company_nome':
+        return <input style={ms.inp} value={form.company_nome} onChange={e => setForm(f => ({ ...f, company_nome: e.target.value }))} placeholder="Nexus Tech" />
+      case 'franchise_nome':
+        return <input style={ms.inp} value={form.franchise_nome} onChange={e => setForm(f => ({ ...f, franchise_nome: e.target.value }))} placeholder="Canal SP Sul" />
+      case 'phase':
+        return (
+          <select style={ms.inp} value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
+            {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+          </select>
+        )
+      case 'status':
+        return (
+          <select style={ms.inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        )
+      case 'start_date':
+        return <input style={ms.inp} type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
+      case 'end_date_estimated':
+        return <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => setForm(f => ({ ...f, end_date_estimated: e.target.value }))} />
+      case 'total_hours_estimated':
+        return <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => setForm(f => ({ ...f, total_hours_estimated: e.target.value }))} placeholder="160" />
+      case 'notes':
+        return <textarea style={{ ...ms.inp, height: 72, resize: 'vertical' }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+      // campos somente-leitura ou não editáveis no modal de criação
+      case 'opportunity_id':
+      case 'total_hours_executed':
+        return null
+      default:
+        return null
+    }
+  }
+
   return (
     <div style={ms.overlay} onMouseDown={e => e.target === e.currentTarget && onClose()}>
       <div style={ms.modal}>
@@ -227,55 +267,13 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
           <button onClick={onClose} style={{ ...ms.btn, padding: '4px 10px', fontSize: 18, lineHeight: 1 }}>×</button>
         </div>
         <div style={ms.mBody}>
-          <div style={ms.sectionLbl}>Identificação</div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Nome do projeto *</label>
-            <input style={ms.inp} value={form.name} onChange={set('name')} placeholder="Ex: Implantação ERP — Empresa X" />
-          </div>
-          <div style={ms.row}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Empresa cliente</label>
-              <input style={ms.inp} value={form.company_nome} onChange={set('company_nome')} placeholder="Nexus Tech" />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Canal / Franquia</label>
-              <input style={ms.inp} value={form.franchise_nome} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
-            </div>
-          </div>
-          <div style={ms.sectionLbl}>Fase e Status</div>
-          <div style={ms.row}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Fase inicial MIT</label>
-              <select style={ms.inp} value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
-                {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Status</label>
-              <select style={ms.inp} value={form.status} onChange={set('status')}>
-                {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-          </div>
-          <div style={ms.sectionLbl}>Horas e Cronograma</div>
-          <div style={ms.row}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Horas estimadas (total)</label>
-              <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={set('total_hours_estimated')} placeholder="160" />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Início</label>
-              <input style={ms.inp} type="date" value={form.start_date} onChange={set('start_date')} />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Previsão término</label>
-              <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={set('end_date_estimated')} />
-            </div>
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Observações</label>
-            <textarea style={{ ...ms.inp, height: 72, resize: 'vertical' }} value={form.notes} onChange={set('notes')} />
-          </div>
+          <DynamicFormLayout
+            sections={sections}
+            fieldById={fieldById}
+            renderField={renderField}
+            sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+            labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', display:'block', marginBottom:4 }}
+          />
         </div>
         <div style={ms.mFooter}>
           <button style={ms.btn} onClick={onClose}>Cancelar</button>

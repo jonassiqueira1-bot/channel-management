@@ -3,6 +3,8 @@ import { MOCK_EMPRESAS as INITIAL_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -205,6 +207,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
   const [cnpjStatus, setCnpjStatus] = useState(null)
   const [cepStatus,  setCepStatus]  = useState(null)
   const [tab, setTab]               = useState('dados')
+  const { sections, fieldById } = useFormLayout('companies')
 
   // ── Relacionamentos persistidos ──────────────────────────────────────────
   const [contatos, setContatos]     = useLocalState('empresa:contatos:' + item?.id, [])
@@ -303,108 +306,140 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
   const origemOptions = [{ value:'', label:'—' }, ...ORIGENS.map(o => ({ value:o, label:o }))]
   const nivelOptions  = [{ value:'', label:'Selecionar…' }, ...['Platinum','Ouro','Prata','Bronze'].map(n => ({ value:n, label:n }))]
 
+  // ── renderField: mapeamento campo → input (sem label, DynamicFormLayout adiciona) ──
+  function renderField(key) {
+    switch (key) {
+      case 'razao':
+        return <input style={{ ...inpStyle, fontSize:15, fontWeight:700 }} value={form.razao}
+          onChange={e => setForm(f => ({ ...f, razao: e.target.value }))}
+          onBlur={e => patch('razao', e.target.value)} placeholder="Razão Social da empresa…" />
+      case 'fantasia':
+        return <input style={inpStyle} value={form.fantasia || ''}
+          onChange={e => setForm(f => ({ ...f, fantasia: e.target.value }))}
+          onBlur={e => patch('fantasia', e.target.value)} placeholder="Nome fantasia (se diferente)" />
+      case 'cnpj':
+        return (
+          <>
+            <div style={{ position:'relative' }}>
+              <input style={{ ...inpStyle, paddingRight:90,
+                ...(cnpjStatus?.type === 'error' ? { border:'1px solid var(--red)', background:'rgba(220,38,38,0.05)' } : {}) }}
+                value={form.cnpj}
+                onChange={e => { set('cnpj', fmtCNPJ(e.target.value)); setCnpjStatus(null) }}
+                onBlur={lookupCNPJ}
+                placeholder="00.000.000/0001-00" />
+              <button type="button" onClick={lookupCNPJ}
+                style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
+                  padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)',
+                  borderRadius:6, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
+                {cnpjStatus?.type === 'loading' ? '…' : '🔍 Buscar'}
+              </button>
+            </div>
+            <LookupStatus state={cnpjStatus} />
+          </>
+        )
+      case 'inscricao_estadual':
+        return <input style={inpStyle} value={form.inscricao_estadual || ''}
+          onChange={e => setForm(f => ({ ...f, inscricao_estadual: e.target.value }))}
+          onBlur={e => patch('inscricao_estadual', e.target.value)} placeholder="Inscrição Estadual" />
+      case 'tipo':
+        return <select style={inpStyle} value={form.tipo} onChange={e => patch('tipo', e.target.value)}>
+          {tipoOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      case 'status':
+        return <select style={inpStyle} value={form.status} onChange={e => patch('status', e.target.value)}>
+          {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      case 'segmento':
+        return <select style={inpStyle} value={form.segmento || ''} onChange={e => patch('segmento', e.target.value)}>
+          {segOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      case 'cnae_codigo':
+        return <input style={{ ...inpStyle, fontFamily:'var(--mono)' }} value={form.cnae_codigo || ''}
+          onChange={e => setForm(f => ({ ...f, cnae_codigo: e.target.value }))}
+          onBlur={e => patch('cnae_codigo', e.target.value)} placeholder="0000-0/00" />
+      case 'email':
+        return <input style={inpStyle} type="email" value={form.email || ''}
+          onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+          onBlur={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
+      case 'telefone':
+        return <input style={inpStyle} value={form.telefone || ''}
+          onChange={e => setForm(f => ({ ...f, telefone: fmtPhone(e.target.value) }))}
+          onBlur={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+      case 'site':
+        return <input style={inpStyle} value={form.site || ''}
+          onChange={e => setForm(f => ({ ...f, site: e.target.value }))}
+          onBlur={e => patch('site', e.target.value)} placeholder="https://empresa.com.br" />
+      case 'origem':
+        return <select style={inpStyle} value={form.origem || ''} onChange={e => patch('origem', e.target.value)}>
+          {origemOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </select>
+      case 'responsavel':
+        return <input style={inpStyle} value={form.responsavel || ''}
+          onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))}
+          onBlur={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
+      case 'cep':
+        return (
+          <>
+            <div style={{ position:'relative' }}>
+              <input style={{ ...inpStyle, paddingRight:46 }}
+                value={form.cep}
+                onChange={e => { set('cep', fmtCEP(e.target.value)); setCepStatus(null) }}
+                onBlur={lookupCEP} placeholder="00000-000" />
+              <button type="button" onClick={lookupCEP}
+                style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)',
+                  padding:'3px 8px', background:'none', border:'1px solid var(--border)',
+                  borderRadius:5, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
+                {cepStatus?.type === 'loading' ? '…' : '↗'}
+              </button>
+            </div>
+            <LookupStatus state={cepStatus} />
+          </>
+        )
+      case 'logradouro':
+        return <input style={inpStyle} value={form.logradouro || ''}
+          onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))}
+          onBlur={e => patch('logradouro', e.target.value)} placeholder="Logradouro" />
+      case 'numero':
+        return <input style={inpStyle} value={form.numero || ''}
+          onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+          onBlur={e => patch('numero', e.target.value)} placeholder="Nº" />
+      case 'complemento':
+        return <input style={inpStyle} value={form.complemento || ''}
+          onChange={e => setForm(f => ({ ...f, complemento: e.target.value }))}
+          onBlur={e => patch('complemento', e.target.value)} placeholder="Apto, bloco, sala…" />
+      case 'bairro':
+        return <input style={inpStyle} value={form.bairro || ''}
+          onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+          onBlur={e => patch('bairro', e.target.value)} placeholder="Bairro" />
+      case 'cidade':
+        return <input style={inpStyle} value={form.cidade || ''}
+          onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
+          onBlur={e => patch('cidade', e.target.value)} placeholder="Cidade" />
+      case 'uf':
+        return <input style={{ ...inpStyle, fontFamily:'var(--mono)', textTransform:'uppercase' }}
+          value={form.uf || ''} maxLength={2}
+          onChange={e => setForm(f => ({ ...f, uf: e.target.value.slice(0,2) }))}
+          onBlur={e => patch('uf', e.target.value)} placeholder="UF" />
+      case 'observacoes':
+        return <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
+          placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
+      default:
+        return null
+    }
+  }
+
   // ── Conteúdo das abas ───────────────────────────────────────────────────
 
   function TabDados() {
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-        {/* Razão Social */}
-        <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
-          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}>
-          <label style={lbl}>Razão Social</label>
-          <input value={form.razao} onChange={e => setForm(f => ({ ...f, razao: e.target.value }))}
-            onBlur={e => patch('razao', e.target.value)}
-            placeholder="Razão Social da empresa…"
-            style={{ ...inpStyle, fontSize:18, fontWeight:700, padding:'10px 14px' }} />
-          <div style={{ marginTop:10 }}>
-            <label style={lbl}>Nome Fantasia</label>
-            <input style={inpStyle} value={form.fantasia || ''}
-              onChange={e => setForm(f => ({ ...f, fantasia: e.target.value }))}
-              onBlur={e => patch('fantasia', e.target.value)}
-              placeholder="Nome fantasia (se diferente)" />
-          </div>
-        </div>
-
-        {/* CNPJ com lookup */}
-        <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
-          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}>
-          <label style={lbl}>Identificação Fiscal</label>
-          {form.tipo === 'rascunho' && (
-            <div style={{ display:'flex', alignItems:'center', gap:7, padding:'7px 11px', marginBottom:10,
-              background:'#F8FAFC', border:'1px dashed #CBD5E1', borderRadius:7, fontSize:12, color:'#64748B' }}>
-              <span style={{ fontSize:14 }}>✏️</span>
-              Empresa em Rascunho — CNPJ não obrigatório. Preencha para ativar a busca na Receita Federal.
-            </div>
-          )}
-          <div style={{ position:'relative' }}>
-            <input style={{ ...inpStyle, paddingRight:90,
-              ...(cnpjStatus?.type === 'error' ? { border:'1px solid var(--red)', background:'rgba(220,38,38,0.05)' } : {}),
-              ...(form.tipo === 'rascunho' && !form.cnpj ? { borderStyle:'dashed', color:'var(--text-muted)' } : {}) }}
-              value={form.cnpj}
-              onChange={e => { set('cnpj', fmtCNPJ(e.target.value)); setCnpjStatus(null) }}
-              onBlur={lookupCNPJ}
-              placeholder={form.tipo === 'rascunho' ? 'Opcional para rascunho' : '00.000.000/0001-00'} />
-            <button type="button"
-              style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
-                padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)',
-                borderRadius:6, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}
-              onClick={lookupCNPJ}>
-              {cnpjStatus?.type === 'loading' ? '…' : '🔍 Buscar'}
-            </button>
-          </div>
-          <LookupStatus state={cnpjStatus} />
-        </div>
-
-        {/* Endereço */}
-        <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
-          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}>
-          <label style={lbl}>Endereço</label>
-          <div style={{ display:'flex', gap:8, marginBottom:8 }}>
-            <div style={{ position:'relative', width:140 }}>
-              <input style={{ ...inpStyle, paddingRight:46 }}
-                value={form.cep}
-                onChange={e => { set('cep', fmtCEP(e.target.value)); setCepStatus(null) }}
-                onBlur={lookupCEP}
-                placeholder="CEP" />
-              <button type="button"
-                style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)',
-                  padding:'3px 8px', background:'none', border:'1px solid var(--border)',
-                  borderRadius:5, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}
-                onClick={lookupCEP}>
-                {cepStatus?.type === 'loading' ? '…' : '↗'}
-              </button>
-            </div>
-            <input style={{ ...inpStyle, flex:1 }} value={form.logradouro}
-              onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))}
-              onBlur={e => patch('logradouro', e.target.value)} placeholder="Logradouro" />
-            <input style={{ ...inpStyle, width:70 }} value={form.numero}
-              onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-              onBlur={e => patch('numero', e.target.value)} placeholder="Nº" />
-          </div>
-          <LookupStatus state={cepStatus} />
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 56px', gap:8, marginTop: cepStatus ? 8 : 0 }}>
-            {[['bairro','Bairro'],['cidade','Cidade'],['uf','UF']].map(([k,ph]) => (
-              <input key={k} style={{ ...inpStyle, ...(k==='uf' ? { fontFamily:'var(--mono)', textTransform:'uppercase' } : {}) }}
-                value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: e.target.value.slice(0, k==='uf'?2:999) }))}
-                onBlur={e => patch(k, e.target.value)} placeholder={ph} maxLength={k==='uf'?2:undefined} />
-            ))}
-          </div>
-          <div style={{ marginTop:8 }}>
-            <input style={inpStyle} value={form.complemento || ''}
-              onChange={e => setForm(f => ({ ...f, complemento: e.target.value }))}
-              onBlur={e => patch('complemento', e.target.value)}
-              placeholder="Complemento (apto, bloco, sala…)" />
-          </div>
-        </div>
-
-        {/* Observações */}
-        <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
-          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}>
-          <label style={lbl}>Observações</label>
-          <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
-            placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
-        </div>
-
+        <DynamicFormLayout
+          sections={sections}
+          fieldById={fieldById}
+          renderField={renderField}
+          sectionStyle={{ background:'var(--surface)', borderRadius:12, padding:'18px 22px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}
+          labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
+        />
         {isNew && (
           <button onClick={() => {
             if (!form.razao.trim()) return alert('Razão social é obrigatória')

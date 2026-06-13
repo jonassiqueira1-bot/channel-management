@@ -1,27 +1,21 @@
 /**
  * Configuração de Campos — Layout Editor
- * Benchmark: Zoho CRM Layout Editor
- *
- * Modelo de dados (localStorage):
- *   settings:form_fields_v2   → definições dos campos (id, label, tipo, etc.)
- *   settings:form_layout_v2   → layout por entidade: seções com slots 2 colunas
- *
- * Drag-and-drop via dnd-kit:
- *   – Arraste da sidebar (campos disponíveis) para um slot do formulário
- *   – Arraste entre slots para reposicionar
- *   – Arraste de volta para a sidebar para remover do layout
+ * 3 painéis: Campos disponíveis | Editor drag-drop | Pré-visualização ao vivo
+ * Auto-save via useLocalState (sem botão Salvar)
  */
 
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { FIELDS_SEED, LAYOUT_SEED } from '../../data/formSeeds'
 import {
   DndContext, DragOverlay, closestCenter, PointerSensor,
   useSensor, useSensors, useDroppable, useDraggable,
 } from '@dnd-kit/core'
 import {
   Lock, Plus, X, Pencil, GripVertical, ChevronUp,
-  ChevronDown, Settings, Columns, AlignLeft, Hash,
-  Calendar, ToggleLeft, List, Type, Trash2, Check,
+  ChevronDown, Trash2, Check, Eye, EyeOff, Search,
+  Type, AlignLeft, Hash, Calendar, ToggleLeft, List,
+  LayoutTemplate,
 } from 'lucide-react'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -32,6 +26,11 @@ const ENTIDADES = [
   { id: 'companies',     label: 'Empresas',       emoji: '🏢' },
   { id: 'opportunities', label: 'Oportunidades',  emoji: '📈' },
   { id: 'projects',      label: 'Projetos',       emoji: '🗂' },
+  { id: 'products',      label: 'Produtos',       emoji: '📦' },
+  { id: 'contracts',     label: 'Contratos',      emoji: '📄' },
+  { id: 'payments',      label: 'Pagamentos',     emoji: '💳' },
+  { id: 'actions',       label: 'Ações',          emoji: '⚡' },
+  { id: 'sellers',       label: 'Vendedores',     emoji: '👤' },
 ]
 
 const TIPOS = [
@@ -54,161 +53,6 @@ const TIPO_META = {
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
 
-// ─── Seeds ────────────────────────────────────────────────────────────────────
-const FIELDS_SEED = [
-  // ── Empresas (field_key bate com EMPTY_FORM em Empresas.js) ──────────────
-  { id:'sf_co_razao',    entity:'companies', field_key:'razao',              label:'Razão Social',          field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_co_cnpj',     entity:'companies', field_key:'cnpj',               label:'CNPJ',                  field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_co_fantasia', entity:'companies', field_key:'fantasia',           label:'Nome Fantasia',          field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_tipo',     entity:'companies', field_key:'tipo',               label:'Tipo',                  field_type:'select',   options:['cliente_final','canal','distribuidor','parceiro','isv'], is_required:false, is_system:true  },
-  { id:'sf_co_status',   entity:'companies', field_key:'status',             label:'Status',                field_type:'select',   options:['negociacao','ativo','inativo','prospecto'], is_required:false, is_system:true  },
-  { id:'sf_co_segmento', entity:'companies', field_key:'segmento',           label:'Segmento',              field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_cnae',     entity:'companies', field_key:'cnae_codigo',        label:'CNAE',                  field_type:'text',     options:[], is_required:false, is_system:true  },
-  { id:'sf_co_ie',       entity:'companies', field_key:'inscricao_estadual', label:'Inscrição Estadual',    field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_email',    entity:'companies', field_key:'email',              label:'E-mail',                field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_telefone', entity:'companies', field_key:'telefone',           label:'Telefone',              field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_site',     entity:'companies', field_key:'site',               label:'Site',                  field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_origem',   entity:'companies', field_key:'origem',             label:'Origem',                field_type:'select',   options:['Inbound','Outbound','Indicação','Evento','Parceiro'], is_required:false, is_system:false },
-  { id:'sf_co_resp',     entity:'companies', field_key:'responsavel',        label:'Responsável',           field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_cep',      entity:'companies', field_key:'cep',                label:'CEP',                   field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_logr',     entity:'companies', field_key:'logradouro',         label:'Logradouro',            field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_num',      entity:'companies', field_key:'numero',             label:'Número',                field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_compl',    entity:'companies', field_key:'complemento',        label:'Complemento',           field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_bairro',   entity:'companies', field_key:'bairro',             label:'Bairro',                field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_cidade',   entity:'companies', field_key:'cidade',             label:'Cidade',                field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_uf',       entity:'companies', field_key:'uf',                 label:'UF',                    field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_co_obs',      entity:'companies', field_key:'observacoes',        label:'Observações',           field_type:'textarea', options:[], is_required:false, is_system:false },
-
-  // ── Oportunidades (field_key bate com EMPTY_OPP em Pipeline.js) ──────────
-  { id:'sf_op_titulo',   entity:'opportunities', field_key:'titulo',               label:'Título',                field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_op_empresa',  entity:'opportunities', field_key:'empresa_id',           label:'Empresa',               field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_op_contato',  entity:'opportunities', field_key:'primary_contact_id',   label:'Contato Principal',     field_type:'text',     options:[], is_required:false, is_system:true  },
-  { id:'sf_op_situacao', entity:'opportunities', field_key:'situacao',             label:'Situação',              field_type:'select',   options:['em_andamento','ganha','perdida'], is_required:false, is_system:true  },
-  { id:'sf_op_etapa',    entity:'opportunities', field_key:'etapa_id',             label:'Etapa do Funil',        field_type:'text',     options:[], is_required:false, is_system:true  },
-  { id:'sf_op_resp',     entity:'opportunities', field_key:'responsavel',          label:'Responsável',           field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_op_origem',   entity:'opportunities', field_key:'origem',               label:'Origem',                field_type:'select',   options:['Inbound','Outbound','Canal','Indicação','Evento'], is_required:false, is_system:false },
-  { id:'sf_op_campanha', entity:'opportunities', field_key:'campanha_id',          label:'Campanha',              field_type:'select',   options:[], is_required:false, is_system:false },
-  { id:'sf_op_prazo',    entity:'opportunities', field_key:'prazo',                label:'Prazo de Fechamento',   field_type:'date',     options:[], is_required:false, is_system:false },
-  { id:'sf_op_playbook', entity:'opportunities', field_key:'playbook_id',          label:'Playbook',              field_type:'select',   options:[], is_required:false, is_system:false },
-  { id:'sf_op_cdu',      entity:'opportunities', field_key:'valor_cdu',            label:'Valor CDU',             field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_op_sms',      entity:'opportunities', field_key:'valor_sms',            label:'Valor SMS',             field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_op_servico',  entity:'opportunities', field_key:'valor_servico',        label:'Valor Serviço',         field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_op_desconto', entity:'opportunities', field_key:'valor_desconto',       label:'Desconto',              field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_op_tipo_imp', entity:'opportunities', field_key:'tipo_implantacao',     label:'Tipo de Implantação',   field_type:'select',   options:['Padrão','Customizada','Expressa'], is_required:false, is_system:false },
-  { id:'sf_op_segindu',  entity:'opportunities', field_key:'segmento_industria',   label:'Segmento / Indústria',  field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_op_integ',    entity:'opportunities', field_key:'exige_integracao',     label:'Exige Integração',      field_type:'boolean',  options:[], is_required:false, is_system:false },
-  { id:'sf_op_motivo',   entity:'opportunities', field_key:'motivo_perda',         label:'Motivo de Perda',       field_type:'textarea', options:[], is_required:false, is_system:false },
-  { id:'sf_op_desc',     entity:'opportunities', field_key:'descricao',            label:'Observações',           field_type:'textarea', options:[], is_required:false, is_system:false },
-
-  // ── Projetos (field_key bate com EMPTY_FORM em Projetos.js) ──────────────
-  { id:'sf_pr_nome',     entity:'projects', field_key:'name',                 label:'Nome do Projeto',       field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_pr_empresa',  entity:'projects', field_key:'company_nome',         label:'Empresa',               field_type:'text',     options:[], is_required:true,  is_system:true  },
-  { id:'sf_pr_franquia', entity:'projects', field_key:'franchise_nome',       label:'Franquia',              field_type:'text',     options:[], is_required:false, is_system:true  },
-  { id:'sf_pr_fase',     entity:'projects', field_key:'phase',                label:'Fase',                  field_type:'select',   options:['iniciacao','planejamento','execucao','monitoramento','encerramento'], is_required:true, is_system:true },
-  { id:'sf_pr_status',   entity:'projects', field_key:'status',               label:'Status',                field_type:'select',   options:['em_andamento','pausado','concluido','cancelado'], is_required:false, is_system:true  },
-  { id:'sf_pr_opp',      entity:'projects', field_key:'opportunity_id',       label:'Oportunidade de Origem',field_type:'text',     options:[], is_required:false, is_system:true  },
-  { id:'sf_pr_inicio',   entity:'projects', field_key:'start_date',           label:'Data de Início',        field_type:'date',     options:[], is_required:false, is_system:false },
-  { id:'sf_pr_fim',      entity:'projects', field_key:'end_date_estimated',   label:'Previsão de Término',   field_type:'date',     options:[], is_required:false, is_system:false },
-  { id:'sf_pr_hest',     entity:'projects', field_key:'total_hours_estimated',label:'Horas Estimadas',       field_type:'number',   options:[], is_required:false, is_system:false },
-  { id:'sf_pr_hexec',    entity:'projects', field_key:'total_hours_executed', label:'Horas Executadas',      field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_pr_desc',     entity:'projects', field_key:'notes',                label:'Observações',           field_type:'textarea', options:[], is_required:false, is_system:false },
-]
-
-// Layout inicial
-const LAYOUT_SEED = {
-  companies: {
-    sections: [
-      {
-        id: 'sec_co_1', label: 'Identificação',
-        rows: [
-          ['sf_co_razao',    'sf_co_fantasia'],
-          ['sf_co_cnpj',     'sf_co_ie'],
-          ['sf_co_tipo',     'sf_co_status'],
-          ['sf_co_segmento', 'sf_co_cnae'],
-        ],
-      },
-      {
-        id: 'sec_co_2', label: 'Contato',
-        rows: [
-          ['sf_co_email',    'sf_co_telefone'],
-          ['sf_co_site',     'sf_co_origem'],
-          ['sf_co_resp',     null],
-        ],
-      },
-      {
-        id: 'sec_co_3', label: 'Endereço',
-        rows: [
-          ['sf_co_cep',    'sf_co_logr'],
-          ['sf_co_num',    'sf_co_compl'],
-          ['sf_co_bairro', 'sf_co_cidade'],
-          ['sf_co_uf',     null],
-        ],
-      },
-      {
-        id: 'sec_co_4', label: 'Observações',
-        rows: [
-          ['sf_co_obs', null],
-        ],
-      },
-    ],
-  },
-  opportunities: {
-    sections: [
-      {
-        id: 'sec_op_1', label: 'Identificação',
-        rows: [
-          ['sf_op_titulo',   'sf_op_empresa'],
-          ['sf_op_contato',  'sf_op_resp'],
-          ['sf_op_situacao', 'sf_op_etapa'],
-          ['sf_op_origem',   'sf_op_campanha'],
-          ['sf_op_prazo',    'sf_op_playbook'],
-        ],
-      },
-      {
-        id: 'sec_op_2', label: 'Valores',
-        rows: [
-          ['sf_op_cdu',      'sf_op_sms'],
-          ['sf_op_servico',  'sf_op_desconto'],
-        ],
-      },
-      {
-        id: 'sec_op_3', label: 'Detalhes',
-        rows: [
-          ['sf_op_tipo_imp', 'sf_op_segindu'],
-          ['sf_op_integ',    null],
-          ['sf_op_desc',     null],
-          ['sf_op_motivo',   null],
-        ],
-      },
-    ],
-  },
-  projects: {
-    sections: [
-      {
-        id: 'sec_pr_1', label: 'Identificação',
-        rows: [
-          ['sf_pr_nome',    'sf_pr_empresa'],
-          ['sf_pr_franquia','sf_pr_opp'],
-          ['sf_pr_fase',    'sf_pr_status'],
-        ],
-      },
-      {
-        id: 'sec_pr_2', label: 'Cronograma',
-        rows: [
-          ['sf_pr_inicio', 'sf_pr_fim'],
-          ['sf_pr_hest',   'sf_pr_hexec'],
-        ],
-      },
-      {
-        id: 'sec_pr_3', label: 'Observações',
-        rows: [
-          ['sf_pr_desc', null],
-        ],
-      },
-    ],
-  },
-}
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function getPlacedIds(layout, entity) {
   const secs = layout[entity]?.sections || []
@@ -228,12 +72,259 @@ function TipoBadge({ tipo }) {
   )
 }
 
-// ─── Slot arrastável (campo dentro do layout) ─────────────────────────────────
+// ─── Preview de campo individual ───────────────────────────────────────────────
+function PreviewField({ field }) {
+  if (!field) return null
+  const { field_type, label, is_required, options } = field
+  const inputBase = {
+    width: '100%', boxSizing: 'border-box', padding: '7px 10px',
+    borderRadius: 7, border: '1px solid var(--border)',
+    background: 'var(--surface2)', color: 'var(--text-muted)',
+    fontSize: 12, fontFamily: 'var(--font)', pointerEvents: 'none',
+  }
+
+  let control
+  if (field_type === 'textarea') {
+    control = (
+      <div style={{ ...inputBase, minHeight: 60, color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
+        Texto longo…
+      </div>
+    )
+  } else if (field_type === 'select') {
+    control = (
+      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
+          {options?.[0] || 'Selecione…'}
+        </span>
+        <span style={{ color: 'var(--border2)', fontSize: 10 }}>▾</span>
+      </div>
+    )
+  } else if (field_type === 'boolean') {
+    control = (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ width: 32, height: 18, borderRadius: 9, background: 'var(--border2)', position: 'relative' }}>
+          <div style={{ position: 'absolute', top: 2, left: 2, width: 14, height: 14, borderRadius: '50%', background: '#fff' }} />
+        </div>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Não</span>
+      </div>
+    )
+  } else if (field_type === 'date') {
+    control = (
+      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>dd/mm/aaaa</span>
+        <Calendar size={11} color="var(--border2)" strokeWidth={1.75} />
+      </div>
+    )
+  } else if (field_type === 'number') {
+    control = (
+      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>0,00</span>
+      </div>
+    )
+  } else {
+    control = (
+      <div style={{ ...inputBase, color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
+        {label}…
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
+      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+        textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', gap: 3, alignItems: 'center' }}>
+        {label}
+        {is_required && <span style={{ color: 'var(--red)', fontWeight: 900 }}>*</span>}
+      </label>
+      {control}
+    </div>
+  )
+}
+
+// ─── Painel de pré-visualização ────────────────────────────────────────────────
+function PreviewPanel({ sections, fieldById, entityLabel }) {
+  return (
+    <div style={{
+      width: 340, flexShrink: 0, borderLeft: '1px solid var(--border)',
+      background: 'var(--surface)', overflowY: 'auto', display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Header preview */}
+      <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 2 }}>
+          Pré-visualização
+        </div>
+        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{entityLabel}</div>
+      </div>
+
+      {/* Conteúdo simulado */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {sections.length === 0 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 40 }}>
+            Nenhuma seção configurada
+          </div>
+        )}
+        {sections.map(sec => (
+          <div key={sec.id} style={{
+            border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden',
+            background: 'var(--surface)',
+          }}>
+            {/* Título da seção */}
+            <div style={{
+              padding: '8px 14px', background: 'var(--surface2)',
+              borderBottom: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', gap: 6,
+            }}>
+              <div style={{ width: 3, height: 12, borderRadius: 2, background: ACCENT, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>{sec.label}</span>
+            </div>
+            {/* Campos */}
+            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {sec.rows.map((row, ri) => {
+                const left  = fieldById[row[0]]
+                const right = fieldById[row[1]]
+                if (!left && !right) return null
+                return (
+                  <div key={ri} style={{ display: 'flex', gap: 10 }}>
+                    {left  ? <PreviewField field={left}  /> : <div style={{ flex: 1 }} />}
+                    {right ? <PreviewField field={right} /> : <div style={{ flex: 1 }} />}
+                  </div>
+                )
+              })}
+              {sec.rows.every(r => !r[0] && !r[1]) && (
+                <div style={{ fontSize: 11, color: 'var(--border2)', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
+                  Seção vazia
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Card arrastável da sidebar de campos disponíveis ─────────────────────────
+function SidebarFieldCard({ field, isDragOverlay }) {
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `sidebar:${field.id}`,
+    data: { type: 'sidebar', fieldId: field.id },
+  })
+
+  return (
+    <div ref={setNodeRef} {...attributes} {...listeners}
+      style={{
+        padding: '8px 10px', borderRadius: 8, cursor: 'grab', userSelect: 'none',
+        border: `1px solid ${isDragOverlay ? ACCENT : 'var(--border)'}`,
+        background: isDragOverlay ? 'var(--surface)' : 'var(--surface2)',
+        opacity: isDragging && !isDragOverlay ? 0.3 : 1,
+        display: 'flex', alignItems: 'center', gap: 8,
+        boxShadow: isDragOverlay ? '0 8px 24px rgba(99,102,241,0.15)' : 'none',
+        transition: 'opacity 0.12s',
+      }}>
+      <GripVertical size={12} color="var(--border2)" strokeWidth={1.75} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {field.label}
+        </div>
+        <TipoBadge tipo={field.field_type} />
+      </div>
+    </div>
+  )
+}
+
+// ─── Painel esquerdo: campos disponíveis ───────────────────────────────────────
+function AvailableFieldsPanel({ sidebarFields, onNewField, onEditField, onDeleteField }) {
+  const { isOver, setNodeRef } = useDroppable({ id: SIDEBAR_ID })
+  const [search, setSearch] = useState('')
+
+  const filtered = sidebarFields.filter(f =>
+    f.label.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <div ref={setNodeRef} style={{
+      width: 240, flexShrink: 0, borderRight: '1px solid var(--border)',
+      background: isOver ? `${ACCENT}06` : 'var(--surface)',
+      display: 'flex', flexDirection: 'column', transition: 'background 0.15s',
+    }}>
+      {/* Header */}
+      <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 8 }}>
+          Campos disponíveis
+        </div>
+        {/* Search */}
+        <div style={{ position: 'relative' }}>
+          <Search size={12} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} strokeWidth={1.75} />
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar campo…"
+            style={{ width: '100%', boxSizing: 'border-box', paddingLeft: 28, paddingRight: 8,
+              paddingTop: 7, paddingBottom: 7, fontSize: 12, borderRadius: 7,
+              border: '1px solid var(--border)', background: 'var(--surface2)',
+              color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none' }}
+          />
+        </div>
+      </div>
+
+      {/* Drop zone hint */}
+      {isOver && (
+        <div style={{ margin: '8px 10px 0', padding: '8px', borderRadius: 8, background: `${ACCENT}12`,
+          border: `1.5px dashed ${ACCENT}`, fontSize: 11, fontWeight: 600, color: ACCENT, textAlign: 'center' }}>
+          Soltar para remover do formulário
+        </div>
+      )}
+
+      {/* Lista */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 10px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+        {filtered.length === 0 && (
+          <div style={{ fontSize: 11, color: 'var(--border2)', fontStyle: 'italic', textAlign: 'center', marginTop: 16 }}>
+            {search ? 'Nenhum resultado' : 'Todos os campos estão no formulário'}
+          </div>
+        )}
+        {filtered.map(f => (
+          <div key={f.id} style={{ display: 'flex', gap: 4, alignItems: 'stretch' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <SidebarFieldCard field={f} />
+            </div>
+            {!f.is_system && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, flexShrink: 0 }}>
+                <button onClick={() => onEditField(f)} title="Editar" style={cs.iconBtn}
+                  onMouseEnter={e => e.currentTarget.style.color = ACCENT}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                  <Pencil size={10} strokeWidth={1.75} />
+                </button>
+                <button onClick={() => onDeleteField(f.id)} title="Excluir campo" style={cs.iconBtn}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                  <Trash2 size={10} strokeWidth={1.75} />
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Footer */}
+      <div style={{ padding: '10px 10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
+        <button onClick={onNewField} style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '8px', borderRadius: 8, border: `1.5px dashed ${ACCENT}`,
+          background: 'var(--accent-glow)', color: ACCENT, fontSize: 12, fontWeight: 700,
+          cursor: 'pointer', fontFamily: 'var(--font)', transition: 'all 0.12s',
+        }}>
+          <Plus size={13} strokeWidth={2} /> Novo campo
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Slot com campo posicionado ────────────────────────────────────────────────
 function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `placed:${slotId}`,
     data: { type: 'placed', slotId, fieldId: field.id },
-    disabled: field.is_system,
   })
   const [hovered, setHovered] = useState(false)
 
@@ -244,17 +335,14 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
       style={{
         opacity: isDragging && !isDragOverlay ? 0.2 : 1,
         background: isDragOverlay ? 'var(--surface)' : hovered ? 'var(--surface)' : '#F8FAFC',
-        border: `1.5px solid ${isDragOverlay ? ACCENT : hovered && !field.is_system ? ACCENT : 'var(--border)'}`,
+        border: `1.5px solid ${isDragOverlay ? ACCENT : hovered ? ACCENT : 'var(--border)'}`,
         borderRadius: 12, padding: '14px 16px',
         display: 'flex', alignItems: 'center', gap: 9,
-        boxShadow: isDragOverlay
-          ? `0 8px 24px rgba(99,102,241,0.18)`
-          : hovered && !field.is_system ? `0 0 0 3px ${ACCENT}18` : 'none',
-        cursor: field.is_system ? 'default' : isDragging ? 'grabbing' : 'grab',
+        boxShadow: isDragOverlay ? `0 8px 24px rgba(99,102,241,0.18)` : hovered ? `0 0 0 3px ${ACCENT}18` : 'none',
+        cursor: isDragging ? 'grabbing' : 'grab',
         minWidth: 0, transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
       }}>
 
-      {/* Grip / Lock */}
       <div style={{ flexShrink: 0, display: 'flex', opacity: hovered ? 1 : 0.4, transition: 'opacity 0.15s' }}>
         {field.is_system
           ? <Lock size={11} color="var(--text-muted)" strokeWidth={1.75} />
@@ -264,7 +352,6 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
         }
       </div>
 
-      {/* Info */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)',
@@ -286,26 +373,25 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
         </div>
       </div>
 
-      {/* Ações */}
-      {!field.is_system && (
-        <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+      <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
+        {!field.is_system && (
           <button onClick={() => onEdit(field)} title="Editar" style={cs.iconBtn}
             onMouseEnter={e => e.currentTarget.style.color = ACCENT}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
             <Pencil size={11} strokeWidth={1.75} />
           </button>
-          <button onClick={() => onRemove(slotId)} title="Remover do formulário" style={cs.iconBtn}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-            <X size={11} strokeWidth={2} />
-          </button>
-        </div>
-      )}
+        )}
+        <button onClick={() => onRemove(slotId)} title="Remover do formulário" style={cs.iconBtn}
+          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+          <X size={11} strokeWidth={2} />
+        </button>
+      </div>
     </div>
   )
 }
 
-// ─── Slot droppável (vazio ou ocupado) ────────────────────────────────────────
+// ─── Slot droppável ────────────────────────────────────────────────────────────
 function DropSlot({ slotId, field, onRemove, onEdit, onAdd }) {
   const { isOver, setNodeRef } = useDroppable({ id: `slot:${slotId}` })
   const isEmpty = !field
@@ -348,43 +434,8 @@ function DropSlot({ slotId, field, onRemove, onEdit, onAdd }) {
           </span>
         </button>
       ) : (
-        <PlacedFieldCard
-          field={field}
-          slotId={slotId}
-          onRemove={onRemove}
-          onEdit={onEdit}
-        />
+        <PlacedFieldCard field={field} slotId={slotId} onRemove={onRemove} onEdit={onEdit} />
       )}
-    </div>
-  )
-}
-
-// ─── Card arrastável da sidebar ───────────────────────────────────────────────
-function SidebarFieldCard({ field, isDragOverlay }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: `sidebar:${field.id}`,
-    data: { type: 'sidebar', fieldId: field.id },
-  })
-
-  return (
-    <div ref={setNodeRef} {...attributes} {...listeners}
-      style={{
-        padding: '8px 10px', borderRadius: 8, cursor: 'grab', userSelect: 'none',
-        border: `1px solid ${isDragOverlay ? ACCENT : 'var(--border)'}`,
-        background: isDragOverlay ? 'var(--surface)' : 'var(--surface2)',
-        opacity: isDragging && !isDragOverlay ? 0.3 : 1,
-        display: 'flex', alignItems: 'center', gap: 8,
-        boxShadow: isDragOverlay ? '0 8px 24px rgba(99,102,241,0.15)' : 'none',
-        transition: 'opacity 0.12s',
-      }}>
-      <GripVertical size={12} color="var(--border2)" strokeWidth={1.75} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {field.label}
-        </div>
-        <TipoBadge tipo={field.field_type} />
-      </div>
     </div>
   )
 }
@@ -448,8 +499,6 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
 
         <form onSubmit={submit}>
           <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
-
-            {/* Label */}
             <div style={cs.fg}>
               <label style={cs.lbl}>Nome do campo *</label>
               <input autoFocus style={{ ...cs.inp, ...(errs.label?{borderColor:'var(--red)'}:{}) }}
@@ -458,7 +507,6 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
               {errs.label && <span style={cs.err}>{errs.label}</span>}
             </div>
 
-            {/* Chave */}
             <div style={cs.fg}>
               <label style={cs.lbl}>
                 Chave (field_key) *
@@ -477,7 +525,6 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
               }
             </div>
 
-            {/* Tipo */}
             <div style={cs.fg}>
               <label style={cs.lbl}>Tipo de campo</label>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:6 }}>
@@ -501,7 +548,6 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
               </div>
             </div>
 
-            {/* Opções lista */}
             {tipo === 'select' && (
               <div style={cs.fg}>
                 <label style={cs.lbl}>Opções <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0 }}>(uma por linha)</span></label>
@@ -511,7 +557,6 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
               </div>
             )}
 
-            {/* Obrigatório */}
             <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', userSelect:'none' }}>
               <input type="checkbox" checked={req} onChange={e => setReq(e.target.checked)}
                 style={{ width:15, height:15, accentColor:ACCENT, cursor:'pointer' }} />
@@ -561,55 +606,69 @@ function SectionNameModal({ initial, onClose, onSave }) {
   )
 }
 
+// ─── Confirm delete ────────────────────────────────────────────────────────────
+function ConfirmDeleteModal({ onClose, onConfirm }) {
+  return (
+    <div style={cs.overlay} onClick={onClose}>
+      <div style={{ ...cs.modal, maxWidth:360 }} onClick={e => e.stopPropagation()}>
+        <div style={cs.mhead}>
+          <h2 style={{ ...cs.mtitle, color:'var(--red)' }}>Excluir campo</h2>
+          <button onClick={onClose} style={cs.closeBtn}><X size={16}/></button>
+        </div>
+        <div style={{ padding:'16px 24px 20px', display:'flex', flexDirection:'column', gap:16 }}>
+          <p style={{ margin:0, fontSize:13, color:'var(--text-soft)', lineHeight:1.6 }}>
+            O campo será removido permanentemente. Dados já salvos em registros existentes não serão apagados.
+          </p>
+          <div style={{ display:'flex', justifyContent:'flex-end', gap:10 }}>
+            <button style={cs.btnSec} onClick={onClose}>Cancelar</button>
+            <button style={{ ...cs.btnPri, background:'var(--red)' }} onClick={onConfirm}>Excluir</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsForms() {
   const [fields,  setFields]  = useLocalState('settings:form_fields_v2',  FIELDS_SEED)
   const [layout,  setLayout]  = useLocalState('settings:form_layout_v2',  LAYOUT_SEED)
   const [entity,  setEntity]  = useState('companies')
-  const [fieldModal, setFieldModal] = useState(null)       // null | 'new' | field obj
-  const [secModal,   setSecModal]   = useState(null)       // null | { secId } | 'new'
-  const [confirmDel, setConfirmDel] = useState(null)       // fieldId to delete
-  const [activeId,    setActiveId]   = useState(null)
-  const [activeDrag,  setActiveDrag] = useState(null)
+  const [showPreview, setShowPreview] = useLocalState('settings:forms_preview', true)
+  const [fieldModal,  setFieldModal]  = useState(null)
+  const [secModal,    setSecModal]    = useState(null)
+  const [confirmDel,  setConfirmDel]  = useState(null)
+  const [activeId,    setActiveId]    = useState(null)
+  const [activeDrag,  setActiveDrag]  = useState(null)
   const [pendingSlot, setPendingSlot] = useState(null)
-  const [dirty,       setDirty]      = useState(false)
-  const [toast,       setToast]      = useState(null)      // { msg, type }
-  const toastTimer = useRef(null)
+  const [savedFlash,  setSavedFlash]  = useState(false)
+  const flashTimer = useRef(null)
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  // Campos desta entidade
-  const entityFields = useMemo(() => fields.filter(f => f.entity === entity), [fields, entity])
-  const fieldById    = useMemo(() => Object.fromEntries(fields.map(f => [f.id, f])), [fields])
-
-  // Campos NÃO colocados no layout atual
-  const placedIds    = useMemo(() => getPlacedIds(layout, entity), [layout, entity])
+  const entityFields  = useMemo(() => fields.filter(f => f.entity === entity), [fields, entity])
+  const fieldById     = useMemo(() => Object.fromEntries(fields.map(f => [f.id, f])), [fields])
+  const placedIds     = useMemo(() => getPlacedIds(layout, entity), [layout, entity])
   const sidebarFields = useMemo(() => entityFields.filter(f => !placedIds.has(f.id)), [entityFields, placedIds])
+  const sections      = layout[entity]?.sections || []
+  const entityLabel   = ENTIDADES.find(e => e.id === entity)?.label || ''
 
-  const sections = layout[entity]?.sections || []
-
-  const showToast = useCallback((msg, type = 'success') => {
-    clearTimeout(toastTimer.current)
-    setToast({ msg, type })
-    toastTimer.current = setTimeout(() => setToast(null), 3000)
-  }, [])
-
-  function handleSave() {
-    setDirty(false)
-    showToast('Configuração de campos salva com sucesso!')
+  function flashSaved() {
+    clearTimeout(flashTimer.current)
+    setSavedFlash(true)
+    flashTimer.current = setTimeout(() => setSavedFlash(false), 1800)
   }
 
   // ── Helpers de layout ──────────────────────────────────────────────────────
   function updateLayout(fn) {
-    setDirty(true)
     setLayout(prev => {
       const next = { ...prev }
       next[entity] = { ...prev[entity], sections: fn([...(prev[entity]?.sections||[])]) }
       return next
     })
+    flashSaved()
   }
 
-  // Converte slotId "secId:rowIdx:col" → { secIdx, rowIdx, col }
   function parseSlot(slotId) {
     const [secId, row, col] = slotId.split(':')
     return { secId, rowIdx: Number(row), col: Number(col) }
@@ -642,7 +701,7 @@ export default function SettingsForms() {
     }))
   }
 
-  // ── DnD handlers ──────────────────────────────────────────────────────────
+  // ── DnD ────────────────────────────────────────────────────────────────────
   function onDragStart({ active }) {
     setActiveId(active.id)
     setActiveDrag(active.data.current)
@@ -653,32 +712,30 @@ export default function SettingsForms() {
     if (!over) return
 
     const aData  = active.data.current
-    const overId = over.id // "slot:secId:rowIdx:col" | "__sidebar__"
+    const overId = over.id
+
+    // Soltar na sidebar → remover do layout
+    if (overId === SIDEBAR_ID && aData.type === 'placed') {
+      updateLayout(secs => setSlotValue(secs, aData.slotId, null))
+      return
+    }
 
     if (!overId.startsWith('slot:')) return
     const targetSlotId = overId.replace('slot:', '')
 
     updateLayout(secs => {
       let next = [...secs]
-
       if (aData.type === 'sidebar') {
-        // sidebar → slot: colocar campo no slot (swap se ocupado)
-        const existing = getSlotValue(next, targetSlotId)
         next = setSlotValue(next, targetSlotId, aData.fieldId)
-        // se havia campo, volta para a sidebar (basta deixar null o slot de origem — já está)
-        // mas se existing estava em outro slot não precisamos fazer nada, só neste caso remove
         return next
       }
-
       if (aData.type === 'placed') {
-        // slot → slot: swap
         const srcVal = getSlotValue(next, aData.slotId)
         const dstVal = getSlotValue(next, targetSlotId)
         next = setSlotValue(next, aData.slotId, dstVal)
         next = setSlotValue(next, targetSlotId, srcVal)
         return next
       }
-
       return next
     })
   }
@@ -724,14 +781,12 @@ export default function SettingsForms() {
     }))
   }
 
-  // ── Remover campo do layout (botão X no card) ─────────────────────────────
   function handleRemoveFromSlot(slotId) {
     updateLayout(secs => setSlotValue(secs, slotId, null))
   }
 
   // ── CRUD de campos ─────────────────────────────────────────────────────────
   function handleSaveField(data) {
-    setDirty(true)
     if (data.id && fields.some(f => f.id === data.id)) {
       setFields(prev => prev.map(f => f.id === data.id ? { ...f, ...data } : f))
     } else {
@@ -744,17 +799,15 @@ export default function SettingsForms() {
     }
     setFieldModal(null)
     setPendingSlot(null)
+    flashSaved()
   }
 
   function handleDeleteField(id) {
-    setDirty(true)
     setFields(prev => prev.filter(f => f.id !== id))
-    // Remover do layout também
     updateLayout(secs => removeFieldFromLayout(secs, id))
     setConfirmDel(null)
   }
 
-  // Campo sendo arrastado para overlay
   const overlayField = useMemo(() => {
     if (!activeDrag) return null
     return fieldById[activeDrag.fieldId] || null
@@ -762,55 +815,41 @@ export default function SettingsForms() {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', minHeight:'100%' }}>
+      <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
 
       {/* ── Header ── */}
       <div style={pg.header}>
         <div>
           <h2 style={pg.title}>Configuração de Campos</h2>
           <p style={pg.desc}>
-            Personalize o layout dos formulários de cadastro. Arraste campos para posicioná-los, crie seções e adicione campos customizados.
+            Arraste campos para posicioná-los no formulário. Mudanças são salvas automaticamente.
           </p>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {dirty && (
-            <span style={{ fontSize:12, color:'var(--yellow)', fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
-              <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--yellow)', display:'inline-block' }}/>
-              Alterações não salvas
+          {savedFlash && (
+            <span style={{ fontSize:12, color:'var(--green)', fontWeight:600, display:'flex', alignItems:'center', gap:5, animation:'fadeIn 0.2s ease' }}>
+              <Check size={13} color="var(--green)" strokeWidth={2.5} /> Salvo
             </span>
           )}
-          <button style={pg.btnNew} onClick={() => setFieldModal('new')}>
-            <Plus size={14} strokeWidth={2} style={{ marginRight:5 }} />
-            Novo campo
-          </button>
           <button
-            onClick={handleSave}
-            disabled={!dirty}
+            onClick={() => setShowPreview(v => !v)}
             style={{
               display:'flex', alignItems:'center', gap:6,
-              padding:'8px 18px', borderRadius:8, border:'none', cursor: dirty ? 'pointer' : 'default',
-              background: dirty ? ACCENT : 'var(--surface3)',
-              color: dirty ? '#fff' : 'var(--text-muted)',
-              fontSize:13, fontWeight:700, fontFamily:'var(--font)',
-              transition:'background 0.15s, color 0.15s',
-              opacity: dirty ? 1 : 0.6,
+              padding:'7px 14px', borderRadius:8,
+              border:'1px solid var(--border)',
+              background: showPreview ? 'var(--accent-glow)' : 'var(--surface)',
+              color: showPreview ? ACCENT : 'var(--text-muted)',
+              fontSize:12, fontWeight:700, fontFamily:'var(--font)', cursor:'pointer',
+              transition:'all 0.15s',
             }}>
-            <Check size={13} strokeWidth={2.5} />
-            Salvar
+            {showPreview ? <EyeOff size={13} strokeWidth={1.75}/> : <Eye size={13} strokeWidth={1.75}/>}
+            {showPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
           </button>
         </div>
       </div>
 
-      {/* ── Toast ── */}
-      {toast && (
-        <div style={{ position:'fixed', bottom:24, right:24, zIndex:900, display:'flex', alignItems:'center', gap:10, padding:'11px 18px', borderRadius:10, background:'#F0FDF4', border:'1px solid #BBF7D0', boxShadow:'0 4px 16px rgba(0,0,0,0.1)', fontSize:13, fontWeight:500, color:'#065F46', animation:'fadeInUp 0.2s ease' }}>
-          <Check size={15} strokeWidth={2.5} color="#10B981"/>
-          {toast.msg}
-        </div>
-      )}
-      <style>{`@keyframes fadeInUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
       {/* ── Abas de entidade ── */}
-      <div style={{ display:'flex', borderBottom:'1px solid var(--border)', padding:'0 28px', flexShrink:0 }}>
+      <div style={{ display:'flex', borderBottom:'1px solid var(--border)', padding:'0 0', flexShrink:0 }}>
         {ENTIDADES.map(e => (
           <button key={e.id} type="button" onClick={() => setEntity(e.id)}
             style={{ padding:'10px 18px', background:'none', border:'none',
@@ -823,12 +862,20 @@ export default function SettingsForms() {
         ))}
       </div>
 
-      {/* ── Layout principal: sidebar + editor ── */}
+      {/* ── Layout 3 colunas ── */}
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
         <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0, height:'100%' }}>
 
-          {/* ════ Área do editor ════ */}
-          <div style={{ flex:1, overflowY:'auto', padding:'36px 40px 72px', display:'flex', flexDirection:'column', gap:40, background:'var(--surface2)' }}>
+          {/* ═══ Coluna 1: Campos disponíveis ═══ */}
+          <AvailableFieldsPanel
+            sidebarFields={sidebarFields}
+            onNewField={() => setFieldModal('new')}
+            onEditField={f => setFieldModal(f)}
+            onDeleteField={id => setConfirmDel(id)}
+          />
+
+          {/* ═══ Coluna 2: Editor ═══ */}
+          <div style={{ flex:1, overflowY:'auto', padding:'28px 32px 72px', display:'flex', flexDirection:'column', gap:32, background:'var(--surface2)' }}>
 
             {sections.map((sec, secIdx) => (
               <div key={sec.id} style={{
@@ -838,15 +885,13 @@ export default function SettingsForms() {
               }}>
                 {/* Cabeçalho da seção */}
                 <div style={{
-                  display:'flex', alignItems:'center', gap:8, padding:'14px 20px',
+                  display:'flex', alignItems:'center', gap:8, padding:'12px 18px',
                   background:'var(--surface2)', borderBottom:'1px solid var(--border)',
                 }}>
-                  <div style={{ width:3, height:16, borderRadius:2, background:ACCENT, flexShrink:0 }} />
+                  <div style={{ width:3, height:14, borderRadius:2, background:ACCENT, flexShrink:0 }} />
                   <span style={{ flex:1, fontSize:13, fontWeight:700, color:'var(--text)', letterSpacing:'-0.1px' }}>
                     {sec.label}
                   </span>
-
-                  {/* Ações da seção */}
                   <button onClick={() => setSecModal({ secId: sec.id, current: sec.label })}
                     title="Renomear seção" style={cs.secBtn}>
                     <Pencil size={12} strokeWidth={1.75}/>
@@ -870,10 +915,9 @@ export default function SettingsForms() {
                 </div>
 
                 {/* Grid de slots */}
-                <div style={{ padding:'20px 24px 24px', display:'flex', flexDirection:'column', gap:16 }}>
+                <div style={{ padding:'18px 22px 22px', display:'flex', flexDirection:'column', gap:14 }}>
                   {sec.rows.map((row, rowIdx) => (
-                    <div key={rowIdx} style={{ display:'flex', gap:16, alignItems:'stretch' }}>
-                      {/* Coluna esquerda */}
+                    <div key={rowIdx} style={{ display:'flex', gap:14, alignItems:'stretch' }}>
                       <DropSlot
                         slotId={`${sec.id}:${rowIdx}:0`}
                         field={fieldById[row[0]] || null}
@@ -881,7 +925,6 @@ export default function SettingsForms() {
                         onEdit={f => setFieldModal(f)}
                         onAdd={() => { setPendingSlot(`${sec.id}:${rowIdx}:0`); setFieldModal('new') }}
                       />
-                      {/* Coluna direita */}
                       <DropSlot
                         slotId={`${sec.id}:${rowIdx}:1`}
                         field={fieldById[row[1]] || null}
@@ -889,7 +932,6 @@ export default function SettingsForms() {
                         onEdit={f => setFieldModal(f)}
                         onAdd={() => { setPendingSlot(`${sec.id}:${rowIdx}:1`); setFieldModal('new') }}
                       />
-                      {/* Remover linha */}
                       <button onClick={() => removeRow(sec.id, rowIdx)}
                         title="Remover linha"
                         style={{ ...cs.secBtn, flexShrink:0, alignSelf:'center' }}
@@ -899,8 +941,6 @@ export default function SettingsForms() {
                       </button>
                     </div>
                   ))}
-
-                  {/* Adicionar linha */}
                   <button onClick={() => addRow(sec.id)}
                     style={{ alignSelf:'flex-start', fontSize:11, fontWeight:600, color:ACCENT,
                       background:'none', border:'none', cursor:'pointer', padding:'4px 0',
@@ -911,7 +951,6 @@ export default function SettingsForms() {
               </div>
             ))}
 
-            {/* Adicionar seção */}
             <button onClick={addSection} style={{
               width:'100%', padding:'12px', borderRadius:10, cursor:'pointer',
               border:`2px dashed ${ACCENT}`, background:'var(--accent-glow)',
@@ -922,6 +961,15 @@ export default function SettingsForms() {
               <Plus size={14} strokeWidth={2}/> Adicionar seção
             </button>
           </div>
+
+          {/* ═══ Coluna 3: Pré-visualização ═══ */}
+          {showPreview && (
+            <PreviewPanel
+              sections={sections}
+              fieldById={fieldById}
+              entityLabel={entityLabel}
+            />
+          )}
         </div>
 
         {/* ── Drag overlay ── */}
@@ -946,7 +994,7 @@ export default function SettingsForms() {
           initial={fieldModal === 'new' ? null : fieldModal}
           entity={entity}
           allFields={fields}
-          onClose={() => setFieldModal(null)}
+          onClose={() => { setFieldModal(null); setPendingSlot(null) }}
           onSave={handleSaveField}
         />
       )}
@@ -962,25 +1010,10 @@ export default function SettingsForms() {
       )}
 
       {confirmDel && (
-        <div style={cs.overlay} onClick={() => setConfirmDel(null)}>
-          <div style={{ ...cs.modal, maxWidth:360 }} onClick={e => e.stopPropagation()}>
-            <div style={cs.mhead}>
-              <h2 style={{ ...cs.mtitle, color:'var(--red)' }}>Excluir campo</h2>
-              <button onClick={() => setConfirmDel(null)} style={cs.closeBtn}><X size={16}/></button>
-            </div>
-            <div style={{ padding:'16px 24px 20px', display:'flex', flexDirection:'column', gap:16 }}>
-              <p style={{ margin:0, fontSize:13, color:'var(--text-soft)', lineHeight:1.6 }}>
-                O campo será removido do formulário. Dados já salvos em registros existentes não serão apagados.
-              </p>
-              <div style={{ display:'flex', justifyContent:'flex-end', gap:10 }}>
-                <button style={cs.btnSec} onClick={() => setConfirmDel(null)}>Cancelar</button>
-                <button style={{ ...cs.btnPri, background:'var(--red)' }} onClick={() => handleDeleteField(confirmDel)}>
-                  Excluir
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ConfirmDeleteModal
+          onClose={() => setConfirmDel(null)}
+          onConfirm={() => handleDeleteField(confirmDel)}
+        />
       )}
     </div>
   )
@@ -988,10 +1021,9 @@ export default function SettingsForms() {
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const pg = {
-  header:  { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'24px 28px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 },
+  header:  { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'20px 24px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 },
   title:   { fontSize:18, fontWeight:700, color:'var(--text)', margin:0, letterSpacing:'-0.3px' },
   desc:    { fontSize:13, color:'var(--text-muted)', margin:'4px 0 0', maxWidth:560 },
-  btnNew:  { display:'flex', alignItems:'center', background:ACCENT, color:'#fff', border:'none', borderRadius:8, padding:'8px 16px', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap', flexShrink:0 },
 }
 
 const cs = {

@@ -7,6 +7,8 @@ import { MOCK_OPORTUNIDADES } from '../data/mockOportunidades'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import SearchSelect from '../components/SearchSelect'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -585,9 +587,49 @@ function ContratoDetail({ onClose, onSave, onDelete, item, contratos }) {
   const statusOptions = STATUS_CONTRATO.map(s => ({ value: s.value, label: s.label }))
   const empresaOptions = [{ value:'', label:'— Selecione —' }, ...MOCK_EMPRESAS.map(e => ({ value: String(e.id), label: e.fantasia || e.razao }))]
 
+  const { sections: ctSections, fieldById: ctFieldById } = useFormLayout('contracts')
+  const ctInp = { padding:'8px 12px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text)', fontSize:13, fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }
+  const ctLbl = { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }
+
+  function renderContratoField(key) {
+    switch (key) {
+      case 'numero':    return null  // fixo como título
+      case 'empresa_id':
+        return (
+          <select style={ctInp} value={form.empresa_id || ''} onChange={e => {
+            const emp = MOCK_EMPRESAS.find(x => x.id === Number(e.target.value))
+            setForm(f => ({ ...f, empresa_id: e.target.value ? Number(e.target.value) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
+            if (!isNew) patch('empresa_id', e.target.value ? Number(e.target.value) : null)
+          }}>
+            <option value="">— Selecione —</option>
+            {MOCK_EMPRESAS.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
+          </select>
+        )
+      case 'tipo':      return null  // não existe no form
+      case 'status':
+        return (
+          <select style={ctInp} value={form.status} onChange={e => patch('status', e.target.value)}>
+            {STATUS_CONTRATO.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+          </select>
+        )
+      case 'valor':     return null  // calculado
+      case 'data_inicio':
+        return <input type="date" style={ctInp} value={form.vigencia_inicio || ''} onChange={e => patch('vigencia_inicio', e.target.value)} />
+      case 'data_fim':
+        return <input type="date" style={ctInp} value={form.vigencia_fim || ''} onChange={e => patch('vigencia_fim', e.target.value)} />
+      case 'responsavel':
+        return <input style={ctInp} value={form.responsavel || ''} onChange={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
+      case 'objeto':
+        return <textarea style={{ ...ctInp, minHeight:72, resize:'vertical' }} value={form.objeto || ''} onChange={e => patch('objeto', e.target.value)} placeholder="Objeto do contrato…" />
+      case 'observacoes':
+        return <textarea style={{ ...ctInp, minHeight:72, resize:'vertical' }} value={form.observacoes || ''} onChange={e => patch('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" />
+      default: return null
+    }
+  }
+
   const left = (
     <div style={{ padding:'32px 40px', display:'flex', flexDirection:'column', gap:20, flex:1 }}>
-      {/* Número + Empresa */}
+      {/* Número — fixo como título */}
       <div>
         <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
           onBlur={e => patch('numero', e.target.value)}
@@ -604,13 +646,14 @@ function ContratoDetail({ onClose, onSave, onDelete, item, contratos }) {
         </div>
       </div>
 
-      {/* Observações */}
-      <div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)',
-          textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Observações</div>
-        <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
-          placeholder="Condições especiais, descontos, anotações comerciais…" minRows={3} />
-      </div>
+      {/* Campos configuráveis via Conf. de Campos */}
+      <DynamicFormLayout
+        sections={ctSections}
+        fieldById={ctFieldById}
+        renderField={renderContratoField}
+        sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+        labelStyle={ctLbl}
+      />
 
       {/* Produtos */}
       <div>

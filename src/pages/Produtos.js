@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { MOCK_PRODUTOS as INITIAL_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ACCENT = 'var(--accent)'
@@ -28,7 +30,7 @@ const COBRANCAS = [
   { value: 'usuario',  label: 'Por usuário' },
 ]
 
-const CATEGORIAS = ['CRM', 'ERP', 'BI / Analytics', 'Segurança', 'Infraestrutura', 'Integração', 'Suporte', 'Implementação', 'Outros']
+const CATEGORIAS_DEFAULT = ['CRM', 'ERP', 'BI / Analytics', 'Segurança', 'Infraestrutura', 'Integração', 'Suporte', 'Implementação', 'Outros']
 
 const EMPTY_FORM = {
   nome: '', codigo: '', descricao: '', tipo: 'saas', categoria: '',
@@ -288,10 +290,120 @@ const et = {
   header: { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 14px', borderBottom:'1px solid var(--border2)', background:'var(--surface2)' },
 }
 
+// ─── CategoriaSelect — dropdown com gerenciamento inline de opções ────────────
+function CategoriaSelect({ value, onChange, categorias, setCategorias, inputStyle }) {
+  const [open, setOpen]     = useState(false)
+  const [nova, setNova]     = useState('')
+  const ref                 = useRef(null)
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  function addCategoria() {
+    const t = nova.trim()
+    if (!t || categorias.includes(t)) return
+    setCategorias(prev => [...prev, t])
+    setNova('')
+  }
+
+  function removeCategoria(cat) {
+    setCategorias(prev => prev.filter(c => c !== cat))
+    if (value === cat) onChange('')
+  }
+
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          ...inputStyle,
+          display:'flex', alignItems:'center', justifyContent:'space-between',
+          cursor:'pointer', textAlign:'left', width:'100%', boxSizing:'border-box',
+          color: value ? 'var(--text)' : 'var(--text-muted)',
+        }}>
+        <span>{value || 'Selecione…'}</span>
+        <span style={{ fontSize:10, color:'var(--text-muted)', marginLeft:6 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400,
+          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:9,
+          boxShadow:'0 8px 28px rgba(0,0,0,0.13)', overflow:'hidden', minWidth:200,
+        }}>
+          {/* Opções */}
+          <div style={{ maxHeight:180, overflowY:'auto', padding:'4px 0' }}>
+            <div
+              onClick={() => { onChange(''); setOpen(false) }}
+              style={{
+                padding:'7px 12px', fontSize:12.5, cursor:'pointer', color:'var(--text-muted)',
+                background: !value ? 'var(--accent-glow)' : 'transparent',
+              }}
+              onMouseEnter={e => { if (value) e.currentTarget.style.background = 'var(--surface2)' }}
+              onMouseLeave={e => { if (value) e.currentTarget.style.background = 'transparent' }}>
+              — Nenhuma —
+            </div>
+            {categorias.map(cat => (
+              <div key={cat} style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+                padding:'7px 12px', cursor:'pointer', fontSize:12.5,
+                background: value === cat ? 'var(--accent-glow)' : 'transparent',
+                color: value === cat ? 'var(--accent)' : 'var(--text)',
+              }}
+                onMouseEnter={e => { if (value !== cat) e.currentTarget.style.background = 'var(--surface2)' }}
+                onMouseLeave={e => { if (value !== cat) e.currentTarget.style.background = 'transparent' }}>
+                <span onClick={() => { onChange(cat); setOpen(false) }} style={{ flex:1 }}>{cat}</span>
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); removeCategoria(cat) }}
+                  title="Remover categoria"
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:11, padding:'0 2px', lineHeight:1, marginLeft:6, flexShrink:0 }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Adicionar nova */}
+          <div style={{ borderTop:'1px solid var(--border)', padding:'8px 10px', display:'flex', gap:6 }}>
+            <input
+              value={nova}
+              onChange={e => setNova(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addCategoria() } }}
+              placeholder="Nova categoria…"
+              style={{
+                flex:1, padding:'5px 8px', fontSize:12, border:'1px solid var(--border)',
+                borderRadius:6, background:'var(--surface2)', color:'var(--text)',
+                outline:'none', fontFamily:'var(--font)',
+              }}
+            />
+            <button
+              type="button"
+              onClick={addCategoria}
+              style={{
+                padding:'5px 10px', background:'var(--accent)', color:'#fff', border:'none',
+                borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', flexShrink:0,
+              }}>
+              +
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Produto Modal ────────────────────────────────────────────────────────────
-function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos }) {
+function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos, categorias, setCategorias }) {
   const [form, setForm]               = useState(initial || EMPTY_FORM)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const { sections, fieldById } = useFormLayout('products')
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
 
@@ -304,6 +416,35 @@ function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos }) {
     if (isDup) return alert('Já existe um produto com este código')
     onSave({ ...form, codigo, id: initial?.id || Date.now() })
     onClose()
+  }
+
+  function renderField(key) {
+    switch (key) {
+      case 'nome':
+        return <input style={s.input} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Canal NG Pro" />
+      case 'codigo':
+        return <input style={{ ...s.input, fontFamily:'var(--mono)', textTransform:'uppercase' }} value={form.codigo} onChange={e => set('codigo', e.target.value.toUpperCase())} placeholder="CNG-PRO" />
+      case 'descricao':
+        return <textarea style={{ ...s.input, minHeight:60, resize:'vertical' }} value={form.descricao} onChange={e => set('descricao', e.target.value)} placeholder="Descreva o produto brevemente…" />
+      case 'tipo':
+        return <select style={s.input} value={form.tipo} onChange={e => set('tipo', e.target.value)}>{TIPOS_PRODUTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}</select>
+      case 'categoria':
+        return <CategoriaSelect value={form.categoria} onChange={v => set('categoria', v)} categorias={categorias} setCategorias={setCategorias} inputStyle={s.input} />
+      case 'status':
+        return <select style={s.input} value={form.status} onChange={e => set('status', e.target.value)}>{STATUS_PRODUTO.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}</select>
+      case 'cobranca':
+        return <select style={s.input} value={form.cobranca} onChange={e => set('cobranca', e.target.value)}>{COBRANCAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}</select>
+      case 'preco':
+        return <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" step="0.01" value={form.preco} onChange={e => set('preco', e.target.value)} placeholder="0,00" />
+      case 'setup':
+        return <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" step="0.01" value={form.setup} onChange={e => set('setup', e.target.value)} placeholder="0,00" />
+      case 'desconto_max':
+        return <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" max="100" value={form.desconto_max} onChange={e => set('desconto_max', e.target.value)} placeholder="0" />
+      case 'observacoes':
+        return <textarea style={{ ...s.input, minHeight:60, resize:'vertical', fontSize:12 }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas, restrições…" />
+      default:
+        return null
+    }
   }
 
   const isEditing = !!initial
@@ -322,98 +463,16 @@ function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos }) {
         <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
           <div style={s.mBody}>
 
-            {/* Identificação */}
-            <div style={s.section}>
-              <div style={s.sectionLabel}>Identificação</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Nome do produto *</label>
-                  <input style={s.input} value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Canal NG Pro" required />
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Código *</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)', textTransform:'uppercase' }}
-                    value={form.codigo}
-                    onChange={e => set('codigo', e.target.value.toUpperCase())}
-                    placeholder="CNG-PRO" required />
-                </div>
-              </div>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Descrição</label>
-                <textarea style={{ ...s.input, minHeight:60, resize:'vertical' }}
-                  value={form.descricao}
-                  onChange={e => set('descricao', e.target.value)}
-                  placeholder="Descreva o produto brevemente…" />
-              </div>
-            </div>
+            {/* Campos configuráveis via Conf. de Campos */}
+            <DynamicFormLayout
+              sections={sections}
+              fieldById={fieldById}
+              renderField={renderField}
+              sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'16px 18px', gap:12 }}
+              labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
+            />
 
-            {/* Classificação */}
-            <div style={s.section}>
-              <div style={s.sectionLabel}>Classificação</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Tipo</label>
-                  <select style={s.input} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
-                    {TIPOS_PRODUTO.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                  </select>
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Categoria</label>
-                  <select style={s.input} value={form.categoria} onChange={e => set('categoria', e.target.value)}>
-                    <option value="">Selecione…</option>
-                    {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Status</label>
-                  <select style={s.input} value={form.status} onChange={e => set('status', e.target.value)}>
-                    {STATUS_PRODUTO.map(st => <option key={st.value} value={st.value}>{st.label}</option>)}
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Precificação */}
-            <div style={s.section}>
-              <div style={s.sectionLabel}>Precificação</div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Modelo de cobrança</label>
-                  <select style={s.input} value={form.cobranca} onChange={e => set('cobranca', e.target.value)}>
-                    {COBRANCAS.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                  </select>
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Preço (R$)</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" step="0.01"
-                    value={form.preco} onChange={e => set('preco', e.target.value)} placeholder="0,00" />
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Setup (R$)</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" step="0.01"
-                    value={form.setup} onChange={e => set('setup', e.target.value)} placeholder="0,00" />
-                </div>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12 }}>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Desconto máximo (%)</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0" max="100"
-                    value={form.desconto_max} onChange={e => set('desconto_max', e.target.value)} placeholder="0" />
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Unidades incluídas</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0"
-                    value={form.unidades_incluidas} onChange={e => set('unidades_incluidas', e.target.value)} placeholder="Ex: 1" />
-                </div>
-                <div style={s.fieldGroup}>
-                  <label style={s.label}>Usuários incluídos</label>
-                  <input style={{ ...s.input, fontFamily:'var(--mono)' }} type="number" min="0"
-                    value={form.usuarios_incluidos} onChange={e => set('usuarios_incluidos', e.target.value)} placeholder="Ex: 10" />
-                </div>
-              </div>
-            </div>
-
-            {/* Features */}
+            {/* Funcionalidades (não configurável via layout) */}
             <div style={s.section}>
               <div style={s.sectionLabel}>Funcionalidades incluídas</div>
               <div style={s.fieldGroup}>
@@ -425,23 +484,14 @@ function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos }) {
               </div>
             </div>
 
-            {/* Visibilidade + Observações */}
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Visibilidade no canal</label>
-                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)' }}>
-                  <input type="checkbox" checked={form.visivel_canal} onChange={e => set('visivel_canal', e.target.checked)}
-                    style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
-                  <span style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>Visível no catálogo</span>
-                </label>
-              </div>
-              <div style={s.fieldGroup}>
-                <label style={s.label}>Observações internas</label>
-                <textarea style={{ ...s.input, minHeight:42, resize:'vertical', fontSize:12 }}
-                  value={form.observacoes}
-                  onChange={e => set('observacoes', e.target.value)}
-                  placeholder="Notas, restrições…" />
-              </div>
+            {/* Visibilidade */}
+            <div style={s.fieldGroup}>
+              <label style={s.label}>Visibilidade no canal</label>
+              <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)' }}>
+                <input type="checkbox" checked={form.visivel_canal} onChange={e => set('visivel_canal', e.target.checked)}
+                  style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
+                <span style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>Visível no catálogo</span>
+              </label>
             </div>
 
           </div>
@@ -478,6 +528,7 @@ export default function Produtos() {
   const [sortBy, setSortBy]             = useLocalState('produtos:sortBy', 'nome')
   const [view, setView]                 = useLocalState('produtos:view', 'table')
 
+  const [categorias, setCategorias]   = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
   const [produtos, setProdutos]       = useState(MOCK_PRODUTOS)
   const [modal, setModal]             = useState(null)
   const [selected, setSelected]       = useState(new Set())
@@ -633,7 +684,7 @@ export default function Produtos() {
           </select>
           <select style={pg.select} value={filterCat} onChange={e => setFilterCat(e.target.value)}>
             <option value="">Todas as categorias</option>
-            {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+            {categorias.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           {hasFilters && (
             <button style={{ fontSize:12, color:ACCENT, background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline', whiteSpace:'nowrap', flexShrink:0 }}
@@ -799,6 +850,8 @@ export default function Produtos() {
           onDelete={handleDelete}
           initial={modal === 'new' ? null : modal}
           existingCodigos={existingCodigos}
+          categorias={categorias}
+          setCategorias={setCategorias}
         />
       )}
       {importModal && (

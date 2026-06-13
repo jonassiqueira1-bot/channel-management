@@ -31,6 +31,8 @@ import { useLocalState } from '../hooks/useLocalState'
 import SearchSelect from '../components/SearchSelect'
 import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -3317,6 +3319,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const [fechamentoModal, setFechamentoModal] = useState(null) // opp salva, aguardando ação pós-fechamento
   const [cfFields, cfActions] = useCustomFields('oportunidade')
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
+  const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
   function set(f, v) { setForm(prev => ({ ...prev, [f]: v })) }
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
   function setCustomField(key, value) {
@@ -3366,100 +3369,106 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const SL = { fontSize:11, fontWeight:700, color:'#64748B', textTransform:'uppercase', letterSpacing:'0.08em', display:'block', marginBottom:5 }
 
   // Conteúdo dos campos do formulário — reutilizado em edição e criação
+  function renderOppField(key) {
+    switch (key) {
+      case 'titulo':
+        return <input style={m.input} value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Proposta expansão SP" />
+      case 'empresa_id':
+        return <EmpresaSearch value={form.empresa_id} label={form.empresa_nome}
+          onChange={(id, nome) => {
+            set('empresa_id', id); set('empresa_nome', nome)
+            if (id && form.primary_contact_id) {
+              const c = todosContatos.find(c => c.id === form.primary_contact_id)
+              if (!c || c.empresa_id !== Number(id)) { set('primary_contact_id', null); set('primary_contact_nome', '') }
+            }
+            if (!id) { set('primary_contact_id', null); set('primary_contact_nome', '') }
+          }} />
+      case 'primary_contact_id':
+        return <ContatoSearch value={form.primary_contact_id} label={form.primary_contact_nome}
+          empresaId={form.empresa_id} allContatos={todosContatos}
+          onChange={(id, nome) => { set('primary_contact_id', id); set('primary_contact_nome', nome) }} />
+      case 'responsavel':
+        return <SearchSelect
+          options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: '#6366F1' }))}
+          value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || null}
+          onChange={(id, nome) => set('responsavel', nome)}
+          placeholder="Pesquisar responsável…" inputStyle={m.input} />
+      case 'situacao':
+        return (
+          <div style={{ position:'relative' }}>
+            <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)',
+              width:8, height:8, borderRadius:'50%', pointerEvents:'none',
+              background: SITUACOES[form.situacao]?.color || '#94a3b8' }} />
+            <select style={{ ...m.input, paddingLeft:26, fontWeight:600, color: SITUACOES[form.situacao]?.text || 'var(--text)' }}
+              value={form.situacao}
+              onChange={e => { set('situacao', e.target.value); if (e.target.value !== 'perdida') set('motivo_perda', '') }}>
+              {Object.entries(SITUACOES).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
+            </select>
+          </div>
+        )
+      // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
+      case 'etapa_id':
+        return null
+      case 'origem':
+        return <select style={m.input} value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
+          <option value="">—</option>
+          {['Inbound','Outbound','Canal','Indicação','Evento'].map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      case 'campanha_id':
+        return <CampanhaField value={form.campanha_id} onChange={v => set('campanha_id', v)} />
+      case 'prazo':
+        return <input type="date" style={m.input} value={form.prazo || ''} onChange={e => set('prazo', e.target.value)} />
+      case 'playbook_id':
+        return <select style={m.input} value={form.playbook_id || ''} onChange={e => set('playbook_id', e.target.value || null)}>
+          <option value="">— Nenhum —</option>
+          {playbooks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      // Valores mostrados em seção separada — não renderizar aqui
+      case 'valor_cdu':
+      case 'valor_sms':
+      case 'valor_servico':
+      case 'valor_desconto':
+        return null
+      case 'tipo_implantacao':
+        return <select style={m.input} value={form.custom_fields?.tipo_implantacao || ''} onChange={e => setCustomField('tipo_implantacao', e.target.value)}>
+          <option value="">—</option>
+          {['Padrão','Customizada','Expressa'].map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+      case 'segmento_industria':
+        return <input style={m.input} value={form.custom_fields?.segmento_industria || ''} onChange={e => setCustomField('segmento_industria', e.target.value)} placeholder="Ex: Tecnologia, Saúde…" />
+      case 'exige_integracao':
+        return (
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)' }}>
+            <input type="checkbox" checked={!!form.custom_fields?.exige_integracao} onChange={e => setCustomField('exige_integracao', e.target.checked)}
+              style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
+            <span style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>Sim</span>
+          </label>
+        )
+      case 'motivo_perda':
+        return form.situacao === 'perdida'
+          ? <MotivoPerdaField value={form.motivo_perda} onChange={v => set('motivo_perda', v)} />
+          : null
+      case 'descricao':
+        return <textarea style={{ ...m.input, minHeight:72, resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Observações sobre a oportunidade…" />
+      default:
+        return null
+    }
+  }
+
   function DadosFormBody() {
     return (
       <>
-        {/* 1. Posição no funil */}
+        {/* Etapa do funil — sempre fixo no topo */}
         <SectionLabel>Posição no funil</SectionLabel>
         <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
-
-        {/* 2. Situação */}
-        <SectionLabel>Situação da oportunidade</SectionLabel>
-        <div style={{ display:'grid', gridTemplateColumns: form.situacao==='perdida' ? '1fr 1fr' : '1fr', gap:12, marginBottom:4 }}>
-          <Field label="Situação">
-            <div style={{ position:'relative' }}>
-              <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)',
-                width:8, height:8, borderRadius:'50%', pointerEvents:'none',
-                background: SITUACOES[form.situacao]?.color || '#94a3b8' }} />
-              <select
-                style={{ ...m.input, paddingLeft:26, fontWeight:600, color: SITUACOES[form.situacao]?.text || 'var(--text)' }}
-                value={form.situacao}
-                onChange={e => { set('situacao', e.target.value); if (e.target.value !== 'perdida') set('motivo_perda', '') }}>
-                {Object.entries(SITUACOES).map(([k, cfg]) => (
-                  <option key={k} value={k}>{cfg.label}</option>
-                ))}
-              </select>
-            </div>
-          </Field>
-          {form.situacao === 'perdida' && (
-            <MotivoPerdaField value={form.motivo_perda} onChange={v => set('motivo_perda', v)} />
-          )}
-        </div>
-
-        {/* 3. Nome do cliente */}
-        <SectionLabel>Cliente</SectionLabel>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:16 }}>
-          <div>
-            <label style={SL}>
-              Empresa <span style={{ color:'var(--red)', fontWeight:800 }}>*</span>
-            </label>
-            <EmpresaSearch value={form.empresa_id} label={form.empresa_nome}
-              onChange={(id, nome) => {
-                set('empresa_id', id); set('empresa_nome', nome)
-                if (id && form.primary_contact_id) {
-                  const c = todosContatos.find(c => c.id === form.primary_contact_id)
-                  if (!c || c.empresa_id !== Number(id)) {
-                    set('primary_contact_id', null); set('primary_contact_nome', '')
-                  }
-                }
-                if (!id) { set('primary_contact_id', null); set('primary_contact_nome', '') }
-              }} />
-          </div>
-          <div>
-            <label style={SL}>Contato Principal</label>
-            <ContatoSearch
-              value={form.primary_contact_id}
-              label={form.primary_contact_nome}
-              empresaId={form.empresa_id}
-              allContatos={todosContatos}
-              onChange={(id, nome) => { set('primary_contact_id', id); set('primary_contact_nome', nome) }} />
-          </div>
-        </div>
-
-        {/* 4. Campanha + demais dados */}
-        <SectionLabel>Identificação &amp; Dados comerciais</SectionLabel>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:4 }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div>
-              <label style={SL}>Título <span style={{ color:'var(--red)', fontWeight:800 }}>*</span></label>
-              <input style={m.input} value={form.titulo}
-                onChange={e => set('titulo', e.target.value)}
-                placeholder="Ex: Proposta expansão SP" />
-            </div>
-            <div>
-              <label style={SL}>Responsável</label>
-              <SearchSelect
-                options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: '#6366F1' }))}
-                value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || null}
-                onChange={(id, nome) => set('responsavel', nome)}
-                placeholder="Pesquisar responsável…"
-                inputStyle={m.input}
-              />
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <CampanhaField value={form.campanha_id} onChange={v => set('campanha_id', v)} />
-            <div>
-              <label style={SL}>Data de início</label>
-              <input type="date" style={m.input} value={form.criado || ''}
-                onChange={e => set('criado', e.target.value)} />
-            </div>
-            <div>
-              <label style={SL}>Prazo de fechamento</label>
-              <input type="date" style={m.input} value={form.prazo}
-                onChange={e => set('prazo', e.target.value)} />
-            </div>
-          </div>
+        <div style={{ marginTop:16 }}>
+          <DynamicFormLayout
+            sections={oppSections}
+            fieldById={oppFieldById}
+            renderField={renderOppField}
+            sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+            labelStyle={{ ...SL }}
+          />
         </div>
       </>
     )
