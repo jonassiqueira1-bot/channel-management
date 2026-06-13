@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { MOCK_TAREFAS as INITIAL_TAREFAS } from '../data/mockTarefas'
+import { useTasks } from '../hooks/useTasks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
@@ -772,7 +772,7 @@ export default function Tarefas() {
   const [filterEntidade, setFilterEntidade]     = useLocalState('tarefas:filterEntidade', '')
   const [sortBy, setSortBy]             = useLocalState('tarefas:sortBy', 'prazo')
   // ── estado efêmero (não persiste) ────────────────────────────────────────
-  const [tarefas, setTarefas]           = useState(INITIAL_TAREFAS)
+  const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
   const [modal, setModal]               = useState(null)
   const [importModal, setImportModal]   = useState(false)
   const [exportLogs, setExportLogs]     = useState([])
@@ -835,9 +835,9 @@ export default function Tarefas() {
     const ids=[...selected]
     if (action==='delete'){
       if(!window.confirm(`Excluir ${ids.length} tarefa(s)?`)) return
-      setTarefas(prev=>prev.filter(t=>!ids.includes(t.id))); clearSelection()
+      ids.forEach(id => deleteTarefa(id)); clearSelection()
     } else {
-      setTarefas(prev=>prev.map(t=>ids.includes(t.id)?{...t,status:action}:t)); clearSelection()
+      bulkTarefaStatus(ids, action); clearSelection()
     }
   }
 
@@ -856,15 +856,8 @@ export default function Tarefas() {
   }
 
   // ── save / delete ─────────────────────────────────────────────────────────
-  function handleSave(data) {
-    setTarefas(prev=>{
-      const idx=prev.findIndex(t=>t.id===data.id)
-      if(idx>=0){const n=[...prev];n[idx]=data;return n}
-      return [...prev,data]
-    })
-    setModal(null)
-  }
-  function handleDelete(id) { setTarefas(prev=>prev.filter(t=>t.id!==id)); setModal(null) }
+  function handleSave(data) { saveTarefa(data); setModal(null) }
+  function handleDelete(id) { deleteTarefa(id); setModal(null) }
 
   const hasFilter = search||filterStatus||filterTipo||filterPrioridade||filterEntidade||filtroPeriodoInicio||filtroPeriodoFim
 
@@ -1103,7 +1096,7 @@ export default function Tarefas() {
 
       {importModal && (
         <ImportModal onClose={()=>setImportModal(false)}
-          onImport={(rows,log)=>{ setTarefas(prev=>[...prev,...rows]); setExportLogs(prev=>[log,...prev]) }} />
+          onImport={(rows,log)=>{ rows.forEach(t=>saveTarefa(t)); setExportLogs(prev=>[log,...prev]) }} />
       )}
 
     </div>

@@ -1,0 +1,98 @@
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../contexts/AuthContext'
+import { useProfile } from './useProfile'
+import {
+  MOCK_PLAYBOOKS, MOCK_FUNNEL_STEPS, MOCK_REFERENCES, MOCK_RESOURCES,
+} from '../data/mockPlaybooks'
+
+function rowToPlaybook(row) {
+  const cf = row.custom_fields || {}
+  return {
+    id:        row.id,
+    titulo:    row.titulo,
+    descricao: row.descricao || '',
+    status:    row.status || 'rascunho',
+    owner_id:  row.owner_id || null,
+    criado:    row.created_at?.slice(0, 10) || '',
+    atualizado:row.updated_at?.slice(0, 10) || '',
+    ...cf,
+  }
+}
+
+function playbookToRow(pb, tenantId, branchId) {
+  const { id, titulo, descricao, status, owner_id, criado, atualizado, ...rest } = pb
+  return {
+    tenant_id:    tenantId,
+    branch_id:    branchId || null,
+    owner_id:     owner_id || null,
+    titulo:       titulo,
+    descricao:    descricao || null,
+    status:       status || 'rascunho',
+    steps:        rest.steps || [],
+    refs:         rest.refs  || [],
+    resources:    rest.resources || [],
+    custom_fields: Object.fromEntries(
+      Object.entries(rest).filter(([k]) => !['steps','refs','resources'].includes(k))
+    ),
+  }
+}
+
+export function usePlaybooks() {
+  const { session } = useAuth()
+  const { profile } = useProfile()
+
+  const [playbooks,  setPlaybooks]  = useState(MOCK_PLAYBOOKS)
+  const [steps,      setSteps]      = useState(MOCK_FUNNEL_STEPS)
+  const [refs,       setRefs]       = useState(MOCK_REFERENCES)
+  const [resources,  setResources]  = useState(MOCK_RESOURCES)
+  const [loading, setLoading]       = useState(true)
+  const isMockMode                  = useRef(true)
+
+  const tenantId = profile?.tenant_id
+  const branchId = profile?.branch_id || null
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    const { data, error } = await supabase
+      .from('playbooks')
+      .select('*')
+      .order('updated_at', { ascending: false })
+    if (error) { isMockMode.current = true; setLoading(false); return }
+    isMockMode.current = false
+    setPlaybooks((data || []).map(rowToPlaybook))
+    setLoading(false)
+  }, [session])
+
+  useEffect(() => { load() }, [load])
+
+  const save = useCallback(async (pb) => {
+    if (isMockMode.current) {
+      setPlaybooks(prev => { const idx = prev.findIndex(x => x.id === pb.id); if (idx >= 0) { const n=[...prev]; n[idx]=pb; return n } return [...prev, { ...pb, id: pb.id || `pb-${Date.now()}` }] })
+      return { ok: true }
+    }
+    const row = playbookToRow(pb, tenantId, branchId)
+    const isUuid = typeof pb.id === 'string' && pb.id.includes('-') && !pb.id.startsWith('pb-')
+    if (isUuid) {
+      const { error } = await supabase.from('playbooks').update(row).eq('id', pb.id)
+      if (error) return { ok: false, message: error.message }
+      setPlaybooks(prev => prev.map(x => x.id === pb.id ? { ...x, ...pb } : x))
+    } else {
+      const { data, error } = await supabase.from('playbooks').insert(row).select().single()
+      if (error) return { ok: false, message: error.message }
+      setPlaybooks(prev => [...prev, rowToPlaybook(data)])
+    }
+    return { ok: true }
+  }, [tenantId, branchId])
+
+  const remove = useCallback(async (id) => {
+    if (isMockMode.current) { setPlaybooks(prev => prev.filter(p => p.id !== id)); return { ok: true } }
+    const { error } = await supabase.from('playbooks').delete().eq('id', id)
+    if (error) return { ok: false, message: error.message }
+    setPlaybooks(prev => prev.filter(p => p.id !== id))
+    return { ok: true }
+  }, [])
+
+  return { playbooks, steps, refs, resources, loading, reload: load, save, remove, setPlaybooks, setSteps, setRefs, setResources, isMock: isMockMode }
+}

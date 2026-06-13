@@ -1,12 +1,9 @@
 import { useState, useMemo } from 'react'
-import {
-  MOCK_PLAYBOOKS, MOCK_FUNNEL_STEPS, MOCK_REFERENCES, MOCK_RESOURCES,
-  PB_STORAGE_KEY, PB_STEPS_STORAGE_KEY, PB_REFS_STORAGE_KEY, PB_RESOURCES_STORAGE_KEY,
-  STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS,
-} from '../data/mockPlaybooks'
+import { STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS } from '../data/mockPlaybooks'
 import { MOCK_FUNIS } from '../data/mockFunis'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
+import { usePlaybooks } from '../hooks/usePlaybooks'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -728,10 +725,7 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew 
 export default function Playbooks() {
   const isISV = USE_PROFILE === 'isv'
 
-  const [playbooks, setPlaybooks] = useLocalState(PB_STORAGE_KEY,           MOCK_PLAYBOOKS)
-  const [steps,     setSteps]     = useLocalState(PB_STEPS_STORAGE_KEY,     MOCK_FUNNEL_STEPS)
-  const [refs,      setRefs]      = useLocalState(PB_REFS_STORAGE_KEY,      MOCK_REFERENCES)
-  const [resources, setResources] = useLocalState(PB_RESOURCES_STORAGE_KEY, MOCK_RESOURCES)
+  const { playbooks, steps, refs, resources, save: savePb, remove: deletePb, setPlaybooks, setSteps, setRefs, setResources } = usePlaybooks()
 
   const [selectedPb, setSelectedPb] = useState(null)
   const [modal, setModal] = useState(null) // null | { type, data? }
@@ -745,14 +739,8 @@ export default function Playbooks() {
   const pbResources = useMemo(() => resources.filter(r => r.playbook_id === selectedPb?.id), [resources, selectedPb])
 
   function savePlaybook(form) {
-    const t = now()
-    if (form.id) {
-      setPlaybooks(prev => prev.map(p => p.id === form.id ? { ...p, ...form, updated_at: t } : p))
-      if (selectedPb?.id === form.id) setSelectedPb(p => ({ ...p, ...form, updated_at: t }))
-    } else {
-      const nb = { ...form, id: `pb-${Date.now()}`, tenant_id: tid, created_by: 'Você', created_at: t, updated_at: t }
-      setPlaybooks(prev => [...prev, nb])
-    }
+    savePb(form)
+    if (form.id && selectedPb?.id === form.id) setSelectedPb(p => ({ ...p, ...form }))
     setModal(null)
   }
 

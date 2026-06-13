@@ -1,10 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import {
-  MOCK_DOCS, MOCK_LOGS,
-  STORAGE_KEY_DOCS, STORAGE_KEY_LOGS,
-  CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG,
-} from '../data/mockDocumentos'
+import { CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG } from '../data/mockDocumentos'
+import { useDocuments } from '../hooks/useDocuments'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -764,8 +761,7 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Documentos() {
-  const [docs,     setDocs]     = useLocalState(STORAGE_KEY_DOCS, MOCK_DOCS)
-  const [logs,     setLogs]     = useLocalState(STORAGE_KEY_LOGS, MOCK_LOGS)
+  const { docs, logs, save: saveDoc, remove: deleteDoc, setDocs, setLogs } = useDocuments()
   const [search,   setSearch]   = useLocalState('docs:search', '')
   const [filtroCategoria, setFiltroCategoria] = useLocalState('docs:filtroCategoria', '')
   const [filtroStatus,    setFiltroStatus]    = useLocalState('docs:filtroStatus', '')
@@ -791,20 +787,11 @@ export default function Documentos() {
   }), [docs])
 
   function handleSave(docOrNull, deleteId) {
-    if (deleteId) {
-      setDocs(prev => prev.filter(d => d.id !== deleteId))
-      return
-    }
-    setDocs(prev => {
-      const idx = prev.findIndex(d => d.id === docOrNull.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = docOrNull; return n }
-      return [...prev, docOrNull]
-    })
+    if (deleteId) { deleteDoc(deleteId); return }
+    saveDoc(docOrNull)
   }
 
-  function handleAddLog(log) {
-    setLogs(prev => [...prev, log])
-  }
+  function handleAddLog(log) { setLogs(prev => [...prev, log]) }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>

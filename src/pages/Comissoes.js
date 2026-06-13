@@ -7,8 +7,6 @@ import {
   User, Users, Settings, Filter,
 } from 'lucide-react'
 import {
-  MOCK_RULES, MOCK_PAYMENTS, MOCK_PERSONAS,
-  RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY, PERSONAS_STORAGE_KEY,
   RECEITA_TIPOS, STATUS_CFG,
   TIPO_CALCULO_CFG, TIPO_RECORRENCIA_CFG,
   DEFAULT_ESCALA_INDIVIDUAL, DEFAULT_ESCALA_EQUIPE,
@@ -17,6 +15,7 @@ import {
 } from '../data/mockComissoes'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useLocalState } from '../hooks/useLocalState'
+import { useCommissions } from '../hooks/useCommissions'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const TABS = [
@@ -1217,9 +1216,7 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
 export default function Comissoes() {
   const [tab, setTab]           = useLocalState('comissoes:tab', 'repasses')
   const [period, setPeriod]     = useState('this_month')
-  const [rules, setRules]       = useLocalState(RULES_STORAGE_KEY,    MOCK_RULES)
-  const [payments, setPayments] = useLocalState(PAYMENTS_STORAGE_KEY, MOCK_PAYMENTS)
-  const [personas, setPersonas] = useLocalState(PERSONAS_STORAGE_KEY, MOCK_PERSONAS)
+  const { rules, payments, personas, setRules, setPayments, setPersonas } = useCommissions()
   const [showModal, setShowModal] = useState(null)
 
   const totalPendente = useMemo(() =>

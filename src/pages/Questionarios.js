@@ -1,10 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import {
-  MOCK_TEMPLATES, MOCK_SUBMISSIONS,
-  STORAGE_KEY_TEMPLATES, STORAGE_KEY_SUBMISSIONS,
-  TIPO_CFG, STATUS_CFG,
-} from '../data/mockQuestionarios'
+import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
+import { useQuestionnaires } from '../hooks/useQuestionnaires'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
@@ -719,8 +716,7 @@ function TemplateDrawer({ template: initial, submissions, onClose, onSave, onSav
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Questionarios() {
-  const [templates,    setTemplates]    = useLocalState(STORAGE_KEY_TEMPLATES,   MOCK_TEMPLATES)
-  const [submissions,  setSubmissions]  = useLocalState(STORAGE_KEY_SUBMISSIONS, MOCK_SUBMISSIONS)
+  const { templates, submissions, saveTemplate, removeTemplate, saveSubmission } = useQuestionnaires()
   const [search,       setSearch]       = useLocalState('questionarios:search', '')
   const [filtroTipo,   setFiltroTipo]   = useLocalState('questionarios:filtroTipo', '')
   const [showMetrics,  setShowMetrics]  = useLocalState('questionarios:showMetrics', true)
@@ -745,21 +741,8 @@ export default function Questionarios() {
 
   const submissoesPorTemplate = useCallback(id => submissions.filter(s => s.template_id === id).length, [submissions])
 
-  function handleSaveTemplate(updated) {
-    setTemplates(prev => {
-      const idx = prev.findIndex(t => t.id === updated.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = updated; return n }
-      return [...prev, updated]
-    })
-  }
-
-  function handleSaveSubmission(sub) {
-    setSubmissions(prev => {
-      const idx = prev.findIndex(s => s.id === sub.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = sub; return n }
-      return [...prev, sub]
-    })
-  }
+  function handleSaveTemplate(updated) { saveTemplate(updated) }
+  function handleSaveSubmission(sub) { saveSubmission(sub) }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>

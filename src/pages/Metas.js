@@ -16,6 +16,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useGoals } from '../hooks/useGoals'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineSelect, DeleteZone } from '../components/NotionDrawer'
 
@@ -1032,7 +1033,7 @@ function MetaDetail({ initial, row, onClose, onSave }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Metas() {
-  const [goals, setGoals] = useLocalState('metas:goals_v3', MOCK_GOALS_SEED)
+  const { goals, save: saveGoals, remove: deleteGoal } = useGoals()
 
   // Período De/Até
   const [deMes,  setDeMes]  = useLocalState('metas:deMes',  String(1))
@@ -1126,21 +1127,10 @@ export default function Metas() {
     : 'Responsável'
 
   // ── CRUD ────────────────────────────────────────────────────────────────
-  function handleSave(records) {
-    setGoals(prev => {
-      let next = [...prev]
-      records.forEach(data => {
-        const idx = next.findIndex(g => g.id === data.id)
-        if (idx >= 0) next[idx] = data
-        else next.push(data)
-      })
-      return next
-    })
-    setModal(null)
-  }
+  function handleSave(records) { saveGoals(records); setModal(null) }
   function handleDelete(id) {
     if (!window.confirm('Excluir esta meta?')) return
-    setGoals(prev => prev.filter(g => g.id !== id))
+    deleteGoal(id)
   }
 
   // Fechar popovers ao abrir outro
