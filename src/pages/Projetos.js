@@ -1,12 +1,10 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
-  MOCK_PROJETOS, MOCK_PROJECT_PHASES, MOCK_TIME_LOGS, MOCK_PROJECT_ISSUES,
   MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
-  MOCK_PROJECT_MEMBERS,
-  PROJECTS_STORAGE_KEY, PHASES_STORAGE_KEY, TIME_LOGS_STORAGE_KEY, MEMBERS_STORAGE_KEY,
 } from '../data/mockProjetos'
 import { useLocalState } from '../hooks/useLocalState'
+import { useProjects } from '../hooks/useProjects'
 import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
@@ -1068,12 +1066,8 @@ function FiltrosPopover({ open, onClose, filtros, setFiltros, projetos }) {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
-  const [projetos,     setProjetos]    = useLocalState(PROJECTS_STORAGE_KEY,  MOCK_PROJETOS)
-  const [phases,       setPhases]      = useLocalState(PHASES_STORAGE_KEY,    MOCK_PROJECT_PHASES)
-  const [timeLogs,     setTimeLogs]    = useLocalState(TIME_LOGS_STORAGE_KEY, MOCK_TIME_LOGS)
-  const [issues,       setIssues]      = useState(MOCK_PROJECT_ISSUES)
-  const [attachments]                  = useState(MOCK_PROJECT_ATTACHMENTS)
-  const [members,      setMembers]     = useLocalState(MEMBERS_STORAGE_KEY, MOCK_PROJECT_MEMBERS)
+  const { projetos, phases, timeLogs, issues, members, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
+  const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
   const [modal,        setModal]       = useState(null)
   const [drawer,       setDrawer]      = useState(null)
   const [filtros,      setFiltros]     = useState({ status: '', franchise: '' })

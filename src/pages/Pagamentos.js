@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { SlidersHorizontal, MoreHorizontal, ChevronDown, ChevronUp } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_PAGAMENTOS, PAGAMENTOS_STORAGE_KEY, STATUS_PAGAMENTO } from '../data/mockPagamentos'
+import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
+import { usePayments } from '../hooks/usePayments'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
@@ -1039,7 +1040,7 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Pagamentos() {
-  const [pagamentos, setPagamentos] = useLocalState(PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS)
+  const { pagamentos, setPagamentos } = usePayments()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')

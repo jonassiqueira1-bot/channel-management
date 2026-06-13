@@ -28,6 +28,7 @@ import {
   STAGE_CFG, RESOURCE_CFG,
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
+import { useOpportunities } from '../hooks/useOpportunities'
 import SearchSelect from '../components/SearchSelect'
 import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
@@ -79,18 +80,6 @@ const EMPTY_TAREFA = { titulo:'', tipo:'ligação', status:'pendente', prioridad
 
 // ─── Mock de oportunidades ────────────────────────────────────────────────────
 // Em produção: SELECT * FROM oportunidades WHERE organization_id = ? AND funil_id = ?
-const MOCK_OPORTUNIDADES = [
-  { id:1,  titulo:'Expansão Canal SP',        funil_id:1, etapa_id:13, playbook_id:'pb-1', empresa_id:1, empresa_nome:'Nexus Tech',   valor:890,  valor_cdu:400,  valor_sms:190,  valor_servico:350,  valor_desconto:50,  primary_contact_id:'c1',  primary_contact_nome:'Lucas Ferreira',  responsavel:'Lucas Ferreira',  prazo:'2026-07-30', origem:'Inbound',   criado:'2026-05-01', custom_fields:{ tipo_implantacao:'Remota',     segmento_industria:'Tecnologia',   exige_integracao:true  } },
-  { id:2,  titulo:'Renovação Contrato 2025',  funil_id:1, etapa_id:14, playbook_id:'pb-1', empresa_id:4, empresa_nome:'Milenium',     valor:1340, valor_cdu:600,  valor_sms:340,  valor_servico:400,  valor_desconto:0,   primary_contact_id:'c8',  primary_contact_nome:'Carla Menezes',   responsavel:'Carla Menezes',   prazo:'2026-07-15', origem:'Canal',     criado:'2026-05-10', custom_fields:{ tipo_implantacao:'Presencial',  segmento_industria:'Varejo',       exige_integracao:false } },
-  { id:3,  titulo:'Nova unidade RS',          funil_id:1, etapa_id:12, playbook_id:'pb-2', empresa_id:8, empresa_nome:'MedGroup',     valor:290,  valor_cdu:0,    valor_sms:90,   valor_servico:200,  valor_desconto:0,   primary_contact_id:'c18', primary_contact_nome:'Fernanda Rocha',  responsavel:'Fernanda Rocha',  prazo:'2026-08-20', origem:'Outbound',  criado:'2026-05-18', custom_fields:{ tipo_implantacao:'', segmento_industria:'', exige_integracao:false } },
-  { id:4,  titulo:'Upgrade Pro',              funil_id:1, etapa_id:11, playbook_id:'pb-1', empresa_id:3, empresa_nome:'Solaris',      valor:600,  valor_cdu:300,  valor_sms:0,    valor_servico:300,  valor_desconto:0,   primary_contact_id:'c7',  primary_contact_nome:'Pedro Alves',     responsavel:'Pedro Alves',     prazo:'2026-09-01', origem:'Inbound',   criado:'2026-05-20', custom_fields:{ tipo_implantacao:'', segmento_industria:'', exige_integracao:false } },
-  { id:5,  titulo:'Contrato financeiro SP',   funil_id:1, etapa_id:13, playbook_id:'pb-1', empresa_id:6, empresa_nome:'FinCorp',      valor:3200, valor_cdu:1800, valor_sms:700,  valor_servico:900,  valor_desconto:200, primary_contact_id:'c13', primary_contact_nome:'Mariana Silva',   responsavel:'Mariana Silva',   prazo:'2026-07-01', origem:'Indicação', criado:'2026-04-12', custom_fields:{ tipo_implantacao:'Híbrida',    segmento_industria:'Financeiro',   exige_integracao:true  } },
-  { id:6,  titulo:'Piloto agro PR',           funil_id:1, etapa_id:15, playbook_id:null,   empresa_id:5, empresa_nome:'AgriSmart',    valor:890,  valor_cdu:0,    valor_sms:0,    valor_servico:890,  valor_desconto:0,   primary_contact_id:'c11', primary_contact_nome:'João Lima',       responsavel:'João Lima',       prazo:'2026-06-30', origem:'Canal',     criado:'2026-03-05', custom_fields:{ tipo_implantacao:'Presencial',  segmento_industria:'Agronegócio',  exige_integracao:false } },
-  { id:7,  titulo:'Parceria distribuição',    funil_id:2, etapa_id:22, playbook_id:'pb-1', empresa_id:2, empresa_nome:'Alpha Dist.',  valor:1200, valor_cdu:500,  valor_sms:400,  valor_servico:300,  valor_desconto:0,   primary_contact_id:'c5',  primary_contact_nome:'Ana Costa',       responsavel:'Ana Costa',       prazo:'2026-08-10', origem:'Canal',     criado:'2026-05-15', custom_fields:{ tipo_implantacao:'', segmento_industria:'', exige_integracao:false } },
-  { id:8,  titulo:'Demo Canal Sul',           funil_id:2, etapa_id:21, playbook_id:null,   empresa_id:7, empresa_nome:'Logix',        valor:580,  valor_cdu:0,    valor_sms:180,  valor_servico:400,  valor_desconto:0,   primary_contact_id:'c17', primary_contact_nome:'Rafael Santos',   responsavel:'Rafael Santos',   prazo:'2026-09-15', origem:'Outbound',  criado:'2026-05-22', custom_fields:{ tipo_implantacao:'', segmento_industria:'', exige_integracao:false } },
-  { id:9,  titulo:'Proposta distribuidora',   funil_id:2, etapa_id:23, playbook_id:'pb-1', empresa_id:4, empresa_nome:'Milenium',     valor:890,  valor_cdu:390,  valor_sms:200,  valor_servico:350,  valor_desconto:50,  primary_contact_id:'c9',  primary_contact_nome:'Felipe Souza',    responsavel:'Carla Menezes',   prazo:'2026-07-20', origem:'Canal',     criado:'2026-05-08', custom_fields:{ tipo_implantacao:'Remota',     segmento_industria:'Distribuição', exige_integracao:true  } },
-  { id:10, titulo:'Aprovação parceiro RJ',    funil_id:2, etapa_id:24, playbook_id:null,   empresa_id:3, empresa_nome:'Solaris',      valor:1780, valor_cdu:800,  valor_sms:480,  valor_servico:500,  valor_desconto:0,   primary_contact_id:null,  primary_contact_nome:'',                responsavel:'Pedro Alves',     prazo:'2026-07-05', origem:'Indicação', criado:'2026-04-28', custom_fields:{ tipo_implantacao:'', segmento_industria:'', exige_integracao:false } },
-]
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMoeda(v) {
@@ -5045,8 +5034,9 @@ export default function Pipeline() {
   const [filterResponsavel, setFilterResponsavel] = useLocalState('pipeline:filterResponsavel', '')
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
+  // ── dados via Supabase (com fallback mock automático) ────────────────────
+  const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
   // ── estado efêmero (não persiste) ────────────────────────────────────────
-  const [opps, setOpps]                 = useState(MOCK_OPORTUNIDADES)
   const [tarefas, setTarefas]           = useState(MOCK_TAREFAS)
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
@@ -5149,11 +5139,10 @@ export default function Pipeline() {
     const ids = [...selected]
     if (action==='delete') {
       if (!window.confirm(`Excluir ${ids.length} oportunidade(s) permanentemente?`)) return
-      setOpps(prev=>prev.filter(o=>!ids.includes(o.id))); clearSelection()
+      removeManyOpps(ids); clearSelection()
     } else {
-      // mover para etapa
       const etapaId = parseInt(action)
-      setOpps(prev=>prev.map(o=>ids.includes(o.id)?{...o,etapa_id:etapaId}:o)); clearSelection()
+      bulkMoveToStage(ids, etapaId); clearSelection()
     }
   }
 
@@ -5178,11 +5167,8 @@ export default function Pipeline() {
   }
 
   // ── save/delete ───────────────────────────────────────────────────────────
-  function handleSave(data) {
-    setOpps(prev=>{ const idx=prev.findIndex(o=>o.id===data.id); if(idx>=0){const n=[...prev];n[idx]=data;return n} return [...prev,data] })
-    setModal(null)
-  }
-  function handleDelete(id) { setOpps(prev=>prev.filter(o=>o.id!==id)); setModal(null) }
+  function handleSave(data) { saveOpp(data); setModal(null) }
+  function handleDelete(id) { removeOpp(id); setModal(null) }
 
   function handleSaveTarefa(tarefa) {
     setTarefas(prev => {
@@ -5472,7 +5458,7 @@ export default function Pipeline() {
           onClose={()=>setImportModal(false)}
           funilAtivo={funilAtivo}
           etapas={etapas}
-          onImport={(rows, log)=>{ setOpps(prev=>[...prev,...rows]); setImportLogs(prev=>[log,...prev]) }}
+          onImport={(rows, log)=>{ importOpps(rows); setImportLogs(prev=>[log,...prev]) }}
         />
       )}
     </div>

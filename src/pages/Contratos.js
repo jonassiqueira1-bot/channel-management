@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useContracts } from '../hooks/useContracts'
 import ActionFeedback from '../components/ActionFeedback'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
@@ -876,7 +877,7 @@ function AcoesDropdown({ onExport, onClose, anchorRef }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Contratos() {
-  const [contratos, setContratos]     = useState(MOCK_CONTRATOS)
+  const { contratos, setContratos }   = useContracts(MOCK_CONTRATOS)
   const [search, setSearch]           = useLocalState('contratos:search', '')
   const [filterStatus, setFilterStatus] = useLocalState('contratos:filterStatus', '')
   const [sortBy, setSortBy]           = useLocalState('contratos:sortBy', 'numero')
