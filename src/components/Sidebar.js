@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, Settings,
-  Pencil, Check, X, GripVertical, Plus, Trash2,
+  Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
 } from 'lucide-react'
 
 // Mapa de ícones para serializar/deserializar do localStorage
@@ -390,12 +390,26 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           )
         })}
 
-        {/* ── Criar novo grupo ── */}
+        {/* ── Criar novo grupo + Restaurar padrão ── */}
         {!collapsed && (
-          <button onClick={createGroup} style={s.addGroupBtn} title="Novo grupo">
-            <Plus size={11} strokeWidth={2} />
-            <span>Novo grupo</span>
-          </button>
+          <div style={{ display: 'flex', gap: 6, margin: '8px 16px 4px' }}>
+            <button onClick={createGroup} style={{ ...s.addGroupBtn, margin: 0, flex: 1 }} title="Novo grupo">
+              <Plus size={11} strokeWidth={2} />
+              <span>Novo grupo</span>
+            </button>
+            <button
+              onClick={() => {
+                if (window.confirm('Restaurar a organização padrão do menu? As alterações serão perdidas.')) {
+                  setGroups(INITIAL_GROUPS)
+                  setOpenGroups({})
+                }
+              }}
+              style={{ ...s.addGroupBtn, margin: 0, flex: 'none', padding: '5px 8px' }}
+              title="Restaurar organização padrão"
+            >
+              <RotateCcw size={11} strokeWidth={2} />
+            </button>
+          </div>
         )}
       </nav>
 
