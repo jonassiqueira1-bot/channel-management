@@ -110,7 +110,7 @@ export function useCommissions() {
     isMockMode.current = false
     setRules((r.data || []).map(rowToRule))
     setPayments((p.data || []).map(rowToPayment))
-    setPersonas(pe.data?.length ? pe.data.map(rowToPersona) : MOCK_PERSONAS)
+    setPersonas((pe.data || []).map(rowToPersona))
     setLoading(false)
   }, [session])
 
