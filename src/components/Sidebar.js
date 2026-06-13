@@ -1,78 +1,99 @@
 import { useState, useRef } from 'react'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useLocalState } from '../hooks/useLocalState'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, Settings,
-  Pencil, Check, X, GripVertical,
+  Pencil, Check, X, GripVertical, Plus, Trash2,
 } from 'lucide-react'
 
-// ─── Configuração inicial dos grupos e itens ──────────────────────────────────
+// Mapa de ícones para serializar/deserializar do localStorage
+const ICON_MAP = {
+  LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
+  Building2, UserCircle, FileText, CreditCard, FolderKanban,
+  ClipboardList, FileStack, BookOpen, DollarSign,
+}
+
+// ─── Estrutura inicial dos grupos ────────────────────────────────────────────
 const INITIAL_GROUPS = [
   {
     id: 'visao',
     label: 'Visão Geral',
     items: [
-      { path: '/dashboard',    label: 'Dashboard',   Icon: LayoutDashboard },
-    ],
-  },
-  {
-    id: 'canal',
-    label: 'Canal',
-    items: [
-      { path: '/vendedores',   label: 'Contatos Canais',  Icon: Users },
+      { path: '/dashboard', label: 'Dashboard', iconKey: 'LayoutDashboard' },
+      { path: '/metas',     label: 'Metas',     iconKey: 'Target' },
     ],
   },
   {
     id: 'comercial',
     label: 'Comercial',
     items: [
-      { path: '/pipeline',     label: 'Pipeline',    Icon: TrendingUp },
-      { path: '/acoes',        label: 'Ações',       Icon: Zap },
-      { path: '/tarefas',      label: 'Tarefas',     Icon: CheckSquare },
-      { path: '/metas',        label: 'Metas',       Icon: Target },
+      { path: '/pipeline', label: 'Pipeline',  iconKey: 'TrendingUp' },
+      { path: '/tarefas',  label: 'Tarefas',   iconKey: 'CheckSquare' },
+      { path: '/playbooks',label: 'Playbooks', iconKey: 'BookOpen' },
+    ],
+  },
+  {
+    id: 'canais',
+    label: 'Canais',
+    items: [
+      { path: '/vendedores', label: 'Vendedores', iconKey: 'Users' },
+      { path: '/acoes',      label: 'Ações',      iconKey: 'Zap' },
     ],
   },
   {
     id: 'clientes',
     label: 'Clientes',
     items: [
-      { path: '/empresas',     label: 'Empresas',    Icon: Building2 },
-      { path: '/contatos',     label: 'Contatos',    Icon: UserCircle },
-      { path: '/contratos',    label: 'Contratos',   Icon: FileText },
-      { path: '/pagamentos',   label: 'Pagamentos',  Icon: CreditCard },
+      { path: '/empresas',  label: 'Empresas',  iconKey: 'Building2' },
+      { path: '/contatos',  label: 'Contatos',  iconKey: 'UserCircle' },
     ],
   },
   {
-    id: 'operacao',
-    label: 'Operação',
+    id: 'projetos',
+    label: 'Projetos',
     items: [
-      { path: '/projetos',      label: 'Projetos',      Icon: FolderKanban },
-      { path: '/questionarios', label: 'Questionários', Icon: ClipboardList },
-      { path: '/documentos',    label: 'Documentos',    Icon: FileStack },
-      { path: '/playbooks',     label: 'Playbooks',     Icon: BookOpen },
-      { path: '/comissoes',     label: 'Comissões',     Icon: DollarSign },
+      { path: '/projetos', label: 'Projetos', iconKey: 'FolderKanban' },
+    ],
+  },
+  {
+    id: 'financeiro',
+    label: 'Financeiro',
+    items: [
+      { path: '/contratos',  label: 'Contratos',  iconKey: 'FileText' },
+      { path: '/pagamentos', label: 'Pagamentos', iconKey: 'CreditCard' },
+      { path: '/comissoes',  label: 'Comissões',  iconKey: 'DollarSign' },
+    ],
+  },
+  {
+    id: 'recursos',
+    label: 'Recursos',
+    items: [
+      { path: '/questionarios', label: 'Questionários', iconKey: 'ClipboardList' },
+      { path: '/documentos',    label: 'Documentos',    iconKey: 'FileStack' },
     ],
   },
 ]
 
-const ACCENT     = '#6366F1'
-const ICON_SIZE  = 15
+const ACCENT    = '#6366F1'
+const ICON_SIZE = 15
+
+let _gid = 0
+function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]           = useState(INITIAL_GROUPS)
-  const [openGroups, setOpenGroups]   = useState({ visao: true, canal: true, comercial: true, clientes: true, operacao: true })
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v3', INITIAL_GROUPS)
+  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v3', {})
 
-  // ── Edição inline de rótulo de grupo ──────────────────────────────────────
-  const [editingGroup, setEditingGroup] = useState(null)   // id do grupo
+  // Edição de rótulo de grupo
+  const [editingGroup, setEditingGroup] = useState(null)
   const [editValue,    setEditValue]    = useState('')
   const [hoveredGroup, setHoveredGroup] = useState(null)
   const editInputRef = useRef(null)
 
-  // ── Drag & Drop ───────────────────────────────────────────────────────────
-  // dragSrc  = { gIdx, iIdx }
-  // dragOver = { gIdx, iIdx } | { gIdx, iIdx: null } (sobre o header do grupo)
+  // Drag state: { type: 'item'|'group', gIdx, iIdx? }
   const [dragSrc,  setDragSrc]  = useState(null)
   const [dragOver, setDragOver] = useState(null)
 
@@ -80,9 +101,12 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const navigate    = useNavigate()
   const inSettings  = !!useMatch('/settings/*')
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  function isOpen(groupId) {
+    return openGroups[groupId] !== false  // aberto por padrão
+  }
+
   function toggleGroup(id) {
-    setOpenGroups(prev => ({ ...prev, [id]: !prev[id] }))
+    setOpenGroups(prev => ({ ...prev, [id]: !isOpen(id) }))
   }
 
   async function handleSignOut() {
@@ -90,7 +114,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
     navigate('/login')
   }
 
-  // ── Edição de grupo ───────────────────────────────────────────────────────
+  // ── Edição de rótulo ─────────────────────────────────────────────────────
   function startEdit(group, e) {
     e.stopPropagation()
     setEditingGroup(group.id)
@@ -107,11 +131,48 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
   function cancelEdit() { setEditingGroup(null) }
 
-  // ── Drag & Drop ───────────────────────────────────────────────────────────
-  function onDragStart(e, gIdx, iIdx) {
-    setDragSrc({ gIdx, iIdx })
+  // ── Criar grupo ──────────────────────────────────────────────────────────
+  function createGroup() {
+    const id = newGroupId()
+    const novo = { id, label: 'Novo grupo', items: [] }
+    setGroups(prev => [...prev, novo])
+    setOpenGroups(prev => ({ ...prev, [id]: true }))
+    // Entra em modo edição imediatamente
+    setEditingGroup(id)
+    setEditValue('Novo grupo')
+    setTimeout(() => editInputRef.current?.focus(), 60)
+  }
+
+  // ── Excluir grupo ────────────────────────────────────────────────────────
+  function deleteGroup(gIdx, e) {
+    e.stopPropagation()
+    setGroups(prev => {
+      const next = prev.map(g => ({ ...g, items: [...g.items] }))
+      const [removed] = next.splice(gIdx, 1)
+      // Move itens do grupo removido para o grupo anterior (ou o seguinte se for o primeiro)
+      if (removed.items.length > 0 && next.length > 0) {
+        const targetIdx = Math.max(0, gIdx - 1)
+        next[targetIdx].items.push(...removed.items)
+      }
+      return next
+    })
+  }
+
+  // ── Drag & Drop ──────────────────────────────────────────────────────────
+  function onItemDragStart(e, gIdx, iIdx) {
+    setDragSrc({ type: 'item', gIdx, iIdx })
     e.dataTransfer.effectAllowed = 'move'
-    // ghost image transparente para não poluir
+    setGhost(e)
+  }
+
+  function onGroupDragStart(e, gIdx) {
+    e.stopPropagation()
+    setDragSrc({ type: 'group', gIdx })
+    e.dataTransfer.effectAllowed = 'move'
+    setGhost(e)
+  }
+
+  function setGhost(e) {
     const ghost = document.createElement('div')
     ghost.style.cssText = 'position:fixed;top:-999px;opacity:0'
     document.body.appendChild(ghost)
@@ -119,38 +180,60 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
     setTimeout(() => document.body.removeChild(ghost), 0)
   }
 
-  function onDragOver(e, gIdx, iIdx = null) {
+  function onDragOverItem(e, gIdx, iIdx) {
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
-    setDragOver({ gIdx, iIdx })
+    setDragOver({ zone: 'item', gIdx, iIdx })
   }
 
-  function onDrop(e, gDst, iDst) {
+  function onDragOverGroupHeader(e, gIdx) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOver({ zone: 'group', gIdx })
+  }
+
+  function onDropOnItem(e, gDst, iDst) {
     e.preventDefault()
     if (!dragSrc) return
-    const { gIdx: gSrc, iIdx: iSrc } = dragSrc
+    if (dragSrc.type === 'item') moveItem(dragSrc.gIdx, dragSrc.iIdx, gDst, iDst)
+    cleanup()
+  }
 
-    // Se origem === destino e mesma posição, não faz nada
-    if (gSrc === gDst && (iSrc === iDst || iDst === null)) { cleanup(); return }
+  function onDropOnGroupHeader(e, gDst) {
+    e.preventDefault()
+    if (!dragSrc) return
+    if (dragSrc.type === 'item') {
+      // Solta item no final do grupo
+      moveItem(dragSrc.gIdx, dragSrc.iIdx, gDst, null)
+    } else if (dragSrc.type === 'group') {
+      // Reordena grupos
+      const gSrc = dragSrc.gIdx
+      if (gSrc === gDst) { cleanup(); return }
+      setGroups(prev => {
+        const next = [...prev]
+        const [grp] = next.splice(gSrc, 1)
+        const insertAt = gSrc < gDst ? gDst - 1 : gDst
+        next.splice(insertAt, 0, grp)
+        return next
+      })
+    }
+    cleanup()
+  }
 
+  function moveItem(gSrc, iSrc, gDst, iDst) {
+    if (gSrc === gDst && (iSrc === iDst || iDst === null)) return
     setGroups(prev => {
-      const next  = prev.map(g => ({ ...g, items: [...g.items] }))
+      const next = prev.map(g => ({ ...g, items: [...g.items] }))
       const [item] = next[gSrc].items.splice(iSrc, 1)
-
       if (iDst === null) {
-        // Soltar sobre o header: adiciona ao final do grupo
         next[gDst].items.push(item)
       } else {
-        // Ajusta índice de destino se removemos do mesmo grupo acima do alvo
-        const adjustedDst = gSrc === gDst && iSrc < iDst ? iDst - 1 : iDst
-        next[gDst].items.splice(adjustedDst, 0, item)
+        const adj = gSrc === gDst && iSrc < iDst ? iDst - 1 : iDst
+        next[gDst].items.splice(adj, 0, item)
       }
-
-      // Garante grupo de destino aberto
       setOpenGroups(o => ({ ...o, [prev[gDst].id]: true }))
       return next
     })
-    cleanup()
   }
 
   function cleanup() { setDragSrc(null); setDragOver(null) }
@@ -176,30 +259,45 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       {/* ── Nav ── */}
       <nav style={s.nav}>
         {groups.map((group, gIdx) => {
-          const isEditing  = editingGroup === group.id
-          const isHovered  = hoveredGroup === group.id
-          const isOpen     = !!openGroups[group.id]
-          const isDragOverHeader = dragOver?.gIdx === gIdx && dragOver?.iIdx === null
+          const isEditing     = editingGroup === group.id
+          const isHovered     = hoveredGroup === group.id
+          const open          = isOpen(group.id)
+          const isDragOverHdr = dragOver?.zone === 'group' && dragOver?.gIdx === gIdx
+          const isGroupDragging = dragSrc?.type === 'group' && dragSrc?.gIdx === gIdx
 
           return (
-            <div key={group.id} style={s.group}>
-
+            <div
+              key={group.id}
+              style={{ ...s.group, opacity: isGroupDragging ? 0.35 : 1 }}
+            >
               {/* ── Cabeçalho do grupo ── */}
               {!collapsed && (
                 <div
                   style={{
                     ...s.groupHeader,
-                    background: isDragOverHeader ? 'rgba(99,102,241,0.12)' : 'transparent',
-                    borderRadius: isDragOverHeader ? 6 : 0,
-                    margin: isDragOverHeader ? '0 8px' : 0,
+                    background: isDragOverHdr ? 'rgba(99,102,241,0.12)' : 'transparent',
+                    borderRadius: isDragOverHdr ? 6 : 0,
+                    margin: isDragOverHdr ? '0 8px' : 0,
                   }}
                   onMouseEnter={() => setHoveredGroup(group.id)}
                   onMouseLeave={() => setHoveredGroup(null)}
-                  onDragOver={e => onDragOver(e, gIdx, null)}
-                  onDrop={e => onDrop(e, gIdx, null)}
+                  onDragOver={e => onDragOverGroupHeader(e, gIdx)}
+                  onDrop={e => onDropOnGroupHeader(e, gIdx)}
                 >
+                  {/* Grip do grupo — arrasta o grupo inteiro */}
+                  {isHovered && !isEditing && (
+                    <span
+                      draggable
+                      onDragStart={e => onGroupDragStart(e, gIdx)}
+                      onDragEnd={cleanup}
+                      style={s.groupGrip}
+                      title="Arrastar grupo"
+                    >
+                      <GripVertical size={11} strokeWidth={1.5} />
+                    </span>
+                  )}
+
                   {isEditing ? (
-                    /* Modo edição do rótulo */
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
                       <input
                         ref={editInputRef}
@@ -220,28 +318,20 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                       </button>
                     </div>
                   ) : (
-                    /* Modo exibição */
-                    <button
-                      style={{ ...s.groupBtn, flex: 1 }}
-                      onClick={() => toggleGroup(group.id)}
-                    >
+                    <button style={{ ...s.groupBtn, flex: 1 }} onClick={() => toggleGroup(group.id)}>
                       <span style={s.groupLabel}>{group.label}</span>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {isHovered && !dragSrc && (
-                          <span
-                            role="button"
-                            title="Renomear grupo"
-                            onClick={e => startEdit(group, e)}
-                            style={s.pencilBtn}
-                          >
-                            <Pencil size={9} strokeWidth={2} />
-                          </span>
+                          <>
+                            <span role="button" title="Renomear" onClick={e => startEdit(group, e)} style={s.pencilBtn}>
+                              <Pencil size={9} strokeWidth={2} />
+                            </span>
+                            <span role="button" title="Excluir grupo" onClick={e => deleteGroup(gIdx, e)} style={{ ...s.pencilBtn, color: '#f87171' }}>
+                              <Trash2 size={9} strokeWidth={2} />
+                            </span>
+                          </>
                         )}
-                        <span style={{
-                          ...s.chevron,
-                          transform: isOpen ? 'rotate(90deg)' : 'none',
-                          opacity: isHovered ? 0.7 : 0.4,
-                        }}>›</span>
+                        <span style={{ ...s.chevron, transform: open ? 'rotate(90deg)' : 'none', opacity: isHovered ? 0.7 : 0.4 }}>›</span>
                       </div>
                     </button>
                   )}
@@ -249,23 +339,22 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
               )}
 
               {/* ── Itens do grupo ── */}
-              {(collapsed || isOpen) && group.items.map((item, iIdx) => {
-                const { Icon } = item
-                const isBeingDragged = dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
-                const isDragOverItem = dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx
+              {(collapsed || open) && group.items.map((item, iIdx) => {
+                const Icon          = ICON_MAP[item.iconKey]
+                const isBeingDragged = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
+                const isDragOverItem = dragOver?.zone === 'item' && dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx
 
                 return (
                   <div
                     key={item.path}
                     draggable={!collapsed}
-                    onDragStart={e => onDragStart(e, gIdx, iIdx)}
-                    onDragOver={e => onDragOver(e, gIdx, iIdx)}
-                    onDrop={e => onDrop(e, gIdx, iIdx)}
+                    onDragStart={e => onItemDragStart(e, gIdx, iIdx)}
+                    onDragOver={e => onDragOverItem(e, gIdx, iIdx)}
+                    onDrop={e => onDropOnItem(e, gIdx, iIdx)}
                     onDragEnd={cleanup}
                     style={{
                       position: 'relative',
                       opacity: isBeingDragged ? 0.35 : 1,
-                      // Linha indicadora acima do item alvo
                       ...(isDragOverItem && !isBeingDragged ? {
                         paddingTop: 2,
                         borderTop: `2px solid ${ACCENT}`,
@@ -286,24 +375,13 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                         margin: collapsed ? '1px 6px' : '1px 8px',
                       })}
                     >
-                      {/* Grip handle — só aparece no hover e não collapsed */}
                       {!collapsed && (
                         <span style={s.grip}>
                           <GripVertical size={11} strokeWidth={1.5} />
                         </span>
                       )}
-
-                      {Icon && (
-                        <Icon
-                          size={ICON_SIZE}
-                          strokeWidth={1.75}
-                          style={{ flexShrink: 0, color: 'currentColor' }}
-                        />
-                      )}
-
-                      {!collapsed && (
-                        <span style={{ letterSpacing: '-0.01em', flex: 1 }}>{item.label}</span>
-                      )}
+                      {Icon && <Icon size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />}
+                      {!collapsed && <span style={{ letterSpacing: '-0.01em', flex: 1 }}>{item.label}</span>}
                     </NavLink>
                   </div>
                 )
@@ -311,6 +389,14 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
             </div>
           )
         })}
+
+        {/* ── Criar novo grupo ── */}
+        {!collapsed && (
+          <button onClick={createGroup} style={s.addGroupBtn} title="Novo grupo">
+            <Plus size={11} strokeWidth={2} />
+            <span>Novo grupo</span>
+          </button>
+        )}
       </nav>
 
       {/* ── Bottom: Configurações + Recolher + Sair ── */}
@@ -327,23 +413,13 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
             margin: collapsed ? '1px 6px' : '1px 8px',
           }}
         >
-          <Settings
-            size={ICON_SIZE}
-            strokeWidth={1.75}
-            style={{ flexShrink: 0, color: 'currentColor' }}
-          />
+          <Settings size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
           {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Configurações</span>}
         </NavLink>
 
         {!isMobile && (
           <button style={s.bottomBtn} onClick={onToggle} title={collapsed ? 'Expandir' : 'Recolher'}>
-            <span style={{
-              display: 'inline-block',
-              transform: collapsed ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-              fontFamily: 'var(--mono)',
-              fontSize: 13,
-            }}>‹‹</span>
+            <span style={{ display:'inline-block', transform: collapsed ? 'rotate(180deg)' : 'none', transition:'transform 0.2s', fontFamily:'var(--mono)', fontSize:13 }}>‹‹</span>
             {!collapsed && <span style={{ fontSize: 12 }}>Recolher</span>}
           </button>
         )}
@@ -370,212 +446,110 @@ const s = {
     borderRight: '1px solid rgba(255,255,255,0.05)',
   },
   drawerMobile: {
-    position: 'fixed',
-    top: 52,
-    left: 0,
-    bottom: 0,
-    width: '78vw',
-    maxWidth: 280,
-    zIndex: 300,
-    boxShadow: '4px 0 32px rgba(0,0,0,0.4)',
-    overflowY: 'auto',
+    position: 'fixed', top: 52, left: 0, bottom: 0,
+    width: '78vw', maxWidth: 280, zIndex: 300,
+    boxShadow: '4px 0 32px rgba(0,0,0,0.4)', overflowY: 'auto',
   },
 
-  /* Brand */
   brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 10,
-    padding: '14px 12px',
-    borderBottom: '1px solid rgba(255,255,255,0.06)',
-    minHeight: 56,
-    flexShrink: 0,
+    display: 'flex', alignItems: 'center', gap: 10,
+    padding: '14px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+    minHeight: 56, flexShrink: 0,
   },
   logoMark: {
-    width: 32,
-    height: 32,
-    background: `${ACCENT}22`,
-    border: `1px solid ${ACCENT}55`,
-    borderRadius: 9,
-    color: ACCENT,
-    fontWeight: 800,
-    fontSize: 11,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'var(--mono)',
-    flexShrink: 0,
-    letterSpacing: '-0.5px',
+    width: 32, height: 32, background: `${ACCENT}22`, border: `1px solid ${ACCENT}55`,
+    borderRadius: 9, color: ACCENT, fontWeight: 800, fontSize: 11,
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    fontFamily: 'var(--mono)', flexShrink: 0, letterSpacing: '-0.5px',
   },
   brandName: {
-    color: '#f1f5f9',
-    fontSize: 14,
-    fontWeight: 700,
-    letterSpacing: '-0.3px',
-    whiteSpace: 'nowrap',
-    flex: 1,
+    color: '#f1f5f9', fontSize: 14, fontWeight: 700,
+    letterSpacing: '-0.3px', whiteSpace: 'nowrap', flex: 1,
   },
   closeBtn: {
-    background: 'none',
-    border: 'none',
-    color: 'rgba(255,255,255,0.4)',
-    cursor: 'pointer',
-    padding: '4px 6px',
-    lineHeight: 1,
-    marginLeft: 'auto',
-    borderRadius: 5,
-    display: 'flex',
-    alignItems: 'center',
+    background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)',
+    cursor: 'pointer', padding: '4px 6px', lineHeight: 1,
+    marginLeft: 'auto', borderRadius: 5, display: 'flex', alignItems: 'center',
   },
 
-  /* Nav */
-  nav: {
-    flex: 1,
-    overflowY: 'auto',
-    overflowX: 'hidden',
-    padding: '8px 0 4px',
-  },
-  group: {
-    marginBottom: 2,
-  },
+  nav: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 0 4px' },
+  group: { marginBottom: 2 },
 
-  /* Cabeçalho de grupo */
   groupHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    padding: '6px 8px 2px',
-    marginTop: 10,
-    minHeight: 26,
+    display: 'flex', alignItems: 'center',
+    padding: '6px 8px 2px', marginTop: 10, minHeight: 26,
+  },
+  groupGrip: {
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    color: 'rgba(255,255,255,0.25)', cursor: 'grab', padding: '1px 3px',
+    marginRight: 2, flexShrink: 0,
   },
   groupBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    background: 'none',
-    border: 'none',
-    cursor: 'pointer',
-    fontFamily: 'var(--font)',
-    padding: '2px 8px',
-    width: '100%',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontFamily: 'var(--font)', padding: '2px 8px', width: '100%',
   },
   groupLabel: {
-    fontSize: 10,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.09em',
-    color: '#8896aa',    // ← muito mais nítido que #475569
-    whiteSpace: 'nowrap',
+    fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.09em', color: '#8896aa', whiteSpace: 'nowrap',
   },
-  chevron: {
-    fontSize: 13,
-    color: '#8896aa',
-    transition: 'transform 0.2s',
-    lineHeight: 1,
-  },
+  chevron: { fontSize: 13, color: '#8896aa', transition: 'transform 0.2s', lineHeight: 1 },
   pencilBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#6366F1',
-    cursor: 'pointer',
-    padding: '1px 2px',
-    borderRadius: 3,
-    opacity: 0.85,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    color: '#6366F1', cursor: 'pointer', padding: '1px 2px', borderRadius: 3, opacity: 0.85,
   },
 
-  /* Edição inline */
   editInput: {
-    flex: 1,
-    background: 'rgba(255,255,255,0.06)',
-    border: `1px solid ${ACCENT}66`,
-    borderRadius: 4,
-    color: '#e2e8f0',
-    fontSize: 10,
-    fontWeight: 700,
-    textTransform: 'uppercase',
-    letterSpacing: '0.09em',
-    padding: '2px 6px',
-    fontFamily: 'var(--font)',
-    outline: 'none',
-    width: 0,   // flex faz o tamanho
+    flex: 1, background: 'rgba(255,255,255,0.06)', border: `1px solid ${ACCENT}66`,
+    borderRadius: 4, color: '#e2e8f0', fontSize: 10, fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.09em', padding: '2px 6px',
+    fontFamily: 'var(--font)', outline: 'none', width: 0,
   },
   editAction: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    background: 'none',
-    border: 'none',
-    color: '#94a3b8',
-    cursor: 'pointer',
-    padding: '2px',
-    borderRadius: 3,
+    display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+    background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer',
+    padding: '2px', borderRadius: 3,
   },
 
-  /* Nav item */
   navItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-    padding: '6px 10px',
-    borderRadius: 7,
-    color: '#cbd5e1',
-    fontSize: 13,
-    fontWeight: 500,
+    display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
+    borderRadius: 7, color: '#cbd5e1', fontSize: 13, fontWeight: 500,
     borderLeft: '3px solid transparent',
     transition: 'background 0.12s, color 0.12s, border-left-color 0.12s',
-    whiteSpace: 'nowrap',
-    textDecoration: 'none',
-    cursor: 'pointer',
-    userSelect: 'none',
-    outline: 'none',
+    whiteSpace: 'nowrap', textDecoration: 'none', cursor: 'pointer',
+    userSelect: 'none', outline: 'none',
   },
   navItemCollapsed: {
-    justifyContent: 'center',
-    padding: '8px 4px',
-    borderLeft: '3px solid transparent',
-    borderRadius: 7,
+    justifyContent: 'center', padding: '8px 4px',
+    borderLeft: '3px solid transparent', borderRadius: 7,
   },
   navItemActive: {
-    color: '#ffffff',
-    backgroundColor: '#1e293b',
-    borderLeft: `3px solid ${ACCENT}`,
+    color: '#ffffff', backgroundColor: '#1e293b', borderLeft: `3px solid ${ACCENT}`,
   },
 
-  /* Grip handle */
   grip: {
-    color: 'rgba(255,255,255,0.18)',
-    cursor: 'grab',
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    marginLeft: -2,
+    color: 'rgba(255,255,255,0.18)', cursor: 'grab', flexShrink: 0,
+    display: 'flex', alignItems: 'center', marginLeft: -2,
   },
 
-  /* Bottom */
+  addGroupBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    margin: '8px 16px 4px', padding: '5px 8px',
+    background: 'none', border: '1px dashed rgba(255,255,255,0.12)',
+    borderRadius: 6, color: 'rgba(255,255,255,0.3)', fontSize: 11,
+    cursor: 'pointer', fontFamily: 'var(--font)', width: 'calc(100% - 32px)',
+    transition: 'border-color 0.15s, color 0.15s',
+  },
+
   bottom: {
     borderTop: '1px solid rgba(255,255,255,0.06)',
-    padding: '6px 0 8px',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: 2,
+    padding: '6px 0 8px', display: 'flex', flexDirection: 'column', gap: 2,
   },
   bottomBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    width: '100%',
-    padding: '8px 16px',
-    background: 'none',
-    border: 'none',
-    color: '#64748b',       // slate-500 — mais legível que antes
-    fontSize: 12,
-    cursor: 'pointer',
-    fontFamily: 'var(--font)',
-    borderRadius: 0,
-    transition: 'color 0.15s',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+    width: '100%', padding: '8px 16px', background: 'none', border: 'none',
+    color: '#64748b', fontSize: 12, cursor: 'pointer',
+    fontFamily: 'var(--font)', borderRadius: 0, transition: 'color 0.15s',
   },
-  signOutBtn: {
-    color: '#64748b',
-  },
+  signOutBtn: { color: '#64748b' },
 }
