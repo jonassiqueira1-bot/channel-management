@@ -5,7 +5,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
-  ClipboardList, FileStack, BookOpen, DollarSign, Settings,
+  ClipboardList, FileStack, BookOpen, DollarSign, Settings, ShieldAlert,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
 } from 'lucide-react'
 
@@ -438,6 +438,22 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
       {/* ── Bottom: Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
+        <NavLink
+          to="/super-admin"
+          title={collapsed ? 'Super Admin' : undefined}
+          onClick={isMobile ? onClose : undefined}
+          onMouseDown={e => e.preventDefault()}
+          style={({ isActive }) => ({
+            ...s.navItem,
+            ...(collapsed ? { ...s.navItemCollapsed, justifyContent: 'center' } : {}),
+            ...(isActive ? s.navItemActive : {}),
+            margin: collapsed ? '1px 6px' : '1px 8px',
+          })}
+        >
+          <ShieldAlert size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
+          {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Super Admin</span>}
+        </NavLink>
+
         <NavLink
           to="/settings"
           title={collapsed ? 'Configurações' : undefined}

@@ -35,6 +35,8 @@ import MyAccount from './pages/MyAccount'
 import Produtos from './pages/Produtos'
 import Questionarios from './pages/Questionarios'
 import Documentos from './pages/Documentos'
+import SuperAdmin from './pages/SuperAdmin'
+import BranchSharing from './pages/settings/BranchSharing'
 
 export default function App() {
   return (
@@ -86,7 +88,9 @@ export default function App() {
               <Route path="logs"         element={<SettingsPage title="Logs"                  description="Histórico de eventos e auditoria do sistema." />} />
               <Route path="campanhas"    element={<SettingsCampanhas />} />
               <Route path="franquias"    element={<SettingsFranquias />} />
+              <Route path="compartilhamento" element={<BranchSharing />} />
             </Route>
+            <Route path="/super-admin" element={<SuperAdmin />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>

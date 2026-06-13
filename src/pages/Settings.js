@@ -3,7 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath } from 'react-router-dom'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -29,6 +29,12 @@ const SECTIONS = [
       { path: '/settings/produtos',     label: 'Produtos',                Icon: Package     },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
       { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
+    ],
+  },
+  {
+    label: 'Multi-filial',
+    items: [
+      { path: '/settings/compartilhamento', label: 'Compartilhamento', Icon: Share2 },
     ],
   },
   {

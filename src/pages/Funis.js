@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_FUNIS as INITIAL_FUNIS } from '../data/mockFunis'
+import { useFunnels } from '../hooks/useFunnels'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_FUNIL = [
@@ -16,8 +16,7 @@ const CORES_ETAPA = [
 
 const ETAPA_VAZIA = { nome: '', cor: '#3B82F6', probabilidade: 50 }
 
-// ─── Mock data (importado de src/data/mockFunis.js — compartilhado com Pipeline)
-const MOCK_FUNIS = INITIAL_FUNIS
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function novoId() { return Date.now() + Math.random() }
@@ -317,7 +316,7 @@ const md = {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Funis() {
-  const [funis, setFunis]         = useState(MOCK_FUNIS)
+  const { funis, save: saveFunil, remove: deleteFunil } = useFunnels()
   const [search, setSearch]       = useLocalState('funis:search', '')
   const [filterStatus, setFilter] = useLocalState('funis:filterStatus', '')
   const [modal, setModal]         = useState(null) // null | 'new' | funil obj
@@ -335,14 +334,8 @@ export default function Funis() {
   const totalEtapas = funis.reduce((s, f) => s + f.etapas.length, 0)
   const maxEtapas = funis.reduce((m, f) => Math.max(m, f.etapas.length), 0)
 
-  function handleSave(data) {
-    setFunis(prev => {
-      const idx = prev.findIndex(f => f.id === data.id)
-      if (idx >= 0) { const next = [...prev]; next[idx] = data; return next }
-      return [...prev, { ...data, criado: new Date().toISOString().slice(0,10) }]
-    })
-  }
-  function handleDelete(id) { setFunis(prev => prev.filter(f => f.id !== id)) }
+  function handleSave(data) { saveFunil(data) }
+  function handleDelete(id) { deleteFunil(id) }
 
   const nomesExistentes = funis.map(f => f.nome)
 
