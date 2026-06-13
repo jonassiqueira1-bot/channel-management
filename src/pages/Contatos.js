@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
+import { useContacts } from '../hooks/useContacts'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 
@@ -211,7 +211,7 @@ function AcoesDropdown({ onClose, anchorRef }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Contatos() {
-  const [contatos, setContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
+  const { contacts: contatos, save: salvarContato, remove: deletarContato } = useContacts()
   const [modal, setModal]       = useState(null)   // null | 'novo' | contato
   const [busca, setBusca]           = useLocalState('contatos:busca', '')
   const [filtroEmp, setFiltroEmp]   = useLocalState('contatos:filtroEmp', '')
@@ -243,15 +243,8 @@ export default function Contatos() {
     semEmpresa: contatos.filter(c => !c.empresa_id).length,
   }
 
-  function salvar(c) {
-    setContatos(prev => {
-      const idx = prev.findIndex(x => x.id === c.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = c; return n }
-      return [...prev, c]
-    })
-  }
-
-  function deletar(id) { setContatos(prev => prev.filter(c => c.id !== id)) }
+  function salvar(c) { salvarContato(c) }
+  function deletar(id) { deletarContato(id) }
 
   return (
     <div style={pg.wrap}>

@@ -96,6 +96,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   // Drag state: { type: 'item'|'group', gIdx, iIdx? }
   const [dragSrc,  setDragSrc]  = useState(null)
   const [dragOver, setDragOver] = useState(null)
+  const [menuEditMode, setMenuEditMode] = useState(false)
 
   const { signOut } = useAuth()
   const navigate    = useNavigate()
@@ -390,25 +391,47 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           )
         })}
 
-        {/* ── Criar novo grupo + Restaurar padrão ── */}
+        {/* ── Botão de modo edição do menu ── */}
         {!collapsed && (
-          <div style={{ display: 'flex', gap: 6, margin: '8px 16px 4px' }}>
-            <button onClick={createGroup} style={{ ...s.addGroupBtn, margin: 0, flex: 1 }} title="Novo grupo">
-              <Plus size={11} strokeWidth={2} />
-              <span>Novo grupo</span>
-            </button>
-            <button
-              onClick={() => {
-                if (window.confirm('Restaurar a organização padrão do menu? As alterações serão perdidas.')) {
-                  setGroups(INITIAL_GROUPS)
-                  setOpenGroups({})
-                }
-              }}
-              style={{ ...s.addGroupBtn, margin: 0, flex: 'none', padding: '5px 8px' }}
-              title="Restaurar organização padrão"
-            >
-              <RotateCcw size={11} strokeWidth={2} />
-            </button>
+          <div style={{ margin: '8px 16px 4px' }}>
+            {!menuEditMode ? (
+              <button
+                onClick={() => setMenuEditMode(true)}
+                style={{ ...s.addGroupBtn, margin: 0, width: '100%', opacity: 0.5 }}
+                title="Personalizar organização do menu"
+              >
+                <Pencil size={11} strokeWidth={2} />
+                <span>Personalizar menu</span>
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Editar menu</span>
+                  <button onClick={() => setMenuEditMode(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }} title="Fechar">
+                    <X size={12} strokeWidth={2} />
+                  </button>
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button onClick={createGroup} style={{ ...s.addGroupBtn, margin: 0, flex: 1 }} title="Novo grupo">
+                    <Plus size={11} strokeWidth={2} />
+                    <span>Novo grupo</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm('Restaurar a organização padrão do menu? As alterações serão perdidas.')) {
+                        setGroups(INITIAL_GROUPS)
+                        setOpenGroups({})
+                        setMenuEditMode(false)
+                      }
+                    }}
+                    style={{ ...s.addGroupBtn, margin: 0, flex: 'none', padding: '5px 8px' }}
+                    title="Restaurar organização padrão"
+                  >
+                    <RotateCcw size={11} strokeWidth={2} />
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </nav>
