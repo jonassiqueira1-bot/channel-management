@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { MOCK_PRODUTOS as INITIAL_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
+import { useProducts } from '../hooks/useProducts'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 
@@ -42,7 +42,7 @@ const EMPTY_FORM = {
   observacoes: '',
 }
 
-const MOCK_PRODUTOS = INITIAL_PRODUTOS
+
 
 const IMPORT_COLS = ['nome','codigo','tipo','categoria','status','cobranca','preco','setup','desconto_max','usuarios_incluidos','features','visivel_canal','descricao','observacoes']
 
@@ -529,7 +529,7 @@ export default function Produtos() {
   const [view, setView]                 = useLocalState('produtos:view', 'table')
 
   const [categorias, setCategorias]   = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
-  const [produtos, setProdutos]       = useState(MOCK_PRODUTOS)
+  const { produtos, save: saveProduto, remove: deleteProduto, bulkSetStatus: bulkProdStatus, importMany: importProdutos } = useProducts()
   const [modal, setModal]             = useState(null)
   const [selected, setSelected]       = useState(new Set())
   const [importModal, setImportModal] = useState(false)
@@ -572,22 +572,16 @@ export default function Produtos() {
   function applyBulkAction(action) {
     if (action === 'delete') {
       if (!window.confirm(`Excluir ${selected.size} produto(s)?`)) return
-      setProdutos(prev => prev.filter(p => !selected.has(p.id)))
+      ;[...selected].forEach(id => deleteProduto(id))
     } else {
-      setProdutos(prev => prev.map(p => selected.has(p.id) ? { ...p, status: action } : p))
+      bulkProdStatus([...selected], action)
     }
     clearSel()
   }
 
-  function handleSave(data) {
-    setProdutos(prev => {
-      const idx = prev.findIndex(p => p.id === data.id)
-      if (idx >= 0) { const next = [...prev]; next[idx] = data; return next }
-      return [...prev, { ...data, criado: new Date().toISOString().slice(0,10), contratos: 0 }]
-    })
-  }
-  function handleDelete(id) { setProdutos(prev => prev.filter(p => p.id !== id)) }
-  function handleImport(items) { setProdutos(prev => [...prev, ...items]) }
+  function handleSave(data) { saveProduto(data) }
+  function handleDelete(id) { deleteProduto(id) }
+  function handleImport(items) { importProdutos(items) }
 
   function handleExport() {
     const scope = selected.size > 0 ? 'selecionados' : (search || filterTipo || filterStatus || filterCat) ? 'filtrados' : 'todos'

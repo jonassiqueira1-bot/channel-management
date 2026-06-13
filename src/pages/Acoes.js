@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_ACOES, TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
+import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
+import { useActions } from '../hooks/useActions'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import { useFormLayout } from '../hooks/useFormLayout'
@@ -395,7 +396,7 @@ function AcoesDropdown({ onImport, onExport, onClose, anchorRef }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Acoes() {
-  const [acoes, setAcoes]       = useLocalState('acoes:data_v1', MOCK_ACOES)
+  const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
   const [tiposLista]            = useLocalState(TIPOS_KEY, [])
   const tiposMap = useMemo(() => tiposLista.length ? listToMap(tiposLista) : TIPOS_ACAO_DEFAULT, [tiposLista])
   const [modal, setModal]       = useState(false)
@@ -441,15 +442,8 @@ export default function Acoes() {
 
   const temFiltro = busca || filtroTipo || filtroStatus || filtroEmp || filtroPeriodoInicio || filtroPeriodoFim || filtroResp
 
-  function salvar(acao) {
-    setAcoes(prev => {
-      const idx = prev.findIndex(a => a.id === acao.id)
-      if (idx >= 0) { const n = [...prev]; n[idx] = acao; return n }
-      return [...prev, { ...acao, id: novoId(prev) }]
-    })
-  }
-
-  function deletar(id) { setAcoes(prev => prev.filter(a => a.id !== id)) }
+  function salvar(acao) { saveAcao(acao) }
+  function deletar(id) { deleteAcao(id) }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>

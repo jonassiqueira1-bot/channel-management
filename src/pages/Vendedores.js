@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
+import { useSellers } from '../hooks/useSellers'
 import SearchSelect from '../components/SearchSelect'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -575,7 +576,7 @@ function CardsView({ funcionarios, onEdit, selected, onToggleOne, companies }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Vendedores() {
   const [companies]                     = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const [funcionarios, setFuncionarios] = useLocalState(FUNC_STORAGE_KEY, MOCK_FUNCIONARIOS)
+  const { sellers: funcionarios, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany, setFuncionarios } = useSellers()
 
   const [search, setSearch]             = useLocalState('func:search', '')
   const [filterType, setFilterType]     = useLocalState('func:filterType', '')
@@ -636,7 +637,7 @@ export default function Vendedores() {
   // ── Ações em lote ────────────────────────────────────────────────────────────
   function applyBulkStatus(status) {
     const ids = [...selected]
-    setFuncionarios(prev => prev.map(f => ids.includes(f.id) ? { ...f, status } : f))
+    bulkSetStatus(ids, status)
     clearSelection()
   }
   function applyBulkCompany(companyId) {
@@ -648,7 +649,7 @@ export default function Vendedores() {
   function applyBulkDelete() {
     if (!window.confirm(`Excluir ${selected.size} contato(s) permanentemente?`)) return
     const ids = [...selected]
-    setFuncionarios(prev => prev.filter(f => !ids.includes(f.id)))
+    ids.forEach(id => deleteSeller(id))
     clearSelection()
   }
 
@@ -679,14 +680,10 @@ export default function Vendedores() {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function handleSave(form) {
-    if (modal?.editing) {
-      setFuncionarios(prev => prev.map(f => f.id === modal.editing.id ? { ...f, ...form } : f))
-    } else {
-      setFuncionarios(prev => [...prev, { ...form, id: uid(), criado: new Date().toISOString().slice(0,10) }])
-    }
+    saveSeller(modal?.editing ? { ...modal.editing, ...form } : form)
     setModal(null)
   }
-  function handleDelete(id) { setFuncionarios(prev => prev.filter(f => f.id !== id)); setModal(null) }
+  function handleDelete(id) { deleteSeller(id); setModal(null) }
 
   // ── KPIs ─────────────────────────────────────────────────────────────────────
   const totalAtivos   = funcionarios.filter(f => f.status === 'ativo').length
@@ -861,7 +858,7 @@ export default function Vendedores() {
           onDownloadTemplate={handleDownloadTemplate}
           existingFunc={funcionarios}
           onImport={(rows, log) => {
-            setFuncionarios(prev => [...prev, ...rows])
+            importMany(rows)
             setImportModal(false)
           }}
         />
