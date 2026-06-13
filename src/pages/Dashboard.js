@@ -15,10 +15,10 @@ import {
 } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
+import { useDashboard } from '../hooks/useDashboard'
 import {
-  MOCK_ALERTS, MOCK_ANALYTICS,
   DEFAULT_SECTIONS_ISV, DEFAULT_SECTIONS_FRANCHISE,
-  SECTIONS_STORAGE_KEY, ALERTS_STORAGE_KEY, GLOBAL_FILTERS_KEY,
+  SECTIONS_STORAGE_KEY, GLOBAL_FILTERS_KEY,
   applyFilters,
 } from '../data/mockDashboard'
 
@@ -1082,15 +1082,15 @@ function SkeletonCard({ span=1 }) {
 export default function Dashboard() {
   const { profile, loading:profileLoading } = useProfile()
 
-  const isISV      = !profile || profile.papel==='admin_isv' || profile.papel==='gestor_canais'
-  const baseData   = isISV ? MOCK_ANALYTICS.isv : MOCK_ANALYTICS.franchise
+  const isISV      = !profile || profile.role==='admin_isv' || profile.papel==='admin_isv' || profile.papel==='gestor_canais'
   const defaultSec = isISV ? DEFAULT_SECTIONS_ISV : DEFAULT_SECTIONS_FRANCHISE
   const catalog    = isISV ? WIDGET_CATALOG_ISV   : WIDGET_CATALOG_FRANCHISE
   const storageKey = `${SECTIONS_STORAGE_KEY}:${isISV?'isv':'fr'}`
 
   const [sections,       setSections]      = useLocalState(storageKey, defaultSec)
-  const [alerts,         setAlerts]        = useLocalState(ALERTS_STORAGE_KEY, MOCK_ALERTS)
   const [globalFilters,  setGlobalFilters] = useLocalState(GLOBAL_FILTERS_KEY, { period:'this_month', franchise:'all' })
+
+  const { analytics: liveAnalytics, alerts, loading: analyticsLoading, dismissAlert } = useDashboard(globalFilters.period)
   const [pendingSec,     setPendingSec]    = useState(null)
   const [editing,        setEditing]       = useState(false)
   const [configSlotId,   setConfigSlotId]  = useState(null)
@@ -1197,6 +1197,7 @@ export default function Dashboard() {
     setConfigSlotId(null)
   }
 
+  const baseData    = liveAnalytics || (isISV ? { cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, por_franquia:[], pipeline:[] } : { oportunidades:0, projetos_ativos:0, questionarios:0, cdu_receita:0, sms_receita:0, servicos_receita:0, taxa_conversao:0, ticket_medio:0, contratos_ativos:0, pipeline:[], atividades_recentes:[] })
   const configSlot  = configSlotId ? currentSec.flatMap(s => s.slots).find(sl => sl.id===configSlotId) : null
   const franchises  = isISV ? (baseData.por_franquia||[]).map(f => f.nome) : []
   const activeFilters = [globalFilters.period!=='this_month', globalFilters.franchise!=='all'].filter(Boolean).length
@@ -1260,7 +1261,7 @@ export default function Dashboard() {
       {/* Alertas */}
       {unresolved.length>0 && (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          {unresolved.map(alert => <AlertCard key={alert.id} alert={alert} onDismiss={id => setAlerts(prev => prev.filter(a => a.id!==id))}/>)}
+          {unresolved.map(alert => <AlertCard key={alert.id} alert={alert} onDismiss={dismissAlert}/>)}
         </div>
       )}
 
