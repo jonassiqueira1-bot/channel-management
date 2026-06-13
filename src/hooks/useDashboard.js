@@ -121,15 +121,16 @@ export function useDashboard(period = 'this_month') {
   const { profile } = useProfile()
 
   const [analytics, setAnalytics] = useState(null)
-  const [alerts,    setAlerts]    = useState(MOCK_ALERTS)
+  const [alerts,    setAlerts]    = useState([])
   const [loading,   setLoading]   = useState(true)
-  const isMockMode = useRef(true)
+  const isMockMode = useRef(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) {
       const isISV = !profile || profile.role === 'admin_isv'
       setAnalytics(isISV ? MOCK_ANALYTICS.isv : MOCK_ANALYTICS.franchise)
+      setAlerts(MOCK_ALERTS)
       isMockMode.current = true
       setLoading(false)
       return
@@ -146,16 +147,11 @@ export function useDashboard(period = 'this_month') {
       ])
       isMockMode.current = false
       setAnalytics(analyticsData)
-      if (!alertsRes.error && alertsRes.data?.length > 0) {
-        setAlerts(alertsRes.data)
-      } else if (alertsRes.error) {
-        // tabela ainda não existe — sem alertas
-        setAlerts([])
-      }
+      setAlerts(alertsRes.error ? [] : (alertsRes.data || []))
     } catch {
-      const isISV = !profile || profile.role === 'admin_isv'
-      setAnalytics(isISV ? MOCK_ANALYTICS.isv : MOCK_ANALYTICS.franchise)
-      isMockMode.current = true
+      isMockMode.current = false
+      setAnalytics({ cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, por_franquia:[], pipeline:[], questionarios:0, atividades_recentes:[] })
+      setAlerts([])
     }
     setLoading(false)
   }, [session, profile, period])
