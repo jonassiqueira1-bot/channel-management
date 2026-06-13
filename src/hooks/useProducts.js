@@ -56,21 +56,21 @@ export function useProducts() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [produtos, setProdutos] = useState(MOCK_PRODUTOS)
+  const [produtos, setProdutos] = useState([])
   const [loading, setLoading]   = useState(true)
-  const isMockMode              = useRef(true)
+  const isMockMode              = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setProdutos(MOCK_PRODUTOS); setLoading(false); return }
     const { data, error } = await supabase
       .from('products')
       .select('*')
       .order('nome')
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setProdutos([]); setLoading(false); return }
     isMockMode.current = false
     setProdutos((data || []).map(rowToProduct))
     setLoading(false)

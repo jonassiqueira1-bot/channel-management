@@ -55,21 +55,21 @@ export function useActions() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [acoes, setAcoes] = useState(MOCK_ACOES)
+  const [acoes, setAcoes] = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode = useRef(true)
+  const isMockMode = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setAcoes(MOCK_ACOES); setLoading(false); return }
     const { data, error } = await supabase
       .from('actions')
       .select('*, companies(nome_fantasia, razao_social)')
       .order('created_at', { ascending: false })
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setAcoes([]); setLoading(false); return }
     isMockMode.current = false
     setAcoes((data || []).map(rowToAcao))
     setLoading(false)

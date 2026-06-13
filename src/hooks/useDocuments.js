@@ -51,22 +51,22 @@ export function useDocuments() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [docs, setDocs]   = useState(MOCK_DOCS)
-  const [logs, setLogs]   = useState(MOCK_LOGS)
+  const [docs, setDocs]   = useState([])
+  const [logs, setLogs]   = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode        = useRef(true)
+  const isMockMode        = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setDocs(MOCK_DOCS); setLogs(MOCK_LOGS); setLoading(false); return }
     const [d, l] = await Promise.all([
       supabase.from('documents').select('*').order('updated_at', { ascending: false }),
       supabase.from('document_logs').select('*').order('created_at', { ascending: false }),
     ])
-    if (d.error || l.error) { isMockMode.current = true; setLoading(false); return }
+    if (d.error || l.error) { isMockMode.current = false; setDocs([]); setLogs([]); setLoading(false); return }
     isMockMode.current = false
     setDocs((d.data || []).map(rowToDoc))
     setLogs((l.data || []).map(rowToLog))

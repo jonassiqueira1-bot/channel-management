@@ -63,21 +63,21 @@ export function useSellers() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [sellers, setSellers] = useState(MOCK_SELLERS)
+  const [sellers, setSellers] = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode            = useRef(true)
+  const isMockMode            = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setSellers(MOCK_SELLERS); setLoading(false); return }
     const { data, error } = await supabase
       .from('sellers')
       .select('*')
       .order('nome')
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setSellers([]); setLoading(false); return }
     isMockMode.current = false
     setSellers((data || []).map(rowToSeller))
     setLoading(false)

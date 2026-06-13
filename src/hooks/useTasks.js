@@ -46,21 +46,21 @@ export function useTasks() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [tarefas, setTarefas] = useState(MOCK_TAREFAS)
+  const [tarefas, setTarefas] = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode            = useRef(true)
+  const isMockMode            = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setTarefas(MOCK_TAREFAS); setLoading(false); return }
     const { data, error } = await supabase
       .from('tasks')
       .select('*')
       .order('prazo', { ascending: true, nullsFirst: false })
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setTarefas([]); setLoading(false); return }
     isMockMode.current = false
     setTarefas((data || []).map(rowToTask))
     setLoading(false)

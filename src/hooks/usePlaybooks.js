@@ -42,24 +42,24 @@ export function usePlaybooks() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [playbooks,  setPlaybooks]  = useState(MOCK_PLAYBOOKS)
-  const [steps,      setSteps]      = useState(MOCK_FUNNEL_STEPS)
-  const [refs,       setRefs]       = useState(MOCK_REFERENCES)
-  const [resources,  setResources]  = useState(MOCK_RESOURCES)
+  const [playbooks,  setPlaybooks]  = useState([])
+  const [steps,      setSteps]      = useState([])
+  const [refs,       setRefs]       = useState([])
+  const [resources,  setResources]  = useState([])
   const [loading, setLoading]       = useState(true)
-  const isMockMode                  = useRef(true)
+  const isMockMode                  = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setPlaybooks(MOCK_PLAYBOOKS); setSteps(MOCK_FUNNEL_STEPS); setRefs(MOCK_REFERENCES); setResources(MOCK_RESOURCES); setLoading(false); return }
     const { data, error } = await supabase
       .from('playbooks')
       .select('*')
       .order('updated_at', { ascending: false })
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setPlaybooks([]); setLoading(false); return }
     isMockMode.current = false
     setPlaybooks((data || []).map(rowToPlaybook))
     setLoading(false)

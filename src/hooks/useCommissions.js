@@ -89,24 +89,24 @@ export function useCommissions() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [rules,    setRules]    = useState(MOCK_RULES)
-  const [payments, setPayments] = useState(MOCK_PAYMENTS)
+  const [rules,    setRules]    = useState([])
+  const [payments, setPayments] = useState([])
   const [personas, setPersonas] = useState(MOCK_PERSONAS)
   const [loading, setLoading]   = useState(true)
-  const isMockMode              = useRef(true)
+  const isMockMode              = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setRules(MOCK_RULES); setPayments(MOCK_PAYMENTS); setPersonas(MOCK_PERSONAS); setLoading(false); return }
     const [r, p, pe] = await Promise.all([
       supabase.from('commission_rules').select('*').order('created_at', { ascending: false }),
       supabase.from('commission_payments').select('*').order('created_at', { ascending: false }),
       supabase.from('commission_personas').select('*').order('ordem'),
     ])
-    if (r.error || p.error || pe.error) { isMockMode.current = true; setLoading(false); return }
+    if (r.error || p.error || pe.error) { isMockMode.current = false; setRules([]); setPayments([]); setLoading(false); return }
     isMockMode.current = false
     setRules((r.data || []).map(rowToRule))
     setPayments((p.data || []).map(rowToPayment))

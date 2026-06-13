@@ -70,22 +70,22 @@ export function useQuestionnaires() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [templates,   setTemplates]   = useState(MOCK_TEMPLATES)
-  const [submissions, setSubmissions] = useState(MOCK_SUBMISSIONS)
+  const [templates,   setTemplates]   = useState([])
+  const [submissions, setSubmissions] = useState([])
   const [loading, setLoading]         = useState(true)
-  const isMockMode                    = useRef(true)
+  const isMockMode                    = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setTemplates(MOCK_TEMPLATES); setSubmissions(MOCK_SUBMISSIONS); setLoading(false); return }
     const [t, s] = await Promise.all([
       supabase.from('questionnaire_templates').select('*').order('updated_at', { ascending: false }),
       supabase.from('questionnaire_submissions').select('*').order('created_at', { ascending: false }),
     ])
-    if (t.error || s.error) { isMockMode.current = true; setLoading(false); return }
+    if (t.error || s.error) { isMockMode.current = false; setTemplates([]); setSubmissions([]); setLoading(false); return }
     isMockMode.current = false
     setTemplates((t.data || []).map(rowToTemplate))
     setSubmissions((s.data || []).map(rowToSubmission))

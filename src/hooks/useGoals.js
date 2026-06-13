@@ -77,22 +77,22 @@ export function useGoals() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [goals, setGoals] = useState(MOCK_GOALS_SEED)
+  const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode = useRef(true)
+  const isMockMode = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setGoals(MOCK_GOALS_SEED); setLoading(false); return }
     const { data, error } = await supabase
       .from('goals')
       .select('*')
       .order('periodo_ano', { ascending: false })
       .order('periodo_mes', { ascending: false })
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { isMockMode.current = false; setGoals([]); setLoading(false); return }
     isMockMode.current = false
     setGoals((data || []).map(rowToGoal))
     setLoading(false)
