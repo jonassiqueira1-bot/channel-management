@@ -59,7 +59,20 @@ export function useProfile() {
         .select('*')
         .eq('id', session.user.id)
         .single()
-      if (profErr) throw profErr
+
+      if (profErr) {
+        // Tabela não existe no Supabase (ambiente demo) — usa perfil mock
+        const fallback = {
+          ...DEV_PROFILE,
+          id:    session.user.id,
+          email: session.user.email,
+          avatar: initials(session.user.email?.split('@')[0] || 'U'),
+        }
+        setProfile(fallback)
+        setCompany(MOCK_COMPANIES.find(c => c.id === fallback.empresa_id) || null)
+        setLoading(false)
+        return
+      }
 
       const hydrated = { ...prof, email: session.user.email, avatar: initials(prof.nome) }
       setProfile(hydrated)
