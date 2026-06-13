@@ -12,19 +12,19 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================
 
 -- Retorna o tenant_id do usuário logado (lê da tabela profiles)
-CREATE OR REPLACE FUNCTION auth.my_tenant_id()
+CREATE OR REPLACE FUNCTION public.my_tenant_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT tenant_id FROM public.profiles WHERE id = auth.uid()
 $$;
 
 -- Retorna o branch_id do usuário logado (pode ser NULL)
-CREATE OR REPLACE FUNCTION auth.my_branch_id()
+CREATE OR REPLACE FUNCTION public.my_branch_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT branch_id FROM public.profiles WHERE id = auth.uid()
 $$;
 
 -- Retorna o papel do usuário logado
-CREATE OR REPLACE FUNCTION auth.my_role()
+CREATE OR REPLACE FUNCTION public.my_role()
 RETURNS text LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT role FROM public.profiles WHERE id = auth.uid()
 $$;
@@ -36,14 +36,14 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER AS $$
     SELECT 1 FROM public.branch_record_shares brs
     WHERE brs.record_id     = has_branch_access.record_id
       AND brs.record_table  = has_branch_access.record_table
-      AND brs.tenant_id     = auth.my_tenant_id()
+      AND brs.tenant_id     = public.my_tenant_id()
       AND (
-        brs.shared_to_branch_id = auth.my_branch_id()
+        brs.shared_to_branch_id = public.my_branch_id()
         OR brs.shared_to_branch_id IS NULL  -- compartilhado com todas as filiais
       )
       AND (
         brs.shared_to_role IS NULL
-        OR brs.shared_to_role = auth.my_role()
+        OR brs.shared_to_role = public.my_role()
       )
       AND (brs.expires_at IS NULL OR brs.expires_at > now())
   )
@@ -500,29 +500,29 @@ ALTER TABLE public.sidebar_config       ENABLE ROW LEVEL SECURITY;
 -- Usuário vê apenas o próprio tenant
 CREATE POLICY "tenant: own"
   ON public.tenants FOR SELECT
-  USING (id = auth.my_tenant_id());
+  USING (id = public.my_tenant_id());
 
 CREATE POLICY "tenant: admin update"
   ON public.tenants FOR UPDATE
-  USING (id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── tenant_branches ───────────────────────────────────────────
 CREATE POLICY "branches: own tenant"
   ON public.tenant_branches FOR SELECT
-  USING (tenant_id = auth.my_tenant_id());
+  USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "branches: admin manage"
   ON public.tenant_branches FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── tenant_roles ──────────────────────────────────────────────
 CREATE POLICY "roles: own tenant"
   ON public.tenant_roles FOR SELECT
-  USING (tenant_id = auth.my_tenant_id());
+  USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "roles: admin manage"
   ON public.tenant_roles FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── profiles ──────────────────────────────────────────────────
 -- Usuário vê seu próprio perfil sempre
@@ -534,14 +534,14 @@ CREATE POLICY "profiles: own"
 
 CREATE POLICY "profiles: admin sees all"
   ON public.profiles FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 CREATE POLICY "profiles: same branch"
   ON public.profiles FOR SELECT
   USING (
-    tenant_id = auth.my_tenant_id()
-    AND branch_id = auth.my_branch_id()
-    AND auth.my_role() IN ('vendedor', 'canal')
+    tenant_id = public.my_tenant_id()
+    AND branch_id = public.my_branch_id()
+    AND public.my_role() IN ('vendedor', 'canal')
   );
 
 CREATE POLICY "profiles: self update"
@@ -550,7 +550,7 @@ CREATE POLICY "profiles: self update"
 
 CREATE POLICY "profiles: admin manage"
   ON public.profiles FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── Macro para entidades com branch_id ───────────────────────
 -- Padrão de acesso para companies, contacts, opportunities, etc.:
@@ -566,17 +566,17 @@ CREATE OR REPLACE FUNCTION public.can_see_branch_record(
 ) RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT
     -- Admin vê tudo do tenant
-    auth.my_role() = 'admin_isv'
+    public.my_role() = 'admin_isv'
     OR
     -- Própria filial (ou registro sem filial = todo tenant)
-    (rec_branch_id IS NULL OR rec_branch_id = auth.my_branch_id())
+    (rec_branch_id IS NULL OR rec_branch_id = public.my_branch_id())
     OR
     -- Visibilidade em massa configurada pelo admin
     EXISTS (
       SELECT 1 FROM public.branch_table_visibility btv
-      WHERE btv.tenant_id         = auth.my_tenant_id()
+      WHERE btv.tenant_id         = public.my_tenant_id()
         AND btv.source_branch_id  = rec_branch_id
-        AND btv.target_branch_id  = auth.my_branch_id()
+        AND btv.target_branch_id  = public.my_branch_id()
         AND btv.entity_table      = rec_table
         AND btv.can_view          = true
     )
@@ -589,28 +589,28 @@ $$;
 CREATE POLICY "companies: select"
   ON public.companies FOR SELECT
   USING (
-    tenant_id = auth.my_tenant_id()
+    tenant_id = public.my_tenant_id()
     AND public.can_see_branch_record(branch_id, id, 'companies')
   );
 
 CREATE POLICY "companies: insert"
   ON public.companies FOR INSERT
   WITH CHECK (
-    tenant_id = auth.my_tenant_id()
-    AND (branch_id IS NULL OR branch_id = auth.my_branch_id() OR auth.my_role() = 'admin_isv')
+    tenant_id = public.my_tenant_id()
+    AND (branch_id IS NULL OR branch_id = public.my_branch_id() OR public.my_role() = 'admin_isv')
   );
 
 CREATE POLICY "companies: update"
   ON public.companies FOR UPDATE
   USING (
-    tenant_id = auth.my_tenant_id()
+    tenant_id = public.my_tenant_id()
     AND (
-      auth.my_role() = 'admin_isv'
-      OR branch_id = auth.my_branch_id()
+      public.my_role() = 'admin_isv'
+      OR branch_id = public.my_branch_id()
       OR EXISTS (
         SELECT 1 FROM public.branch_record_shares brs
         WHERE brs.record_id = id AND brs.record_table = 'companies'
-          AND brs.shared_to_branch_id = auth.my_branch_id()
+          AND brs.shared_to_branch_id = public.my_branch_id()
           AND brs.permission = 'edit'
       )
     )
@@ -618,181 +618,181 @@ CREATE POLICY "companies: update"
 
 CREATE POLICY "companies: delete"
   ON public.companies FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── contacts ──────────────────────────────────────────────────
 CREATE POLICY "contacts: select"
   ON public.contacts FOR SELECT
   USING (
-    tenant_id = auth.my_tenant_id()
+    tenant_id = public.my_tenant_id()
     AND public.can_see_branch_record(branch_id, id, 'contacts')
   );
 
 CREATE POLICY "contacts: insert"
   ON public.contacts FOR INSERT
-  WITH CHECK (tenant_id = auth.my_tenant_id());
+  WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "contacts: update"
   ON public.contacts FOR UPDATE
-  USING (tenant_id = auth.my_tenant_id() AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id()));
+  USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
 CREATE POLICY "contacts: delete"
   ON public.contacts FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── pipeline_stages ───────────────────────────────────────────
 CREATE POLICY "stages: own tenant"
   ON public.pipeline_stages FOR SELECT
-  USING (tenant_id = auth.my_tenant_id());
+  USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "stages: admin manage"
   ON public.pipeline_stages FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── opportunities ─────────────────────────────────────────────
 CREATE POLICY "opps: select"
   ON public.opportunities FOR SELECT
   USING (
-    tenant_id = auth.my_tenant_id()
+    tenant_id = public.my_tenant_id()
     AND public.can_see_branch_record(branch_id, id, 'opportunities')
   );
 
 CREATE POLICY "opps: insert"
   ON public.opportunities FOR INSERT
-  WITH CHECK (tenant_id = auth.my_tenant_id());
+  WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "opps: update"
   ON public.opportunities FOR UPDATE
-  USING (tenant_id = auth.my_tenant_id() AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id()));
+  USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
 CREATE POLICY "opps: delete"
   ON public.opportunities FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── products ──────────────────────────────────────────────────
 CREATE POLICY "products: select"
-  ON public.products FOR SELECT USING (tenant_id = auth.my_tenant_id());
+  ON public.products FOR SELECT USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "products: admin manage"
   ON public.products FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── projects ──────────────────────────────────────────────────
 CREATE POLICY "projects: select"
   ON public.projects FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'projects'));
+  USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'projects'));
 
 CREATE POLICY "projects: insert"
-  ON public.projects FOR INSERT WITH CHECK (tenant_id = auth.my_tenant_id());
+  ON public.projects FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "projects: update"
   ON public.projects FOR UPDATE
-  USING (tenant_id = auth.my_tenant_id() AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id()));
+  USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
 CREATE POLICY "projects: delete"
   ON public.projects FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── contracts ─────────────────────────────────────────────────
 CREATE POLICY "contracts: select"
   ON public.contracts FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'contracts'));
+  USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'contracts'));
 
 CREATE POLICY "contracts: insert"
-  ON public.contracts FOR INSERT WITH CHECK (tenant_id = auth.my_tenant_id());
+  ON public.contracts FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "contracts: update"
   ON public.contracts FOR UPDATE
-  USING (tenant_id = auth.my_tenant_id() AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id()));
+  USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
 CREATE POLICY "contracts: delete"
   ON public.contracts FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── payments ──────────────────────────────────────────────────
 CREATE POLICY "payments: select"
   ON public.payments FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'payments'));
+  USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'payments'));
 
 CREATE POLICY "payments: insert"
-  ON public.payments FOR INSERT WITH CHECK (tenant_id = auth.my_tenant_id());
+  ON public.payments FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "payments: update"
   ON public.payments FOR UPDATE
-  USING (tenant_id = auth.my_tenant_id() AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id()));
+  USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
 CREATE POLICY "payments: delete"
   ON public.payments FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── actions ───────────────────────────────────────────────────
 CREATE POLICY "actions: select"
   ON public.actions FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'actions'));
+  USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'actions'));
 
 CREATE POLICY "actions: insert"
-  ON public.actions FOR INSERT WITH CHECK (tenant_id = auth.my_tenant_id());
+  ON public.actions FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "actions: update"
   ON public.actions FOR UPDATE
   USING (
-    tenant_id = auth.my_tenant_id()
-    AND (auth.my_role() = 'admin_isv' OR branch_id = auth.my_branch_id() OR owner_id = auth.uid())
+    tenant_id = public.my_tenant_id()
+    AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id() OR owner_id = auth.uid())
   );
 
 CREATE POLICY "actions: delete"
   ON public.actions FOR DELETE
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── sellers ───────────────────────────────────────────────────
 CREATE POLICY "sellers: select"
   ON public.sellers FOR SELECT
-  USING (tenant_id = auth.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'sellers'));
+  USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'sellers'));
 
 CREATE POLICY "sellers: admin manage"
   ON public.sellers FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── branch_record_shares ──────────────────────────────────────
 CREATE POLICY "shares: view own tenant"
   ON public.branch_record_shares FOR SELECT
-  USING (tenant_id = auth.my_tenant_id());
+  USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "shares: admin manage"
   ON public.branch_record_shares FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── branch_table_visibility ───────────────────────────────────
 CREATE POLICY "btv: view own tenant"
   ON public.branch_table_visibility FOR SELECT
-  USING (tenant_id = auth.my_tenant_id());
+  USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "btv: admin manage"
   ON public.branch_table_visibility FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── form_layouts ──────────────────────────────────────────────
 CREATE POLICY "form_layouts: view"
-  ON public.form_layouts FOR SELECT USING (tenant_id = auth.my_tenant_id());
+  ON public.form_layouts FOR SELECT USING (tenant_id = public.my_tenant_id());
 
 CREATE POLICY "form_layouts: admin manage"
   ON public.form_layouts FOR ALL
-  USING (tenant_id = auth.my_tenant_id() AND auth.my_role() = 'admin_isv');
+  USING (tenant_id = public.my_tenant_id() AND public.my_role() = 'admin_isv');
 
 -- ── sidebar_config ────────────────────────────────────────────
 -- Usuário vê config do próprio tenant (padrão) e a própria config pessoal
 CREATE POLICY "sidebar: view"
   ON public.sidebar_config FOR SELECT
   USING (
-    tenant_id = auth.my_tenant_id()
+    tenant_id = public.my_tenant_id()
     AND (profile_id IS NULL OR profile_id = auth.uid())
   );
 
 CREATE POLICY "sidebar: self upsert"
   ON public.sidebar_config FOR ALL
   USING (
-    tenant_id = auth.my_tenant_id()
-    AND (profile_id = auth.uid() OR (profile_id IS NULL AND auth.my_role() = 'admin_isv'))
+    tenant_id = public.my_tenant_id()
+    AND (profile_id = auth.uid() OR (profile_id IS NULL AND public.my_role() = 'admin_isv'))
   );
 
 -- ============================================================
