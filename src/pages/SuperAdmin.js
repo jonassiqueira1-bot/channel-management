@@ -44,28 +44,25 @@ function NewTenantForm({ onCreated }) {
     if (!form.name || !form.slug || !form.adminEmail) { setMsg({ type: 'error', text: 'Preencha nome, slug e e-mail do admin.' }); return }
     setLoading(true); setMsg(null)
     try {
-      // 1. Cria o tenant
-      const { data: tenant, error: tErr } = await supabase
-        .from('tenants')
-        .insert({ name: form.name, slug: form.slug.toLowerCase().replace(/\s+/g, '-'), plan: form.plan, status: 'active' })
-        .select()
-        .single()
+      // 1. Cria o tenant via função SECURITY DEFINER (bypassa RLS)
+      const { data: result, error: tErr } = await supabase.rpc('provision_new_tenant', {
+        p_name: form.name,
+        p_slug: form.slug,
+        p_plan: form.plan,
+      })
       if (tErr) throw new Error(tErr.message)
+      const tenantId = result.id
 
-      // 2. Convida o admin via auth
-      const { data: invite, error: iErr } = await supabase.auth.admin.inviteUserByEmail(form.adminEmail, {
-        data: { tenant_id: tenant.id, role: 'admin_isv', nome: form.adminNome || form.adminEmail.split('@')[0] }
+      // 2. Tenta convidar o admin (requer service role — pode falhar em frontend)
+      const { error: iErr } = await supabase.auth.admin.inviteUserByEmail(form.adminEmail, {
+        data: { tenant_id: tenantId, role: 'admin_isv', nome: form.adminNome || form.adminEmail.split('@')[0] }
       })
       if (iErr) {
-        // Se não tiver permissão de admin (não é service role), registra o tenant e avisa
-        setMsg({ type: 'warn', text: `Tenant "${form.name}" criado (ID: ${tenant.id}). Convite precisa ser feito manualmente no painel Supabase Auth.` })
+        setMsg({ type: 'warn', text: `Tenant "${form.name}" criado (ID: ${tenantId}). Convite deve ser enviado manualmente no painel Supabase Auth.` })
         setLoading(false)
         onCreated()
         return
       }
-
-      // 3. Log
-      await supabase.from('super_admin_log').insert({ action: 'tenant_created', tenant_id: tenant.id, actor_email: form.adminEmail, details: { plan: form.plan, slug: form.slug } })
 
       setMsg({ type: 'success', text: `Tenant "${form.name}" criado com sucesso! Convite enviado para ${form.adminEmail}.` })
       setForm({ name: '', slug: '', plan: 'professional', adminEmail: '', adminNome: '' })
