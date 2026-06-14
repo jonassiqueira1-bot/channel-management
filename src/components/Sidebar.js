@@ -78,7 +78,6 @@ const INITIAL_GROUPS = [
   },
 ]
 
-const ACCENT    = '#6366F1'
 const ICON_SIZE = 15
 
 let _gid = 0
@@ -359,7 +358,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                       opacity: isBeingDragged ? 0.35 : 1,
                       ...(isDragOverItem && !isBeingDragged ? {
                         paddingTop: 2,
-                        borderTop: `2px solid ${ACCENT}`,
+                        borderTop: '2px solid var(--accent)',
                         marginTop: -2,
                       } : {}),
                     }}
@@ -491,13 +490,13 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 const s = {
   sidebar: {
     height: '100%',
-    backgroundColor: '#0f172a',
+    backgroundColor: 'var(--sb-bg)',
     display: 'flex',
     flexDirection: 'column',
     flexShrink: 0,
     transition: 'width 0.22s ease',
     overflow: 'hidden',
-    borderRight: '1px solid rgba(255,255,255,0.05)',
+    borderRight: '1px solid var(--sb-border)',
   },
   drawerMobile: {
     position: 'fixed', top: 52, left: 0, bottom: 0,
@@ -507,12 +506,12 @@ const s = {
 
   brand: {
     display: 'flex', alignItems: 'center', gap: 10,
-    padding: '14px 12px', borderBottom: '1px solid rgba(255,255,255,0.06)',
+    padding: '14px 12px', borderBottom: '1px solid var(--sb-border)',
     minHeight: 56, flexShrink: 0,
   },
   logoMark: {
-    width: 32, height: 32, background: `${ACCENT}22`, border: `1px solid ${ACCENT}55`,
-    borderRadius: 9, color: ACCENT, fontWeight: 800, fontSize: 11,
+    width: 32, height: 32, background: 'var(--accent-lite)', border: '1px solid var(--accent-mid)',
+    borderRadius: 9, color: 'var(--accent)', fontWeight: 800, fontSize: 11,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     fontFamily: 'var(--mono)', flexShrink: 0, letterSpacing: '-0.5px',
   },
@@ -545,31 +544,31 @@ const s = {
   },
   groupLabel: {
     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-    letterSpacing: '0.09em', color: '#8896aa', whiteSpace: 'nowrap',
+    letterSpacing: '0.09em', color: 'var(--sb-muted)', whiteSpace: 'nowrap',
   },
-  chevron: { fontSize: 13, color: '#8896aa', transition: 'transform 0.2s', lineHeight: 1 },
+  chevron: { fontSize: 13, color: 'var(--sb-muted)', transition: 'transform 0.2s', lineHeight: 1 },
   pencilBtn: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    color: '#6366F1', cursor: 'pointer', padding: '1px 2px', borderRadius: 3, opacity: 0.85,
+    color: 'var(--accent)', cursor: 'pointer', padding: '1px 2px', borderRadius: 3, opacity: 0.85,
   },
 
   editInput: {
-    flex: 1, background: 'rgba(255,255,255,0.06)', border: `1px solid ${ACCENT}66`,
+    flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid var(--accent)',
     borderRadius: 4, color: '#e2e8f0', fontSize: 10, fontWeight: 700,
     textTransform: 'uppercase', letterSpacing: '0.09em', padding: '2px 6px',
     fontFamily: 'var(--font)', outline: 'none', width: 0,
   },
   editAction: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer',
+    background: 'none', border: 'none', color: 'var(--sb-text)', cursor: 'pointer',
     padding: '2px', borderRadius: 3,
   },
 
   navItem: {
     display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px',
-    borderRadius: 7, color: '#cbd5e1', fontSize: 13, fontWeight: 500,
+    borderRadius: 7, color: 'var(--sb-text)', fontSize: 13, fontWeight: 500,
     borderLeft: '3px solid transparent',
-    transition: 'background 0.12s, color 0.12s, border-left-color 0.12s',
+    transition: 'background var(--transition), color var(--transition), border-left-color var(--transition)',
     whiteSpace: 'nowrap', textDecoration: 'none', cursor: 'pointer',
     userSelect: 'none', outline: 'none',
   },
@@ -578,7 +577,7 @@ const s = {
     borderLeft: '3px solid transparent', borderRadius: 7,
   },
   navItemActive: {
-    color: '#ffffff', backgroundColor: '#1e293b', borderLeft: `3px solid ${ACCENT}`,
+    color: '#ffffff', backgroundColor: 'var(--sb-surface)', borderLeft: '3px solid var(--accent)',
   },
 
   grip: {
@@ -596,14 +595,14 @@ const s = {
   },
 
   bottom: {
-    borderTop: '1px solid rgba(255,255,255,0.06)',
+    borderTop: '1px solid var(--sb-border)',
     padding: '6px 0 8px', display: 'flex', flexDirection: 'column', gap: 2,
   },
   bottomBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
     width: '100%', padding: '8px 16px', background: 'none', border: 'none',
-    color: '#64748b', fontSize: 12, cursor: 'pointer',
-    fontFamily: 'var(--font)', borderRadius: 0, transition: 'color 0.15s',
+    color: 'var(--sb-muted)', fontSize: 12, cursor: 'pointer',
+    fontFamily: 'var(--font)', borderRadius: 0, transition: 'color var(--transition)',
   },
-  signOutBtn: { color: '#64748b' },
+  signOutBtn: { color: 'var(--sb-muted)' },
 }
