@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useCompanies } from '../hooks/useCompanies'
 import NotionDrawer, {
   DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate,
 } from '../components/NotionDrawer'
@@ -509,20 +510,43 @@ function PartnerRow({ p, onClick }) {
 
 // ─── Modal de Check-in Novo ───────────────────────────────────────────────────
 function NovoCheckinModal({ onClose, onSave }) {
+  const { companies } = useCompanies()
   const [form, setForm] = useState({
-    company_name: '', csm: '', laer_stage: 'Land', touch_model: 'Mid-Touch',
+    company_name: '', company_id: null, csm: '', laer_stage: 'Land', touch_model: 'Mid-Touch',
     health_score: 75, renewal_date: '', notes: '', action_plans: [], checkins: [],
   })
   const [err, setErr] = useState('')
+  const [busca, setBusca] = useState('')
+  const [open, setOpen] = useState(false)
+  const dropRef = useRef(null)
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
+  const empresasFiltradas = useMemo(() => {
+    const q = busca.toLowerCase()
+    return (companies || []).filter(e =>
+      (e.fantasia || e.razao || '').toLowerCase().includes(q)
+    ).slice(0, 8)
+  }, [companies, busca])
+
+  useEffect(() => {
+    function onClickOut(e) { if (dropRef.current && !dropRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onClickOut)
+    return () => document.removeEventListener('mousedown', onClickOut)
+  }, [])
+
+  function selectEmpresa(emp) {
+    set('company_name', emp.fantasia || emp.razao || '')
+    set('company_id', emp.id)
+    setBusca(emp.fantasia || emp.razao || '')
+    setOpen(false)
+  }
+
   function submit(e) {
     e.preventDefault()
-    if (!form.company_name.trim()) { setErr('Informe o nome do parceiro.'); return }
+    if (!form.company_name.trim()) { setErr('Selecione uma empresa.'); return }
     onSave({
       id: uid(), tenant_id: 't1',
-      company_id: null,
       ...form,
       company_city: '', company_uf: '',
       criado_em: new Date().toISOString().slice(0, 10),
@@ -550,10 +574,32 @@ function NovoCheckinModal({ onClose, onSave }) {
           {err && <div style={{ fontSize: 12, color: '#DC2626', padding: '8px 12px',
             background: '#FEE2E2', borderRadius: 7 }}>{err}</div>}
 
-          <div>
-            <label style={LBL}>Parceiro *</label>
-            <input value={form.company_name} onChange={e => set('company_name', e.target.value)}
-              placeholder="Nome do parceiro" style={INPUT} />
+          <div ref={dropRef} style={{ position: 'relative' }}>
+            <label style={LBL}>Empresa *</label>
+            <input
+              value={busca}
+              onChange={e => { setBusca(e.target.value); set('company_name', e.target.value); set('company_id', null); setOpen(true) }}
+              onFocus={() => setOpen(true)}
+              placeholder="Buscar empresa…"
+              style={INPUT} />
+            {open && empresasFiltradas.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 99,
+                background: 'var(--surface)', border: '1px solid var(--border)',
+                borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', marginTop: 2, overflow: 'hidden' }}>
+                {empresasFiltradas.map(emp => (
+                  <div key={emp.id}
+                    onMouseDown={() => selectEmpresa(emp)}
+                    style={{ padding: '9px 14px', fontSize: 13, cursor: 'pointer',
+                      color: 'var(--text)', borderBottom: '1px solid var(--border2)' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    {emp.fantasia || emp.razao}
+                    {emp.fantasia && emp.razao && emp.fantasia !== emp.razao &&
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{emp.razao}</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
