@@ -127,10 +127,16 @@ export const EMPTY_RULE = {
   descricao: '',
   contexto: '',
 
-  // Escopo
-  escopo: 'global',
+  // Escopo (multi-seleção: interna e/ou externa)
+  escopo_interno: false,
+  escopo_externo: false,
+  // Beneficiário interno (usuário do sistema)
   beneficiario_id: null,
   beneficiario_nome: null,
+  // Beneficiário externo (Contato Canal)
+  contato_id: null,
+  contato_nome: null,
+  contato_empresa: null,
 
   // Tipos compostos (array)
   tipos_calculo_arr: ['percentual_fixo'],

@@ -14,6 +14,7 @@ import {
   EMPTY_RULE,
 } from '../data/mockComissoes'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
+import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
 import { InlineSearchSelect } from '../components/NotionDrawer'
@@ -317,8 +318,9 @@ function RuleModal({ initial, personas, onSave, onClose }) {
     ]
     return { ...base, persona_percentuais: merged }
   })
-  const [saving, setSaving] = useState(false)
-  const [err, setErr]       = useState(null)
+  const [saving, setSaving]   = useState(false)
+  const [err, setErr]         = useState(null)
+  const [contatos]            = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
 
   const set    = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const tipos  = form.tipos_calculo_arr || ['percentual_fixo']
@@ -338,7 +340,8 @@ function RuleModal({ initial, personas, onSave, onClose }) {
 
   async function submit() {
     if (!form.nome.trim()) { setErr('Informe o nome da regra.'); return }
-    if (form.escopo === 'individual' && !form.beneficiario_nome?.trim()) { setErr('Informe o beneficiário da regra individual.'); return }
+    if (form.escopo_interno && !form.beneficiario_id) { setErr('Selecione o usuário do sistema para o escopo Interno.'); return }
+    if (form.escopo_externo && !form.contato_id)      { setErr('Selecione o Contato Canal para o escopo Externo.'); return }
     if (isCadeia && (!form.repasse_origem_pct || !form.base_calculo_pct || !form.percentual_comissao)) {
       setErr('Preencha todos os campos da cadeia de repasse.'); return
     }
@@ -409,20 +412,37 @@ function RuleModal({ initial, personas, onSave, onClose }) {
           {/* ── Escopo ──────────────────────────────────────────────────── */}
           <div style={SEC}>
             <SectionTitle icon={<User size={13} strokeWidth={2} />} label="Escopo" />
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:-6 }}>Selecione um ou ambos os escopos — podem ser aplicados simultaneamente.</div>
             <div style={{ display:'flex', gap:10 }}>
               {[
-                { id:'global',     label:'Global',     desc:'Aplica-se a todos os beneficiários matching', icon: <Users size={14} strokeWidth={1.75} /> },
-                { id:'individual', label:'Individual',  desc:'Vinculada a um beneficiário específico',       icon: <User  size={14} strokeWidth={1.75} /> },
-              ].map(opt => (
-                <button key={opt.id} type="button" onClick={() => set('escopo', opt.id)} style={{ flex:1, padding:'12px 14px', borderRadius:10, cursor:'pointer', textAlign:'left', border: form.escopo===opt.id ? '2px solid #6366F1' : '2px solid var(--border)', background: form.escopo===opt.id ? 'rgba(99,102,241,0.07)' : 'var(--surface2)', transition:'all 0.15s' }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:7, color: form.escopo===opt.id?'#6366F1':'var(--text-muted)', marginBottom:5 }}>{opt.icon}<span style={{ fontSize:13, fontWeight:700, color: form.escopo===opt.id?'#6366F1':'var(--text)' }}>{opt.label}</span></div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
-                </button>
-              ))}
+                { key:'escopo_interno', label:'Interna', desc:'Vinculada a usuário do sistema', icon: <User size={14} strokeWidth={1.75} />, color:'#6366F1' },
+                { key:'escopo_externo', label:'Externa', desc:'Vinculada a Contato Canal',      icon: <Users size={14} strokeWidth={1.75} />, color:'#10B981' },
+              ].map(opt => {
+                const active = !!form[opt.key]
+                return (
+                  <button key={opt.key} type="button" onClick={() => set(opt.key, !active)}
+                    style={{ flex:1, padding:'12px 14px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                      border: active ? `2px solid ${opt.color}` : '2px solid var(--border)',
+                      background: active ? `${opt.color}12` : 'var(--surface2)', transition:'all 0.15s', position:'relative' }}>
+                    {active && (
+                      <div style={{ position:'absolute', top:8, right:8, width:16, height:16, borderRadius:'50%',
+                        background:opt.color, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <CheckCircle2 size={10} strokeWidth={3} color="#fff" />
+                      </div>
+                    )}
+                    <div style={{ display:'flex', alignItems:'center', gap:7, color:active?opt.color:'var(--text-muted)', marginBottom:5 }}>
+                      {opt.icon}
+                      <span style={{ fontSize:13, fontWeight:700, color:active?opt.color:'var(--text)' }}>{opt.label}</span>
+                    </div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
+                  </button>
+                )
+              })}
             </div>
-            {form.escopo === 'individual' && (
+
+            {form.escopo_interno && (
               <div style={{ display:'flex', flexDirection:'column' }}>
-                <label style={LB}>Beneficiário *</label>
+                <label style={LB}>Usuário do sistema *</label>
                 <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
                   <InlineSearchSelect
                     value={form.beneficiario_id || ''}
@@ -436,6 +456,28 @@ function RuleModal({ initial, personas, onSave, onClose }) {
                       ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
                     ]}
                     placeholder="— Selecionar usuário —"
+                  />
+                </div>
+              </div>
+            )}
+
+            {form.escopo_externo && (
+              <div style={{ display:'flex', flexDirection:'column' }}>
+                <label style={LB}>Contato Canal *</label>
+                <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
+                  <InlineSearchSelect
+                    value={form.contato_id || ''}
+                    onChange={id => {
+                      const c = contatos.find(c => c.id === id)
+                      set('contato_id', id)
+                      set('contato_nome', c?.nome || '')
+                      set('contato_empresa', c?.empresa_nome || '')
+                    }}
+                    options={[
+                      { value:'', label:'— Selecionar contato —' },
+                      ...contatos.map(c => ({ value: c.id, label: c.nome, sublabel: `${c.cargo} · ${c.empresa_nome}`, avatar: c.nome.slice(0,2).toUpperCase() }))
+                    ]}
+                    placeholder="— Selecionar contato —"
                   />
                 </div>
               </div>
@@ -1086,19 +1128,30 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
                     <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:4 }}>
                       {rule.nome}
                       {tipos.map(t => <TipoBadge key={t} tipoId={t} />)}
-                      {rule.escopo === 'individual' && (
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:'#8B5CF6', background:'rgba(139,92,246,0.1)' }}>
-                          <User size={9} strokeWidth={2.5} />Individual
+                      {rule.escopo_interno && (
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:'#6366F1', background:'rgba(99,102,241,0.1)' }}>
+                          <User size={9} strokeWidth={2.5} />Interna
+                        </span>
+                      )}
+                      {rule.escopo_externo && (
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:'#10B981', background:'rgba(16,185,129,0.1)' }}>
+                          <Users size={9} strokeWidth={2.5} />Externa
                         </span>
                       )}
                       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:99, background:rule.ativo?'rgba(16,185,129,0.12)':'var(--surface2)', color:rule.ativo?'#10B981':'var(--text-muted)', letterSpacing:'0.05em', textTransform:'uppercase' }}>{rule.ativo?'Ativa':'Inativa'}</span>
                     </div>
 
-                    {/* Beneficiário individual */}
-                    {rule.escopo === 'individual' && rule.beneficiario_nome && (
-                      <div style={{ fontSize:12, color:'#8B5CF6', marginBottom:3, display:'flex', alignItems:'center', gap:5 }}>
+                    {/* Beneficiários vinculados */}
+                    {rule.escopo_interno && rule.beneficiario_nome && (
+                      <div style={{ fontSize:12, color:'#6366F1', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
                         <User size={11} strokeWidth={2} />
                         {rule.beneficiario_nome}
+                      </div>
+                    )}
+                    {rule.escopo_externo && rule.contato_nome && (
+                      <div style={{ fontSize:12, color:'#10B981', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
+                        <Users size={11} strokeWidth={2} />
+                        {rule.contato_nome}{rule.contato_empresa ? ` · ${rule.contato_empresa}` : ''}
                       </div>
                     )}
 
