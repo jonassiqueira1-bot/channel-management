@@ -2,9 +2,10 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import Button from '../components/Button'
-import NotionDrawer, {
-  DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, InlineSearchSelect,
+import {
+  MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, InlineSearchSelect,
 } from '../components/NotionDrawer'
+import Drawer from '../components/Drawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
   MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
@@ -840,13 +841,23 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
   )
 
   return (
-    <NotionDrawer
+    <Drawer
       open={!!record}
       onClose={onClose}
-      breadcrumb="Customer Success"
-      title={form.company_name}>
-      <DrawerBody left={LEFT} right={RIGHT} />
-    </NotionDrawer>
+      title={form.company_name}
+      subtitle="Customer Success"
+      initials={form.company_name ? form.company_name.slice(0, 2).toUpperCase() : '??'}
+      bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
+    >
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+        <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+          {LEFT}
+        </div>
+        <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
+          {RIGHT}
+        </div>
+      </div>
+    </Drawer>
   )
 }
 

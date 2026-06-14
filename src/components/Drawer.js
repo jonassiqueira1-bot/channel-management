@@ -54,6 +54,7 @@ export default function Drawer({
   onEdit,             // callback ao clicar no botão Editar (opcional)
   footer,             // elementos React para o rodapé (botões)
   initialSize = 'default',
+  bodyStyle = {},     // overrides para o estilo do body (ex: { padding: 0 })
   children,
 }) {
   const [sizeIdx, setSizeIdx] = useState(SIZE_ORDER.indexOf(initialSize))
@@ -142,7 +143,7 @@ export default function Drawer({
         </header>
 
         {/* ── Corpo ── */}
-        <div style={s.body}>
+        <div style={{ ...s.body, ...bodyStyle }}>
           {children}
         </div>
 

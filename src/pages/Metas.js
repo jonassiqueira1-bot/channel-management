@@ -18,7 +18,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useGoals } from '../hooks/useGoals'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
-import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineSelect, DeleteZone } from '../components/NotionDrawer'
+import { MetaSection, MetaRow, InlineSelect, DeleteZone } from '../components/NotionDrawer'
+import Drawer from '../components/Drawer'
 import Button from '../components/Button'
 
 // ─── Dados de referência ──────────────────────────────────────────────────────
@@ -1019,7 +1020,16 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     </div>
   )
 
-  return <DrawerBody left={left} right={right} />
+  return (
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+        {left}
+      </div>
+      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
+        {right}
+      </div>
+    </div>
+  )
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
@@ -1227,11 +1237,13 @@ export default function Metas() {
         />
       </div>
 
-      <NotionDrawer
+      <Drawer
         open={!!modal}
         onClose={() => setModal(null)}
-        breadcrumb="Comercial · Metas"
-        title={modal?.mode==='edit' ? (modal.goal?.nome_ref || 'Meta') : 'Nova meta'}>
+        title={modal?.mode==='edit' ? (modal.goal?.nome_ref || 'Meta') : 'Nova meta'}
+        subtitle="Comercial · Metas"
+        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
+      >
         {modal && (
           <MetaDetail
             initial={modal.mode==='edit' ? modal.goal : null}
@@ -1240,7 +1252,7 @@ export default function Metas() {
             onSave={handleSave}
           />
         )}
-      </NotionDrawer>
+      </Drawer>
     </div>
   )
 }
