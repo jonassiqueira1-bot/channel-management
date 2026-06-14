@@ -15,6 +15,7 @@ import {
 } from '../data/mockComissoes'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
+import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
 import { InlineSearchSelect } from '../components/NotionDrawer'
@@ -482,6 +483,74 @@ function RuleModal({ initial, personas, onSave, onClose }) {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* ── Produto / Categoria ─────────────────────────────────────── */}
+          <div style={SEC}>
+            <SectionTitle icon={<BarChart2 size={13} strokeWidth={2} />} label="Produto / Categoria" />
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:-6 }}>Restrinja a regra a um produto específico ou a uma categoria de produtos.</div>
+            <div style={{ display:'flex', gap:10 }}>
+              {[
+                { id: null,        label: 'Todos',    desc: 'Sem restrição de produto ou categoria' },
+                { id: 'produto',   label: 'Produto',  desc: 'Vinculada a um produto específico' },
+                { id: 'categoria', label: 'Categoria', desc: 'Vinculada a uma categoria de produtos' },
+              ].map(opt => {
+                const active = form.produto_filtro_tipo === opt.id
+                return (
+                  <button key={String(opt.id)} type="button"
+                    onClick={() => set('produto_filtro_tipo', active ? null : opt.id)}
+                    style={{ flex:1, padding:'10px 12px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                      border: active ? '2px solid #F59E0B' : '2px solid var(--border)',
+                      background: active ? 'rgba(245,158,11,0.08)' : 'var(--surface2)', transition:'all 0.15s', position:'relative' }}>
+                    {active && (
+                      <div style={{ position:'absolute', top:7, right:7, width:14, height:14, borderRadius:'50%',
+                        background:'#F59E0B', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <CheckCircle2 size={9} strokeWidth={3} color="#fff" />
+                      </div>
+                    )}
+                    <div style={{ fontSize:13, fontWeight:700, color: active ? '#B45309' : 'var(--text)', marginBottom:3 }}>{opt.label}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
+                  </button>
+                )
+              })}
+            </div>
+
+            {form.produto_filtro_tipo === 'produto' && (
+              <div style={{ display:'flex', flexDirection:'column' }}>
+                <label style={LB}>Produto *</label>
+                <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
+                  <InlineSearchSelect
+                    value={form.produto_id ? String(form.produto_id) : ''}
+                    onChange={id => {
+                      const p = MOCK_PRODUTOS.find(p => String(p.id) === id)
+                      set('produto_id', p?.id ?? null)
+                      set('produto_nome', p?.nome ?? null)
+                    }}
+                    options={[
+                      { value: '', label: '— Selecionar produto —' },
+                      ...MOCK_PRODUTOS.filter(p => p.status === 'ativo').map(p => ({
+                        value: String(p.id), label: p.nome, sublabel: `${p.codigo} · ${p.categoria}`
+                      }))
+                    ]}
+                    placeholder="— Selecionar produto —"
+                  />
+                </div>
+              </div>
+            )}
+
+            {form.produto_filtro_tipo === 'categoria' && (() => {
+              const cats = [...new Set(MOCK_PRODUTOS.map(p => p.categoria).filter(Boolean))].sort()
+              return (
+                <div style={{ display:'flex', flexDirection:'column' }}>
+                  <label style={LB}>Categoria *</label>
+                  <select style={IN} value={form.produto_categoria || ''}
+                    onChange={e => set('produto_categoria', e.target.value || null)}>
+                    <option value="">— Selecionar categoria —</option>
+                    {cats.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+              )
+            })()}
           </div>
 
           {/* ── Tipos de Cálculo (multi-select) ─────────────────────────── */}
@@ -1152,6 +1221,20 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
                       <div style={{ fontSize:12, color:'#10B981', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
                         <Users size={11} strokeWidth={2} />
                         {rule.contato_nome}{rule.contato_empresa ? ` · ${rule.contato_empresa}` : ''}
+                      </div>
+                    )}
+
+                    {/* Produto / Categoria vinculado */}
+                    {rule.produto_filtro_tipo === 'produto' && rule.produto_nome && (
+                      <div style={{ fontSize:12, color:'#B45309', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)' }}>PRODUTO</span>
+                        {rule.produto_nome}
+                      </div>
+                    )}
+                    {rule.produto_filtro_tipo === 'categoria' && rule.produto_categoria && (
+                      <div style={{ fontSize:12, color:'#B45309', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
+                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)' }}>CATEGORIA</span>
+                        {rule.produto_categoria}
                       </div>
                     )}
 
