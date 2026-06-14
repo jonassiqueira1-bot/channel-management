@@ -3,6 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 
 const ACCENT = '#6366F1'
 
@@ -251,41 +252,36 @@ export default function Contatos() {
 
       {/* ── Header ── */}
       <div style={pg.pageHeader}>
-        <div>
-          <div style={pg.breadcrumb}><span>Clientes</span><span style={pg.sep}>›</span><span>Contatos</span></div>
-          <h1 style={pg.title}>Contatos</h1>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button style={{ ...pg.iconBtn, ...(showMetrics ? pg.iconBtnActive : {}) }}
-            onClick={() => setShowMetrics(v => !v)}
-            title={showMetrics ? 'Ocultar indicadores' : 'Mostrar indicadores'}>
-            <EyeIcon open={showMetrics} />
-          </button>
-          <div ref={acoesRef} style={{ position:'relative' }}>
-            <button style={{ ...pg.ghostBtn, ...(acoesOpen ? { borderColor:'var(--accent)', color:'var(--accent)' } : {}) }}
-              onClick={() => setAcoesOpen(v => !v)}>
-              Ações <span style={{ fontSize:10 }}>▾</span>
-            </button>
-            {acoesOpen && (
-              <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />
-            )}
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div>
+            <div style={pg.breadcrumb}><span>Clientes</span><span style={pg.sep}>›</span><span>Contatos</span></div>
+            <h1 style={pg.title}>Contatos</h1>
           </div>
-          <button style={pg.primaryBtn} onClick={() => setModal('novo')}>+ Novo contato</button>
+          <button
+            onClick={() => setShowMetrics(v => !v)}
+            title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center',
+              width:28, height:28, borderRadius:7, border:'1px solid var(--border)',
+              background:'var(--surface)', color:'var(--text-muted)', cursor:'pointer',
+              flexShrink:0, marginTop:18 }}>
+            {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
         </div>
+        <button style={pg.primaryBtn} onClick={() => setModal('novo')}>+ Novo contato</button>
       </div>
 
       {/* ── KPIs collapsíveis ── */}
-      <div style={{ display:'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr', transition:'grid-template-rows 0.22s ease', overflow:'hidden' }}>
-        <div style={{ minHeight:0, overflow:'hidden' }}>
-          <div style={pg.kpiRow}>
+      <div style={{ display:'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr', transition:'grid-template-rows 0.25s ease', overflow:'hidden' }}>
+        <div style={{ minHeight:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12, paddingBottom: showMetrics ? 4 : 0 }}>
             {[
-              { label:'Total',        value:kpis.total,      color:'var(--text)',  },
-              { label:'Com empresa',  value:kpis.comEmpresa, color:'#6366F1',      },
-              { label:'Sem empresa',  value:kpis.semEmpresa, color:'#6B7280',      },
+              { label:'Total',       value:kpis.total,      color:'var(--text)' },
+              { label:'Com empresa', value:kpis.comEmpresa, color:'#6366F1'     },
+              { label:'Sem empresa', value:kpis.semEmpresa, color:'#6B7280'     },
             ].map(k => (
-              <div key={k.label} style={{ ...pg.kpiCard, borderTop:`2px solid ${k.color}` }}>
-                <span style={{ fontSize:24, fontWeight:800, color:k.color, fontFamily:'var(--mono)', letterSpacing:'-0.03em' }}>{k.value}</span>
-                <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{k.label}</span>
+              <div key={k.label} style={pg.kpiCard}>
+                <span style={{ fontSize:22, fontWeight:700, color:k.color, letterSpacing:'-0.5px', lineHeight:1 }}>{k.value}</span>
+                <span style={pg.kpiLbl}>{k.label}</span>
               </div>
             ))}
           </div>
@@ -295,13 +291,13 @@ export default function Contatos() {
       {/* ── Toolbar ── */}
       <div style={pg.toolbar}>
         <div style={pg.tbLeft}>
-          <div style={{ position:'relative', flexShrink:0 }}>
-            <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)',
-              fontSize:13, color:'var(--text-muted)', pointerEvents:'none' }}>⌕</span>
+          <div style={pg.searchWrap}>
+            <span style={pg.searchIcon}>⌕</span>
             <input style={pg.searchInput}
               placeholder="Buscar nome, e-mail ou cargo…"
               value={busca} onChange={e => setBusca(e.target.value)} />
           </div>
+          <div style={pg.tbDivider} />
           <select style={pg.select} value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)}>
             <option value="">Todas as empresas</option>
             {empresasUnicas.map(e => (
@@ -314,13 +310,33 @@ export default function Contatos() {
         </div>
         <div style={pg.tbDivider} />
         <div style={pg.tbRight}>
-          {(busca || filtroEmp || filtroCargo) && (
-            <button style={pg.clearBtn} onClick={() => { setBusca(''); setFiltroEmp(''); setFiltroCargo('') }}>✕ Limpar</button>
-          )}
-          <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-            {lista.length} de {contatos.length}
-          </span>
+          <div ref={acoesRef} style={{ position:'relative' }}>
+            <button
+              onClick={() => setAcoesOpen(v => !v)}
+              style={{ display:'flex', alignItems:'center', justifyContent:'center',
+                width:36, height:36, borderRadius:8, border:'1px solid var(--border)',
+                background:'var(--surface)', color:'var(--text-soft)', cursor:'pointer',
+                transition:'all 0.15s' }}>
+              <MoreHorizontal size={16} />
+            </button>
+            {acoesOpen && (
+              <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* ── Result row ── */}
+      <div style={pg.resultRow}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-muted)' }}>
+          {lista.length} contato{lista.length !== 1 ? 's' : ''} encontrado{lista.length !== 1 ? 's' : ''}
+        </span>
+        {(busca || filtroEmp || filtroCargo) && (
+          <button style={pg.clearBtn}
+            onClick={() => { setBusca(''); setFiltroEmp(''); setFiltroCargo('') }}>
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* ── Tabela ── */}
@@ -436,31 +452,31 @@ export default function Contatos() {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const pg = {
   wrap:        { padding:'28px 32px', display:'flex', flexDirection:'column', gap:16 },
-  pageHeader:  { display:'flex', justifyContent:'space-between', alignItems:'flex-start' },
+  pageHeader:  { display:'flex', justifyContent:'space-between', alignItems:'flex-end' },
   breadcrumb:  { display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)', marginBottom:4 },
   sep:         { color:'var(--border)' },
-  title:       { margin:0, fontSize:22, fontWeight:800, color:'var(--text)', letterSpacing:'-0.03em' },
+  title:       { margin:0, fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px' },
   primaryBtn:  { padding:'8px 16px', background:ACCENT, color:'#fff', border:'none', borderRadius:7,
-                 fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' },
-  iconBtn:     { width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text-muted)', cursor:'pointer' },
-  iconBtnActive: { borderColor:'var(--accent)', color:'var(--accent)', background:'var(--accent-glow)' },
-  ghostBtn:    { height:36, padding:'0 14px', fontSize:13, border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text-soft)', fontFamily:'var(--font)', cursor:'pointer', whiteSpace:'nowrap', display:'flex', alignItems:'center', gap:6 },
-  kpiRow:      { display:'flex', gap:12, paddingBottom:4 },
-  kpiCard:     { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
-                 padding:'14px 20px', display:'flex', flexDirection:'column', gap:2, minWidth:120 },
-  toolbar:     { display:'flex', alignItems:'center', gap:8, background:'var(--surface)', borderRadius:10, padding:'10px 14px', border:'1px solid var(--border2)', boxShadow:'var(--shadow)' },
-  tbLeft:      { display:'flex', alignItems:'center', gap:8, flex:1, flexShrink:1, minWidth:0 },
-  tbDivider:   { width:1, height:24, background:'var(--border)', flexShrink:0 },
-  tbRight:     { display:'flex', alignItems:'center', gap:8, flexShrink:0 },
-  searchInput: { height:36, padding:'0 12px 0 28px', border:'1px solid var(--border)', borderRadius:7,
+                 fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' },
+  kpiCard:     { background:'var(--surface)', borderRadius:10, padding:'16px 18px', display:'flex',
+                 flexDirection:'column', gap:4, border:'1px solid var(--border2)',
+                 boxShadow:'var(--shadow)', borderTop:'3px solid var(--border)' },
+  kpiLbl:      { fontSize:12, color:'var(--text-muted)', marginTop:2 },
+  toolbar:     { background:'var(--surface)', borderRadius:10, padding:'8px 12px', border:'1px solid var(--border2)', boxShadow:'var(--shadow)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 },
+  tbLeft:      { display:'flex', alignItems:'center', gap:6, flexShrink:1, minWidth:0 },
+  tbDivider:   { width:1, height:24, background:'var(--border)', flexShrink:0, margin:'0 4px' },
+  tbRight:     { display:'flex', alignItems:'center', gap:6, flexShrink:0 },
+  searchWrap:  { position:'relative', width:240, flexShrink:0 },
+  searchIcon:  { position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', fontSize:14, pointerEvents:'none' },
+  searchInput: { width:'100%', height:36, padding:'0 10px 0 28px', border:'1px solid var(--border)', borderRadius:7,
                  background:'var(--surface2)', color:'var(--text)', fontSize:13,
-                 fontFamily:'var(--font)', outline:'none', width:220, boxSizing:'border-box' },
+                 fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' },
   select:      { height:36, padding:'0 8px', border:'1px solid var(--border)', borderRadius:7,
                  background:'var(--surface2)', color:'var(--text)', fontSize:12,
-                 fontFamily:'var(--font)', outline:'none', cursor:'pointer' },
-  clearBtn:    { height:36, padding:'0 12px', background:'none', border:'1px solid var(--border)', borderRadius:7,
-                 color:'var(--text-muted)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)',
-                 whiteSpace:'nowrap' },
+                 fontFamily:'var(--font)', outline:'none', cursor:'pointer', flexShrink:0 },
+  resultRow:   { display:'flex', alignItems:'center', gap:12 },
+  clearBtn:    { fontSize:12, color:'var(--accent2)', background:'none', border:'none',
+                 cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline' },
   tableWrap:  { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' },
   table:      { width:'100%', borderCollapse:'collapse' },
   th:         { padding:'10px 14px', fontSize:10, fontWeight:700, color:'var(--text-muted)',
