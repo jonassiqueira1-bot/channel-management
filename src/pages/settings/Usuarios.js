@@ -613,23 +613,166 @@ function Field({ label, error, children }) {
   )
 }
 
-// ─── Seletor de sessão mockada ────────────────────────────────────────────────
-function SessaoSelector({ sessao, onChange }) {
+// ─── Exportar CSV ─────────────────────────────────────────────────────────────
+function exportarCSV(lista) {
+  const header = ['id', 'nome', 'email', 'papel', 'tipo_usuario', 'empresa_id', 'status', 'criado_em', 'ultimo_acesso']
+  const rows = lista.map(p => header.map(k => {
+    const v = p[k] ?? ''
+    return String(v).includes(',') ? `"${v}"` : v
+  }).join(','))
+  const csv = [header.join(','), ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `usuarios_${new Date().toISOString().slice(0,10)}.csv`; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadTemplate() {
+  const header = 'nome,email,papel,tipo_usuario,empresa_id,status'
+  const exemplo = 'João Silva,joao@empresa.com,vendedor,externo,1,ativo'
+  const csv = [header, exemplo].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = 'template_importacao_usuarios.csv'; a.click()
+  URL.revokeObjectURL(url)
+}
+
+// ─── Modal de Importação ──────────────────────────────────────────────────────
+function ImportModal({ onClose, onImport }) {
+  const [linhas, setLinhas] = useState([])
+  const [erro, setErro]     = useState('')
+  const fileRef             = useRef(null)
+
+  function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const text = ev.target.result
+        const [header, ...rows] = text.trim().split('\n').map(l => l.trim()).filter(Boolean)
+        const cols = header.split(',').map(c => c.trim())
+        const required = ['nome', 'email', 'papel', 'tipo_usuario']
+        const missing = required.filter(r => !cols.includes(r))
+        if (missing.length) { setErro(`Colunas obrigatórias faltando: ${missing.join(', ')}`); return }
+        const parsed = rows.map(row => {
+          const vals = row.split(',').map(v => v.replace(/^"|"$/g, '').trim())
+          return Object.fromEntries(cols.map((c, i) => [c, vals[i] || '']))
+        })
+        setLinhas(parsed); setErro('')
+      } catch { setErro('Arquivo inválido. Verifique o formato CSV.') }
+    }
+    reader.readAsText(file)
+  }
+
+  function confirmar() {
+    onImport(linhas.map(l => ({
+      id: 'u_' + Date.now() + Math.random().toString(36).slice(2, 6),
+      nome: l.nome, email: l.email, papel: l.papel,
+      tipo_usuario: l.tipo_usuario || 'externo',
+      empresa_id: l.empresa_id ? Number(l.empresa_id) : null,
+      status: l.status || 'pendente',
+      avatar: l.nome.slice(0, 2).toUpperCase(),
+      tenant_id: 't1', criado_em: new Date().toISOString(), ultimo_acesso: null,
+      perfis_acesso_ids: [],
+    })))
+    onClose()
+  }
+
+  const BG = 'rgba(0,0,0,0.5)'
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px',
-      background: '#FEF3C7', border: '1px solid #F59E0B55', borderRadius: 8, flexShrink: 0 }}>
-      <span style={{ fontSize: 12 }}>🧪</span>
-      <span style={{ fontSize: 11, fontWeight: 600, color: '#92400E' }}>Simular sessão:</span>
-      <select
-        value={sessao.id}
-        onChange={e => onChange(SESSOES_MOCK.find(s => s.id === e.target.value))}
-        style={{ fontSize: 11, border: '1px solid #F59E0B88', borderRadius: 5,
-          padding: '2px 6px', background: '#FFFBEB', color: '#92400E',
-          fontFamily: 'var(--font)', cursor: 'pointer' }}>
-        {SESSOES_MOCK.map(s => (
-          <option key={s.id} value={s.id}>{s.descricao}</option>
-        ))}
-      </select>
+    <div style={{ position:'fixed', inset:0, background:BG, backdropFilter:'blur(3px)',
+      display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, padding:20 }}>
+      <div style={{ background:'var(--surface)', borderRadius:14, width:'100%', maxWidth:640,
+        boxShadow:'0 20px 60px rgba(0,0,0,0.3)', display:'flex', flexDirection:'column', gap:0, overflow:'hidden' }}>
+        {/* Cabeçalho */}
+        <div style={{ padding:'18px 24px', borderBottom:'1px solid var(--border)',
+          display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Importar Usuários</span>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer',
+            color:'var(--text-muted)', fontSize:18, lineHeight:1 }}>✕</button>
+        </div>
+        {/* Corpo */}
+        <div style={{ padding:'20px 24px', display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, padding:'12px 14px',
+            background:'#EFF6FF', border:'1px solid #BFDBFE', borderRadius:8 }}>
+            <span style={{ fontSize:14 }}>📋</span>
+            <div style={{ flex:1, fontSize:12, color:'#1E40AF' }}>
+              Use o arquivo CSV no formato correto. Baixe o modelo para ver as colunas esperadas.
+            </div>
+            <button onClick={downloadTemplate}
+              style={{ fontSize:11, fontWeight:600, color:'#1E40AF', background:'#DBEAFE',
+                border:'1px solid #93C5FD', borderRadius:6, padding:'4px 10px', cursor:'pointer',
+                whiteSpace:'nowrap', fontFamily:'var(--font)' }}>
+              Baixar modelo
+            </button>
+          </div>
+
+          <div>
+            <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)',
+              textTransform:'uppercase', letterSpacing:.4, display:'block', marginBottom:6 }}>
+              Arquivo CSV
+            </label>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <button onClick={() => fileRef.current?.click()}
+                style={{ fontSize:12, fontWeight:600, color:'var(--text)', background:'var(--surface2)',
+                  border:'1px solid var(--border)', borderRadius:7, padding:'7px 14px',
+                  cursor:'pointer', fontFamily:'var(--font)' }}>
+                Escolher arquivo
+              </button>
+              <span style={{ fontSize:12, color:'var(--text-muted)' }}>
+                {linhas.length > 0 ? `${linhas.length} linha(s) encontrada(s)` : 'Nenhum arquivo selecionado'}
+              </span>
+              <input ref={fileRef} type="file" accept=".csv" style={{ display:'none' }} onChange={handleFile} />
+            </div>
+            {erro && <p style={{ fontSize:11, color:'#DC2626', marginTop:6 }}>{erro}</p>}
+          </div>
+
+          {linhas.length > 0 && (
+            <div style={{ maxHeight:220, overflowY:'auto', border:'1px solid var(--border)',
+              borderRadius:8, fontSize:11, fontFamily:'var(--mono)' }}>
+              <table style={{ width:'100%', borderCollapse:'collapse' }}>
+                <thead>
+                  <tr style={{ background:'var(--surface2)' }}>
+                    {Object.keys(linhas[0]).map(k => (
+                      <th key={k} style={{ padding:'6px 10px', textAlign:'left', borderBottom:'1px solid var(--border)',
+                        color:'var(--text-muted)', fontWeight:700, textTransform:'uppercase', fontSize:9, letterSpacing:.5 }}>
+                        {k}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {linhas.map((l, i) => (
+                    <tr key={i} style={{ borderBottom:'1px solid var(--border2)' }}>
+                      {Object.values(l).map((v, j) => (
+                        <td key={j} style={{ padding:'5px 10px', color:'var(--text)' }}>{v || '—'}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        {/* Rodapé */}
+        <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)',
+          display:'flex', justifyContent:'flex-end', gap:10 }}>
+          <button onClick={onClose}
+            style={{ fontSize:13, color:'var(--text-muted)', background:'none',
+              border:'1px solid var(--border)', borderRadius:8, padding:'7px 16px', cursor:'pointer', fontFamily:'var(--font)' }}>
+            Cancelar
+          </button>
+          <button onClick={confirmar} disabled={linhas.length === 0}
+            style={{ fontSize:13, fontWeight:600, color:'#fff', background: linhas.length === 0 ? '#9CA3AF' : ACCENT,
+              border:'none', borderRadius:8, padding:'7px 20px', cursor: linhas.length === 0 ? 'not-allowed' : 'pointer',
+              fontFamily:'var(--font)' }}>
+            Importar {linhas.length > 0 ? `(${linhas.length})` : ''}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -638,25 +781,40 @@ function SessaoSelector({ sessao, onChange }) {
 export default function SettingsUsuarios() {
   const [perfis, setPerfis]      = useLocalState('settings:perfis_v1', MOCK_PERFIS)
   const [rolesStore]             = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [sessao, setSessao]      = useState(SESSOES_MOCK[0])
+  const sessao                   = SESSOES_MOCK[0]
   const [modalConvite, setModalConvite] = useState(false)
+  const [modalImport, setModalImport]   = useState(false)
   const [editando, setEditando]  = useState(null)
   const [busca, setBusca]        = useState('')
   const [filtroPapel, setFiltroPapel]   = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
+  const [filtroTipo, setFiltroTipo]     = useState('')
+  const [sortField, setSortField]       = useState('nome')
+  const [sortDir, setSortDir]           = useState('asc')
+
+  function toggleSort(field) {
+    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortField(field); setSortDir('asc') }
+  }
 
   // Filtro RLS simulado
   const perfisFiltradosSessao = useMemo(() => filtrarPorSessao(perfis, sessao), [perfis, sessao])
 
-  // Filtros de UI
+  // Filtros de UI + ordenação
   const lista = useMemo(() => {
     const q = busca.toLowerCase()
-    return perfisFiltradosSessao.filter(p =>
+    const filtered = perfisFiltradosSessao.filter(p =>
       (!q || p.nome.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) &&
       (!filtroPapel  || p.papel === filtroPapel) &&
-      (!filtroStatus || p.status === filtroStatus)
+      (!filtroStatus || p.status === filtroStatus) &&
+      (!filtroTipo   || p.tipo_usuario === filtroTipo)
     )
-  }, [perfisFiltradosSessao, busca, filtroPapel, filtroStatus])
+    return [...filtered].sort((a, b) => {
+      const av = (a[sortField] || '').toString().toLowerCase()
+      const bv = (b[sortField] || '').toString().toLowerCase()
+      return sortDir === 'asc' ? av.localeCompare(bv, 'pt') : bv.localeCompare(av, 'pt')
+    })
+  }, [perfisFiltradosSessao, busca, filtroPapel, filtroStatus, filtroTipo, sortField, sortDir])
 
   // KPIs
   const total    = perfisFiltradosSessao.length
@@ -688,7 +846,12 @@ export default function SettingsUsuarios() {
           <p style={pg.desc}>Gerencie os usuários com acesso à plataforma e seus níveis de permissão.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <SessaoSelector sessao={sessao} onChange={setSessao} />
+          <button style={pg.secondaryBtn} onClick={() => exportarCSV(lista)}>
+            ↓ Exportar CSV
+          </button>
+          <button style={pg.secondaryBtn} onClick={() => setModalImport(true)}>
+            ↑ Importar
+          </button>
           {podeCriar && (
             <button style={pg.primaryBtn} onClick={() => setModalConvite(true)}>
               + Convidar usuário
@@ -728,8 +891,13 @@ export default function SettingsUsuarios() {
           <option value="">Todos os status</option>
           {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
         </select>
-        {(busca || filtroPapel || filtroStatus) && (
-          <button style={pg.clearBtn} onClick={() => { setBusca(''); setFiltroPapel(''); setFiltroStatus('') }}>
+        <select style={pg.select} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+          <option value="">Interno / Externo</option>
+          <option value="interno">Interno (ISV)</option>
+          <option value="externo">Externo (Parceiro)</option>
+        </select>
+        {(busca || filtroPapel || filtroStatus || filtroTipo) && (
+          <button style={pg.clearBtn} onClick={() => { setBusca(''); setFiltroPapel(''); setFiltroStatus(''); setFiltroTipo('') }}>
             ✕ Limpar
           </button>
         )}
@@ -743,8 +911,30 @@ export default function SettingsUsuarios() {
         <table style={pg.table}>
           <thead>
             <tr style={pg.thead}>
-              {['Usuário', 'E-mail', 'Empresa', 'Papel', 'Perfis de Acesso', 'Status', 'Último acesso', ''].map((h, i) => (
-                <th key={i} style={{ ...pg.th, textAlign: i === 7 ? 'center' : 'left' }}>{h}</th>
+              {[
+                { label: 'Usuário',           field: 'nome' },
+                { label: 'E-mail',            field: 'email' },
+                { label: 'Empresa',           field: null },
+                { label: 'Papel',             field: 'papel' },
+                { label: 'Perfis de Acesso',  field: null },
+                { label: 'Status',            field: 'status' },
+                { label: 'Último acesso',     field: 'ultimo_acesso' },
+                { label: '',                  field: null },
+              ].map(({ label, field }, i) => (
+                <th key={i}
+                  onClick={field ? () => toggleSort(field) : undefined}
+                  style={{ ...pg.th, textAlign: i === 7 ? 'center' : 'left',
+                    cursor: field ? 'pointer' : 'default',
+                    userSelect: 'none',
+                    color: sortField === field ? 'var(--text)' : 'var(--text-muted)',
+                  }}>
+                  {label}
+                  {field && (
+                    <span style={{ marginLeft: 4, opacity: sortField === field ? 1 : 0.3, fontSize: 9 }}>
+                      {sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+                    </span>
+                  )}
+                </th>
               ))}
             </tr>
           </thead>
@@ -852,6 +1042,12 @@ export default function SettingsUsuarios() {
       </div>
 
       {/* ── Modais ── */}
+      {modalImport && (
+        <ImportModal
+          onClose={() => setModalImport(false)}
+          onImport={novos => setPerfis(prev => [...prev, ...novos])}
+        />
+      )}
       {modalConvite && (
         <ConviteModal
           onClose={() => setModalConvite(false)}
@@ -886,6 +1082,11 @@ const pg = {
     padding: '8px 16px', background: ACCENT, color: '#fff', border: 'none',
     borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
     fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0,
+  },
+  secondaryBtn: {
+    padding: '7px 14px', background: 'var(--surface)', color: 'var(--text)',
+    border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, fontWeight: 600,
+    cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0,
   },
   kpiRow: {
     display: 'flex', gap: 12, padding: '12px 32px', borderBottom: '1px solid var(--border2)', flexShrink: 0,
