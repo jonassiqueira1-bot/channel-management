@@ -44,7 +44,6 @@ function StatusBadge({ status }) {
 }
 
 function Avatar({ perfil, size = 34 }) {
-  const interno = perfil.tipo_usuario === 'interno'
   const cfg = PAPEIS_CONFIG[perfil.papel]
   return (
     <div style={{
