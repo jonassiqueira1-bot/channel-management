@@ -218,7 +218,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
   function patch(field, val) {
     const next = { ...form, [field]: val }
     setForm(next)
-    if (!isNew) onSave({ ...next, id: item.id })
+    if (!isNew) onSave({ ...next, id: item.id }, true)
   }
 
   function checkDuplicateCNPJ(cnpj) {
@@ -1161,13 +1161,13 @@ export default function Empresas() {
     a.click(); URL.revokeObjectURL(url)
   }
 
-  function handleSave(form) {
+  function handleSave(form, keepOpen = false) {
     if (modal?.editing) {
       updateEmpresa(modal.editing.id, form)
     } else {
       addEmpresa(form)
     }
-    setModal(null)
+    if (!keepOpen) setModal(null)
   }
 
   function handleDelete(id) {

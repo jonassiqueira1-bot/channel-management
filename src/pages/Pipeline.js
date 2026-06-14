@@ -3444,24 +3444,22 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     }
   }
 
-  function DadosFormBody() {
-    return (
-      <>
-        {/* Etapa do funil — sempre fixo no topo */}
-        <SectionLabel>Posição no funil</SectionLabel>
-        <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
-        <div style={{ marginTop:16 }}>
-          <DynamicFormLayout
-            sections={oppSections}
-            fieldById={oppFieldById}
-            renderField={renderOppField}
-            sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
-            labelStyle={{ ...SL }}
-          />
-        </div>
-      </>
-    )
-  }
+  const dadosFormBody = (
+    <>
+      {/* Etapa do funil — sempre fixo no topo */}
+      <SectionLabel>Posição no funil</SectionLabel>
+      <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
+      <div style={{ marginTop:16 }}>
+        <DynamicFormLayout
+          sections={oppSections}
+          fieldById={oppFieldById}
+          renderField={renderOppField}
+          sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+          labelStyle={{ ...SL }}
+        />
+      </div>
+    </>
+  )
 
   return (
     <>
@@ -3574,7 +3572,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                 {/* Aba: Dados */}
                 {tab==='dados' && (
                   <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
-                    <div style={m.body}><DadosFormBody /></div>
+                    <div style={m.body}>{dadosFormBody}</div>
                     <div style={m.footer}>
                       <div style={{ flex:1 }}>
                         {!confirmDelete && (
@@ -3753,7 +3751,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           ) : (
             /* ── NOVA OPORTUNIDADE: form simples, sem abas ── */
             <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
-              <div style={m.body}><DadosFormBody /></div>
+              <div style={m.body}>{dadosFormBody}</div>
               <div style={m.footer}>
                 <div style={{ flex:1 }} />
                 <div style={{ display:'flex', gap:10 }}>
