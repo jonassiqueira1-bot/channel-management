@@ -7,9 +7,9 @@ import {
   MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
 import {
-  HeartPulse, LayoutList, LayoutGrid, ChevronDown, Plus, Check,
-  Trash2, Circle, CheckCircle2, CalendarDays, User, Building2,
-  Download, Upload, X, SlidersHorizontal, RefreshCw,
+  HeartPulse, LayoutList, LayoutGrid, ChevronDown, ChevronUp, Plus, Check,
+  Trash2, Circle, CheckCircle2, CalendarDays, User,
+  Download, Upload, X, SlidersHorizontal, MoreHorizontal,
 } from 'lucide-react'
 
 const ACCENT = '#6366F1'
@@ -776,12 +776,13 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function CustomerSuccess() {
   const [records, setRecords] = useLocalState(STORAGE_KEY, MOCK_PARTNER_HEALTH)
-  const [busca, setBusca]           = useState('')
-  const [filtroLaer, setFiltroLaer] = useState('')
+  const [busca, setBusca]             = useState('')
+  const [filtroLaer, setFiltroLaer]   = useState('')
   const [filtroTouch, setFiltroTouch] = useState('')
-  const [view, setView]             = useState('card') // 'card' | 'list'
+  const [view, setView]               = useLocalState('cs:view', 'card')
+  const [showMetrics, setShowMetrics] = useLocalState('cs:metrics', true)
   const [selecionado, setSelecionado] = useState(null)
-  const [novoModal, setNovoModal]   = useState(false)
+  const [novoModal, setNovoModal]     = useState(false)
 
   const lista = useMemo(() => {
     const q = busca.toLowerCase()
@@ -844,94 +845,130 @@ export default function CustomerSuccess() {
   }
 
   const { color: avgColor } = healthColor(avgScore)
+  const hasFilter = !!(busca || filtroLaer || filtroTouch)
+  const filterCount = [busca, filtroLaer, filtroTouch].filter(Boolean).length
 
   return (
-    <div style={P.wrap}>
-      {/* ── Header ── */}
-      <div style={P.header}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${ACCENT}18`,
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <HeartPulse size={16} color={ACCENT} />
+    <div style={P.page}>
+
+      {/* ── Page Header ── */}
+      <div style={P.pageHeader}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div>
+            <div style={P.breadcrumb}>
+              <span>Customer Success</span>
+              <span style={P.sep}>›</span>
+              <span>Sucesso do Parceiro</span>
             </div>
-            <h2 style={P.title}>Sucesso do Parceiro</h2>
+            <h1 style={P.title}>Sucesso do Parceiro</h1>
           </div>
-          <div style={{ width: 1, height: 22, background: 'var(--border)', flexShrink: 0 }} />
-          {/* Busca */}
-          <input
-            style={P.search}
-            placeholder="Buscar parceiro ou CSM…"
-            value={busca}
-            onChange={e => setBusca(e.target.value)}
-          />
-          {/* Filtros */}
+          <button
+            onClick={() => setShowMetrics(v => !v)}
+            title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center',
+              width:28, height:28, borderRadius:7, border:'1px solid var(--border)',
+              background:'var(--surface)', color:'var(--text-muted)', cursor:'pointer',
+              flexShrink:0, marginTop:18 }}>
+            {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
+        <button onClick={() => setNovoModal(true)} style={P.newBtn}>
+          + Novo Check-in
+        </button>
+      </div>
+
+      {/* ── KPIs retráteis ── */}
+      <div style={{ display:'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr',
+        transition:'grid-template-rows 0.25s ease', overflow:'hidden' }}>
+        <div style={{ minHeight:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr)', gap:12,
+            paddingBottom: showMetrics ? 4 : 0 }}>
+            {[
+              { label: 'Parceiros',   value: records.length, color: 'var(--text)' },
+              { label: 'Saudáveis',   value: healthy,  color: '#059669' },
+              { label: 'Atenção',     value: atencao,  color: '#D97706' },
+              { label: 'Em Risco',    value: risco,    color: '#DC2626' },
+              { label: 'Score Médio', value: avgScore,  color: avgColor, mono: true },
+            ].map(k => (
+              <div key={k.label} style={P.kpi}>
+                <span style={{ fontSize:22, fontWeight:700, color: k.color,
+                  letterSpacing:'-0.5px', lineHeight:1,
+                  fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>
+                  {k.value}
+                </span>
+                <span style={P.kpiLbl}>{k.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Toolbar ── */}
+      <div style={P.toolbar}>
+        {/* Esquerdo: busca + filtros */}
+        <div style={P.tbLeft}>
+          <div style={P.searchWrap}>
+            <span style={P.searchIcon}>⌕</span>
+            <input style={P.searchInput}
+              placeholder="Buscar parceiro ou CSM…"
+              value={busca}
+              onChange={e => setBusca(e.target.value)}
+            />
+          </div>
+
+          <div style={P.tbDivider} />
+
+          {/* Filtro LAER */}
           <FilterPopover
             label="LAER"
             options={LAER_STAGES.map(s => ({ value: s.value, label: s.label }))}
             value={filtroLaer}
             onChange={setFiltroLaer}
           />
+
+          {/* Filtro Touch Model */}
           <FilterPopover
             label="Touch Model"
             options={TOUCH_MODELS.map(t => ({ value: t.value, label: t.label }))}
             value={filtroTouch}
             onChange={setFiltroTouch}
           />
-          {(busca || filtroLaer || filtroTouch) && (
-            <button onClick={() => { setBusca(''); setFiltroLaer(''); setFiltroTouch('') }}
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
-                border: 'none', background: 'none', cursor: 'pointer',
-                fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font)' }}>
-              <X size={11} /> Limpar
-            </button>
-          )}
         </div>
 
-        {/* Lado direito */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          {/* Toggle Lista/Card */}
-          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
-            {[
-              { key: 'list', Icon: LayoutList },
-              { key: 'card', Icon: LayoutGrid },
-            ].map(({ key, Icon }) => (
-              <button key={key} onClick={() => setView(key)}
-                style={{ padding: '6px 10px', border: 'none', cursor: 'pointer',
-                  background: view === key ? ACCENT : 'var(--surface)',
-                  color: view === key ? '#fff' : 'var(--text-muted)',
-                  transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}>
-                <Icon size={14} />
-              </button>
-            ))}
+        <div style={P.tbDivider} />
+
+        {/* Direito: view toggle + ações */}
+        <div style={P.tbRight}>
+          {/* View toggle */}
+          <div style={P.viewToggle}>
+            <button title="Lista"
+              onClick={() => setView('list')}
+              style={{ ...P.viewBtn, ...(view === 'list' ? P.viewBtnOn : {}) }}>
+              <LayoutList size={14} />
+            </button>
+            <button title="Cards"
+              onClick={() => setView('card')}
+              style={{ ...P.viewBtn, ...(view === 'card' ? P.viewBtnOn : {}) }}>
+              <LayoutGrid size={14} />
+            </button>
           </div>
+
+          {/* ⋯ Ações */}
           <ActionDropdown onImport={importCSV} onExport={exportCSV} />
-          <button onClick={() => setNovoModal(true)} style={P.primaryBtn}>
-            <Plus size={13} /> Novo Check-in
-          </button>
         </div>
       </div>
 
-      {/* ── KPIs ── */}
-      <div style={P.kpiRow}>
-        {[
-          { label: 'Total', value: records.length, color: 'var(--text)' },
-          { label: 'Saudáveis', value: healthy,  color: '#059669' },
-          { label: 'Atenção',   value: atencao,  color: '#D97706' },
-          { label: 'Em Risco',  value: risco,    color: '#DC2626' },
-          { label: 'Score Médio', value: avgScore, color: avgColor, mono: true },
-        ].map(k => (
-          <div key={k.label} style={P.kpiCard}>
-            <span style={{ fontSize: k.label === 'Score Médio' ? 22 : 20, fontWeight: 800,
-              color: k.color, lineHeight: 1, fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>
-              {k.value}
-            </span>
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
-              textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              {k.label}
-            </span>
-          </div>
-        ))}
+      {/* ── Result row ── */}
+      <div style={P.resultRow}>
+        <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-muted)' }}>
+          {lista.length} parceiro{lista.length !== 1 ? 's' : ''} encontrado{lista.length !== 1 ? 's' : ''}
+        </span>
+        {hasFilter && (
+          <button style={P.clearBtn}
+            onClick={() => { setBusca(''); setFiltroLaer(''); setFiltroTouch('') }}>
+            Limpar filtros
+          </button>
+        )}
       </div>
 
       {/* ── Conteúdo ── */}
@@ -1017,23 +1054,27 @@ const SEC_HDR = {
 }
 
 const P = {
-  wrap:    { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
-  header:  { padding: '16px 28px', borderBottom: '1px solid var(--border)',
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 },
-  title:   { fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0, letterSpacing: '-0.3px', whiteSpace: 'nowrap' },
-  search:  { padding: '6px 11px', border: '1px solid var(--border)', borderRadius: 7,
-    fontSize: 12, background: 'var(--surface)', color: 'var(--text)', width: 200,
-    fontFamily: 'var(--font)', outline: 'none' },
-  kpiRow:  { display: 'flex', gap: 12, padding: '12px 28px',
-    borderBottom: '1px solid var(--border2)', flexShrink: 0 },
-  kpiCard: { display: 'flex', flexDirection: 'column', alignItems: 'center',
-    padding: '8px 20px', background: 'var(--surface2)',
-    border: '1px solid var(--border2)', borderRadius: 8, gap: 2, minWidth: 80 },
-  content: { flex: 1, overflowY: 'auto' },
-  primaryBtn: { display: 'flex', alignItems: 'center', gap: 6,
-    padding: '7px 14px', background: ACCENT, color: '#fff', border: 'none',
-    borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-    fontFamily: 'var(--font)', whiteSpace: 'nowrap' },
+  page:       { display:'flex', flexDirection:'column', gap:16 },
+  pageHeader: { display:'flex', alignItems:'flex-end', justifyContent:'space-between' },
+  breadcrumb: { display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)', marginBottom:4 },
+  sep:        { color:'var(--border)' },
+  title:      { margin:0, fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px' },
+  newBtn:     { padding:'8px 16px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' },
+  kpi:        { background:'var(--surface)', borderRadius:10, padding:'16px 18px', display:'flex', flexDirection:'column', gap:4, border:'1px solid var(--border2)', boxShadow:'var(--shadow)', borderTop:'3px solid var(--border)' },
+  kpiLbl:     { fontSize:12, color:'var(--text-muted)', marginTop:2 },
+  toolbar:    { background:'var(--surface)', borderRadius:10, padding:'8px 12px', border:'1px solid var(--border2)', boxShadow:'var(--shadow)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8 },
+  tbLeft:     { display:'flex', alignItems:'center', gap:6, flexShrink:1, minWidth:0 },
+  tbRight:    { display:'flex', alignItems:'center', gap:6, flexShrink:0 },
+  tbDivider:  { width:1, height:24, background:'var(--border)', flexShrink:0, margin:'0 4px' },
+  searchWrap: { position:'relative', width:240, flexShrink:0 },
+  searchIcon: { position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', fontSize:14, pointerEvents:'none' },
+  searchInput:{ width:'100%', height:36, padding:'0 10px 0 28px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)', boxSizing:'border-box' },
+  viewToggle: { display:'flex', border:'1px solid var(--border)', borderRadius:7, overflow:'hidden', flexShrink:0 },
+  viewBtn:    { width:34, height:36, display:'flex', alignItems:'center', justifyContent:'center', background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', transition:'all 0.15s' },
+  viewBtnOn:  { background:'var(--accent-glow)', color:'var(--accent)' },
+  resultRow:  { display:'flex', alignItems:'center', gap:12 },
+  clearBtn:   { fontSize:12, color:'var(--accent2)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline' },
+  content:    { flex:1, overflowY:'auto' },
 }
 
 const T = {
