@@ -127,8 +127,8 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
       id: Date.now() + i,
       nome: r.nome || '', codigo: (r.codigo || '').toUpperCase(), tipo: r.tipo || 'saas',
       categoria: r.categoria || '', status: r.status || 'rascunho',
-      cobranca: r.cobranca || 'mensal', preco: parseFloat(r.preco) || 0,
-      setup: parseFloat(r.setup) || 0, desconto_max: parseFloat(r.desconto_max) || 0,
+      cobranca: r.cobranca || 'mensal', preco: parseFloat(String(r.preco).replace(',','.')) || 0,
+      setup: parseFloat(String(r.setup).replace(',','.')) || 0, desconto_max: parseFloat(String(r.desconto_max).replace(',','.')) || 0,
       usuarios_incluidos: parseInt(r.usuarios_incluidos) || null,
       features: r.features || '', visivel_canal: r.visivel_canal === 'true' || r.visivel_canal === '1',
       descricao: r.descricao || '', observacoes: r.observacoes || '',
@@ -141,7 +141,7 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
   function downloadTemplate() {
     const bom = '﻿'
     const header = IMPORT_COLS.join(';')
-    const ex = ['Canal NG Demo','CNG-DEMO','saas','CRM','rascunho','mensal','490','0','10','5','Feature 1\\nFeature 2','true','Descrição do produto',''].join(';')
+    const ex = ['Canal NG Demo','CNG-DEMO','saas','CRM','rascunho','mensal','490.00','0.00','10','5','Feature 1\\nFeature 2','true','Descrição do produto',''].join(';')
     const blob = new Blob([bom + header + '\n' + ex], { type:'text/csv;charset=utf-8' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template_produtos.csv'; a.click()
   }
