@@ -1,13 +1,7 @@
 import { useState } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 
-// ─── Mock seeds ───────────────────────────────────────────────────────────────
-const SEEDS = [
-  { id: 1, nome: 'Franquia Norte',      situacao: 'ativo' },
-  { id: 2, nome: 'Franquia Sul',        situacao: 'ativo' },
-  { id: 3, nome: 'Franquia Nordeste',   situacao: 'ativo' },
-  { id: 4, nome: 'Franquia Centro-Oeste', situacao: 'inativo' },
-]
+// Sem seeds em produção — lista começa vazia para novos tenants
 
 function uid() { return Date.now() + Math.floor(Math.random() * 999) }
 
@@ -152,7 +146,7 @@ function FranquiaModal({ initial, onClose, onSave, onDelete, existentes }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Franquias() {
-  const [franquias, setFranquias] = useLocalState('settings:franquias_v1', SEEDS)
+  const [franquias, setFranquias] = useLocalState('settings:franquias_v1', [])
   const [modal, setModal]         = useState(null) // null | 'new' | franquia obj
   const [search, setSearch]       = useState('')
 

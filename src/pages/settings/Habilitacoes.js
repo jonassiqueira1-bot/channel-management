@@ -205,7 +205,7 @@ function HabilitacaoModal({ initial, onClose, onSave, onDelete, existentes }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Habilitacoes() {
-  const [habilitacoes, setHabilitacoes] = useLocalState('settings:habilitacoes_v2', SEEDS)
+  const [habilitacoes, setHabilitacoes] = useLocalState('settings:habilitacoes_v2', [])
   const [modal, setModal]               = useState(null)
   const [search, setSearch]             = useState('')
   const [filterProduto, setFilterProduto] = useState('')
