@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useTasks } from '../hooks/useTasks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
@@ -871,12 +872,13 @@ export default function Tarefas() {
           <h1 style={p.title}>Tarefas</h1>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button style={{ ...p.iconBtn, ...(showMetrics ? p.iconBtnActive : {}) }}
-            onClick={() => setShowMetrics(v => !v)} title={showMetrics ? 'Ocultar indicadores' : 'Mostrar indicadores'}>
-            {showMetrics
-              ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/></svg>
-              : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M6.5 6.6A2 2 0 0 0 9.4 9.5M4.2 4.3C2.8 5.3 1.6 6.8 1 8c1.2 2.4 3.8 5 7 5a7 7 0 0 0 2.8-.6M7 3.1A7 7 0 0 1 15 8c-.4.9-1 1.8-1.8 2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            }
+          <button
+            onClick={() => setShowMetrics(v => !v)}
+            title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28,
+              borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)',
+              color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginTop:18 }}>
+            {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
           <div ref={acoesRef} style={{ position:'relative' }}>
             <button style={{ ...p.ghostBtn, height:36, ...(acoesOpen ? { borderColor:'var(--accent)', color:'var(--accent)' } : {}) }}

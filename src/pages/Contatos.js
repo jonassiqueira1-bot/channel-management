@@ -168,11 +168,6 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
 }
 
 // ─── Ícone Olho ───────────────────────────────────────────────────────────────
-function EyeIcon({ open }) {
-  return open
-    ? <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/><circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.5"/></svg>
-    : <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2l12 12M6.5 6.6A2 2 0 0 0 9.4 9.5M4.2 4.3C2.8 5.3 1.6 6.8 1 8c1.2 2.4 3.8 5 7 5a7 7 0 0 0 2.8-.6M7 3.1A7 7 0 0 1 15 8c-.4.9-1 1.8-1.8 2.6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-}
 
 // ─── Dropdown Ações ────────────────────────────────────────────────────────────
 function AcoesDropdown({ onClose, anchorRef }) {
@@ -456,7 +451,7 @@ const pg = {
   breadcrumb:  { display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)', marginBottom:4 },
   sep:         { color:'var(--border)' },
   title:       { margin:0, fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px' },
-  primaryBtn:  { padding:'8px 16px', background:ACCENT, color:'#fff', border:'none', borderRadius:7,
+  primaryBtn:  { padding:'8px 16px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7,
                  fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' },
   kpiCard:     { background:'var(--surface)', borderRadius:10, padding:'16px 18px', display:'flex',
                  flexDirection:'column', gap:4, border:'1px solid var(--border2)',

@@ -55,14 +55,8 @@ const INITIAL_GROUPS = [
     id: 'projetos',
     label: 'Projetos',
     items: [
-      { path: '/projetos', label: 'Projetos', iconKey: 'FolderKanban' },
-    ],
-  },
-  {
-    id: 'customer_success',
-    label: 'Customer Success',
-    items: [
-      { path: '/customer-success', label: 'Sucesso do Parceiro', iconKey: 'HeartPulse' },
+      { path: '/projetos',        label: 'Projetos',          iconKey: 'FolderKanban' },
+      { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'   },
     ],
   },
   {
