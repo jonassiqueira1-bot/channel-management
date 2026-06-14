@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_PERFIS, PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
+import { PERFIS_NATIVOS_SEED } from '../Perfis'
 
 const ACCENT = '#6366F1'
 
@@ -262,12 +263,47 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
 // ─── Modal de edição de perfil ────────────────────────────────────────────────
 function EditarModal({ perfil, onClose, onSave, onDelete, sessao }) {
   const [form, setForm] = useState({
-    nome:      perfil.nome,
-    papel:     perfil.papel,
-    status:    perfil.status,
-    empresa_id:perfil.empresa_id || '',
+    nome:               perfil.nome,
+    papel:              perfil.papel,
+    status:             perfil.status,
+    empresa_id:         perfil.empresa_id || '',
+    perfis_acesso_ids:  perfil.perfis_acesso_ids || [],
   })
-  const [confirmDel, setConfirmDel] = useState(false)
+  const [confirmDel, setConfirmDel]     = useState(false)
+  const [perfilSearch, setPerfilSearch] = useState('')
+  const [perfilOpen, setPerfilOpen]     = useState(false)
+  const perfilRef                       = useRef(null)
+  const [rolesStore]  = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
+  const [permsStore]  = useLocalState('perfis:permissions', {})
+
+  useEffect(() => {
+    if (!perfilOpen) return
+    function h(e) { if (perfilRef.current && !perfilRef.current.contains(e.target)) { setPerfilOpen(false); setPerfilSearch('') } }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [perfilOpen])
+
+  // Permissões efetivas = union de todos os perfis atribuídos
+  const permissoesEfetivas = useMemo(() => {
+    const result = {}
+    ;(form.perfis_acesso_ids || []).forEach(pid => {
+      const p = permsStore[pid] || {}
+      Object.entries(p).forEach(([mod, acoes]) => {
+        if (!result[mod]) result[mod] = {}
+        Object.entries(acoes).forEach(([acao, val]) => {
+          if (val) result[mod][acao] = true
+        })
+      })
+    })
+    return result
+  }, [form.perfis_acesso_ids, permsStore])
+
+  function togglePerfilAcesso(id) {
+    setForm(f => {
+      const ids = f.perfis_acesso_ids || []
+      return { ...f, perfis_acesso_ids: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] }
+    })
+  }
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
 
@@ -283,11 +319,12 @@ function EditarModal({ perfil, onClose, onSave, onDelete, sessao }) {
     e.preventDefault()
     onSave({
       ...perfil,
-      nome:         form.nome.trim(),
-      papel:        form.papel,
-      tipo_usuario: papelSelecionado?.tipo || perfil.tipo_usuario,
-      empresa_id:   precisaEmpresa ? (Number(form.empresa_id) || null) : null,
-      status:       form.status,
+      nome:              form.nome.trim(),
+      papel:             form.papel,
+      tipo_usuario:      papelSelecionado?.tipo || perfil.tipo_usuario,
+      empresa_id:        precisaEmpresa ? (Number(form.empresa_id) || null) : null,
+      status:            form.status,
+      perfis_acesso_ids: form.perfis_acesso_ids,
     })
     onClose()
   }
@@ -390,6 +427,111 @@ function EditarModal({ perfil, onClose, onSave, onDelete, sessao }) {
                 </div>
               </Field>
             )}
+
+            {/* Perfis de Acesso */}
+            <Field label="Perfis de Acesso">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                {/* Chips dos perfis atribuídos */}
+                {(form.perfis_acesso_ids || []).length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {(form.perfis_acesso_ids || []).map(pid => {
+                      const p = rolesStore.find(r => r.id === pid)
+                      if (!p) return null
+                      return (
+                        <span key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
+                          padding: '3px 8px 3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
+                          background: `${p.cor}18`, color: p.cor,
+                          border: `1px solid ${p.cor}44` }}>
+                          {p.nome}
+                          {podeEditar && (
+                            <button type="button" onClick={() => togglePerfilAcesso(pid)}
+                              style={{ background: 'none', border: 'none', cursor: 'pointer',
+                                color: p.cor, display: 'flex', alignItems: 'center', padding: 0, fontSize: 13 }}>×</button>
+                          )}
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {/* Busca para adicionar */}
+                {podeEditar && (
+                  <div ref={perfilRef} style={{ position: 'relative' }}>
+                    <input
+                      value={perfilSearch}
+                      onFocus={() => setPerfilOpen(true)}
+                      onChange={e => { setPerfilSearch(e.target.value); setPerfilOpen(true) }}
+                      placeholder={(form.perfis_acesso_ids || []).length > 0 ? '+ Adicionar perfil…' : 'Buscar perfil de acesso…'}
+                      style={{ ...inp.base, fontSize: 13 }}
+                    />
+                    {perfilOpen && (
+                      <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
+                        zIndex: 600, background: 'var(--surface)', border: '1px solid var(--border)',
+                        borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+                        {rolesStore
+                          .filter(r => !perfilSearch || r.nome.toLowerCase().includes(perfilSearch.toLowerCase()))
+                          .map(r => {
+                            const sel = (form.perfis_acesso_ids || []).includes(r.id)
+                            return (
+                              <button key={r.id} type="button"
+                                onMouseDown={e => { e.preventDefault(); togglePerfilAcesso(r.id); setPerfilSearch('') }}
+                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+                                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
+                                  fontFamily: 'var(--font)', background: sel ? `${r.cor}10` : 'transparent' }}
+                                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface2)' }}
+                                onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}>
+                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: r.cor, flexShrink: 0 }} />
+                                <div style={{ flex: 1 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{r.nome}</div>
+                                  {r.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.desc}</div>}
+                                </div>
+                                {sel && <span style={{ fontSize: 11, color: r.cor, fontWeight: 700 }}>✓</span>}
+                              </button>
+                            )
+                          })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Permissões efetivas */}
+                {(form.perfis_acesso_ids || []).length > 0 && Object.keys(permissoesEfetivas).length > 0 && (
+                  <div style={{ marginTop: 4, padding: '10px 12px', background: 'var(--surface2)',
+                    border: '1px solid var(--border)', borderRadius: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
+                      Permissões efetivas (union dos perfis)
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {Object.entries(permissoesEfetivas).map(([mod, acoes]) => {
+                        const ativos = Object.entries(acoes).filter(([, v]) => v).map(([k]) => k)
+                        if (!ativos.length) return null
+                        return (
+                          <div key={mod} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)',
+                              minWidth: 90, paddingTop: 2, textTransform: 'capitalize' }}>{mod}</span>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                              {ativos.map(a => (
+                                <span key={a} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4,
+                                  background: 'rgba(99,102,241,0.1)', color: '#6366F1',
+                                  fontWeight: 600, fontFamily: 'var(--mono)' }}>{a}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {(form.perfis_acesso_ids || []).length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Nenhum perfil atribuído — o usuário terá apenas as permissões do papel.
+                  </div>
+                )}
+              </div>
+            </Field>
 
             {/* Info: datas */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '10px 14px',
@@ -495,6 +637,7 @@ function SessaoSelector({ sessao, onChange }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsUsuarios() {
   const [perfis, setPerfis]      = useLocalState('settings:perfis_v1', MOCK_PERFIS)
+  const [rolesStore]             = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const [sessao, setSessao]      = useState(SESSOES_MOCK[0])
   const [modalConvite, setModalConvite] = useState(false)
   const [editando, setEditando]  = useState(null)
@@ -600,8 +743,8 @@ export default function SettingsUsuarios() {
         <table style={pg.table}>
           <thead>
             <tr style={pg.thead}>
-              {['Usuário', 'E-mail', 'Empresa', 'Papel', 'Status', 'Último acesso', ''].map((h, i) => (
-                <th key={i} style={{ ...pg.th, textAlign: i === 6 ? 'center' : 'left' }}>{h}</th>
+              {['Usuário', 'E-mail', 'Empresa', 'Papel', 'Perfis de Acesso', 'Status', 'Último acesso', ''].map((h, i) => (
+                <th key={i} style={{ ...pg.th, textAlign: i === 7 ? 'center' : 'left' }}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -663,6 +806,25 @@ export default function SettingsUsuarios() {
 
                   {/* Papel */}
                   <td style={pg.td}><PapelBadge papel={perfil.papel} /></td>
+
+                  {/* Perfis de Acesso */}
+                  <td style={pg.td}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {(perfil.perfis_acesso_ids || []).length === 0 ? (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
+                      ) : (perfil.perfis_acesso_ids || []).map(pid => {
+                        const r = rolesStore.find(r => r.id === pid)
+                        if (!r) return null
+                        return (
+                          <span key={pid} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px',
+                            borderRadius: 99, background: `${r.cor}18`, color: r.cor,
+                            border: `1px solid ${r.cor}44`, whiteSpace: 'nowrap' }}>
+                            {r.nome}
+                          </span>
+                        )
+                      })}
+                    </div>
+                  </td>
 
                   {/* Status */}
                   <td style={pg.td}><StatusBadge status={perfil.status} /></td>

@@ -138,7 +138,7 @@ function corParaBg(cor) {
 }
 
 // ─── Perfis nativos (imutáveis) ───────────────────────────────────────────────
-const PERFIS_NATIVOS_SEED = [
+export const PERFIS_NATIVOS_SEED = [
   {
     id: 'native_master',
     slug: 'master',
