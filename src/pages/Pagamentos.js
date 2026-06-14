@@ -1622,7 +1622,7 @@ const pg = {
   wrap:       { padding:'28px 32px', display:'flex', flexDirection:'column', gap:16 },
   pageHeader: { display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:12 },
   title:      { margin:0, fontSize:22, fontWeight:800, color:'var(--text)', letterSpacing:'-0.03em' },
-  primaryBtn: { display:'flex', alignItems:'center', padding:'9px 20px', background:ACCENT, color:'#fff',
+  primaryBtn: { display:'flex', alignItems:'center', padding:'9px 20px', background:'var(--accent)', color:'#fff',
                 border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor:'pointer',
                 fontFamily:'var(--font)', whiteSpace:'nowrap', letterSpacing:'-0.01em' },
   kpiRow:     { display:'flex', gap:12, flexWrap:'wrap', paddingBottom:4 },
