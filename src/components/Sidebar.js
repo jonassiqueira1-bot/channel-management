@@ -85,7 +85,7 @@ let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]         = useLocalState('sidebar:groups_v3', INITIAL_GROUPS)
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v4', INITIAL_GROUPS)
   const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v3', {})
 
   // Edição de rótulo de grupo
