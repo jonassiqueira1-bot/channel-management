@@ -146,7 +146,7 @@ function FranquiaModal({ initial, onClose, onSave, onDelete, existentes }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Franquias() {
-  const [franquias, setFranquias] = useLocalState('settings:franquias_v1', [])
+  const [franquias, setFranquias] = useLocalState('settings:franquias_v2', [])
   const [modal, setModal]         = useState(null) // null | 'new' | franquia obj
   const [search, setSearch]       = useState('')
 

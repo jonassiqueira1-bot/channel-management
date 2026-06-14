@@ -778,7 +778,7 @@ function ImportModal({ onClose, onImport }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsUsuarios() {
-  const [perfis, setPerfis]      = useLocalState('settings:perfis_v1', [])
+  const [perfis, setPerfis]      = useLocalState('settings:perfis_v2', [])
   const [rolesStore]             = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const sessao                   = SESSOES_MOCK[0]
   const [modalConvite, setModalConvite] = useState(false)
