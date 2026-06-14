@@ -2,8 +2,9 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import NotionDrawer, {
-  DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate,
+  DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, InlineSearchSelect,
 } from '../components/NotionDrawer'
+import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
   MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
@@ -641,8 +642,18 @@ function NovoCheckinModal({ onClose, onSave }) {
             </div>
             <div>
               <label style={LBL}>CSM Responsável</label>
-              <input value={form.csm} onChange={e => set('csm', e.target.value)}
-                placeholder="Nome do CSM" style={INPUT} />
+              <InlineSearchSelect
+                value={MOCK_USUARIOS.find(u => u.nome === form.csm)?.id || ''}
+                onChange={id => {
+                  const u = MOCK_USUARIOS.find(u => u.id === id)
+                  set('csm', u?.nome || '')
+                }}
+                options={[
+                  { value: '', label: '— Selecionar usuário —' },
+                  ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
+                ]}
+                placeholder="— Selecionar usuário —"
+              />
             </div>
           </div>
 
@@ -794,10 +805,17 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
 
       <MetaSection label="Responsável" />
       <MetaRow label="CSM">
-        <InlineText
-          value={form.csm}
-          onChange={v => set('csm', v)}
-          placeholder="CSM responsável"
+        <InlineSearchSelect
+          value={MOCK_USUARIOS.find(u => u.nome === form.csm)?.id || ''}
+          onChange={id => {
+            const u = MOCK_USUARIOS.find(u => u.id === id)
+            set('csm', u?.nome || '')
+          }}
+          options={[
+            { value: '', label: '— Selecionar usuário —' },
+            ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
+          ]}
+          placeholder="— Selecionar usuário —"
         />
       </MetaRow>
       <MetaRow label="Parceiro">
