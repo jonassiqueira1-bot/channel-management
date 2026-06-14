@@ -167,11 +167,10 @@ export const EMPTY_RULE = {
   vigencia_fim:    null,
   revisao_anual:   false,
 
-  // Produto / Categoria
+  // Produto / Categoria (múltipla seleção)
   produto_filtro_tipo: null, // null | 'produto' | 'categoria'
-  produto_id:       null,
-  produto_nome:     null,
-  produto_categoria: null,
+  produto_ids:       [],     // array de ids de produtos selecionados
+  produto_categorias: [],    // array de categorias selecionadas
 }
 
 // ─── Helper: percentuais por persona para regra fixo ─────────────────────────

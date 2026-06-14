@@ -72,6 +72,89 @@ function defaultPersonaPercs(personas) {
   return personas.map(p => ({ persona_id: p.id, cdu_pct: 0, sms_pct: 0, servicos_pct: 0 }))
 }
 
+// ─── MultiSearchSelect ────────────────────────────────────────────────────────
+// options: [{ value, label, sublabel? }]
+// values: string[]
+function MultiSearchSelect({ values = [], onChange, options = [], placeholder = 'Adicionar…' }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen]   = useState(false)
+  const ref               = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQuery('') } }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+
+  const selected   = options.filter(o => values.includes(String(o.value)))
+  const unselected = options.filter(o => !values.includes(String(o.value)))
+  const filtered   = unselected.filter(o => {
+    const q = query.toLowerCase()
+    return !q || o.label.toLowerCase().includes(q) || (o.sublabel || '').toLowerCase().includes(q)
+  }).slice(0, 8)
+
+  function toggle(val) {
+    const v = String(val)
+    onChange(values.includes(v) ? values.filter(x => x !== v) : [...values, v])
+  }
+
+  return (
+    <div ref={ref} style={{ display:'flex', flexDirection:'column', gap:6 }}>
+      {/* Chips das seleções */}
+      {selected.length > 0 && (
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+          {selected.map(o => (
+            <span key={o.value} style={{ display:'inline-flex', alignItems:'center', gap:5,
+              padding:'3px 8px 3px 10px', borderRadius:99, fontSize:12, fontWeight:600,
+              background:'rgba(245,158,11,0.1)', color:'#B45309',
+              border:'1px solid rgba(245,158,11,0.3)' }}>
+              {o.label}
+              <button type="button" onClick={() => toggle(o.value)}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'#B45309',
+                  display:'flex', alignItems:'center', padding:0, lineHeight:1, fontSize:12 }}>×</button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Input de busca */}
+      <div style={{ position:'relative' }}>
+        <input
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={e => { setQuery(e.target.value); setOpen(true) }}
+          placeholder={selected.length > 0 ? '+ Adicionar outro…' : placeholder}
+          style={{ width:'100%', boxSizing:'border-box', padding:'7px 10px',
+            border:'1px solid var(--border)', borderRadius:7,
+            background:'var(--surface2)', color:'var(--text)', fontSize:13,
+            fontFamily:'var(--font)', outline:'none' }}
+        />
+        {open && filtered.length > 0 && (
+          <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:600,
+            background:'var(--surface)', border:'1px solid var(--border)',
+            borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', overflow:'hidden' }}>
+            {filtered.map(opt => (
+              <button key={opt.value} type="button"
+                onMouseDown={e => { e.preventDefault(); toggle(opt.value); setQuery('') }}
+                style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'8px 10px',
+                  border:'none', background:'transparent', cursor:'pointer', textAlign:'left',
+                  fontFamily:'var(--font)' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div>
+                  <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{opt.label}</div>
+                  {opt.sublabel && <div style={{ fontSize:10, color:'var(--text-muted)' }}>{opt.sublabel}</div>}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Micro-components ─────────────────────────────────────────────────────────
 function Avatar({ nome, size = 28 }) {
   const initials = nome ? nome.split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase() : '?'
@@ -517,24 +600,15 @@ function RuleModal({ initial, personas, onSave, onClose }) {
 
             {form.produto_filtro_tipo === 'produto' && (
               <div style={{ display:'flex', flexDirection:'column' }}>
-                <label style={LB}>Produto *</label>
-                <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
-                  <InlineSearchSelect
-                    value={form.produto_id ? String(form.produto_id) : ''}
-                    onChange={id => {
-                      const p = MOCK_PRODUTOS.find(p => String(p.id) === id)
-                      set('produto_id', p?.id ?? null)
-                      set('produto_nome', p?.nome ?? null)
-                    }}
-                    options={[
-                      { value: '', label: '— Selecionar produto —' },
-                      ...MOCK_PRODUTOS.filter(p => p.status === 'ativo').map(p => ({
-                        value: String(p.id), label: p.nome, sublabel: `${p.codigo} · ${p.categoria}`
-                      }))
-                    ]}
-                    placeholder="— Selecionar produto —"
-                  />
-                </div>
+                <label style={LB}>Produtos *</label>
+                <MultiSearchSelect
+                  values={form.produto_ids || []}
+                  onChange={ids => set('produto_ids', ids)}
+                  options={MOCK_PRODUTOS.filter(p => p.status === 'ativo').map(p => ({
+                    value: String(p.id), label: p.nome, sublabel: `${p.codigo} · ${p.categoria}`
+                  }))}
+                  placeholder="Buscar produto…"
+                />
               </div>
             )}
 
@@ -542,12 +616,13 @@ function RuleModal({ initial, personas, onSave, onClose }) {
               const cats = [...new Set(MOCK_PRODUTOS.map(p => p.categoria).filter(Boolean))].sort()
               return (
                 <div style={{ display:'flex', flexDirection:'column' }}>
-                  <label style={LB}>Categoria *</label>
-                  <select style={IN} value={form.produto_categoria || ''}
-                    onChange={e => set('produto_categoria', e.target.value || null)}>
-                    <option value="">— Selecionar categoria —</option>
-                    {cats.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  <label style={LB}>Categorias *</label>
+                  <MultiSearchSelect
+                    values={form.produto_categorias || []}
+                    onChange={cats => set('produto_categorias', cats)}
+                    options={cats.map(c => ({ value: c, label: c }))}
+                    placeholder="Buscar categoria…"
+                  />
                 </div>
               )
             })()}
@@ -1224,17 +1299,24 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
                       </div>
                     )}
 
-                    {/* Produto / Categoria vinculado */}
-                    {rule.produto_filtro_tipo === 'produto' && rule.produto_nome && (
-                      <div style={{ fontSize:12, color:'#B45309', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
-                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)' }}>PRODUTO</span>
-                        {rule.produto_nome}
+                    {/* Produtos / Categorias vinculados */}
+                    {rule.produto_filtro_tipo === 'produto' && rule.produto_ids?.length > 0 && (
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:4, alignItems:'center' }}>
+                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)', flexShrink:0 }}>PRODUTO</span>
+                        {rule.produto_ids.map(id => {
+                          const p = MOCK_PRODUTOS.find(p => String(p.id) === String(id))
+                          return p ? (
+                            <span key={id} style={{ fontSize:11, color:'#B45309', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:5, padding:'1px 7px' }}>{p.nome}</span>
+                          ) : null
+                        })}
                       </div>
                     )}
-                    {rule.produto_filtro_tipo === 'categoria' && rule.produto_categoria && (
-                      <div style={{ fontSize:12, color:'#B45309', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
-                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)' }}>CATEGORIA</span>
-                        {rule.produto_categoria}
+                    {rule.produto_filtro_tipo === 'categoria' && rule.produto_categorias?.length > 0 && (
+                      <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginBottom:4, alignItems:'center' }}>
+                        <span style={{ fontSize:10, fontWeight:700, background:'#FEF3C7', color:'#B45309', borderRadius:5, padding:'1px 6px', fontFamily:'var(--mono)', flexShrink:0 }}>CATEGORIA</span>
+                        {rule.produto_categorias.map(cat => (
+                          <span key={cat} style={{ fontSize:11, color:'#B45309', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:5, padding:'1px 7px' }}>{cat}</span>
+                        ))}
                       </div>
                     )}
 
