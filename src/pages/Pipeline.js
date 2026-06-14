@@ -35,6 +35,7 @@ import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFie
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
+import Button from '../components/Button'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -957,10 +958,10 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
           <textarea style={{ ...m.input, height:52, resize:'none', marginBottom:8, fontSize:12 }}
             placeholder="Descrição (opcional)…" value={quickForm.descricao} onChange={e=>qset('descricao',e.target.value)} />
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-            <button type="button" style={m.cancelBtn} onClick={cancelForm}>Cancelar</button>
-            <button type="button" style={m.saveBtn} onClick={handleQuickSave}>
+            <Button variant="secondary" onClick={cancelForm}>Cancelar</Button>
+            <Button onClick={handleQuickSave}>
               {editingId ? 'Salvar tarefa' : 'Criar tarefa'}
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -1875,13 +1876,12 @@ function OppEquipeTab({ oppId }) {
           </div>
 
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 }}>
-            <button type="button" style={m.cancelBtn} onClick={() => { setShowAdd(false); setSelUser(null); setQuery('') }}>
+            <Button variant="secondary" onClick={() => { setShowAdd(false); setSelUser(null); setQuery('') }}>
               Cancelar
-            </button>
-            <button type="button" style={{ ...m.saveBtn, opacity: selUser ? 1 : 0.5, cursor: selUser ? 'pointer' : 'default' }}
-              onClick={handleAdd} disabled={!selUser}>
+            </Button>
+            <Button onClick={handleAdd} disabled={!selUser}>
               Adicionar à equipe
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -3576,7 +3576,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     <div style={m.footer}>
                       <div style={{ flex:1 }}>
                         {!confirmDelete && (
-                          <button type="button" style={m.deleteBtn} onClick={() => setConfirmDelete(true)}>Excluir oportunidade</button>
+                          <Button variant="danger" onClick={() => setConfirmDelete(true)}>Excluir oportunidade</Button>
                         )}
                         {confirmDelete && (
                           <div style={m.deleteConfirm}>
@@ -3587,8 +3587,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                         )}
                       </div>
                       <div style={{ display:'flex', gap:10 }}>
-                        <button type="button" style={m.cancelBtn} onClick={onClose}>Cancelar</button>
-                        <button type="submit" style={m.saveBtn}>Salvar alterações</button>
+                        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+                        <Button type="submit">Salvar alterações</Button>
                       </div>
                     </div>
                   </form>
@@ -3602,7 +3602,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3620,13 +3620,13 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
-                      <button type="button" style={{ ...m.saveBtn, marginLeft:8 }}
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
+                      <Button
                         onClick={() => {
                           if (!form.titulo.trim()) return alert('Salve os Dados primeiro')
                           onSave({ ...form, funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
                           onClose()
-                        }}>Salvar alterações</button>
+                        }}>Salvar alterações</Button>
                     </div>
                   </div>
                 )}
@@ -3645,7 +3645,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3658,7 +3658,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3676,7 +3676,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3689,7 +3689,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3702,7 +3702,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
                     </div>
                     <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
                       <div style={{ flex:1 }} />
-                      <button type="button" style={m.cancelBtn} onClick={onClose}>Fechar</button>
+                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
                     </div>
                   </div>
                 )}
@@ -3755,8 +3755,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
               <div style={m.footer}>
                 <div style={{ flex:1 }} />
                 <div style={{ display:'flex', gap:10 }}>
-                  <button type="button" style={m.cancelBtn} onClick={onClose}>Cancelar</button>
-                  <button type="submit" style={m.saveBtn}>Cadastrar oportunidade</button>
+                  <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+                  <Button type="submit">Cadastrar oportunidade</Button>
                 </div>
               </div>
             </form>
@@ -4442,12 +4442,12 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
               </table>
             </div>
             <div style={{ ...m.footer }}>
-              <button style={m.cancelBtn} onClick={()=>setStep('upload')}>← Voltar</button>
+              <Button variant="secondary" onClick={()=>setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount>0&&okCount>0&&<span style={{ fontSize:12, color:'var(--yellow-text)' }}>{errCount} linha{errCount>1?'s':''} serão ignoradas</span>}
-              <button style={m.saveBtn} disabled={okCount===0} onClick={handleConfirmImport}>
+              <Button disabled={okCount===0} onClick={handleConfirmImport}>
                 Importar {okCount} oportunidade{okCount!==1?'s':''}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -5232,7 +5232,7 @@ export default function Pipeline() {
           </button>
         </div>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <button style={p.newBtn} onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>+ Nova oportunidade</button>
+          <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>+ Nova oportunidade</Button>
         </div>
       </div>
 
