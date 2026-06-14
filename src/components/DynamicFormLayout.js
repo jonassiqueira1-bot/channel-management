@@ -49,16 +49,23 @@ export default function DynamicFormLayout({ sections, fieldById, renderField, se
             </div>
 
             {/* Linhas de campos */}
-            {rows.map(({ left, right }, ri) => (
-              <div key={ri} style={{
-                display: 'grid',
-                gridTemplateColumns: right ? '1fr 1fr' : '1fr',
-                gap: 14,
-              }}>
-                {left  && <FieldSlot field={left}  renderField={renderField} labelStyle={defLabel} />}
-                {right && <FieldSlot field={right} renderField={renderField} labelStyle={defLabel} />}
-              </div>
-            ))}
+            {rows.map(({ left, right }, ri) => {
+              const leftNode  = left  ? renderField(left.field_key,  left)  : undefined
+              const rightNode = right ? renderField(right.field_key, right) : undefined
+              const showLeft  = left  && leftNode  !== null
+              const showRight = right && rightNode !== null
+              if (!showLeft && !showRight) return null
+              return (
+                <div key={ri} style={{
+                  display: 'grid',
+                  gridTemplateColumns: showLeft && showRight ? '1fr 1fr' : '1fr',
+                  gap: 14,
+                }}>
+                  {showLeft  && <FieldSlot field={left}  preRendered={leftNode}  labelStyle={defLabel} />}
+                  {showRight && <FieldSlot field={right} preRendered={rightNode} labelStyle={defLabel} />}
+                </div>
+              )
+            })}
           </div>
         )
       })}
@@ -100,8 +107,7 @@ function GenericInput({ field }) {
   return <input type="text" style={base} placeholder="—" />
 }
 
-function FieldSlot({ field, renderField, labelStyle }) {
-  const input = renderField(field.field_key, field)
+function FieldSlot({ field, preRendered, labelStyle }) {
   return (
     <div>
       <label style={labelStyle}>
@@ -110,7 +116,7 @@ function FieldSlot({ field, renderField, labelStyle }) {
           <span style={{ color: 'var(--red)', marginLeft: 3, fontWeight: 900 }}>*</span>
         )}
       </label>
-      {input ?? <GenericInput field={field} />}
+      {preRendered ?? <GenericInput field={field} />}
     </div>
   )
 }

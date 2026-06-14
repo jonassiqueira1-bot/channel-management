@@ -16,6 +16,7 @@ import {
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
+import { InlineSearchSelect } from '../components/NotionDrawer'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const TABS = [
@@ -422,13 +423,21 @@ function RuleModal({ initial, personas, onSave, onClose }) {
             {form.escopo === 'individual' && (
               <div style={{ display:'flex', flexDirection:'column' }}>
                 <label style={LB}>Beneficiário *</label>
-                <input list="benef-rule-list" style={IN} value={form.beneficiario_nome||''} onChange={e => {
-                  const nome = e.target.value
-                  const u = MOCK_USUARIOS.find(u => u.nome === nome)
-                  set('beneficiario_nome', nome)
-                  if (u) set('beneficiario_id', u.id)
-                }} placeholder="Digite ou selecione um usuário" />
-                <datalist id="benef-rule-list">{MOCK_USUARIOS.map(u => <option key={u.id} value={u.nome} />)}</datalist>
+                <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
+                  <InlineSearchSelect
+                    value={form.beneficiario_id || ''}
+                    onChange={id => {
+                      const u = MOCK_USUARIOS.find(u => u.id === id)
+                      set('beneficiario_id', id)
+                      set('beneficiario_nome', u?.nome || '')
+                    }}
+                    options={[
+                      { value:'', label:'— Selecionar usuário —' },
+                      ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
+                    ]}
+                    placeholder="— Selecionar usuário —"
+                  />
+                </div>
               </div>
             )}
           </div>
@@ -787,8 +796,21 @@ function PaymentModal({ initial, rules, personas, onSave, onClose }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div style={{ ...F, gridColumn:'1/-1' }}>
               <label style={LB}>Beneficiário *</label>
-              <input list="benef-list" style={IN} value={form.beneficiario_nome} onChange={e => { set('beneficiario_nome',e.target.value); const u=MOCK_USUARIOS.find(u=>u.nome===e.target.value); if(u){set('beneficiario_id',u.id)} }} placeholder="Nome do beneficiário" />
-              <datalist id="benef-list">{MOCK_USUARIOS.map(u=><option key={u.id} value={u.nome}/>)}</datalist>
+              <div style={{ ...IN, padding:'6px 10px', cursor:'pointer', display:'flex', alignItems:'center' }}>
+                <InlineSearchSelect
+                  value={form.beneficiario_id || ''}
+                  onChange={id => {
+                    const u = MOCK_USUARIOS.find(u => u.id === id)
+                    set('beneficiario_id', id)
+                    set('beneficiario_nome', u?.nome || '')
+                  }}
+                  options={[
+                    { value:'', label:'— Selecionar usuário —' },
+                    ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
+                  ]}
+                  placeholder="— Selecionar usuário —"
+                />
+              </div>
             </div>
             <div style={F}>
               <label style={LB}>Persona</label>
