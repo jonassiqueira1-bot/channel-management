@@ -181,9 +181,7 @@ export default function SettingsTiposAcao() {
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 'auto' }}>
               <button style={editBtn} onClick={() => setModal(t)}>Editar</button>
-              {!['treinamento','evento','capacitacao','outros'].includes(t.slug) && (
-                <button style={delBtn} onClick={() => setConfirmar(t)}>Excluir</button>
-              )}
+              <button style={delBtn} onClick={() => setConfirmar(t)}>Excluir</button>
             </div>
           </div>
         ))}
