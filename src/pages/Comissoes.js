@@ -1490,7 +1490,7 @@ export default function Comissoes() {
         {/* Direita: período + ação */}
         <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingTop:4 }}>
           <PeriodPopover value={period} onChange={setPeriod} />
-          <button onClick={()=>setShowModal(tab==='repasses'?'payment':'rule')} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, cursor:'pointer', background:'#6366F1', border:'none', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'var(--font)', boxShadow:'0 2px 8px rgba(99,102,241,0.3)', whiteSpace:'nowrap' }}>
+          <button onClick={()=>setShowModal(tab==='repasses'?'payment':'rule')} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, cursor:'pointer', background:'var(--accent)', border:'none', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
             <Plus size={SZ} strokeWidth={2.5} />
             {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
           </button>
