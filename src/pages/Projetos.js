@@ -10,6 +10,7 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
+import Drawer from '../components/Drawer'
 
 const ACCENT = 'var(--accent)'
 
@@ -955,67 +956,48 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
   const drawerWidth = expanded ? 'calc(100vw - 160px)' : 560
 
   return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.32)', zIndex: 599 }} onClick={onClose} />
-      <div style={{ position: 'fixed', right: 0, top: 0, bottom: 0, width: drawerWidth, background: 'var(--surface)', borderLeft: '1px solid var(--border)', zIndex: 600, display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 40px rgba(0,0,0,0.14)', transition: 'width 0.22s cubic-bezier(0.4,0,0.2,1)' }}>
-        {/* Header */}
-        <div style={{ padding: '18px 20px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: fase.bg, color: fase.text }}>{fase.label}</span>
-                <StatusBadge status={projeto.status} />
-                {isBlocked && (
-                  <div className="prj-blocked-badge" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#EF4444', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.04em' }}>⚠ BLOQUEADO</div>
-                )}
-              </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)', lineHeight: 1.3 }}>{projeto.name}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{projeto.company_nome}{projeto.franchise_nome ? ` · ${projeto.franchise_nome}` : ''}</div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-              <button
-                onClick={() => setExpanded(e => !e)}
-                title={expanded ? 'Recolher' : 'Expandir'}
-                style={{ ...ms.btn, padding: '4px 9px', fontSize: 14, lineHeight: 1, color: expanded ? 'var(--accent)' : 'var(--text-muted)' }}
-              >
-                {expanded ? '⊟' : '⊞'}
-              </button>
-              <button onClick={onClose} style={{ ...ms.btn, padding: '4px 10px', fontSize: 20, lineHeight: 1 }}>×</button>
-            </div>
-          </div>
-          {/* Progresso geral */}
-          <div style={{ marginTop: 12 }}>
-            <ProgressBar executed={Number(projeto.total_hours_executed)} estimated={Number(projeto.total_hours_estimated)} />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{projeto.total_hours_executed}h executadas de {projeto.total_hours_estimated}h estimadas (projeto total)</div>
-          </div>
+    <Drawer
+      open
+      onClose={onClose}
+      title={projeto.name}
+      subtitle={`${projeto.company_nome}${projeto.franchise_nome ? ` · ${projeto.franchise_nome}` : ''}`}
+    >
+      {/* Badges + progress */}
+      <div style={{ margin: '-12px -14px 12px', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: fase.bg, color: fase.text }}>{fase.label}</span>
+          <StatusBadge status={projeto.status} />
+          {isBlocked && (
+            <div className="prj-blocked-badge" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#EF4444', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.04em' }}>⚠ BLOQUEADO</div>
+          )}
         </div>
-
-        {/* Tab bar */}
-        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0, overflowX: 'auto' }}>
-          {DRAWER_TABS.map(t => {
-            const active = tab === t.key
-            let badge = null
-            if (t.key === 'bloqueios'  && pendAbertas > 0) badge = pendAbertas
-            if (t.key === 'projeto'    && myTeam > 0)      badge = `${myTeam}👤`
-            return (
-              <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, minWidth: 80, padding: '10px 4px', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, marginBottom: -1, whiteSpace: 'nowrap' }}>
-                {t.label}
-                {badge && <span style={{ fontSize: 9.5, fontWeight: 700, background: t.key === 'bloqueios' ? '#EF4444' : 'var(--surface2)', color: t.key === 'bloqueios' ? '#fff' : 'var(--text-muted)', borderRadius: 20, padding: '0 5px' }}>{badge}</span>}
-              </button>
-            )
-          })}
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: tab === 'projeto' ? '0 20px' : '20px' }}>
-          {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
-          {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} />}
-          {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
-          {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
-          {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
-        </div>
+        <ProgressBar executed={Number(projeto.total_hours_executed)} estimated={Number(projeto.total_hours_estimated)} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{projeto.total_hours_executed}h executadas de {projeto.total_hours_estimated}h estimadas (projeto total)</div>
       </div>
-    </>
+
+      {/* Tab bar */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', margin: '0 -14px 12px', overflowX: 'auto' }}>
+        {DRAWER_TABS.map(t => {
+          const active = tab === t.key
+          let badge = null
+          if (t.key === 'bloqueios'  && pendAbertas > 0) badge = pendAbertas
+          if (t.key === 'projeto'    && myTeam > 0)      badge = `${myTeam}👤`
+          return (
+            <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, minWidth: 80, padding: '10px 4px', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, marginBottom: -1, whiteSpace: 'nowrap' }}>
+              {t.label}
+              {badge && <span style={{ fontSize: 9.5, fontWeight: 700, background: t.key === 'bloqueios' ? '#EF4444' : 'var(--surface2)', color: t.key === 'bloqueios' ? '#fff' : 'var(--text-muted)', borderRadius: 20, padding: '0 5px' }}>{badge}</span>}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Tab content */}
+      {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
+      {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} />}
+      {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
+      {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
+      {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
+    </Drawer>
   )
 }
 

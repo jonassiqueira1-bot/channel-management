@@ -4,6 +4,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import Button from '../components/Button'
+import Drawer from '../components/Drawer'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
@@ -614,100 +615,60 @@ function TemplateDrawer({ template: initial, submissions, onClose, onSave, onSav
   ]
 
   return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 999 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 1000,
-        width: expanded ? 'calc(100vw - 100px)' : 860,
-        maxWidth: '100vw', transition: 'width 0.28s ease',
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--surface)', boxShadow: '-6px 0 32px rgba(0,0,0,0.18)',
-        borderLeft: '1px solid var(--border2)' }}>
-
-        {/* Header */}
-        <div style={{ padding: '18px 24px 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-                {isNew ? 'Novo questionário' : draft.title || 'Editar questionário'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                {isNew ? 'Defina a estrutura do template' : `Atualizado ${fmtData(draft.updated_at)}`}
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => setExpanded(v => !v)}
-                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                  color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', padding: '3px 7px', lineHeight: 1 }}>
-                {expanded ? '⊟' : '⊞'}
-              </button>
-              <button onClick={onClose}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)', gap: 0 }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ padding: '9px 18px', background: 'none', border: 'none',
-                  fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
-                  fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
-                  borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-                  marginBottom: -2, transition: 'color 0.15s', whiteSpace: 'nowrap' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Conteúdo das abas */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-          {tab === 'estrutura' && (
-            <EstruturaBuilder draft={draft} onChange={setDraft} />
-          )}
-          {tab === 'respostas' && !isNew && (
-            <RespostasTab
-              template={draft}
-              submissions={submissions}
-              onSaveSubmission={onSaveSubmission}
-            />
-          )}
-          {tab === 'respostas' && isNew && (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
-              <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
-              <div style={{ fontSize: 13 }}>Salve o template primeiro para receber respostas.</div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{ padding: '14px 24px 18px', borderTop: '1px solid var(--border2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+    <Drawer
+      open
+      onClose={onClose}
+      title={isNew ? 'Novo questionário' : draft.title || 'Editar questionário'}
+      subtitle={isNew ? 'Defina a estrutura do template' : `Atualizado ${fmtData(draft.updated_at)}`}
+      initialSize="default"
+      footer={
+        <>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-            fontSize: 13, color: 'var(--text-soft)' }}>
+            fontSize: 13, color: 'var(--text-soft)', marginRight: 'auto' }}>
             <input type="checkbox" checked={draft.is_active}
               onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))}
               style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: 15, height: 15 }} />
             Template ativo
           </label>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose}
-              style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--border)',
-                borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              Cancelar
-            </button>
-            <button onClick={handleSave}
-              style={{ padding: '8px 22px', background: 'var(--accent)', color: '#fff', border: 'none',
-                borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
-                opacity: saving ? 0.7 : 1 }}>
-              {saving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
-            </button>
-          </div>
-        </div>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
+          </Button>
+        </>
+      }
+    >
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)', margin: '-12px -14px 12px', gap: 0 }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '9px 18px', background: 'none', border: 'none',
+              fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
+              fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+              marginBottom: -2, transition: 'color 0.15s', whiteSpace: 'nowrap' }}>
+            {t.label}
+          </button>
+        ))}
       </div>
-    </>
+
+      {/* Tab content */}
+      {tab === 'estrutura' && (
+        <EstruturaBuilder draft={draft} onChange={setDraft} />
+      )}
+      {tab === 'respostas' && !isNew && (
+        <RespostasTab
+          template={draft}
+          submissions={submissions}
+          onSaveSubmission={onSaveSubmission}
+        />
+      )}
+      {tab === 'respostas' && isNew && (
+        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
+          <div style={{ fontSize: 13 }}>Salve o template primeiro para receber respostas.</div>
+        </div>
+      )}
+    </Drawer>
   )
 }
 

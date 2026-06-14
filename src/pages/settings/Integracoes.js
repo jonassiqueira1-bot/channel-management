@@ -10,6 +10,7 @@ import {
   INTEGRATIONS_STORAGE_KEY,
 } from '../../data/mockIntegrations'
 import Button from '../../components/Button'
+import Drawer from '../../components/Drawer'
 
 const ACCENT = '#6366F1'
 
@@ -514,55 +515,44 @@ function IntegrationDrawer({ provider, setting, onClose, onSave, onDisconnect, t
   const isWebhook = provider.id === 'webhook'
 
   return (
-    <>
-      {/* Backdrop */}
-      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.3)', zIndex:400, backdropFilter:'blur(1px)' }} onClick={onClose}/>
+    <Drawer
+      open
+      onClose={onClose}
+      title={provider.name}
+      subtitle={provider.description}
+    >
+      <style>{`
+        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+      `}</style>
 
-      {/* Drawer */}
-      <div style={{ position:'fixed', top:0, right:0, bottom:0, width:'clamp(520px, 50vw, 760px)', background:'var(--surface)', zIndex:401, display:'flex', flexDirection:'column', boxShadow:'-8px 0 40px rgba(0,0,0,0.15)', animation:'slideInRight 0.22s cubic-bezier(0.4,0,0.2,1)' }}>
-        <style>{`
-          @keyframes slideInRight{from{transform:translateX(60px);opacity:0}to{transform:translateX(0);opacity:1}}
-          @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-          @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-        `}</style>
-
-        {/* Header */}
-        <div style={{ padding:'20px 24px 0', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:16 }}>
-            <ProviderIcon provider={provider} size={44}/>
-            <div style={{ flex:1 }}>
-              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)', letterSpacing:'-0.2px' }}>{provider.name}</div>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{provider.description}</div>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <StatusBadge status={setting.status}/>
-              <button onClick={onClose} style={s.closeBtn}><X size={16} strokeWidth={2}/></button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div style={{ display:'flex', gap:0 }}>
-            {[
-              { id:'config',    label:'Configuração' },
-              ...(isWebhook ? [{ id:'mapping', label:'Pipeline' }] : []),
-              { id:'logs',      label:`Logs${logCount ? ` (${logCount})` : ''}` },
-            ].map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ padding:'9px 18px', fontSize:13, fontWeight:tab===t.id?700:500, color:tab===t.id?ACCENT:'var(--text-muted)', background:'none', border:'none', borderBottom:`2px solid ${tab===t.id?ACCENT:'transparent'}`, cursor:'pointer', fontFamily:'var(--font)', transition:'color 0.15s' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
+      {/* Provider icon + status + tabs */}
+      <div style={{ margin:'-12px -14px 12px', padding:'12px 20px 0', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
+          <ProviderIcon provider={provider} size={36}/>
+          <StatusBadge status={setting.status}/>
         </div>
 
-        {/* Content */}
-        <div style={{ flex:1, display:'flex', flexDirection:'column', minHeight:0 }}>
-          {tab === 'config'  && <ConfigTab provider={provider} setting={setting} onSave={onSave} onDisconnect={onDisconnect} toast={toast}/>}
-          {tab === 'mapping' && <WebhookMapeamentoTab toast={toast}/>}
-          {tab === 'logs'    && <LogsTab providerId={provider.id}/>}
+        {/* Tabs */}
+        <div style={{ display:'flex', gap:0 }}>
+          {[
+            { id:'config',    label:'Configuração' },
+            ...(isWebhook ? [{ id:'mapping', label:'Pipeline' }] : []),
+            { id:'logs',      label:`Logs${logCount ? ` (${logCount})` : ''}` },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ padding:'9px 18px', fontSize:13, fontWeight:tab===t.id?700:500, color:tab===t.id?ACCENT:'var(--text-muted)', background:'none', border:'none', borderBottom:`2px solid ${tab===t.id?ACCENT:'transparent'}`, cursor:'pointer', fontFamily:'var(--font)', transition:'color 0.15s' }}>
+              {t.label}
+            </button>
+          ))}
         </div>
       </div>
-    </>
+
+      {/* Tab content */}
+      {tab === 'config'  && <ConfigTab provider={provider} setting={setting} onSave={onSave} onDisconnect={onDisconnect} toast={toast}/>}
+      {tab === 'mapping' && <WebhookMapeamentoTab toast={toast}/>}
+      {tab === 'logs'    && <LogsTab providerId={provider.id}/>}
+    </Drawer>
   )
 }
 

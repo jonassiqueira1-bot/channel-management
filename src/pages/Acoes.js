@@ -8,6 +8,7 @@ import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
+import Drawer from '../components/Drawer'
 
 const ACCENT = '#6366F1'
 
@@ -230,8 +231,7 @@ function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
     }
   }
 
-  function handleSubmit(e) {
-    e.preventDefault()
+  function handleSave() {
     if (!form.titulo.trim()) return alert('Título obrigatório')
     if (!form.empresa_id)    return alert('Selecione a unidade/franquia')
     if (!form.data_inicio)   return alert('Data de início obrigatória')
@@ -249,88 +249,61 @@ function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
     onClose()
   }
 
-  return (
-    <>
-      {/* Backdrop */}
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 999 }} onClick={onClose} />
-
-      {/* Drawer lateral */}
-      <div style={{
-        position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 1000,
-        width: expanded ? 'calc(100vw - 120px)' : 560,
-        maxWidth: '100vw',
-        transition: 'width 0.28s ease',
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--surface)',
-        boxShadow: '-6px 0 32px rgba(0,0,0,0.18)',
-        borderLeft: '1px solid var(--border2)',
-        overflow: 'hidden',
-      }}>
-
-        {/* Header */}
-        <div style={ov.header}>
-          <div>
-            <div style={ov.title}>{isEditing ? 'Editar ação' : 'Nova ação'}</div>
-            <div style={ov.sub}>Atividade operacional com unidade de franquia</div>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <button type="button" style={ov.expandBtn} title={expanded ? 'Recolher' : 'Expandir'}
-              onClick={() => setExpanded(v => !v)}>{expanded ? '⊟' : '⊞'}</button>
-            <button style={ov.closeBtn} onClick={onClose}>✕</button>
-          </div>
+  const footerLeft = (
+    <div style={{ flex: 1 }}>
+      {isEditing && !confirmDel && (
+        <button type="button" onClick={() => setConfirmDel(true)}
+          style={{ fontSize: 12, color: 'var(--red)', background: 'none',
+            border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
+          Excluir ação
+        </button>
+      )}
+      {confirmDel && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Confirmar exclusão?</span>
+          <button type="button"
+            style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--red)',
+              border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
+            onClick={() => { onDelete(initial.id); onClose() }}>
+            Sim, excluir
+          </button>
+          <button type="button"
+            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none',
+              border: 'none', cursor: 'pointer' }}
+            onClick={() => setConfirmDel(false)}>Cancelar</button>
         </div>
+      )}
+    </div>
+  )
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
-          <div style={ov.body}>
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      title={isEditing ? 'Editar ação' : 'Nova ação'}
+      subtitle="Atividade operacional com unidade de franquia"
+      footer={
+        <>
+          {footerLeft}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave}>
+            {isEditing ? 'Salvar alterações' : 'Criar ação'}
+          </Button>
+        </>
+      }
+    >
+      {/* Tipo — dropdown inline flutuante — fixo */}
+      <TipoAcaoDropdown value={form.tipo} onChange={v => set('tipo', v)} tiposMap={tiposMap} />
 
-            {/* Tipo — dropdown inline flutuante — fixo */}
-            <TipoAcaoDropdown value={form.tipo} onChange={v => set('tipo', v)} tiposMap={tiposMap} />
-
-            {/* Campos configuráveis via Conf. de Campos */}
-            <DynamicFormLayout
-              sections={acSections}
-              fieldById={acFieldById}
-              renderField={renderAcaoField}
-              sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
-              labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
-            />
-
-          </div>
-
-          <div style={ov.footer}>
-            <div style={{ flex: 1 }}>
-              {isEditing && !confirmDel && (
-                <button type="button" onClick={() => setConfirmDel(true)}
-                  style={{ fontSize: 12, color: 'var(--red)', background: 'none',
-                    border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
-                  Excluir ação
-                </button>
-              )}
-              {confirmDel && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Confirmar exclusão?</span>
-                  <button type="button"
-                    style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--red)',
-                      border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
-                    onClick={() => { onDelete(initial.id); onClose() }}>
-                    Sim, excluir
-                  </button>
-                  <button type="button"
-                    style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none',
-                      border: 'none', cursor: 'pointer' }}
-                    onClick={() => setConfirmDel(false)}>Cancelar</button>
-                </div>
-              )}
-            </div>
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">
-              {isEditing ? 'Salvar alterações' : 'Criar ação'}
-            </Button>
-          </div>
-        </form>
-
-      </div>{/* fim drawer */}
-    </>
+      {/* Campos configuráveis via Conf. de Campos */}
+      <DynamicFormLayout
+        sections={acSections}
+        fieldById={acFieldById}
+        renderField={renderAcaoField}
+        sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
+        labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
+      />
+    </Drawer>
   )
 }
 

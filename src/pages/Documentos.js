@@ -4,6 +4,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
+import Drawer from '../components/Drawer'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -530,229 +531,184 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
     { id: 'historico', label: `Histórico (${docLogs.length})` },
   ]
 
+  const footerLeft = (
+    <div style={{ flex: 1 }}>
+      {!isNew && !confirmDelete && (
+        <button onClick={() => setConfirmDelete(true)}
+          style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 13,
+            cursor: 'pointer', fontFamily: 'var(--font)', padding: 0, fontWeight: 500 }}>
+          Excluir documento
+        </button>
+      )}
+      {!isNew && confirmDelete && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Excluir permanentemente?</span>
+          <button onClick={() => { onSave(null, draft.id); onClose() }}
+            style={{ padding: '5px 12px', background: 'var(--red)', color: '#fff', border: 'none',
+              borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            Sim, excluir
+          </button>
+          <button onClick={() => setConfirmDelete(false)}
+            style={{ padding: '5px 10px', background: 'none', border: '1px solid var(--border)',
+              borderRadius: 6, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            Cancelar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+
   return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 999 }} onClick={onClose} />
-      <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 1000,
-        width: expanded ? 'calc(100vw - 100px)' : 860,
-        maxWidth: '100vw', transition: 'width 0.28s ease',
-        display: 'flex', flexDirection: 'column',
-        background: 'var(--surface)', boxShadow: '-6px 0 32px rgba(0,0,0,0.18)',
-        borderLeft: '1px solid var(--border2)', overflow: 'hidden' }}>
-
-        {/* Header do drawer */}
-        <div style={{ padding: '18px 24px 0', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text)' }}>
-                {isNew ? 'Novo documento' : draft.title || 'Editar documento'}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                {isNew
-                  ? 'Crie um modelo de documento reutilizável'
-                  : `Versão ${draft.version} · Atualizado ${fmtDate(draft.updated_at)}`}
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <button onClick={() => setExpanded(v => !v)}
-                style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-                  color: 'var(--text-muted)', fontSize: 13, cursor: 'pointer', padding: '3px 7px', lineHeight: 1 }}>
-                {expanded ? '⊟' : '⊞'}
-              </button>
-              <button onClick={onClose}
-                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>
-                ✕
-              </button>
-            </div>
-          </div>
-
-          {/* Abas */}
-          <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)' }}>
-            {TABS.map(t => (
-              <button key={t.id} onClick={() => setTab(t.id)}
-                style={{ padding: '9px 18px', background: 'none', border: 'none',
-                  fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
-                  fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
-                  borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
-                  marginBottom: -2, whiteSpace: 'nowrap' }}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Conteúdo das abas */}
-        <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, overflowY: tab === 'conteudo' ? 'hidden' : 'auto',
-          padding: tab === 'conteudo' ? 0 : '20px 24px',
-          display: tab === 'conteudo' ? 'flex' : 'block' }}>
-
-          {/* ─ Aba: Dados ─ */}
-          {tab === 'dados' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={s.lbl}>Título <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input style={s.inp} value={draft.title}
-                  onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
-                  placeholder="Ex: Proposta Comercial — Canal NG Pro" />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                <label style={s.lbl}>Descrição</label>
-                <textarea style={{ ...s.inp, height: 68, resize: 'vertical' }}
-                  value={draft.description}
-                  onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
-                  placeholder="Descreva brevemente o propósito deste documento…" />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <label style={s.lbl}>Categoria</label>
-                  <select style={s.inp} value={draft.categoria}
-                    onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))}>
-                    {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
-                      <option key={k} value={k}>{v.icon} {v.label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                  <label style={s.lbl}>Status</label>
-                  <select style={s.inp} value={draft.status}
-                    onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
-                    {Object.entries(STATUS_CFG).map(([k, v]) => (
-                      <option key={k} value={k}>{v.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Preview dos badges */}
-              <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'var(--surface2)',
-                borderRadius: 8, border: '1px solid var(--border2)', alignItems: 'center' }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Prévia:</span>
-                <CategoriaBadge categoria={draft.categoria} />
-                <StatusBadge status={draft.status} />
-                <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-                  v{draft.version}
-                </span>
-              </div>
-
-              {/* Metadados (somente edição) */}
-              {!isNew && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-                  padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8,
-                  border: '1px solid var(--border2)' }}>
-                  {[
-                    { lbl: 'Criado por', val: draft.created_by },
-                    { lbl: 'Criado em', val: fmtDate(draft.created_at) },
-                    { lbl: 'Última edição', val: fmtDate(draft.updated_at) },
-                    { lbl: 'Versão atual', val: `v${draft.version}` },
-                  ].map(({ lbl, val }) => (
-                    <div key={lbl}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text)', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'var(--font)' }}>{val}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ─ Aba: Conteúdo ─ */}
-          {tab === 'conteudo' && (
-            <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-
-              {/* Painel lateral de recursos */}
-              <div style={{ width: 260, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                <DocResourcesPanel onInsert={insertAtCursor} />
-              </div>
-
-              {/* Editor */}
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-                borderLeft: '1px solid var(--border2)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '8px 16px', borderBottom: '1px solid var(--border2)', flexShrink: 0,
-                  background: 'var(--surface2)' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                    Markdown — <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}># Título</code>{' '}
-                    <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>**negrito**</code>{' '}
-                    <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>- lista</code>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                    {draft.content?.length || 0} chars
-                  </span>
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  style={{ flex: 1, width: '100%', padding: '16px 18px',
-                    border: 'none', outline: 'none',
-                    background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
-                    lineHeight: 1.75, fontFamily: 'var(--mono)',
-                    resize: 'none', boxSizing: 'border-box' }}
-                  value={draft.content}
-                  onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
-                  placeholder="Digite o conteúdo do documento em Markdown…&#10;Use o painel à esquerda para inserir variáveis e blocos prontos."
-                  spellCheck={false}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* ─ Aba: Histórico ─ */}
-          {tab === 'historico' && (
-            isNew
-              ? <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
-                  <div style={{ fontSize: 13 }}>Salve o documento primeiro para ver o histórico.</div>
-                </div>
-              : <HistoricoPanel docId={draft.id} logs={allLogs} />
-          )}
-        </div>
-        </div>{/* fim wrapper duplo */}
-
-        {/* Footer */}
-        <div style={{ padding: '12px 24px 18px', borderTop: '1px solid var(--border2)',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-          <div style={{ flex: 1 }}>
-            {!isNew && !confirmDelete && (
-              <button onClick={() => setConfirmDelete(true)}
-                style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 13,
-                  cursor: 'pointer', fontFamily: 'var(--font)', padding: 0, fontWeight: 500 }}>
-                Excluir documento
-              </button>
-            )}
-            {!isNew && confirmDelete && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Excluir permanentemente?</span>
-                <button onClick={() => { onSave(null, draft.id); onClose() }}
-                  style={{ padding: '5px 12px', background: 'var(--red)', color: '#fff', border: 'none',
-                    borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                  Sim, excluir
-                </button>
-                <button onClick={() => setConfirmDelete(false)}
-                  style={{ padding: '5px 10px', background: 'none', border: '1px solid var(--border)',
-                    borderRadius: 6, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                  Cancelar
-                </button>
-              </div>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose}
-              style={{ padding: '8px 18px', background: 'none', border: '1px solid var(--border)',
-                borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              Cancelar
-            </button>
-            <button onClick={handleSave}
-              style={{ padding: '8px 22px', background: 'var(--accent)', color: '#fff', border: 'none',
-                borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              {isNew ? 'Criar documento' : 'Salvar alterações'}
-            </button>
-          </div>
-        </div>
+    <Drawer
+      open
+      onClose={onClose}
+      title={isNew ? 'Novo documento' : draft.title || 'Editar documento'}
+      subtitle={isNew ? 'Crie um modelo de documento reutilizável' : `Versão ${draft.version} · Atualizado ${fmtDate(draft.updated_at)}`}
+      initialSize="default"
+      footer={
+        <>
+          {footerLeft}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave}>{isNew ? 'Criar documento' : 'Salvar alterações'}</Button>
+        </>
+      }
+    >
+      {/* Abas */}
+      <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)', margin: '-12px -14px 12px' }}>
+        {TABS.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: '9px 18px', background: 'none', border: 'none',
+              fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
+              fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
+              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+              marginBottom: -2, whiteSpace: 'nowrap' }}>
+            {t.label}
+          </button>
+        ))}
       </div>
-    </>
+
+      {/* ─ Aba: Dados ─ */}
+      {tab === 'dados' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={s.lbl}>Título <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input style={s.inp} value={draft.title}
+              onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+              placeholder="Ex: Proposta Comercial — Canal NG Pro" />
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+            <label style={s.lbl}>Descrição</label>
+            <textarea style={{ ...s.inp, height: 68, resize: 'vertical' }}
+              value={draft.description}
+              onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+              placeholder="Descreva brevemente o propósito deste documento…" />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={s.lbl}>Categoria</label>
+              <select style={s.inp} value={draft.categoria}
+                onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))}>
+                {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon} {v.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+              <label style={s.lbl}>Status</label>
+              <select style={s.inp} value={draft.status}
+                onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
+                {Object.entries(STATUS_CFG).map(([k, v]) => (
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Preview dos badges */}
+          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'var(--surface2)',
+            borderRadius: 8, border: '1px solid var(--border2)', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Prévia:</span>
+            <CategoriaBadge categoria={draft.categoria} />
+            <StatusBadge status={draft.status} />
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+              v{draft.version}
+            </span>
+          </div>
+
+          {/* Metadados (somente edição) */}
+          {!isNew && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+              padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8,
+              border: '1px solid var(--border2)' }}>
+              {[
+                { lbl: 'Criado por', val: draft.created_by },
+                { lbl: 'Criado em', val: fmtDate(draft.created_at) },
+                { lbl: 'Última edição', val: fmtDate(draft.updated_at) },
+                { lbl: 'Versão atual', val: `v${draft.version}` },
+              ].map(({ lbl, val }) => (
+                <div key={lbl}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text)', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'var(--font)' }}>{val}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─ Aba: Conteúdo ─ */}
+      {tab === 'conteudo' && (
+        <div style={{ display: 'flex', margin: '-12px -14px', overflow: 'hidden', height: '100%' }}>
+
+          {/* Painel lateral de recursos */}
+          <div style={{ width: 260, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <DocResourcesPanel onInsert={insertAtCursor} />
+          </div>
+
+          {/* Editor */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            borderLeft: '1px solid var(--border2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '8px 16px', borderBottom: '1px solid var(--border2)', flexShrink: 0,
+              background: 'var(--surface2)' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                Markdown — <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}># Título</code>{' '}
+                <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>**negrito**</code>{' '}
+                <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>- lista</code>
+              </div>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                {draft.content?.length || 0} chars
+              </span>
+            </div>
+            <textarea
+              ref={textareaRef}
+              style={{ flex: 1, width: '100%', padding: '16px 18px',
+                border: 'none', outline: 'none',
+                background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
+                lineHeight: 1.75, fontFamily: 'var(--mono)',
+                resize: 'none', boxSizing: 'border-box' }}
+              value={draft.content}
+              onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
+              placeholder="Digite o conteúdo do documento em Markdown…&#10;Use o painel à esquerda para inserir variáveis e blocos prontos."
+              spellCheck={false}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* ─ Aba: Histórico ─ */}
+      {tab === 'historico' && (
+        isNew
+          ? <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
+              <div style={{ fontSize: 13 }}>Salve o documento primeiro para ver o histórico.</div>
+            </div>
+          : <HistoricoPanel docId={draft.id} logs={allLogs} />
+      )}
+    </Drawer>
   )
 }
 
