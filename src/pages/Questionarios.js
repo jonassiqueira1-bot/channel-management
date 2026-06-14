@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
+import Button from '../components/Button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
@@ -771,7 +772,7 @@ export default function Questionarios() {
                 <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />
               )}
             </div>
-            <button style={pg.newBtn} onClick={() => setDrawer('novo')}>+ Novo questionário</button>
+            <Button onClick={() => setDrawer('novo')}>+ Novo questionário</Button>
           </div>
         </div>
 

@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
+import Button from '../components/Button'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
@@ -117,12 +118,7 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
       </div>
 
       {isNew && (
-        <button onClick={handleCreate}
-          style={{ alignSelf:'flex-start', padding:'9px 20px', background:'var(--accent)',
-            color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700,
-            cursor:'pointer', fontFamily:'var(--font)' }}>
-          Criar contato
-        </button>
+        <Button onClick={handleCreate} style={{ alignSelf:'flex-start' }}>Criar contato</Button>
       )}
     </div>
   )
@@ -262,7 +258,7 @@ export default function Contatos() {
             {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
-        <button style={pg.primaryBtn} onClick={() => setModal('novo')}>+ Novo contato</button>
+        <Button onClick={() => setModal('novo')}>+ Novo contato</Button>
       </div>
 
       {/* ── KPIs collapsíveis ── */}

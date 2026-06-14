@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
+import Button from '../components/Button'
 import NotionDrawer, {
   DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, InlineSearchSelect,
 } from '../components/NotionDrawer'
@@ -346,8 +347,8 @@ function CheckinBlock({ checkins, onChange }) {
               style={{ ...INPUT, resize: 'vertical', lineHeight: 1.5 }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button onClick={() => setForm(null)} style={CANCEL_BTN}>Cancelar</button>
-            <button onClick={addCheckin} style={SAVE_BTN}>Salvar</button>
+            <Button variant="secondary" size="sm" onClick={() => setForm(null)}>Cancelar</Button>
+            <Button size="sm" onClick={addCheckin}>Salvar</Button>
           </div>
         </div>
       ) : (
@@ -666,8 +667,8 @@ function NovoCheckinModal({ onClose, onSave }) {
 
         <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)',
           display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-          <button type="button" onClick={onClose} style={CANCEL_BTN}>Cancelar</button>
-          <button type="submit" style={SAVE_BTN}>Criar Check-in</button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button type="submit">Criar Check-in</Button>
         </div>
       </form>
     </div>
@@ -740,11 +741,8 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
           <span style={{ fontSize: 12, color: '#991B1B', flex: 1 }}>
             Remover este parceiro do Customer Success?
           </span>
-          <button onClick={() => { onDelete(form.id); onClose() }}
-            style={{ ...SAVE_BTN, background: '#DC2626' }}>
-            Remover
-          </button>
-          <button onClick={() => setConfirmDel(false)} style={CANCEL_BTN}>Cancelar</button>
+          <Button variant="danger" onClick={() => { onDelete(form.id); onClose() }}>Remover</Button>
+          <Button variant="secondary" onClick={() => setConfirmDel(false)}>Cancelar</Button>
         </div>
       ) : (
         <button onClick={() => setConfirmDel(true)}
@@ -969,9 +967,7 @@ export default function CustomerSuccess() {
             {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
           </button>
         </div>
-        <button onClick={() => setNovoModal(true)} style={P.newBtn}>
-          + Novo Check-in
-        </button>
+        <Button onClick={() => setNovoModal(true)}>+ Novo Check-in</Button>
       </div>
 
       {/* ── KPIs retráteis ── */}

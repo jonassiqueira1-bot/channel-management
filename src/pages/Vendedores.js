@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useCallback, useEffect } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
+import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { useSellers } from '../hooks/useSellers'
@@ -308,12 +309,11 @@ function ImportModal({ onClose, onDownloadTemplate, existingFunc, onImport }) {
           )}
         </div>
         <div style={m.footer}>
-          <button style={m.btn} onClick={onClose}>Cancelar</button>
-          <button style={{ ...m.btnPrimary, opacity: (!file || errors.length > 0 || importing) ? 0.6 : 1 }}
-            disabled={!file || errors.length > 0 || importing}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!file || errors.length > 0 || importing} loading={importing}
             onClick={handleImport}>
             {importing ? 'Importando…' : 'Importar'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -430,15 +430,12 @@ function FuncionarioModal({ onClose, onSave, onDelete, initial, companies }) {
           </div>
           <div style={m.footer}>
             {initial
-              ? <button type="button" style={{ ...m.btn, color:'var(--red)', borderColor:'rgba(239,68,68,0.3)' }}
-                  onClick={() => window.confirm('Excluir este contato?') && onDelete(initial.id)}>
-                  Excluir
-                </button>
-              : <button type="button" style={m.btn} onClick={onClose}>Cancelar</button>
+              ? <Button variant="danger" onClick={() => window.confirm('Excluir este contato?') && onDelete(initial.id)}>Excluir</Button>
+              : <Button variant="secondary" onClick={onClose}>Cancelar</Button>
             }
             <div style={{ display:'flex', gap:8 }}>
-              {initial && <button type="button" style={m.btn} onClick={onClose}>Cancelar</button>}
-              <button type="submit" style={m.btnPrimary}>{initial ? 'Salvar alterações' : 'Criar contato'}</button>
+              {initial && <Button variant="secondary" onClick={onClose}>Cancelar</Button>}
+              <Button type="submit">{initial ? 'Salvar alterações' : 'Criar contato'}</Button>
             </div>
           </div>
         </form>
@@ -774,7 +771,7 @@ export default function Vendedores() {
             <svg width="15" height="15" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
 
-          <button style={p.newBtn} onClick={() => setModal('new')}>+ Novo Contato</button>
+          <Button onClick={() => setModal('new')}>+ Novo Contato</Button>
         </div>
       </div>
 

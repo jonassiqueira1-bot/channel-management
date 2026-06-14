@@ -10,6 +10,7 @@ import {
   MOCK_COMPANIES, COMPANIES_STORAGE_KEY,
   COMPANY_TYPE_CFG, COMPANY_STATUS_CFG,
 } from '../../data/mockCompanies'
+import Button from '../../components/Button'
 
 const ISV_ID  = 'a0000000-0000-0000-0000-000000000001'
 const ACCENT  = '#6366F1'
@@ -173,13 +174,10 @@ function ISVForm({ isv, onSave, onCancel }) {
       )}
 
       <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:4 }}>
-        <button type="button" onClick={onCancel} style={{ padding:'8px 18px', borderRadius:8, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:500, display:'flex', alignItems:'center', gap:6 }}>
-          <X size={13} strokeWidth={2} />Cancelar
-        </button>
-        <button type="submit" disabled={saving} style={{ padding:'8px 20px', borderRadius:8, background:ACCENT, border:'none', color:'#fff', fontSize:13, fontFamily:'var(--font)', cursor:saving?'not-allowed':'pointer', fontWeight:700, opacity:saving?0.7:1, display:'flex', alignItems:'center', gap:7, boxShadow:'0 2px 8px rgba(99,102,241,0.3)' }}>
-          {saving ? <Loader2 size={13} strokeWidth={2} style={{ animation:'spin 1s linear infinite' }} /> : <Save size={13} strokeWidth={2} />}
+        <Button variant="secondary" icon={<X size={13} strokeWidth={2} />} onClick={onCancel}>Cancelar</Button>
+        <Button type="submit" loading={saving} icon={<Save size={13} strokeWidth={2} />}>
           {saving ? 'Salvando…' : 'Salvar alterações'}
-        </button>
+        </Button>
       </div>
     </form>
   )
@@ -367,9 +365,7 @@ export default function EmpresaISV() {
               </div>
             )}
             {!editing && (
-              <button onClick={() => setEditing(true)} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, background:ACCENT, border:'none', color:'#fff', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:700, boxShadow:'0 2px 8px rgba(99,102,241,0.25)' }}>
-                <Pencil size={13} strokeWidth={2} />Editar organização
-              </button>
+              <Button icon={<Pencil size={13} strokeWidth={2} />} onClick={() => setEditing(true)}>Editar organização</Button>
             )}
           </div>
         </div>

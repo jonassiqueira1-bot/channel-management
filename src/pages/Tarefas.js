@@ -4,6 +4,7 @@ import { useTasks } from '../hooks/useTasks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import Button from '../components/Button'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
 const MOCK_OPPS = [
@@ -529,10 +530,10 @@ function ImportModal({ onClose, onImport }) {
               </table>
             </div>
             <div style={m.footer}>
-              <button style={m.cancelBtn} onClick={()=>setStep('upload')}>← Voltar</button>
+              <Button variant="secondary" onClick={()=>setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount>0&&okCount>0&&<span style={{ fontSize:12, color:'var(--yellow-text)' }}>{errCount} linha{errCount>1?'s':''} serão ignoradas</span>}
-              <button style={m.saveBtn} disabled={okCount===0} onClick={handleConfirm}>Importar {okCount} tarefa{okCount!==1?'s':''}</button>
+              <Button disabled={okCount===0} onClick={handleConfirm}>Importar {okCount} tarefa{okCount!==1?'s':''}</Button>
             </div>
           </div>
         )}
@@ -898,7 +899,7 @@ export default function Tarefas() {
               />
             )}
           </div>
-          <button style={p.newBtn} onClick={()=>setModal({ _new:true })}>+ Nova tarefa</button>
+          <Button onClick={()=>setModal({ _new:true })}>+ Nova tarefa</Button>
         </div>
       </div>
 

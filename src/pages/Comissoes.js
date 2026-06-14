@@ -19,6 +19,7 @@ import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
 import { InlineSearchSelect } from '../components/NotionDrawer'
+import Button from '../components/Button'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const TABS = [
@@ -763,11 +764,10 @@ function RuleModal({ initial, personas, onSave, onClose }) {
 
         {/* Footer */}
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'14px 22px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-          <button type="button" onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:500 }}>Cancelar</button>
-          <button type="button" disabled={saving} onClick={submit} style={{ padding:'8px 20px', borderRadius:8, background:'#6366F1', border:'none', color:'#fff', fontSize:13, fontFamily:'var(--font)', cursor:saving?'not-allowed':'pointer', fontWeight:600, opacity:saving?0.7:1, display:'flex', alignItems:'center', gap:7 }}>
-            {saving && <Loader2 size={13} strokeWidth={2} style={{ animation:'spin 1s linear infinite' }} />}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button loading={saving} onClick={submit} style={{ background:'#6366F1' }}>
             {form.id ? 'Salvar alterações' : 'Criar regra'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -864,8 +864,8 @@ function PersonasEditor({ personas, onChange, onClose }) {
         </div>
 
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'14px 22px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-          <button type="button" onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:500 }}>Descartar</button>
-          <button type="button" onClick={save} style={{ padding:'8px 20px', borderRadius:8, background:'#6366F1', border:'none', color:'#fff', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:600 }}>Salvar personas</button>
+          <Button variant="secondary" onClick={onClose}>Descartar</Button>
+          <Button onClick={save} style={{ background:'#6366F1' }}>Salvar personas</Button>
         </div>
       </div>
     </div>
@@ -1042,11 +1042,10 @@ function PaymentModal({ initial, rules, personas, onSave, onClose }) {
           {err && <div style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 12px', borderRadius:8, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13 }}><AlertCircle size={14} strokeWidth={2}/>{err}</div>}
         </div>
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'14px 22px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
-          <button type="button" onClick={onClose} style={{ padding:'8px 18px', borderRadius:8, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:13, fontFamily:'var(--font)', cursor:'pointer', fontWeight:500 }}>Cancelar</button>
-          <button type="button" disabled={saving} onClick={submit} style={{ padding:'8px 20px', borderRadius:8, background:'#10B981', border:'none', color:'#fff', fontSize:13, fontFamily:'var(--font)', cursor:saving?'not-allowed':'pointer', fontWeight:600, opacity:saving?0.7:1, display:'flex', alignItems:'center', gap:7 }}>
-            {saving && <Loader2 size={13} strokeWidth={2} style={{ animation:'spin 1s linear infinite' }} />}
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button loading={saving} onClick={submit} style={{ background:'#10B981' }}>
             {form.id ? 'Salvar alterações' : 'Registrar lançamento'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -1245,7 +1244,7 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
         <div style={{ textAlign:'center', padding:'60px 20px', color:'var(--text-muted)', fontSize:14 }}>
           <Percent size={36} strokeWidth={1} style={{ marginBottom:14, opacity:0.25, display:'block', margin:'0 auto 14px' }} />
           Nenhuma regra cadastrada.
-          <br /><button onClick={()=>setModal('new')} style={{ marginTop:14, padding:'8px 18px', borderRadius:8, background:'#6366F1', border:'none', color:'#fff', fontSize:13, cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>+ Criar primeira regra</button>
+          <br /><Button onClick={()=>setModal('new')} style={{ marginTop:14, background:'#6366F1' }}>+ Criar primeira regra</Button>
         </div>
       ) : (
         rules.map(rule => {
@@ -1490,10 +1489,9 @@ export default function Comissoes() {
         {/* Direita: período + ação */}
         <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingTop:4 }}>
           <PeriodPopover value={period} onChange={setPeriod} />
-          <button onClick={()=>setShowModal(tab==='repasses'?'payment':'rule')} style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, cursor:'pointer', background:'var(--accent)', border:'none', color:'#fff', fontSize:13, fontWeight:700, fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-            <Plus size={SZ} strokeWidth={2.5} />
+          <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={()=>setShowModal(tab==='repasses'?'payment':'rule')}>
             {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
-          </button>
+          </Button>
         </div>
       </div>
 

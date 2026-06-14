@@ -3,6 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useProducts } from '../hooks/useProducts'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import Button from '../components/Button'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const ACCENT = 'var(--accent)'
@@ -154,14 +155,14 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
       <div style={im.modal}>
         <div style={im.header}>
           <span style={{ fontWeight:700, fontSize:15, color:'var(--text)' }}>Importar Produtos</span>
-          <button style={im.close} onClick={onClose}>✕</button>
+          <button style={im.close} onClick={onClose} type="button">✕</button>
         </div>
 
         {step === 'upload' && (
           <div style={im.body}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
               <span style={{ fontSize:13, color:'var(--text-soft)' }}>Envie um arquivo CSV com os produtos a importar.</span>
-              <button style={im.tplBtn} onClick={downloadTemplate}>↓ Template CSV</button>
+              <Button variant="secondary" size="sm" onClick={downloadTemplate}>↓ Template CSV</Button>
             </div>
             <div
               style={{ ...im.dropzone, borderColor: dragging ? 'var(--accent)' : 'var(--border)' }}
@@ -222,10 +223,10 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
               </table>
             </div>
             <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)', display:'flex', gap:10, justifyContent:'flex-end', background:'var(--surface2)' }}>
-              <button style={im.cancelBtn} onClick={() => setStep('upload')}>← Voltar</button>
-              <button style={{ ...im.saveBtn, opacity: okCount === 0 ? 0.5 : 1 }} disabled={okCount === 0} onClick={handleConfirm}>
+              <Button variant="secondary" onClick={() => setStep('upload')}>← Voltar</Button>
+              <Button disabled={okCount === 0} onClick={handleConfirm}>
                 Importar {okCount} produto{okCount !== 1 ? 's' : ''}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -457,7 +458,7 @@ function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos, cat
             <div style={{ fontWeight:700, fontSize:15, color:'var(--text)' }}>{isEditing ? 'Editar Produto' : 'Novo Produto'}</div>
             {isEditing && <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', marginTop:2 }}>{initial.codigo}</div>}
           </div>
-          <button style={s.close} onClick={onClose}>✕</button>
+          <button style={s.close} onClick={onClose} type="button">✕</button>
         </div>
 
         <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
@@ -501,16 +502,16 @@ function ProdutoModal({ onClose, onSave, onDelete, initial, existingCodigos, cat
               confirmDelete ? (
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <span style={{ fontSize:13, color:'var(--red)', fontWeight:600 }}>Excluir permanentemente?</span>
-                  <button type="button" style={s.deleteConfirmBtn} onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</button>
-                  <button type="button" style={s.btn} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                  <Button variant="danger" onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
                 </div>
               ) : (
-                <button type="button" style={s.deleteBtn} onClick={() => setConfirmDelete(true)}>Excluir produto</button>
+                <Button variant="danger" onClick={() => setConfirmDelete(true)}>Excluir produto</Button>
               )
             ) : <div />}
             <div style={{ display:'flex', gap:10 }}>
-              <button type="button" style={s.btn} onClick={onClose}>Cancelar</button>
-              <button type="submit" style={s.btnPrimary}>Salvar produto</button>
+              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+              <Button type="submit">Salvar produto</Button>
             </div>
           </div>
         </form>
@@ -630,8 +631,8 @@ export default function Produtos() {
             </button>
             {showTray && <ExportTray logs={exportLogs} onClear={() => setExportLogs([])} onClose={() => setShowTray(false)} />}
           </div>
-          <button style={pg.actionBtn} onClick={() => setImportModal(true)}>↑ Importar</button>
-          <button style={pg.newBtn} onClick={() => setModal('new')}>+ Novo produto</button>
+          <Button variant="secondary" onClick={() => setImportModal(true)}>↑ Importar</Button>
+          <Button onClick={() => setModal('new')}>+ Novo produto</Button>
         </div>
       </div>
 

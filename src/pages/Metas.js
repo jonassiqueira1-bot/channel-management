@@ -19,6 +19,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useGoals } from '../hooks/useGoals'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineSelect, DeleteZone } from '../components/NotionDrawer'
+import Button from '../components/Button'
 
 // ─── Dados de referência ──────────────────────────────────────────────────────
 const VENDEDORES = [
@@ -548,9 +549,7 @@ function MatrixGrid({ rows, months, onEdit, onNew }) {
         <Target size={36} style={{ margin: '0 auto 12px', display: 'block', opacity: .25 }} />
         <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhuma meta encontrada para o período</div>
         <div style={{ fontSize: 12, marginTop: 6, opacity: .7 }}>Ajuste os filtros ou crie novas metas</div>
-        <button onClick={onNew} style={{ marginTop: 16, ...s.btnPrimary, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <Plus size={14} /> Nova meta
-        </button>
+        <Button onClick={onNew} icon={<Plus size={14} />} style={{ marginTop: 16 }}>Nova meta</Button>
       </div>
     )
   }
@@ -911,12 +910,7 @@ function MetaDetail({ initial, row, onClose, onSave }) {
                 </div>
               )
             })}
-            <button type="button" onClick={handleSaveRealizado}
-              style={{ alignSelf:'flex-end', marginTop:6, padding:'9px 20px', background:'var(--accent)',
-                color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700,
-                cursor:'pointer', fontFamily:'var(--font)' }}>
-              Salvar realizado
-            </button>
+            <Button onClick={handleSaveRealizado} style={{ alignSelf:'flex-end', marginTop:6 }}>Salvar realizado</Button>
           </div>
         )
       })()}
@@ -977,12 +971,9 @@ function MetaDetail({ initial, row, onClose, onSave }) {
       )}
 
       {activeTab === 'meta' && (
-        <button onClick={e => { e.preventDefault(); handleSave(e) }}
-          style={{ alignSelf:'flex-start', padding:'9px 22px', background:'var(--accent)',
-            color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700,
-            cursor:'pointer', fontFamily:'var(--font)' }}>
+        <Button onClick={e => { e.preventDefault(); handleSave(e) }} style={{ alignSelf:'flex-start' }}>
           {isEditing ? 'Salvar alterações' : `Criar ${filledCount>1?filledCount+' metas':'meta'}`}
-        </button>
+        </Button>
       )}
     </div>
   )
@@ -1222,10 +1213,7 @@ export default function Metas() {
           </span>
 
           {/* Nova meta */}
-          <button style={s.btnPrimary} onClick={() => setModal({ mode:'new' })}>
-            <Plus size={14} style={{ marginRight:5 }} />
-            Nova meta
-          </button>
+          <Button icon={<Plus size={14} />} onClick={() => setModal({ mode:'new' })}>Nova meta</Button>
         </div>
       </div>
 

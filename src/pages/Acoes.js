@@ -7,6 +7,7 @@ import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import Button from '../components/Button'
 
 const ACCENT = '#6366F1'
 
@@ -321,10 +322,10 @@ function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
                 </div>
               )}
             </div>
-            <button type="button" style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
-            <button type="submit" style={ov.saveBtn}>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button type="submit">
               {isEditing ? 'Salvar alterações' : 'Criar ação'}
-            </button>
+            </Button>
           </div>
         </form>
 
@@ -477,7 +478,7 @@ export default function Acoes() {
                 />
               )}
             </div>
-            <button style={pg.newBtn} onClick={() => setModal(true)}>+ Nova ação</button>
+            <Button onClick={() => setModal(true)}>+ Nova ação</Button>
           </div>
         </div>
 

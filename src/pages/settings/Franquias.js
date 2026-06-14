@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import Button from '../../components/Button'
 
 // Sem seeds em produção — lista começa vazia para novos tenants
 
@@ -117,25 +118,18 @@ function FranquiaModal({ initial, onClose, onSave, onDelete, existentes }) {
               confirmDel ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, color: 'var(--red)' }}>Confirmar exclusão?</span>
-                  <button type="button" style={{ ...s.btn, color: 'var(--red)', borderColor: 'rgba(220,38,38,0.3)' }}
-                    onClick={() => onDelete(initial.id)}>Excluir</button>
-                  <button type="button" style={s.btn} onClick={() => setConfirmDel(false)}>Cancelar</button>
+                  <Button variant="danger" onClick={() => onDelete(initial.id)}>Excluir</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                 </div>
               ) : (
-                <button type="button"
-                  style={{ ...s.btn, color: 'var(--red)', borderColor: 'rgba(220,38,38,0.2)' }}
-                  onClick={() => setConfirmDel(true)}>
-                  Excluir franquia
-                </button>
+                <Button variant="danger" onClick={() => setConfirmDel(true)}>Excluir franquia</Button>
               )
             ) : <div />}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" style={s.btn} onClick={onClose}>Cancelar</button>
-              <button type="submit"
-                disabled={!nome.trim() || !!nomeErr}
-                style={{ ...s.btnPrimary, opacity: (!nome.trim() || !!nomeErr) ? 0.5 : 1, cursor: (!nome.trim() || !!nomeErr) ? 'not-allowed' : 'pointer' }}>
+              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+              <Button type="submit" disabled={!nome.trim() || !!nomeErr}>
                 {initial ? 'Salvar alterações' : 'Criar franquia'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -182,7 +176,7 @@ export default function Franquias() {
             <code style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--accent)', background: 'var(--accent-glow)', padding: '1px 5px', borderRadius: 4 }}>franquia_id</code>.
           </p>
         </div>
-        <button style={pg.btnNew} onClick={() => setModal('new')}>+ Nova franquia</button>
+        <Button onClick={() => setModal('new')}>+ Nova franquia</Button>
       </div>
 
       {/* KPI strip */}
@@ -226,7 +220,7 @@ export default function Franquias() {
               {search ? 'Nenhuma franquia encontrada.' : 'Nenhuma franquia cadastrada ainda.'}
             </span>
             {!search && (
-              <button onClick={() => setModal('new')} style={{ ...pg.btnNew, marginTop: 4 }}>+ Nova franquia</button>
+              <Button onClick={() => setModal('new')} style={{ marginTop: 4 }}>+ Nova franquia</Button>
             )}
           </div>
         ) : (

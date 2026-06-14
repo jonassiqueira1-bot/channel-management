@@ -11,6 +11,7 @@ import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTexta
 import SearchSelect from '../components/SearchSelect'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import Button from '../components/Button'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -999,7 +1000,7 @@ export default function Contratos() {
               />
             )}
           </div>
-          <button style={p.newBtn} onClick={() => setModal('new')}>+ Novo contrato</button>
+          <Button onClick={() => setModal('new')}>+ Novo contrato</Button>
         </div>
       </div>
 

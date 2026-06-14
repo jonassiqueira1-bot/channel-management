@@ -9,6 +9,7 @@ import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import Button from '../components/Button'
 
 const ACCENT = 'var(--accent)'
 
@@ -274,8 +275,8 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
           />
         </div>
         <div style={ms.mFooter}>
-          <button style={ms.btn} onClick={onClose}>Cancelar</button>
-          <button style={ms.btnPrimary} onClick={() => form.name.trim() && onSave(form)}>Criar projeto</button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={() => form.name.trim() && onSave(form)}>Criar projeto</Button>
         </div>
       </div>
     </div>
@@ -423,7 +424,7 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
             <textarea style={{ ...ms.inp, height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
           </div>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <button style={ms.btnPrimary} onClick={handleSave}>{saved ? '✓ Salvo' : 'Salvar alterações'}</button>
+            <Button onClick={handleSave}>{saved ? '✓ Salvo' : 'Salvar alterações'}</Button>
           </div>
         </div>
       </NotionSection>
@@ -756,7 +757,7 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
           />
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <button style={ms.btnPrimary} onClick={handleSubmit}>Registrar horas</button>
+          <Button onClick={handleSubmit}>Registrar horas</Button>
         </div>
       </div>
 
@@ -1202,9 +1203,7 @@ export default function Projetos() {
               {showMetrics ? '∧' : '∨'}
             </button>
           </div>
-          <button style={pg.newBtn} onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>
-            + Novo projeto
-          </button>
+          <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
         </div>
 
         {/* KPIs retráteis — igual Pipeline */}

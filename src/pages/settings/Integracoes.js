@@ -9,6 +9,7 @@ import {
   PROVIDERS, DEFAULT_SETTINGS, MOCK_LOGS,
   INTEGRATIONS_STORAGE_KEY,
 } from '../../data/mockIntegrations'
+import Button from '../../components/Button'
 
 const ACCENT = '#6366F1'
 
@@ -328,9 +329,9 @@ function PayloadModal({ log, onClose }) {
             <div style={s.mSub}>{log.event_type} · {fmtDate(log.created_at)}</div>
           </div>
           <div style={{ display:'flex', gap:8 }}>
-            <button onClick={copyJson} style={{ ...s.ghostBtn, gap:5 }}>
-              {copied ? <><CheckCheck size={13} strokeWidth={2}/> Copiado</> : <><Copy size={13} strokeWidth={1.75}/> Copiar JSON</>}
-            </button>
+            <Button variant="secondary" onClick={copyJson} icon={copied ? <CheckCheck size={13} strokeWidth={2}/> : <Copy size={13} strokeWidth={1.75}/>}>
+              {copied ? 'Copiado' : 'Copiar JSON'}
+            </Button>
             <button onClick={onClose} style={s.closeBtn}><X size={15} strokeWidth={2}/></button>
           </div>
         </div>

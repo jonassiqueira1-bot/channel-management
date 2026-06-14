@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { ChevronUp, ChevronDown } from 'lucide-react'
+import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
@@ -439,18 +440,16 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
           labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
         />
         {isNew && (
-          <button onClick={() => {
+          <Button onClick={() => {
             if (!form.razao.trim()) return alert('Razão social é obrigatória')
             const isDraft = form.tipo === 'rascunho'
             const cnpjRaw = (form.cnpj || '').replace(/\D/g, '')
             if (!isDraft && !cnpjRaw) return alert('CNPJ é obrigatório para este tipo de empresa')
             onSave(form)
           }}
-            style={{ alignSelf:'flex-start', padding:'10px 22px', background:ACCENT,
-              color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700,
-              cursor:'pointer', fontFamily:'var(--font)' }}>
+            style={{ alignSelf:'flex-start' }}>
             Cadastrar empresa
-          </button>
+          </Button>
         )}
       </div>
     )
@@ -476,11 +475,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {contatos.length} contato{contatos.length !== 1 ? 's' : ''}
             </span>
-            <button onClick={() => setAdicionando(true)}
-              style={{ padding:'5px 12px', background:ACCENT, color:'#fff', border:'none',
-                borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-              + Adicionar contato
-            </button>
+            <Button size="sm" onClick={() => setAdicionando(true)}>+ Adicionar contato</Button>
           </div>
 
           {adicionando && (
@@ -513,16 +508,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <button onClick={() => setAdicionando(false)}
-                  style={{ padding:'6px 14px', border:'1px solid var(--border)', borderRadius:6,
-                    background:'none', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Cancelar
-                </button>
-                <button onClick={salvarContato}
-                  style={{ padding:'6px 14px', background:ACCENT, color:'#fff', border:'none',
-                    borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Salvar
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
+                <Button size="sm" onClick={salvarContato}>Salvar</Button>
               </div>
             </div>
           )}
@@ -603,11 +590,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {opps.length} oportunidade{opps.length !== 1 ? 's' : ''}
             </span>
-            <button onClick={() => setAdicionando(true)}
-              style={{ padding:'5px 12px', background:ACCENT, color:'#fff', border:'none',
-                borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-              + Nova oportunidade
-            </button>
+            <Button size="sm" onClick={() => setAdicionando(true)}>+ Nova oportunidade</Button>
           </div>
 
           {adicionando && (
@@ -642,16 +625,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <button onClick={() => setAdicionando(false)}
-                  style={{ padding:'6px 14px', border:'1px solid var(--border)', borderRadius:6,
-                    background:'none', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Cancelar
-                </button>
-                <button onClick={salvarOpp}
-                  style={{ padding:'6px 14px', background:ACCENT, color:'#fff', border:'none',
-                    borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Salvar
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
+                <Button size="sm" onClick={salvarOpp}>Salvar</Button>
               </div>
             </div>
           )}
@@ -720,11 +695,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {contratos.length} contrato{contratos.length !== 1 ? 's' : ''}
             </span>
-            <button onClick={() => setAdicionando(true)}
-              style={{ padding:'5px 12px', background:ACCENT, color:'#fff', border:'none',
-                borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-              + Novo contrato
-            </button>
+            <Button size="sm" onClick={() => setAdicionando(true)}>+ Novo contrato</Button>
           </div>
 
           {adicionando && (
@@ -765,16 +736,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
                 </div>
               </div>
               <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <button onClick={() => setAdicionando(false)}
-                  style={{ padding:'6px 14px', border:'1px solid var(--border)', borderRadius:6,
-                    background:'none', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Cancelar
-                </button>
-                <button onClick={salvarContrato}
-                  style={{ padding:'6px 14px', background:ACCENT, color:'#fff', border:'none',
-                    borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Salvar
-                </button>
+                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
+                <Button size="sm" onClick={salvarContrato}>Salvar</Button>
               </div>
             </div>
           )}
@@ -1205,7 +1168,7 @@ export default function Empresas() {
               />
             )}
           </div>
-          <button style={p.newBtn} onClick={() => setModal('new')}>+ Nova empresa</button>
+          <Button onClick={() => setModal('new')}>+ Nova empresa</Button>
         </div>
       </div>
 
@@ -1558,9 +1521,7 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
                   {IMPORT_COLS.length} colunas — inclui linha de exemplo
                 </div>
               </div>
-              <button style={imp.templateBtn} onClick={onDownloadTemplate}>
-                ↓ Baixar template
-              </button>
+              <Button size="sm" onClick={onDownloadTemplate}>↓ Baixar template</Button>
             </div>
 
             {/* Drop zone */}
@@ -1645,7 +1606,7 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
             </div>
 
             <div style={{ ...m.footer, padding:'14px 24px', borderTop:'1px solid var(--border2)' }}>
-              <button style={m.cancelBtn} onClick={() => setStep('upload')}>← Voltar</button>
+              <Button variant="secondary" onClick={() => setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount > 0 && okCount === 0 && (
                 <span style={{ fontSize:12, color:'var(--red)' }}>Nenhuma linha válida para importar</span>
@@ -1655,9 +1616,9 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
                   {errCount} linha{errCount>1?'s':''} serão ignoradas
                 </span>
               )}
-              <button style={m.saveBtn} disabled={okCount === 0} onClick={handleConfirmImport}>
+              <Button disabled={okCount === 0} onClick={handleConfirmImport}>
                 Importar {okCount} empresa{okCount !== 1 ? 's' : ''}
-              </button>
+              </Button>
             </div>
           </div>
         )}
@@ -1734,7 +1695,7 @@ function ImportLogModal({ logs, onClose }) {
         </div>
 
         <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border2)' }}>
-          <button style={m.cancelBtn} onClick={onClose}>Fechar</button>
+          <Button variant="secondary" onClick={onClose}>Fechar</Button>
         </div>
       </div>
     </div>

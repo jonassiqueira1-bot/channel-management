@@ -3,6 +3,7 @@ import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_PERFIS, PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
+import Button from '../../components/Button'
 
 const ACCENT = '#6366F1'
 
@@ -250,8 +251,8 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
           </div>
 
           <div style={ov.footer}>
-            <button type="button" style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
-            <button type="submit" style={ov.saveBtn}>Enviar convite</button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button type="submit">Enviar convite</Button>
           </div>
         </form>
       </div>
@@ -589,8 +590,8 @@ function EditarModal({ perfil, onClose, onSave, onDelete, sessao }) {
                 </div>
               )}
             </div>
-            <button type="button" style={ov.cancelBtn} onClick={onClose}>Fechar</button>
-            {podeEditar && <button type="submit" style={ov.saveBtn}>Salvar</button>}
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            {podeEditar && <Button type="submit">Salvar</Button>}
           </div>
         </form>
       </div>
@@ -845,16 +846,10 @@ export default function SettingsUsuarios() {
           <p style={pg.desc}>Gerencie os usuários com acesso à plataforma e seus níveis de permissão.</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button style={pg.secondaryBtn} onClick={() => exportarCSV(lista)}>
-            ↓ Exportar CSV
-          </button>
-          <button style={pg.secondaryBtn} onClick={() => setModalImport(true)}>
-            ↑ Importar
-          </button>
+          <Button variant="secondary" onClick={() => exportarCSV(lista)}>↓ Exportar CSV</Button>
+          <Button variant="secondary" onClick={() => setModalImport(true)}>↑ Importar</Button>
           {podeCriar && (
-            <button style={pg.primaryBtn} onClick={() => setModalConvite(true)}>
-              + Convidar usuário
-            </button>
+            <Button onClick={() => setModalConvite(true)}>+ Convidar usuário</Button>
           )}
         </div>
       </div>

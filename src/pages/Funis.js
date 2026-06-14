@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFunnels } from '../hooks/useFunnels'
+import Button from '../components/Button'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_FUNIL = [
@@ -201,7 +202,7 @@ function FunilModal({ onClose, onSave, onDelete, initial, nomesExistentes }) {
             <div style={{ fontWeight:700, fontSize:15 }}>{isEditing ? 'Editar Funil' : 'Novo Funil'}</div>
             {isEditing && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{form.etapas.length} etapas configuradas</div>}
           </div>
-          <button style={md.close} onClick={onClose}>✕</button>
+          <button style={md.close} onClick={onClose} type="button">✕</button>
         </div>
 
         <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
@@ -272,16 +273,16 @@ function FunilModal({ onClose, onSave, onDelete, initial, nomesExistentes }) {
               confirmDelete ? (
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                   <span style={{ fontSize:13, color:'var(--red)', fontWeight:600 }}>Excluir permanentemente?</span>
-                  <button type="button" style={md.deleteConfirmBtn} onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</button>
-                  <button type="button" style={md.cancelBtn} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+                  <Button variant="danger" onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDelete(false)}>Cancelar</Button>
                 </div>
               ) : (
-                <button type="button" style={md.deleteBtn} onClick={() => setConfirmDelete(true)}>Excluir funil</button>
+                <Button variant="danger" onClick={() => setConfirmDelete(true)}>Excluir funil</Button>
               )
             ) : <div />}
             <div style={{ display:'flex', gap:10 }}>
-              <button type="button" style={md.cancelBtn} onClick={onClose}>Cancelar</button>
-              <button type="submit" style={md.saveBtn}>Salvar funil</button>
+              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+              <Button type="submit">Salvar funil</Button>
             </div>
           </div>
         </form>
@@ -347,7 +348,7 @@ export default function Funis() {
           <div style={p.breadcrumb}><span>Configuração</span><span style={p.sep}>›</span><span>Funis</span></div>
           <h1 style={p.title}>Funis de venda</h1>
         </div>
-        <button style={p.newBtn} onClick={() => setModal('new')}>+ Novo funil</button>
+        <Button onClick={() => setModal('new')}>+ Novo funil</Button>
       </div>
 
       {/* KPIs */}
@@ -398,7 +399,7 @@ export default function Funis() {
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 <StatusBadge status={f.status} />
                 <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{f.etapas.length} etapas</span>
-                <button style={s.editBtn} onClick={() => setModal(f)}>Editar</button>
+                <Button variant="secondary" size="sm" onClick={() => setModal(f)}>Editar</Button>
               </div>
             </div>
 

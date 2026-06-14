@@ -8,6 +8,7 @@ import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import Button from '../components/Button'
 
 const ACCENT = '#6366F1'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -456,11 +457,10 @@ function ImportModal({ onClose, onImport }) {
           )}
         </div>
         <div style={ov.footer}>
-          <button style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
-          <button style={{ ...ov.saveBtn, opacity:okCount===0?0.5:1, cursor:okCount===0?'default':'pointer' }}
-            disabled={okCount===0} onClick={handleConfirmImport}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={okCount===0} onClick={handleConfirmImport}>
             Importar {okCount} pagamento{okCount!==1?'s':''}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -827,9 +827,8 @@ function _PagamentoModalLegacy({ pagamento, onSave, onClose }) {
           </div>
         </div>
         <div style={ov.footer}>
-          <button style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
-          <button style={ov.saveBtn}
-            onClick={()=>{
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={()=>{
               onSave({
                 ...pagamento, ...form,
                 amount_total_net: liquido,
@@ -840,7 +839,7 @@ function _PagamentoModalLegacy({ pagamento, onSave, onClose }) {
               onClose()
             }}>
             {pagamento.processed?'Salvar alterações':'✓ Gerar fatura'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -886,9 +885,9 @@ function GerarTodosModal({ periodo, pendentes, onConfirm, onClose }) {
           )}
         </div>
         <div style={ov.footer}>
-          <button style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
           {pendentes.length>0 && (
-            <button style={ov.saveBtn} onClick={()=>{onConfirm();onClose()}}>✓ Confirmar geração</button>
+            <Button onClick={()=>{onConfirm();onClose()}}>✓ Confirmar geração</Button>
           )}
         </div>
       </div>
@@ -1030,8 +1029,8 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
         </div>
 
         <div style={ov.footer}>
-          <button style={ov.cancelBtn} onClick={onClose}>Cancelar</button>
-          <button style={ov.saveBtn} onClick={handleSave}>+ Adicionar pagamento</button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={handleSave}>+ Adicionar pagamento</Button>
         </div>
       </div>
     </div>
@@ -1207,14 +1206,8 @@ export default function Pagamentos() {
           </button>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <button
-            onClick={() => setNovoPagModal(true)}
-            style={{ height:36, padding:'0 16px', border:'1px solid var(--border)', borderRadius:8,
-              background:'var(--surface)', color:'var(--text)', fontSize:13, fontWeight:600,
-              cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-            + Novo Pagamento
-          </button>
-          <button style={pg.primaryBtn} onClick={()=>setGerarTodosModal(true)}>
+          <Button variant="secondary" onClick={() => setNovoPagModal(true)}>+ Novo Pagamento</Button>
+          <Button onClick={()=>setGerarTodosModal(true)}>
             + Gerar Todos
             {naoProcessados.length>0 && (
               <span style={{ marginLeft:6, background:'rgba(255,255,255,0.25)', borderRadius:10,
@@ -1222,7 +1215,7 @@ export default function Pagamentos() {
                 {naoProcessados.length}
               </span>
             )}
-          </button>
+          </Button>
         </div>
       </div>
 

@@ -3,6 +3,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
 import { CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
+import Button from '../components/Button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -818,7 +819,7 @@ export default function Documentos() {
               </button>
               {acoesOpen && <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />}
             </div>
-            <button style={pg.newBtn} onClick={() => setDrawer('novo')}>+ Novo documento</button>
+            <Button onClick={() => setDrawer('novo')}>+ Novo documento</Button>
           </div>
         </div>
 

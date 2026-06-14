@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_PRODUTOS } from '../../data/mockProdutos'
+import Button from '../../components/Button'
 
 // ─── Seeds ────────────────────────────────────────────────────────────────────
 // produto_id acrescentado — FK → produtos.id
@@ -179,22 +180,18 @@ function HabilitacaoModal({ initial, onClose, onSave, onDelete, existentes }) {
               confirmDel ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 12, color: 'var(--red)' }}>Confirmar exclusão?</span>
-                  <button type="button" style={{ ...s.btn, color: 'var(--red)', borderColor: 'rgba(220,38,38,0.3)' }}
-                    onClick={() => onDelete(initial.id)}>Excluir</button>
-                  <button type="button" style={s.btn} onClick={() => setConfirmDel(false)}>Cancelar</button>
+                  <Button variant="danger" onClick={() => onDelete(initial.id)}>Excluir</Button>
+                  <Button variant="secondary" onClick={() => setConfirmDel(false)}>Cancelar</Button>
                 </div>
               ) : (
-                <button type="button" style={{ ...s.btn, color: 'var(--red)', borderColor: 'rgba(220,38,38,0.2)' }}
-                  onClick={() => setConfirmDel(true)}>Excluir habilitação</button>
+                <Button variant="danger" onClick={() => setConfirmDel(true)}>Excluir habilitação</Button>
               )
             ) : <div />}
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" style={s.btn} onClick={onClose}>Cancelar</button>
-              <button type="submit"
-                disabled={!nome.trim() || !!nomeErr}
-                style={{ ...s.btnPrimary, opacity: (!nome.trim() || !!nomeErr) ? 0.5 : 1, cursor: (!nome.trim() || !!nomeErr) ? 'not-allowed' : 'pointer' }}>
+              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+              <Button type="submit" disabled={!nome.trim() || !!nomeErr}>
                 {initial ? 'Salvar alterações' : 'Criar habilitação'}
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -242,7 +239,7 @@ export default function Habilitacoes() {
           <h2 style={pg.title}>Habilitações</h2>
           <p style={pg.desc}>Defina os tipos de habilitação e vincule-os aos produtos do tenant.</p>
         </div>
-        <button style={pg.btnNew} onClick={() => setModal('new')}>+ Nova habilitação</button>
+        <Button onClick={() => setModal('new')}>+ Nova habilitação</Button>
       </div>
 
       {/* KPIs */}
@@ -296,7 +293,7 @@ export default function Habilitacoes() {
               {search || filterProduto ? 'Nenhuma habilitação encontrada.' : 'Nenhuma habilitação cadastrada ainda.'}
             </span>
             {!search && !filterProduto && (
-              <button onClick={() => setModal('new')} style={{ ...pg.btnNew, marginTop: 4 }}>+ Nova habilitação</button>
+              <Button onClick={() => setModal('new')} style={{ marginTop: 4 }}>+ Nova habilitação</Button>
             )}
           </div>
         ) : (

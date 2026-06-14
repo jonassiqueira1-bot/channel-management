@@ -4,6 +4,7 @@ import { MOCK_FUNIS } from '../data/mockFunis'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import Button from '../components/Button'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -118,8 +119,8 @@ function Modal({ title, onClose, onSave, saveLabel = 'Salvar', valid = true, chi
         </div>
         <div style={m.body}>{children}</div>
         <div style={m.footer}>
-          <button onClick={onClose} style={m.cancelBtn}>Cancelar</button>
-          <button onClick={onSave} style={{ ...m.saveBtn, opacity: valid ? 1 : 0.45, pointerEvents: valid ? 'auto' : 'none' }}>{saveLabel}</button>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button onClick={onSave} disabled={!valid}>{saveLabel}</Button>
         </div>
       </div>
     </div>
@@ -406,7 +407,7 @@ function ReferencesPanel({ refs, isISV, onAdd, onEdit, onDelete }) {
             <h2 style={dp.panelTitle}>Clientes de Referência</h2>
             <p style={dp.panelSub}>{refs.length} caso{refs.length !== 1 ? 's' : ''} de sucesso associado{refs.length !== 1 ? 's' : ''} a este playbook.</p>
           </div>
-          {isISV && <button onClick={onAdd} style={dp.primaryBtn}>+ Adicionar</button>}
+          {isISV && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
         </div>
         {refs.length > 0 && (
           <div style={{ position: 'relative', marginTop: 14 }}>
@@ -483,7 +484,7 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
             <h2 style={dp.panelTitle}>Materiais e Apoio</h2>
             <p style={dp.panelSub}>{resources.length} material(is) disponível(is) neste playbook.</p>
           </div>
-          {isISV && <button onClick={onAdd} style={dp.primaryBtn}>+ Adicionar</button>}
+          {isISV && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
         </div>
         {resources.length > 0 && (
           <div style={{ position: 'relative', marginTop: 14 }}>
@@ -653,7 +654,7 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew 
           <h1 style={lv.title}>Playbooks</h1>
         </div>
         {isISV && (
-          <button onClick={onNew} style={lv.newBtn}>+ Novo Playbook</button>
+          <Button onClick={onNew}>+ Novo Playbook</Button>
         )}
       </div>
 
@@ -684,7 +685,7 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew 
             {playbooks.length === 0 && isISV ? 'Crie o primeiro playbook para começar.' : 'Tente ajustar os filtros de busca.'}
           </div>
           {playbooks.length === 0 && isISV && (
-            <button onClick={onNew} style={{ ...lv.newBtn, marginTop: 20 }}>+ Novo Playbook</button>
+            <Button onClick={onNew} style={{ marginTop: 20 }}>+ Novo Playbook</Button>
           )}
         </div>
       ) : (
