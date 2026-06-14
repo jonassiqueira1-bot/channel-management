@@ -1,0 +1,1044 @@
+import { useState, useMemo, useRef, useEffect } from 'react'
+import { useLocalState } from '../hooks/useLocalState'
+import NotionDrawer, {
+  DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate,
+} from '../components/NotionDrawer'
+import {
+  MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
+} from '../data/mockCustomerSuccess'
+import {
+  HeartPulse, LayoutList, LayoutGrid, ChevronDown, Plus, Check,
+  Trash2, Circle, CheckCircle2, CalendarDays, User, Building2,
+  Download, Upload, X, SlidersHorizontal, RefreshCw,
+} from 'lucide-react'
+
+const ACCENT = '#6366F1'
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function uid() { return 'ph_' + Date.now() + Math.floor(Math.random() * 9999) }
+function aidFn() { return 'ap_' + Date.now() + Math.floor(Math.random() * 9999) }
+function cidFn() { return 'ci_' + Date.now() + Math.floor(Math.random() * 9999) }
+
+function fmtDate(iso) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+function daysUntil(iso) {
+  if (!iso) return null
+  const diff = new Date(iso) - new Date()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+// ─── Badges ──────────────────────────────────────────────────────────────────
+function LaerBadge({ stage }) {
+  const cfg = LAER_STAGES.find(s => s.value === stage) || LAER_STAGES[0]
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 9px', borderRadius: 20,
+      fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)',
+      background: cfg.bg, color: cfg.color,
+      border: `1px solid ${cfg.color}33`,
+      whiteSpace: 'nowrap',
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
+function TouchBadge({ model }) {
+  const cfg = TOUCH_MODELS.find(t => t.value === model)
+  if (!cfg) return null
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center',
+      padding: '2px 8px', borderRadius: 20,
+      fontSize: 10, fontWeight: 600, fontFamily: 'var(--mono)',
+      background: `${cfg.color}18`, color: cfg.color,
+      border: `1px solid ${cfg.color}33`,
+      whiteSpace: 'nowrap',
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
+function HealthRing({ score, size = 44 }) {
+  const { color, bg } = healthColor(score)
+  const r = (size - 6) / 2
+  const circ = 2 * Math.PI * r
+  const dash = (score / 100) * circ
+  return (
+    <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
+      <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={bg} strokeWidth={5} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color}
+          strokeWidth={5} strokeLinecap="round"
+          strokeDasharray={`${dash} ${circ}`}
+          style={{ transition: 'stroke-dasharray 0.4s ease' }} />
+      </svg>
+      <div style={{
+        position: 'absolute', inset: 0,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: size * 0.26, fontWeight: 800, color, fontFamily: 'var(--mono)',
+      }}>
+        {score}
+      </div>
+    </div>
+  )
+}
+
+// ─── Inline Health Score ───────────────────────────────────────────────────────
+function InlineHealthScore({ value, onChange }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(String(value))
+  const ref = useRef(null)
+  const { color, bg, border } = healthColor(Number(value))
+
+  useEffect(() => { setDraft(String(value)) }, [value])
+  useEffect(() => { if (editing && ref.current) { ref.current.focus(); ref.current.select() } }, [editing])
+
+  function commit() {
+    setEditing(false)
+    const n = Math.max(0, Math.min(100, parseInt(draft, 10) || 0))
+    setDraft(String(n))
+    if (n !== value) onChange(n)
+  }
+
+  if (editing) return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <input ref={ref} type="number" min={0} max={100}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={e => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') { setDraft(String(value)); setEditing(false) } }}
+        style={{ width: 64, padding: '3px 8px', border: `1.5px solid ${ACCENT}`,
+          borderRadius: 6, background: 'var(--surface)', fontSize: 13,
+          color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }}
+      />
+      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>/ 100</span>
+    </div>
+  )
+
+  return (
+    <div onClick={() => setEditing(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+      <HealthRing score={value} size={40} />
+      <div>
+        <div style={{ fontSize: 18, fontWeight: 800, color, fontFamily: 'var(--mono)', lineHeight: 1 }}>{value}</div>
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>
+          {value >= 80 ? 'Saudável' : value >= 50 ? 'Atenção' : 'Em risco'}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Filtro Popover ───────────────────────────────────────────────────────────
+function FilterPopover({ label, options, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const active = value !== ''
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '6px 11px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+        border: `1px solid ${active ? ACCENT : 'var(--border)'}`,
+        background: active ? `${ACCENT}10` : 'var(--surface)',
+        color: active ? ACCENT : 'var(--text)',
+        cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap',
+      }}>
+        <SlidersHorizontal size={12} />
+        {label}{active && `: ${options.find(o => o.value === value)?.label || value}`}
+        <ChevronDown size={11} style={{ opacity: 0.6, marginLeft: 2 }} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+          minWidth: 160, overflow: 'hidden',
+        }}>
+          <div onClick={() => { onChange(''); setOpen(false) }}
+            style={{ padding: '8px 14px', fontSize: 12, cursor: 'pointer',
+              color: value === '' ? ACCENT : 'var(--text-muted)', fontWeight: value === '' ? 700 : 400,
+              borderBottom: '1px solid var(--border2)' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+            Todos
+          </div>
+          {options.map(o => (
+            <div key={o.value} onClick={() => { onChange(o.value); setOpen(false) }}
+              style={{ padding: '8px 14px', fontSize: 12, cursor: 'pointer',
+                color: value === o.value ? ACCENT : 'var(--text)', fontWeight: value === o.value ? 700 : 400,
+                display: 'flex', alignItems: 'center', gap: 8 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              {value === o.value && <Check size={11} color={ACCENT} />}
+              {value !== o.value && <span style={{ width: 11 }} />}
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Dropdown Ação (Importar/Exportar) ────────────────────────────────────────
+function ActionDropdown({ onImport, onExport }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    if (open) document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', gap: 5,
+        padding: '7px 12px', border: '1px solid var(--border)',
+        borderRadius: 8, background: 'var(--surface)', color: 'var(--text)',
+        fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+      }}>
+        Ações <ChevronDown size={12} />
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', right: 0, marginTop: 4, zIndex: 50,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 9, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
+          minWidth: 160, overflow: 'hidden',
+        }}>
+          {[
+            { icon: <Upload size={13} />, label: 'Importar CSV', action: onImport },
+            { icon: <Download size={13} />, label: 'Exportar CSV', action: onExport },
+          ].map(({ icon, label, action }) => (
+            <div key={label} onClick={() => { action(); setOpen(false) }}
+              style={{ padding: '9px 14px', display: 'flex', alignItems: 'center', gap: 9,
+                fontSize: 12, cursor: 'pointer', color: 'var(--text)' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span style={{ color: 'var(--text-muted)' }}>{icon}</span>
+              {label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Plano de Ação ─────────────────────────────────────────────────────────────
+function ActionPlanBlock({ plans, onChange }) {
+  const [newText, setNewText] = useState('')
+  const inputRef = useRef(null)
+
+  function addPlan() {
+    const t = newText.trim()
+    if (!t) return
+    onChange([...plans, { id: aidFn(), text: t, done: false }])
+    setNewText('')
+    inputRef.current?.focus()
+  }
+
+  function toggle(id) {
+    onChange(plans.map(p => p.id === id ? { ...p, done: !p.done } : p))
+  }
+
+  function remove(id) { onChange(plans.filter(p => p.id !== id)) }
+
+  function updateText(id, text) {
+    onChange(plans.map(p => p.id === id ? { ...p, text } : p))
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      {plans.map(p => (
+        <div key={p.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8,
+          padding: '6px 10px', borderRadius: 7,
+          background: p.done ? 'var(--surface2)' : 'transparent',
+          transition: 'background 0.15s' }}
+          onMouseEnter={e => { if (!p.done) e.currentTarget.style.background = 'var(--surface2)' }}
+          onMouseLeave={e => { if (!p.done) e.currentTarget.style.background = 'transparent' }}>
+          <button onClick={() => toggle(p.id)} style={{ background: 'none', border: 'none',
+            cursor: 'pointer', padding: 0, marginTop: 2, flexShrink: 0, color: p.done ? '#10B981' : 'var(--border)' }}>
+            {p.done ? <CheckCircle2 size={15} /> : <Circle size={15} />}
+          </button>
+          <div style={{ flex: 1, fontSize: 13, color: p.done ? 'var(--text-muted)' : 'var(--text)',
+            textDecoration: p.done ? 'line-through' : 'none', lineHeight: 1.5 }}>
+            {p.text}
+          </div>
+          <button onClick={() => remove(p.id)} style={{ background: 'none', border: 'none',
+            cursor: 'pointer', padding: 0, color: 'var(--border)', opacity: 0, transition: 'opacity 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.opacity = 1}
+            onMouseLeave={e => e.currentTarget.style.opacity = 0}>
+            <Trash2 size={12} />
+          </button>
+        </div>
+      ))}
+      <div style={{ display: 'flex', gap: 6, padding: '4px 10px' }}>
+        <input ref={inputRef}
+          value={newText}
+          onChange={e => setNewText(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addPlan() }}
+          placeholder="+ Adicionar ação…"
+          style={{ flex: 1, border: 'none', borderBottom: '1.5px solid var(--border2)',
+            background: 'transparent', fontSize: 12, color: 'var(--text)',
+            fontFamily: 'var(--font)', outline: 'none', padding: '4px 2px' }}
+        />
+      </div>
+    </div>
+  )
+}
+
+// ─── Check-in Timeline ────────────────────────────────────────────────────────
+function CheckinBlock({ checkins, onChange }) {
+  const [form, setForm] = useState(null)
+  const TYPES = ['Reunião', 'Ligação', 'E-mail', 'Visita', 'QBR']
+
+  function addCheckin() {
+    if (!form?.summary?.trim()) return
+    onChange([{ id: cidFn(), date: form.date || new Date().toISOString().slice(0, 10),
+      type: form.type || 'Reunião', summary: form.summary }, ...checkins])
+    setForm(null)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {form ? (
+        <div style={{ padding: '12px 16px', background: 'var(--surface2)',
+          border: '1px solid var(--border)', borderRadius: 8, marginBottom: 10,
+          display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+            <div>
+              <label style={LBL}>Tipo</label>
+              <select value={form.type || 'Reunião'} onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+                style={INPUT}>
+                {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Data</label>
+              <input type="date" value={form.date || new Date().toISOString().slice(0, 10)}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                style={INPUT} />
+            </div>
+          </div>
+          <div>
+            <label style={LBL}>Resumo</label>
+            <textarea value={form.summary || ''} onChange={e => setForm(f => ({ ...f, summary: e.target.value }))}
+              rows={3} placeholder="O que foi discutido?"
+              style={{ ...INPUT, resize: 'vertical', lineHeight: 1.5 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button onClick={() => setForm(null)} style={CANCEL_BTN}>Cancelar</button>
+            <button onClick={addCheckin} style={SAVE_BTN}>Salvar</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setForm({ type: 'Reunião', date: new Date().toISOString().slice(0, 10), summary: '' })}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+            background: 'none', border: '1.5px dashed var(--border)', borderRadius: 7,
+            fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer',
+            fontFamily: 'var(--font)', marginBottom: 10 }}>
+          <Plus size={13} /> Registrar check-in
+        </button>
+      )}
+
+      <div style={{ position: 'relative' }}>
+        {checkins.map((ci, i) => {
+          const TYPE_COLOR = {
+            'Reunião': '#6366F1', 'Ligação': '#10B981', 'E-mail': '#3B82F6',
+            'Visita': '#F59E0B', 'QBR': '#EC4899',
+          }
+          const dotColor = TYPE_COLOR[ci.type] || '#6B7280'
+          return (
+            <div key={ci.id} style={{ display: 'flex', gap: 12, paddingBottom: 16, position: 'relative' }}>
+              {/* linha vertical */}
+              {i < checkins.length - 1 && (
+                <div style={{ position: 'absolute', left: 10, top: 20, bottom: 0,
+                  width: 1.5, background: 'var(--border2)' }} />
+              )}
+              {/* dot */}
+              <div style={{ width: 21, height: 21, borderRadius: '50%', flexShrink: 0,
+                background: `${dotColor}20`, border: `2px solid ${dotColor}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1 }}>
+                <div style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor }} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: dotColor,
+                    padding: '1px 7px', background: `${dotColor}15`,
+                    borderRadius: 99, fontFamily: 'var(--mono)' }}>
+                    {ci.type}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                    {fmtDate(ci.date)}
+                  </span>
+                </div>
+                <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>{ci.summary}</div>
+              </div>
+            </div>
+          )
+        })}
+        {checkins.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>
+            Nenhum check-in registrado.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Card de parceiro ─────────────────────────────────────────────────────────
+function PartnerCard({ p, onClick }) {
+  const { color, bg, border } = healthColor(p.health_score)
+  const days = daysUntil(p.renewal_date)
+  return (
+    <div onClick={onClick}
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+        borderRadius: 12, padding: '16px 18px',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.06)', cursor: 'pointer',
+        transition: 'box-shadow 0.15s, border-color 0.15s', display: 'flex', flexDirection: 'column', gap: 12 }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 16px rgba(0,0,0,0.1)'; e.currentTarget.style.borderColor = `${ACCENT}44` }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.06)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
+
+      {/* Topo */}
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 3 }}>
+            {p.company_name}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            {p.company_city} · {p.company_uf}
+          </div>
+        </div>
+        <HealthRing score={p.health_score} size={46} />
+      </div>
+
+      {/* Badges */}
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <LaerBadge stage={p.laer_stage} />
+        <TouchBadge model={p.touch_model} />
+      </div>
+
+      {/* Barra de saúde */}
+      <div>
+        <div style={{ height: 4, borderRadius: 9, background: 'var(--border2)', overflow: 'hidden' }}>
+          <div style={{ height: '100%', width: `${p.health_score}%`,
+            background: color, borderRadius: 9,
+            transition: 'width 0.4s ease' }} />
+        </div>
+      </div>
+
+      {/* Rodapé */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        fontSize: 11, color: 'var(--text-muted)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <User size={11} /> {p.csm}
+        </span>
+        {days !== null && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4,
+            color: days <= 30 ? '#DC2626' : days <= 90 ? '#D97706' : 'var(--text-muted)',
+            fontWeight: days <= 90 ? 700 : 400 }}>
+            <CalendarDays size={11} />
+            {days > 0 ? `Renova em ${days}d` : 'Renovação vencida'}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Linha de tabela ──────────────────────────────────────────────────────────
+function PartnerRow({ p, onClick }) {
+  const { color } = healthColor(p.health_score)
+  const days = daysUntil(p.renewal_date)
+  return (
+    <tr onClick={onClick}
+      style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+      <td style={T.td}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{p.company_name}</div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.company_city} · {p.company_uf}</div>
+      </td>
+      <td style={T.td}><LaerBadge stage={p.laer_stage} /></td>
+      <td style={T.td}><TouchBadge model={p.touch_model} /></td>
+      <td style={{ ...T.td, textAlign: 'center' }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'var(--mono)' }}>
+          {p.health_score}
+        </span>
+      </td>
+      <td style={T.td}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.csm}</span>
+      </td>
+      <td style={{ ...T.td, fontSize: 11, fontFamily: 'var(--mono)',
+        color: days !== null && days <= 30 ? '#DC2626' : days !== null && days <= 90 ? '#D97706' : 'var(--text-muted)',
+        fontWeight: days !== null && days <= 90 ? 700 : 400 }}>
+        {fmtDate(p.renewal_date)}
+        {days !== null && days <= 90 && (
+          <span style={{ fontSize: 10, marginLeft: 5, opacity: 0.7 }}>({days}d)</span>
+        )}
+      </td>
+      <td style={{ ...T.td, textAlign: 'center' }}>
+        <button onClick={e => { e.stopPropagation(); onClick() }}
+          style={{ fontSize: 11, fontWeight: 600, color: ACCENT, background: 'none',
+            border: '1px solid var(--border)', borderRadius: 6, padding: '3px 10px',
+            cursor: 'pointer', fontFamily: 'var(--font)' }}>
+          Abrir
+        </button>
+      </td>
+    </tr>
+  )
+}
+
+// ─── Modal de Check-in Novo ───────────────────────────────────────────────────
+function NovoCheckinModal({ onClose, onSave }) {
+  const [form, setForm] = useState({
+    company_name: '', csm: '', laer_stage: 'Land', touch_model: 'Mid-Touch',
+    health_score: 75, renewal_date: '', notes: '', action_plans: [], checkins: [],
+  })
+  const [err, setErr] = useState('')
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  function submit(e) {
+    e.preventDefault()
+    if (!form.company_name.trim()) { setErr('Informe o nome do parceiro.'); return }
+    onSave({
+      id: uid(), tenant_id: 't1',
+      company_id: null,
+      ...form,
+      company_city: '', company_uf: '',
+      criado_em: new Date().toISOString().slice(0, 10),
+    })
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+      backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', zIndex: 800, padding: 20 }}>
+      <form onSubmit={submit} style={{ background: 'var(--surface)', borderRadius: 14,
+        width: '100%', maxWidth: 520, boxShadow: '0 20px 60px rgba(0,0,0,0.25)',
+        overflow: 'hidden' }}>
+        <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Novo Check-in</span>
+          <button type="button" onClick={onClose} style={{ background: 'none', border: 'none',
+            cursor: 'pointer', color: 'var(--text-muted)', fontSize: 18, lineHeight: 1 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {err && <div style={{ fontSize: 12, color: '#DC2626', padding: '8px 12px',
+            background: '#FEE2E2', borderRadius: 7 }}>{err}</div>}
+
+          <div>
+            <label style={LBL}>Parceiro *</label>
+            <input value={form.company_name} onChange={e => set('company_name', e.target.value)}
+              placeholder="Nome do parceiro" style={INPUT} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={LBL}>Estágio LAER</label>
+              <select value={form.laer_stage} onChange={e => set('laer_stage', e.target.value)} style={INPUT}>
+                {LAER_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={LBL}>Touch Model</label>
+              <select value={form.touch_model} onChange={e => set('touch_model', e.target.value)} style={INPUT}>
+                {TOUCH_MODELS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div>
+              <label style={LBL}>Health Score (0–100)</label>
+              <input type="number" min={0} max={100} value={form.health_score}
+                onChange={e => set('health_score', Math.max(0, Math.min(100, Number(e.target.value))))}
+                style={INPUT} />
+            </div>
+            <div>
+              <label style={LBL}>CSM Responsável</label>
+              <input value={form.csm} onChange={e => set('csm', e.target.value)}
+                placeholder="Nome do CSM" style={INPUT} />
+            </div>
+          </div>
+
+          <div>
+            <label style={LBL}>Data de Renovação</label>
+            <input type="date" value={form.renewal_date} onChange={e => set('renewal_date', e.target.value)}
+              style={INPUT} />
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <button type="button" onClick={onClose} style={CANCEL_BTN}>Cancelar</button>
+          <button type="submit" style={SAVE_BTN}>Criar Check-in</button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
+// ─── Drawer de Edição ─────────────────────────────────────────────────────────
+function PartnerDrawer({ record, onClose, onSave, onDelete }) {
+  const [form, setForm] = useState(record)
+  const [confirmDel, setConfirmDel] = useState(false)
+
+  useEffect(() => { setForm(record); setConfirmDel(false) }, [record])
+
+  function set(k, v) {
+    const next = { ...form, [k]: v }
+    setForm(next)
+    onSave(next)
+  }
+
+  const { color, bg } = healthColor(form.health_score)
+  const days = daysUntil(form.renewal_date)
+
+  const LEFT = (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 0, padding: '24px 28px', overflowY: 'auto' }}>
+      {/* Título */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>
+          {form.company_name}
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <LaerBadge stage={form.laer_stage} />
+          <TouchBadge model={form.touch_model} />
+        </div>
+      </div>
+
+      {/* Anotações do CSM */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={SEC_HDR}>📝 Anotações do CSM</div>
+        <InlineTextarea
+          value={form.notes}
+          onChange={v => set('notes', v)}
+          placeholder="Registre observações, contexto e estratégia para este parceiro…"
+          minRows={5}
+        />
+      </div>
+
+      {/* Plano de Ação */}
+      <div style={{ marginBottom: 24 }}>
+        <div style={SEC_HDR}>🎯 Plano de Ação</div>
+        <ActionPlanBlock
+          plans={form.action_plans || []}
+          onChange={plans => set('action_plans', plans)}
+        />
+      </div>
+
+      {/* Histórico de Check-ins */}
+      <div>
+        <div style={SEC_HDR}>🕒 Histórico de Check-ins</div>
+        <CheckinBlock
+          checkins={form.checkins || []}
+          onChange={checkins => set('checkins', checkins)}
+        />
+      </div>
+
+      {/* Zona de exclusão */}
+      {confirmDel ? (
+        <div style={{ marginTop: 32, padding: '12px 14px', background: '#FEE2E2',
+          border: '1px solid #FCA5A5', borderRadius: 8, display: 'flex',
+          alignItems: 'center', gap: 10 }}>
+          <span style={{ fontSize: 12, color: '#991B1B', flex: 1 }}>
+            Remover este parceiro do Customer Success?
+          </span>
+          <button onClick={() => { onDelete(form.id); onClose() }}
+            style={{ ...SAVE_BTN, background: '#DC2626' }}>
+            Remover
+          </button>
+          <button onClick={() => setConfirmDel(false)} style={CANCEL_BTN}>Cancelar</button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirmDel(true)}
+          style={{ marginTop: 32, display: 'flex', alignItems: 'center', gap: 6,
+            background: 'none', border: 'none', color: '#DC262680', cursor: 'pointer',
+            fontSize: 12, fontFamily: 'var(--font)', padding: '4px 0' }}>
+          <Trash2 size={12} /> Remover parceiro
+        </button>
+      )}
+    </div>
+  )
+
+  const RIGHT = (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Health Score destacado */}
+      <div style={{ padding: '20px 20px 16px', background: `${color}08`,
+        borderBottom: '1px solid var(--border2)' }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+          textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10,
+          fontFamily: 'var(--mono)' }}>
+          Health Score
+        </div>
+        <InlineHealthScore value={form.health_score} onChange={v => set('health_score', v)} />
+      </div>
+
+      <MetaSection label="Estágio & Modelo" />
+      <MetaRow label="LAER">
+        <InlineSelect
+          value={form.laer_stage}
+          onChange={v => set('laer_stage', v)}
+          options={LAER_STAGES.map(s => ({ value: s.value, label: s.label }))}
+        />
+      </MetaRow>
+      <MetaRow label="Touch Model">
+        <InlineSelect
+          value={form.touch_model}
+          onChange={v => set('touch_model', v)}
+          options={TOUCH_MODELS.map(t => ({ value: t.value, label: t.label }))}
+        />
+      </MetaRow>
+
+      <MetaSection label="Renovação" />
+      <MetaRow label="Data">
+        <InlineDate
+          value={form.renewal_date}
+          onChange={v => set('renewal_date', v)}
+          placeholder="Definir data"
+        />
+      </MetaRow>
+      {days !== null && (
+        <MetaRow label="Prazo">
+          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)',
+            color: days <= 30 ? '#DC2626' : days <= 90 ? '#D97706' : '#10B981' }}>
+            {days > 0 ? `${days} dias` : 'Vencida'}
+          </span>
+        </MetaRow>
+      )}
+
+      <MetaSection label="Responsável" />
+      <MetaRow label="CSM">
+        <InlineText
+          value={form.csm}
+          onChange={v => set('csm', v)}
+          placeholder="CSM responsável"
+        />
+      </MetaRow>
+      <MetaRow label="Parceiro">
+        <span style={{ fontSize: 12, color: 'var(--text)', padding: '2px 6px' }}>
+          {form.company_name}
+        </span>
+      </MetaRow>
+      {form.company_city && (
+        <MetaRow label="Localização">
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}>
+            {form.company_city} · {form.company_uf}
+          </span>
+        </MetaRow>
+      )}
+
+      <MetaSection label="Criado em" />
+      <MetaRow label="Data">
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px',
+          fontFamily: 'var(--mono)' }}>
+          {fmtDate(form.criado_em)}
+        </span>
+      </MetaRow>
+    </div>
+  )
+
+  return (
+    <NotionDrawer
+      open={!!record}
+      onClose={onClose}
+      breadcrumb="Customer Success"
+      title={form.company_name}>
+      <DrawerBody left={LEFT} right={RIGHT} />
+    </NotionDrawer>
+  )
+}
+
+// ─── Página Principal ─────────────────────────────────────────────────────────
+export default function CustomerSuccess() {
+  const [records, setRecords] = useLocalState(STORAGE_KEY, MOCK_PARTNER_HEALTH)
+  const [busca, setBusca]           = useState('')
+  const [filtroLaer, setFiltroLaer] = useState('')
+  const [filtroTouch, setFiltroTouch] = useState('')
+  const [view, setView]             = useState('card') // 'card' | 'list'
+  const [selecionado, setSelecionado] = useState(null)
+  const [novoModal, setNovoModal]   = useState(false)
+
+  const lista = useMemo(() => {
+    const q = busca.toLowerCase()
+    return records.filter(r =>
+      (!q || r.company_name.toLowerCase().includes(q) || (r.csm || '').toLowerCase().includes(q)) &&
+      (!filtroLaer  || r.laer_stage   === filtroLaer) &&
+      (!filtroTouch || r.touch_model  === filtroTouch)
+    )
+  }, [records, busca, filtroLaer, filtroTouch])
+
+  // KPIs
+  const healthy  = records.filter(r => r.health_score >= 80).length
+  const atencao  = records.filter(r => r.health_score >= 50 && r.health_score < 80).length
+  const risco    = records.filter(r => r.health_score < 50).length
+  const avgScore = records.length ? Math.round(records.reduce((s, r) => s + r.health_score, 0) / records.length) : 0
+
+  function save(updated) {
+    setRecords(prev => {
+      const idx = prev.findIndex(r => r.id === updated.id)
+      if (idx >= 0) { const a = [...prev]; a[idx] = updated; return a }
+      return [...prev, updated]
+    })
+  }
+
+  function remove(id) {
+    setRecords(prev => prev.filter(r => r.id !== id))
+    setSelecionado(null)
+  }
+
+  function exportCSV() {
+    const cols = ['id','company_name','company_city','company_uf','laer_stage','touch_model','health_score','csm','renewal_date']
+    const rows = records.map(r => cols.map(k => String(r[k] ?? '')).join(','))
+    const blob = new Blob([[cols.join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `partner_health_${new Date().toISOString().slice(0,10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function importCSV() {
+    const input = document.createElement('input')
+    input.type = 'file'; input.accept = '.csv'
+    input.onchange = e => {
+      const file = e.target.files[0]; if (!file) return
+      const reader = new FileReader()
+      reader.onload = ev => {
+        const [header, ...rows] = ev.target.result.trim().split('\n')
+        const cols = header.split(',')
+        const imported = rows.map(row => {
+          const vals = row.split(',')
+          const obj = Object.fromEntries(cols.map((c, i) => [c.trim(), vals[i]?.trim() || '']))
+          return { ...obj, id: uid(), tenant_id: 't1', health_score: Number(obj.health_score) || 70,
+            action_plans: [], checkins: [], notes: '' }
+        })
+        setRecords(prev => [...prev, ...imported])
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
+  const { color: avgColor } = healthColor(avgScore)
+
+  return (
+    <div style={P.wrap}>
+      {/* ── Header ── */}
+      <div style={P.header}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <div style={{ width: 32, height: 32, borderRadius: 8, background: `${ACCENT}18`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <HeartPulse size={16} color={ACCENT} />
+            </div>
+            <h2 style={P.title}>Sucesso do Parceiro</h2>
+          </div>
+          <div style={{ width: 1, height: 22, background: 'var(--border)', flexShrink: 0 }} />
+          {/* Busca */}
+          <input
+            style={P.search}
+            placeholder="Buscar parceiro ou CSM…"
+            value={busca}
+            onChange={e => setBusca(e.target.value)}
+          />
+          {/* Filtros */}
+          <FilterPopover
+            label="LAER"
+            options={LAER_STAGES.map(s => ({ value: s.value, label: s.label }))}
+            value={filtroLaer}
+            onChange={setFiltroLaer}
+          />
+          <FilterPopover
+            label="Touch Model"
+            options={TOUCH_MODELS.map(t => ({ value: t.value, label: t.label }))}
+            value={filtroTouch}
+            onChange={setFiltroTouch}
+          />
+          {(busca || filtroLaer || filtroTouch) && (
+            <button onClick={() => { setBusca(''); setFiltroLaer(''); setFiltroTouch('') }}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px',
+                border: 'none', background: 'none', cursor: 'pointer',
+                fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font)' }}>
+              <X size={11} /> Limpar
+            </button>
+          )}
+        </div>
+
+        {/* Lado direito */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+          {/* Toggle Lista/Card */}
+          <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
+            {[
+              { key: 'list', Icon: LayoutList },
+              { key: 'card', Icon: LayoutGrid },
+            ].map(({ key, Icon }) => (
+              <button key={key} onClick={() => setView(key)}
+                style={{ padding: '6px 10px', border: 'none', cursor: 'pointer',
+                  background: view === key ? ACCENT : 'var(--surface)',
+                  color: view === key ? '#fff' : 'var(--text-muted)',
+                  transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}>
+                <Icon size={14} />
+              </button>
+            ))}
+          </div>
+          <ActionDropdown onImport={importCSV} onExport={exportCSV} />
+          <button onClick={() => setNovoModal(true)} style={P.primaryBtn}>
+            <Plus size={13} /> Novo Check-in
+          </button>
+        </div>
+      </div>
+
+      {/* ── KPIs ── */}
+      <div style={P.kpiRow}>
+        {[
+          { label: 'Total', value: records.length, color: 'var(--text)' },
+          { label: 'Saudáveis', value: healthy,  color: '#059669' },
+          { label: 'Atenção',   value: atencao,  color: '#D97706' },
+          { label: 'Em Risco',  value: risco,    color: '#DC2626' },
+          { label: 'Score Médio', value: avgScore, color: avgColor, mono: true },
+        ].map(k => (
+          <div key={k.label} style={P.kpiCard}>
+            <span style={{ fontSize: k.label === 'Score Médio' ? 22 : 20, fontWeight: 800,
+              color: k.color, lineHeight: 1, fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>
+              {k.value}
+            </span>
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
+              textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              {k.label}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* ── Conteúdo ── */}
+      <div style={P.content}>
+        {lista.length === 0 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center',
+            justifyContent: 'center', height: '100%', gap: 12, color: 'var(--text-muted)' }}>
+            <HeartPulse size={40} style={{ opacity: 0.25 }} />
+            <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhum parceiro encontrado</div>
+            <div style={{ fontSize: 12 }}>Ajuste os filtros ou crie um novo check-in</div>
+          </div>
+        ) : view === 'card' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+            gap: 14, padding: '20px 28px' }}>
+            {lista.map(p => (
+              <PartnerCard key={p.id} p={p} onClick={() => setSelecionado(p)} />
+            ))}
+          </div>
+        ) : (
+          <div style={{ padding: '0 28px 24px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
+              <thead>
+                <tr style={{ background: 'var(--surface2)', position: 'sticky', top: 0, zIndex: 1 }}>
+                  {['Parceiro', 'LAER', 'Touch Model', 'Score', 'CSM', 'Renovação', ''].map((h, i) => (
+                    <th key={i} style={{ ...T.th, textAlign: i === 3 ? 'center' : 'left' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {lista.map(p => (
+                  <PartnerRow key={p.id} p={p} onClick={() => setSelecionado(p)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* ── Drawer ── */}
+      {selecionado && (
+        <PartnerDrawer
+          record={selecionado}
+          onClose={() => setSelecionado(null)}
+          onSave={updated => { save(updated); setSelecionado(updated) }}
+          onDelete={remove}
+        />
+      )}
+
+      {/* ── Modal Novo ── */}
+      {novoModal && (
+        <NovoCheckinModal
+          onClose={() => setNovoModal(false)}
+          onSave={novo => { save(novo); setNovoModal(false) }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─── Estilos compartilhados ──────────────────────────────────────────────────
+const LBL = {
+  fontSize: 11, fontWeight: 700, color: 'var(--text-muted)',
+  textTransform: 'uppercase', letterSpacing: 0.4, display: 'block', marginBottom: 4,
+}
+const INPUT = {
+  width: '100%', padding: '7px 10px', border: '1px solid var(--border)',
+  borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)',
+  fontSize: 12, fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
+}
+const SAVE_BTN = {
+  padding: '6px 16px', background: ACCENT, color: '#fff', border: 'none',
+  borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+}
+const CANCEL_BTN = {
+  padding: '6px 14px', background: 'none', color: 'var(--text-muted)',
+  border: '1px solid var(--border)', borderRadius: 7, fontSize: 12, cursor: 'pointer',
+  fontFamily: 'var(--font)',
+}
+const SEC_HDR = {
+  fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+  letterSpacing: '0.07em', fontFamily: 'var(--mono)', marginBottom: 10,
+  paddingBottom: 6, borderBottom: '1px solid var(--border2)',
+}
+
+const P = {
+  wrap:    { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
+  header:  { padding: '16px 28px', borderBottom: '1px solid var(--border)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexShrink: 0 },
+  title:   { fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0, letterSpacing: '-0.3px', whiteSpace: 'nowrap' },
+  search:  { padding: '6px 11px', border: '1px solid var(--border)', borderRadius: 7,
+    fontSize: 12, background: 'var(--surface)', color: 'var(--text)', width: 200,
+    fontFamily: 'var(--font)', outline: 'none' },
+  kpiRow:  { display: 'flex', gap: 12, padding: '12px 28px',
+    borderBottom: '1px solid var(--border2)', flexShrink: 0 },
+  kpiCard: { display: 'flex', flexDirection: 'column', alignItems: 'center',
+    padding: '8px 20px', background: 'var(--surface2)',
+    border: '1px solid var(--border2)', borderRadius: 8, gap: 2, minWidth: 80 },
+  content: { flex: 1, overflowY: 'auto' },
+  primaryBtn: { display: 'flex', alignItems: 'center', gap: 6,
+    padding: '7px 14px', background: ACCENT, color: '#fff', border: 'none',
+    borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+    fontFamily: 'var(--font)', whiteSpace: 'nowrap' },
+}
+
+const T = {
+  th: { padding: '8px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.08em', color: 'var(--text-muted)', borderBottom: '1px solid var(--border)',
+    fontFamily: 'var(--mono)', whiteSpace: 'nowrap' },
+  td: { padding: '10px 12px', verticalAlign: 'middle' },
+}

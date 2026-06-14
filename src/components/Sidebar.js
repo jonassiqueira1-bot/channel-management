@@ -5,7 +5,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
-  ClipboardList, FileStack, BookOpen, DollarSign, Settings, ShieldAlert,
+  ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse, Settings, ShieldAlert,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
 } from 'lucide-react'
 
@@ -13,7 +13,7 @@ import {
 const ICON_MAP = {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
-  ClipboardList, FileStack, BookOpen, DollarSign,
+  ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
 }
 
 // ─── Estrutura inicial dos grupos ────────────────────────────────────────────
@@ -56,6 +56,13 @@ const INITIAL_GROUPS = [
     label: 'Projetos',
     items: [
       { path: '/projetos', label: 'Projetos', iconKey: 'FolderKanban' },
+    ],
+  },
+  {
+    id: 'customer_success',
+    label: 'Customer Success',
+    items: [
+      { path: '/customer-success', label: 'Sucesso do Parceiro', iconKey: 'HeartPulse' },
     ],
   },
   {

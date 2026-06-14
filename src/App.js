@@ -21,6 +21,7 @@ import Pagamentos from './pages/Pagamentos'
 import Projetos from './pages/Projetos'
 import Playbooks from './pages/Playbooks'
 import Comissoes from './pages/Comissoes'
+import CustomerSuccess from './pages/CustomerSuccess'
 import Settings, { SettingsPage } from './pages/Settings'
 import SettingsCampanhas from './pages/settings/Campanhas'
 import SettingsFranquias from './pages/settings/Franquias'
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="/documentos"   element={<Documentos />} />
             <Route path="/playbooks"     element={<Playbooks />} />
             <Route path="/comissoes"   element={<Comissoes />} />
+            <Route path="/customer-success" element={<CustomerSuccess />} />
             <Route path="/my-account" element={<MyAccount />} />
 
             {/* ── Configurações ── */}
