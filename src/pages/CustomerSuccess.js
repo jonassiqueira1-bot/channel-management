@@ -465,32 +465,47 @@ function PartnerCard({ p, onClick }) {
   )
 }
 
+// ─── Checkbox ─────────────────────────────────────────────────────────────────
+function Checkbox({ checked, indeterminate, onChange, title }) {
+  return (
+    <label title={title} style={{ display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', width:18, height:18 }}>
+      <input type="checkbox" checked={checked}
+        ref={el => { if (el) el.indeterminate = !!indeterminate }}
+        onChange={onChange}
+        style={{ width:15, height:15, cursor:'pointer', accentColor:'var(--accent)' }} />
+    </label>
+  )
+}
+
 // ─── Linha de tabela ──────────────────────────────────────────────────────────
-function PartnerRow({ p, onClick }) {
+function PartnerRow({ p, onClick, selected, onToggle }) {
   const { color } = healthColor(p.health_score)
   const days = daysUntil(p.renewal_date)
   return (
-    <tr onClick={onClick}
-      style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}
-      onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-      <td style={T.td}>
+    <tr
+      style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', background: selected ? 'rgba(30,58,95,0.05)' : 'transparent' }}
+      onMouseEnter={e => { if (!selected) e.currentTarget.style.background = 'var(--surface2)' }}
+      onMouseLeave={e => { if (!selected) e.currentTarget.style.background = 'transparent' }}>
+      <td style={{ ...T.td, width: 40, textAlign: 'center' }} onClick={e => { e.stopPropagation(); onToggle() }}>
+        <Checkbox checked={selected} onChange={onToggle} />
+      </td>
+      <td style={T.td} onClick={onClick}>
         <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{p.company_name}</div>
         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.company_city} · {p.company_uf}</div>
       </td>
-      <td style={T.td}><LaerBadge stage={p.laer_stage} /></td>
-      <td style={T.td}><TouchBadge model={p.touch_model} /></td>
-      <td style={{ ...T.td, textAlign: 'center' }}>
+      <td style={T.td} onClick={onClick}><LaerBadge stage={p.laer_stage} /></td>
+      <td style={T.td} onClick={onClick}><TouchBadge model={p.touch_model} /></td>
+      <td style={{ ...T.td, textAlign: 'center' }} onClick={onClick}>
         <span style={{ fontSize: 14, fontWeight: 800, color, fontFamily: 'var(--mono)' }}>
           {p.health_score}
         </span>
       </td>
-      <td style={T.td}>
+      <td style={T.td} onClick={onClick}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.csm}</span>
       </td>
       <td style={{ ...T.td, fontSize: 11, fontFamily: 'var(--mono)',
         color: days !== null && days <= 30 ? '#DC2626' : days !== null && days <= 90 ? '#D97706' : 'var(--text-muted)',
-        fontWeight: days !== null && days <= 90 ? 700 : 400 }}>
+        fontWeight: days !== null && days <= 90 ? 700 : 400 }} onClick={onClick}>
         {fmtDate(p.renewal_date)}
         {days !== null && days <= 90 && (
           <span style={{ fontSize: 10, marginLeft: 5, opacity: 0.7 }}>({days}d)</span>
@@ -829,6 +844,7 @@ export default function CustomerSuccess() {
   const [showMetrics, setShowMetrics] = useLocalState('cs:metrics', true)
   const [selecionado, setSelecionado] = useState(null)
   const [novoModal, setNovoModal]     = useState(false)
+  const [selected, setSelected]       = useState(new Set())
 
   const lista = useMemo(() => {
     const q = busca.toLowerCase()
@@ -838,6 +854,23 @@ export default function CustomerSuccess() {
       (!filtroTouch || r.touch_model  === filtroTouch)
     )
   }, [records, busca, filtroLaer, filtroTouch])
+
+  const allListIds    = lista.map(p => p.id)
+  const allSelected   = allListIds.length > 0 && allListIds.every(id => selected.has(id))
+  const someSelected  = allListIds.some(id => selected.has(id)) && !allSelected
+
+  function toggleAll() {
+    if (allSelected) setSelected(prev => { const s = new Set(prev); allListIds.forEach(id => s.delete(id)); return s })
+    else setSelected(prev => new Set([...prev, ...allListIds]))
+  }
+  function toggleOne(id) { setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s }) }
+  function clearSelection() { setSelected(new Set()) }
+
+  function bulkDelete() {
+    if (!window.confirm(`Excluir ${selected.size} registro(s) permanentemente?`)) return
+    setRecords(prev => prev.filter(r => !selected.has(r.id)))
+    clearSelection()
+  }
 
   // KPIs
   const healthy  = records.filter(r => r.health_score >= 80).length
@@ -1017,6 +1050,29 @@ export default function CustomerSuccess() {
         )}
       </div>
 
+      {/* ── Bulk bar ── */}
+      {selected.size > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px',
+          background:'var(--accent)', borderRadius:10, flexWrap:'wrap' }}>
+          <span style={{ display:'flex', alignItems:'center', gap:6, color:'#fff', fontSize:13, fontWeight:600, fontFamily:'var(--mono)' }}>
+            <span style={{ width:8, height:8, borderRadius:'50%', background:'rgba(255,255,255,0.7)', display:'inline-block' }} />
+            {selected.size} selecionado{selected.size > 1 ? 's' : ''}
+          </span>
+          <div style={{ flex:1 }} />
+          <button onClick={bulkDelete}
+            style={{ padding:'4px 12px', border:'1px solid rgba(252,165,165,0.4)', borderRadius:6,
+              background:'rgba(255,255,255,0.12)', color:'#FCA5A5', fontSize:12, fontWeight:500,
+              cursor:'pointer', fontFamily:'var(--font)' }}>
+            Excluir selecionados
+          </button>
+          <button onClick={clearSelection}
+            style={{ fontSize:12, color:'rgba(255,255,255,0.6)', background:'none', border:'none',
+              cursor:'pointer', fontFamily:'var(--font)' }}>
+            ✕ Limpar seleção
+          </button>
+        </div>
+      )}
+
       {/* ── Conteúdo ── */}
       <div style={P.content}>
         {lista.length === 0 ? (
@@ -1038,14 +1094,21 @@ export default function CustomerSuccess() {
             <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 8 }}>
               <thead>
                 <tr style={{ background: 'var(--surface2)', position: 'sticky', top: 0, zIndex: 1 }}>
-                  {['Parceiro', 'LAER', 'Touch Model', 'Score', 'CSM', 'Renovação', ''].map((h, i) => (
+                  <th style={{ ...T.th, width: 40, textAlign: 'center' }}>
+                    <Checkbox checked={allSelected} indeterminate={someSelected} onChange={toggleAll}
+                      title={allSelected ? 'Desmarcar todos' : 'Selecionar todos'} />
+                  </th>
+                  {['Empresa', 'LAER', 'Touch Model', 'Score', 'CSM', 'Renovação', ''].map((h, i) => (
                     <th key={i} style={{ ...T.th, textAlign: i === 3 ? 'center' : 'left' }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {lista.map(p => (
-                  <PartnerRow key={p.id} p={p} onClick={() => setSelecionado(p)} />
+                  <PartnerRow key={p.id} p={p}
+                    onClick={() => setSelecionado(p)}
+                    selected={selected.has(p.id)}
+                    onToggle={() => toggleOne(p.id)} />
                 ))}
               </tbody>
             </table>
