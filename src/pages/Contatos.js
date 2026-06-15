@@ -3,8 +3,8 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
 import Button from '../components/Button'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
-import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
-import Drawer from '../components/Drawer'
+import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 
 const ACCENT = '#6366F1'
@@ -124,51 +124,35 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
     </div>
   )
 
-  const right = (
-    <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
-      <MetaSection label="Identificação" />
-      <MetaRow label="Cargo">
-        <InlineText value={form.cargo || ''} onChange={v => patch('cargo', v)} placeholder="Ex: Diretor Comercial" />
-      </MetaRow>
-      <MetaRow label="Empresa">
-        <InlineSearchSelect
-          value={form.empresa_id ? String(form.empresa_id) : ''}
-          onChange={v => patch('empresa_id', v)}
-          options={empOptions}
-          placeholder="— Sem empresa —"
-        />
-      </MetaRow>
-
-      <MetaSection label="Contato" />
-      <MetaRow label="E-mail">
-        <InlineText value={form.email || ''} onChange={v => patch('email', v)} placeholder="email@empresa.com" />
-      </MetaRow>
-      <MetaRow label="Telefone">
-        <InlineText value={form.telefone || ''} onChange={v => patch('telefone', v)} placeholder="(00) 00000-0000" mono />
-      </MetaRow>
-
-      {!isNew && (
-        <>
-          <MetaSection label="Registro" />
-          <MetaRow label="Cadastrado">
-            <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)', paddingLeft:6 }}>
-              {fmtData(item.criado_em)}
-            </span>
-          </MetaRow>
-          <DeleteZone label="Excluir contato" onDelete={() => { onDelete(item.id); onClose() }} />
-        </>
-      )}
-    </div>
-  )
-
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
         {left}
       </div>
-      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
-        {right}
-      </div>
+      <DrawerSidePanel width={240}>
+        <DrawerSidePanelSection label="Identificação">
+          <DrawerSidePanelField label="Cargo" editing value={form.cargo || ''} onChange={e => patch('cargo', e.target.value)} placeholder="Ex: Diretor Comercial" />
+          <DrawerSidePanelField label="Empresa" as="select" editing value={form.empresa_id ? String(form.empresa_id) : ''} onChange={e => patch('empresa_id', e.target.value)}>
+            {empOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </DrawerSidePanelField>
+        </DrawerSidePanelSection>
+
+        <DrawerSidePanelSection label="Contato">
+          <DrawerSidePanelField label="E-mail" editing value={form.email || ''} onChange={e => patch('email', e.target.value)} placeholder="email@empresa.com" />
+          <DrawerSidePanelField label="Telefone" editing value={form.telefone || ''} onChange={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+        </DrawerSidePanelSection>
+
+        {!isNew && (
+          <>
+            <DrawerSidePanelSection label="Registro">
+              <DrawerSidePanelField label="Cadastrado" value={fmtData(item.criado_em)} />
+            </DrawerSidePanelSection>
+            <div style={{ padding: '0 16px', marginTop: 8 }}>
+              <DeleteZone label="Excluir contato" onDelete={() => { onDelete(item.id); onClose() }} />
+            </div>
+          </>
+        )}
+      </DrawerSidePanel>
     </div>
   )
 }
@@ -436,7 +420,6 @@ export default function Contatos() {
         onClose={() => setModal(null)}
         title={modal && modal !== 'novo' ? modal.nome : 'Novo contato'}
         subtitle="Clientes · Contatos"
-        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
       >
         {modal && (
           <ContatoDetail

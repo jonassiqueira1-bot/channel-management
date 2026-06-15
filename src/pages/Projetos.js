@@ -10,7 +10,7 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
-import Drawer from '../components/Drawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 
 const ACCENT = 'var(--accent)'
 
@@ -220,67 +220,79 @@ function KanbanColuna({ fase, projetos, blockedIds, execTotals, onEdit, onDragSt
 // ─── Novo Projeto Modal ───────────────────────────────────────────────────────
 function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, phase: defaultPhase || 'iniciacao', current_phase_index: defaultPhaseIndex || 1 })
-  const { sections, fieldById } = useFormLayout('projects')
-
-  function renderField(key) {
-    switch (key) {
-      case 'name':
-        return <input style={ms.inp} value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Ex: Implantação ERP — Empresa X" />
-      case 'company_nome':
-        return <input style={ms.inp} value={form.company_nome} onChange={e => setForm(f => ({ ...f, company_nome: e.target.value }))} placeholder="Nexus Tech" />
-      case 'franchise_nome':
-        return <input style={ms.inp} value={form.franchise_nome} onChange={e => setForm(f => ({ ...f, franchise_nome: e.target.value }))} placeholder="Canal SP Sul" />
-      case 'phase':
-        return (
-          <select style={ms.inp} value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
-            {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-          </select>
-        )
-      case 'status':
-        return (
-          <select style={ms.inp} value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
-            {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-        )
-      case 'start_date':
-        return <input style={ms.inp} type="date" value={form.start_date} onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))} />
-      case 'end_date_estimated':
-        return <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => setForm(f => ({ ...f, end_date_estimated: e.target.value }))} />
-      case 'total_hours_estimated':
-        return <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => setForm(f => ({ ...f, total_hours_estimated: e.target.value }))} placeholder="160" />
-      case 'notes':
-        return <textarea style={{ ...ms.inp, height: 72, resize: 'vertical' }} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
-      // campos somente-leitura ou não editáveis no modal de criação
-      case 'opportunity_id':
-      case 'total_hours_executed':
-        return null
-      default:
-        return null
-    }
-  }
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   return (
-    <div style={ms.overlay} onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div style={ms.modal}>
-        <div style={ms.mHeader}>
-          <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)' }}>Novo Projeto</span>
-          <button onClick={onClose} style={{ ...ms.btn, padding: '4px 10px', fontSize: 18, lineHeight: 1 }}>×</button>
-        </div>
-        <div style={ms.mBody}>
-          <DynamicFormLayout
-            sections={sections}
-            fieldById={fieldById}
-            renderField={renderField}
-            sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
-            labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', display:'block', marginBottom:4 }}
-          />
-        </div>
-        <div style={ms.mFooter}>
+    <Drawer
+      open
+      onClose={onClose}
+      title="Novo Projeto"
+      subtitle="Operação · Projetos"
+      footer={
+        <>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button onClick={() => form.name.trim() && onSave(form)}>Criar projeto</Button>
+        </>
+      }
+    >
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
+        {/* Formulário principal */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+            <div style={ms.fg}>
+              <label style={ms.lbl}>Nome do Projeto <span style={{ color: 'var(--red)' }}>*</span></label>
+              <input style={ms.inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Implantação ERP — Empresa X" />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={ms.fg}>
+                <label style={ms.lbl}>Empresa <span style={{ color: 'var(--red)' }}>*</span></label>
+                <input style={ms.inp} value={form.company_nome} onChange={e => set('company_nome', e.target.value)} placeholder="Nexus Tech" />
+              </div>
+              <div style={ms.fg}>
+                <label style={ms.lbl}>Franquia / Canal</label>
+                <input style={ms.inp} value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
+              </div>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={ms.fg}>
+                <label style={ms.lbl}>Data de Início</label>
+                <input style={ms.inp} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+              </div>
+              <div style={ms.fg}>
+                <label style={ms.lbl}>Previsão de Término</label>
+                <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
+              </div>
+            </div>
+            <div style={ms.fg}>
+              <label style={ms.lbl}>Horas Estimadas</label>
+              <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => set('total_hours_estimated', e.target.value)} placeholder="160" />
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
+            <div style={ms.fg}>
+              <label style={ms.lbl}>Observações</label>
+              <textarea style={{ ...ms.inp, height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
+            </div>
+          </div>
         </div>
+
+        {/* Painel lateral */}
+        <DrawerSidePanel width={200}>
+          <DrawerSidePanelSection label="Classificação">
+            <DrawerSidePanelField label="Fase" as="select" editing value={form.phase} onChange={e => { set('phase', e.target.value); set('current_phase_index', FASES_MIT.find(x => x.value === e.target.value)?.order || 1); }}>
+              {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </DrawerSidePanelField>
+            <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => set('status', e.target.value)}>
+              {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </DrawerSidePanelField>
+          </DrawerSidePanelSection>
+        </DrawerSidePanel>
       </div>
-    </div>
+    </Drawer>
   )
 }
 

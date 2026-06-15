@@ -2,10 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import Button from '../components/Button'
-import {
-  MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, InlineSearchSelect,
-} from '../components/NotionDrawer'
-import Drawer from '../components/Drawer'
+import { InlineTextarea, InlineSearchSelect } from '../components/NotionDrawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
   MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
@@ -757,10 +755,10 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
   )
 
   const RIGHT = (
-    <div style={{ display: 'flex', flexDirection: 'column' }}>
+    <DrawerSidePanel width={260}>
       {/* Health Score destacado */}
-      <div style={{ padding: '20px 20px 16px', background: `${color}08`,
-        borderBottom: '1px solid var(--border2)' }}>
+      <div style={{ padding: '16px 16px 12px', background: `${color}08`,
+        borderBottom: '1px solid var(--border)' }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
           textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10,
           fontFamily: 'var(--mono)' }}>
@@ -769,75 +767,37 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
         <InlineHealthScore value={form.health_score} onChange={v => set('health_score', v)} />
       </div>
 
-      <MetaSection label="Estágio & Modelo" />
-      <MetaRow label="LAER">
-        <InlineSelect
-          value={form.laer_stage}
-          onChange={v => set('laer_stage', v)}
-          options={LAER_STAGES.map(s => ({ value: s.value, label: s.label }))}
-        />
-      </MetaRow>
-      <MetaRow label="Touch Model">
-        <InlineSelect
-          value={form.touch_model}
-          onChange={v => set('touch_model', v)}
-          options={TOUCH_MODELS.map(t => ({ value: t.value, label: t.label }))}
-        />
-      </MetaRow>
+      <DrawerSidePanelSection label="Estágio & Modelo">
+        <DrawerSidePanelField label="LAER" as="select" editing value={form.laer_stage} onChange={e => set('laer_stage', e.target.value)}>
+          {LAER_STAGES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Touch Model" as="select" editing value={form.touch_model} onChange={e => set('touch_model', e.target.value)}>
+          {TOUCH_MODELS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </DrawerSidePanelField>
+      </DrawerSidePanelSection>
 
-      <MetaSection label="Renovação" />
-      <MetaRow label="Data">
-        <InlineDate
-          value={form.renewal_date}
-          onChange={v => set('renewal_date', v)}
-          placeholder="Definir data"
-        />
-      </MetaRow>
-      {days !== null && (
-        <MetaRow label="Prazo">
-          <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--mono)',
-            color: days <= 30 ? '#DC2626' : days <= 90 ? '#D97706' : '#10B981' }}>
-            {days > 0 ? `${days} dias` : 'Vencida'}
-          </span>
-        </MetaRow>
-      )}
+      <DrawerSidePanelSection label="Renovação">
+        <DrawerSidePanelField label="Data" type="date" editing value={form.renewal_date || ''} onChange={e => set('renewal_date', e.target.value)} />
+        {days !== null && (
+          <DrawerSidePanelField label="Prazo" value={days > 0 ? `${days} dias` : 'Vencida'} />
+        )}
+      </DrawerSidePanelSection>
 
-      <MetaSection label="Responsável" />
-      <MetaRow label="CSM">
-        <InlineSearchSelect
-          value={MOCK_USUARIOS.find(u => u.nome === form.csm)?.id || ''}
-          onChange={id => {
-            const u = MOCK_USUARIOS.find(u => u.id === id)
-            set('csm', u?.nome || '')
-          }}
-          options={[
-            { value: '', label: '— Selecionar usuário —' },
-            ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))
-          ]}
-          placeholder="— Selecionar usuário —"
-        />
-      </MetaRow>
-      <MetaRow label="Parceiro">
-        <span style={{ fontSize: 12, color: 'var(--text)', padding: '2px 6px' }}>
-          {form.company_name}
-        </span>
-      </MetaRow>
-      {form.company_city && (
-        <MetaRow label="Localização">
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px' }}>
-            {form.company_city} · {form.company_uf}
-          </span>
-        </MetaRow>
-      )}
+      <DrawerSidePanelSection label="Responsável">
+        <DrawerSidePanelField label="CSM" as="select" editing value={MOCK_USUARIOS.find(u => u.nome === form.csm)?.id || ''} onChange={e => { const u = MOCK_USUARIOS.find(u => u.id === e.target.value); set('csm', u?.nome || '') }}>
+          <option value="">— Selecionar usuário —</option>
+          {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Parceiro" value={form.company_name} />
+        {form.company_city && (
+          <DrawerSidePanelField label="Localização" value={`${form.company_city} · ${form.company_uf}`} />
+        )}
+      </DrawerSidePanelSection>
 
-      <MetaSection label="Criado em" />
-      <MetaRow label="Data">
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', padding: '2px 6px',
-          fontFamily: 'var(--mono)' }}>
-          {fmtDate(form.criado_em)}
-        </span>
-      </MetaRow>
-    </div>
+      <DrawerSidePanelSection label="Criado em">
+        <DrawerSidePanelField label="Data" value={fmtDate(form.criado_em)} />
+      </DrawerSidePanelSection>
+    </DrawerSidePanel>
   )
 
   return (
@@ -847,15 +807,12 @@ function PartnerDrawer({ record, onClose, onSave, onDelete }) {
       title={form.company_name}
       subtitle="Customer Success"
       initials={form.company_name ? form.company_name.slice(0, 2).toUpperCase() : '??'}
-      bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
     >
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-        <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
           {LEFT}
         </div>
-        <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
-          {RIGHT}
-        </div>
+        {RIGHT}
       </div>
     </Drawer>
   )

@@ -3,8 +3,8 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
-import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
-import Drawer from '../components/Drawer'
+import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -827,59 +827,44 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
 
   // ── Sidebar de metadados (240px) ─────────────────────────────────────────
   const sidebar = (
-    <div style={{ width:240, flexShrink:0, borderLeft:'1px solid var(--border2)', display:'flex', flexDirection:'column', overflowY:'auto' }}>
-      <MetaSection label="Classificação" />
-      <MetaRow label="Tipo">
-        <InlineSelect value={form.tipo} onChange={v => patch('tipo', v)} options={tipoOptions} />
-      </MetaRow>
-      <MetaRow label="Status">
-        <InlineSelect value={form.status} onChange={v => patch('status', v)} options={statusOptions} />
-      </MetaRow>
-      <MetaRow label="Segmento">
-        <InlineSelect value={form.segmento} onChange={v => patch('segmento', v)} options={segOptions} />
-      </MetaRow>
-      <MetaRow label="Origem">
-        <InlineSelect value={form.origem || ''} onChange={v => patch('origem', v)} options={origemOptions} />
-      </MetaRow>
-      <MetaRow label="Responsável">
-        <InlineSearchSelect
-          value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || ''}
-          onChange={id => patch('responsavel', MOCK_USUARIOS.find(u => u.id === id)?.nome || '')}
-          options={[{ value:'', label:'— Sem responsável —' }, ...MOCK_USUARIOS.map(u => ({ value: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar }))]}
-          placeholder="— Sem responsável —"
-        />
-      </MetaRow>
+    <DrawerSidePanel width={240}>
+      <DrawerSidePanelSection label="Classificação">
+        <DrawerSidePanelField label="Tipo" as="select" editing value={form.tipo} onChange={e => patch('tipo', e.target.value)}>
+          {tipoOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => patch('status', e.target.value)}>
+          {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Segmento" as="select" editing value={form.segmento} onChange={e => patch('segmento', e.target.value)}>
+          {segOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Origem" as="select" editing value={form.origem || ''} onChange={e => patch('origem', e.target.value)}>
+          {origemOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+        </DrawerSidePanelField>
+        <DrawerSidePanelField label="Responsável" as="select" editing value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || ''} onChange={e => patch('responsavel', MOCK_USUARIOS.find(u => u.id === e.target.value)?.nome || '')}>
+          <option value="">— Sem responsável —</option>
+          {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+        </DrawerSidePanelField>
+      </DrawerSidePanelSection>
 
-      <MetaSection label="Contato" />
-      <MetaRow label="E-mail">
-        <InlineText value={form.email || ''} onChange={v => patch('email', v)} placeholder="contato@empresa.com" />
-      </MetaRow>
-      <MetaRow label="Telefone">
-        <InlineText value={form.telefone || ''} onChange={v => patch('telefone', fmtPhone(v))} placeholder="(00) 00000-0000" mono />
-      </MetaRow>
-      <MetaRow label="Site">
-        <InlineText value={form.site || ''} onChange={v => patch('site', v)} placeholder="https://…" />
-      </MetaRow>
+      <DrawerSidePanelSection label="Contato">
+        <DrawerSidePanelField label="E-mail" editing value={form.email || ''} onChange={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
+        <DrawerSidePanelField label="Telefone" editing value={form.telefone || ''} onChange={e => patch('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
+        <DrawerSidePanelField label="Site" editing value={form.site || ''} onChange={e => patch('site', e.target.value)} placeholder="https://…" />
+      </DrawerSidePanelSection>
 
-      <MetaSection label="Fiscal" />
-      <MetaRow label="CNPJ">
-        <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)', paddingLeft:6 }}>{form.cnpj || '—'}</span>
-      </MetaRow>
-      <MetaRow label="CNAE">
-        <span style={{ fontSize:11, color:'var(--text-muted)', paddingLeft:6 }}>
-          {form.cnae_codigo ? `${form.cnae_codigo}${form.cnae_descricao ? ` — ${form.cnae_descricao.slice(0,24)}` : ''}` : '—'}
-        </span>
-      </MetaRow>
-      <MetaRow label="Insc. Est.">
-        <InlineText value={form.inscricao_estadual || ''} onChange={v => patch('inscricao_estadual', v)} placeholder="000.000.000.000" mono />
-      </MetaRow>
+      <DrawerSidePanelSection label="Fiscal">
+        <DrawerSidePanelField label="CNPJ" value={form.cnpj || ''} empty="—" />
+        <DrawerSidePanelField label="CNAE" value={form.cnae_codigo ? `${form.cnae_codigo}${form.cnae_descricao ? ` — ${form.cnae_descricao.slice(0,24)}` : ''}` : ''} empty="—" />
+        <DrawerSidePanelField label="Insc. Est." editing value={form.inscricao_estadual || ''} onChange={e => patch('inscricao_estadual', e.target.value)} placeholder="000.000.000.000" />
+      </DrawerSidePanelSection>
 
       {!isNew && (
-        <div style={{ marginTop:'auto' }}>
+        <div style={{ padding: '0 16px', marginTop: 8 }}>
           <DeleteZone label="Excluir cadastro" onDelete={() => { onDelete(item.id); onClose() }} />
         </div>
       )}
-    </div>
+    </DrawerSidePanel>
   )
 
   const TABS = [
@@ -891,7 +876,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
   ]
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'calc(100% + 24px)', margin:'-12px -14px' }}>
       {/* Barra de abas */}
       <div style={{ padding:'0 24px', flexShrink:0, borderBottom:'1px solid var(--border2)' }}>
         <div style={{ display:'flex', overflowX:'auto', overflowY:'hidden',
@@ -921,11 +906,11 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
       <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
         {/* Conteúdo rolável da aba */}
         <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:'#F8FAFC', minWidth:0 }}>
-          {tab === 'dados'         && <TabDados />}
-          {tab === 'contatos'      && <TabContatos />}
-          {tab === 'oportunidades' && <TabOportunidades />}
-          {tab === 'contratos'     && <TabContratos />}
-          {tab === 'canal'         && <TabCanal />}
+          {tab === 'dados'         && TabDados()}
+          {tab === 'contatos'      && TabContatos()}
+          {tab === 'oportunidades' && TabOportunidades()}
+          {tab === 'contratos'     && TabContratos()}
+          {tab === 'canal'         && TabCanal()}
         </div>
         {/* Sidebar de metadados */}
         {sidebar}
@@ -1263,7 +1248,6 @@ export default function Empresas() {
         title={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'Empresa') : 'Nova empresa'}
         subtitle="Cadastro · Empresas"
         initials={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'EM').slice(0,2).toUpperCase() : 'NE'}
-        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
       >
         {modal && (
           <EmpresaDetail

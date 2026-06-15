@@ -3,8 +3,8 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useTasks } from '../hooks/useTasks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
-import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
-import Drawer from '../components/Drawer'
+import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import Button from '../components/Button'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
@@ -274,70 +274,60 @@ function TarefaDetail({ item, onClose, onSave, onDelete }) {
   const statusOptions = Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label }))
   const tipoVinculo   = ENTIDADE_TIPOS.map(t => ({ value: t.value, label: t.label }))
 
-  const right = (
-    <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
-      <MetaSection label="Execução" />
-
-      <MetaRow label="Status">
-        <InlineSelect value={form.status} onChange={v => patch('status', v)} options={statusOptions} />
-      </MetaRow>
-
-      <MetaRow label="Prioridade">
-        <div style={{ display:'flex', gap:4, flexWrap:'wrap', paddingLeft:6 }}>
-          {Object.entries(PRIORIDADE_CFG).map(([k, cfg]) => (
-            <button key={k} onClick={() => patch('prioridade', k)}
-              style={{ padding:'3px 10px', borderRadius:12, fontSize:11, fontWeight:700,
-                border:'none', cursor:'pointer', transition:'all 0.12s',
-                background: form.prioridade === k ? cfg.bg : 'var(--surface2)',
-                color: form.prioridade === k ? cfg.text : 'var(--text-muted)' }}>
-              {cfg.label}
-            </button>
-          ))}
-        </div>
-      </MetaRow>
-
-      <MetaRow label="Prazo">
-        <InlineDate value={form.prazo} onChange={v => patch('prazo', v)} placeholder="Definir prazo" />
-      </MetaRow>
-
-      <MetaRow label="Responsável">
-        <InlineText value={form.responsavel} onChange={v => patch('responsavel', v)} placeholder="Atribuir…" />
-      </MetaRow>
-
-      <MetaSection label="Vínculo" />
-
-      <MetaRow label="Tipo">
-        <InlineSelect
-          value={form.entidade_tipo || ''}
-          onChange={v => { patch('entidade_tipo', v || null); setForm(f => ({ ...f, entidade_id: null, entidade_nome: '' })) }}
-          options={tipoVinculo} placeholder="Sem vínculo" />
-      </MetaRow>
-
-      {form.entidade_tipo && (
-        <MetaRow label={ENTIDADE_TIPOS.find(t => t.value === form.entidade_tipo)?.label || 'Entidade'}>
-          <EntidadeSearch
-            entidadeTipo={form.entidade_tipo}
-            value={form.entidade_id}
-            label={form.entidade_nome}
-            onChange={(id, nome) => { patch('entidade_id', id); patch('entidade_nome', nome) }}
-          />
-        </MetaRow>
-      )}
-
-      {!isNew && (
-        <DeleteZone label="Excluir tarefa" onDelete={() => { onDelete(item.id); onClose() }} />
-      )}
-    </div>
-  )
-
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
         {left}
       </div>
-      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
-        {right}
-      </div>
+      <DrawerSidePanel width={240}>
+        <DrawerSidePanelSection label="Execução">
+          <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => patch('status', e.target.value)}>
+            {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </DrawerSidePanelField>
+          <div style={{ marginBottom: 12 }}>
+            <span style={{ fontSize: 'var(--text-xs)', fontWeight: 400, color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>Prioridade</span>
+            <div style={{ display:'flex', gap:4, flexWrap:'wrap' }}>
+              {Object.entries(PRIORIDADE_CFG).map(([k, cfg]) => (
+                <button key={k} onClick={() => patch('prioridade', k)}
+                  style={{ padding:'3px 10px', borderRadius:12, fontSize:11, fontWeight:700,
+                    border:'none', cursor:'pointer', transition:'all 0.12s',
+                    background: form.prioridade === k ? cfg.bg : 'var(--surface2)',
+                    color: form.prioridade === k ? cfg.text : 'var(--text-muted)' }}>
+                  {cfg.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <DrawerSidePanelField label="Prazo" type="date" editing value={form.prazo || ''} onChange={e => patch('prazo', e.target.value)} />
+          <DrawerSidePanelField label="Responsável" editing value={form.responsavel || ''} onChange={e => patch('responsavel', e.target.value)} placeholder="Atribuir…" />
+        </DrawerSidePanelSection>
+
+        <DrawerSidePanelSection label="Vínculo">
+          <DrawerSidePanelField label="Tipo" as="select" editing value={form.entidade_tipo || ''} onChange={e => { patch('entidade_tipo', e.target.value || null); setForm(f => ({ ...f, entidade_id: null, entidade_nome: '' })) }}>
+            <option value="">Sem vínculo</option>
+            {tipoVinculo.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </DrawerSidePanelField>
+          {form.entidade_tipo && (
+            <div style={{ marginBottom: 12 }}>
+              <span style={{ fontSize: 'var(--text-xs)', fontWeight: 400, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                {ENTIDADE_TIPOS.find(t => t.value === form.entidade_tipo)?.label || 'Entidade'}
+              </span>
+              <EntidadeSearch
+                entidadeTipo={form.entidade_tipo}
+                value={form.entidade_id}
+                label={form.entidade_nome}
+                onChange={(id, nome) => { patch('entidade_id', id); patch('entidade_nome', nome) }}
+              />
+            </div>
+          )}
+        </DrawerSidePanelSection>
+
+        {!isNew && (
+          <div style={{ padding: '0 16px', marginTop: 8 }}>
+            <DeleteZone label="Excluir tarefa" onDelete={() => { onDelete(item.id); onClose() }} />
+          </div>
+        )}
+      </DrawerSidePanel>
     </div>
   )
 }
@@ -1097,7 +1087,6 @@ export default function Tarefas() {
         onClose={() => setModal(null)}
         title={modal && !modal._new ? modal.titulo : 'Nova tarefa'}
         subtitle="Comercial · Tarefas"
-        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
       >
         {modal && (
           <TarefaDetail

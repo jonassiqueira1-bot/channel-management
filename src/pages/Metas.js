@@ -18,8 +18,8 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useGoals } from '../hooks/useGoals'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
-import { MetaSection, MetaRow, InlineSelect, DeleteZone } from '../components/NotionDrawer'
-import Drawer from '../components/Drawer'
+import { DeleteZone } from '../components/NotionDrawer'
+import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import Button from '../components/Button'
 
 // ─── Dados de referência ──────────────────────────────────────────────────────
@@ -979,55 +979,44 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     </div>
   )
 
-  const right = (
-    <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
-      <MetaSection label="Configuração" />
-      <MetaRow label="Tipo">
-        <InlineSelect value={form.tipo_meta} onChange={v => set('tipo_meta',v)} options={tipoMetaOpts} />
-      </MetaRow>
-      <MetaRow label="Ano">
-        <InlineSelect value={form.periodo_ano} onChange={v => set('periodo_ano',v)} options={periodoAnoOpts} />
-      </MetaRow>
-      {isEditing && (
-        <MetaRow label="Status">
-          <InlineSelect value={form.status} onChange={v => set('status',v)} options={statusOpts} />
-        </MetaRow>
-      )}
-      {isOp && (
-        <>
-          <MetaSection label="Operacional" />
-          <MetaRow label="Natureza">
-            <InlineSelect
-              value={form.subtipo_operacional}
-              onChange={v => set('subtipo_operacional',v)}
-              options={[{value:'quantidade',label:'Quantidade'},{value:'moeda',label:'Valor (R$)'}]}
-            />
-          </MetaRow>
-          {form.subtipo_operacional === 'quantidade' && (
-            <MetaRow label="Sufixo">
-              <input value={form.valor_sufixo} onChange={e => set('valor_sufixo',e.target.value)}
-                placeholder="treinamentos…"
-                style={{ padding:'5px 8px', border:'1px solid var(--border)', borderRadius:6,
-                  background:'var(--surface2)', color:'var(--text)', fontSize:12,
-                  fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }} />
-            </MetaRow>
-          )}
-        </>
-      )}
-      {isEditing && initial && (
-        <DeleteZone label="Excluir meta" onDelete={() => { handleSaveRealizado && onClose(); onClose() }} />
-      )}
-    </div>
-  )
-
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
-      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
+      <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
         {left}
       </div>
-      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
-        {right}
-      </div>
+      <DrawerSidePanel width={240}>
+        <DrawerSidePanelSection label="Configuração">
+          <DrawerSidePanelField label="Tipo" as="select" editing value={form.tipo_meta} onChange={e => set('tipo_meta', e.target.value)}>
+            {tipoMetaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </DrawerSidePanelField>
+          <DrawerSidePanelField label="Ano" as="select" editing value={form.periodo_ano} onChange={e => set('periodo_ano', e.target.value)}>
+            {periodoAnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </DrawerSidePanelField>
+          {isEditing && (
+            <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => set('status', e.target.value)}>
+              {statusOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </DrawerSidePanelField>
+          )}
+        </DrawerSidePanelSection>
+
+        {isOp && (
+          <DrawerSidePanelSection label="Operacional">
+            <DrawerSidePanelField label="Natureza" as="select" editing value={form.subtipo_operacional} onChange={e => set('subtipo_operacional', e.target.value)}>
+              <option value="quantidade">Quantidade</option>
+              <option value="moeda">Valor (R$)</option>
+            </DrawerSidePanelField>
+            {form.subtipo_operacional === 'quantidade' && (
+              <DrawerSidePanelField label="Sufixo" editing value={form.valor_sufixo || ''} onChange={e => set('valor_sufixo', e.target.value)} placeholder="treinamentos…" />
+            )}
+          </DrawerSidePanelSection>
+        )}
+
+        {isEditing && initial && (
+          <div style={{ padding: '0 16px', marginTop: 8 }}>
+            <DeleteZone label="Excluir meta" onDelete={() => { handleSaveRealizado && onClose(); onClose() }} />
+          </div>
+        )}
+      </DrawerSidePanel>
     </div>
   )
 }
@@ -1242,7 +1231,6 @@ export default function Metas() {
         onClose={() => setModal(null)}
         title={modal?.mode==='edit' ? (modal.goal?.nome_ref || 'Meta') : 'Nova meta'}
         subtitle="Comercial · Metas"
-        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
       >
         {modal && (
           <MetaDetail

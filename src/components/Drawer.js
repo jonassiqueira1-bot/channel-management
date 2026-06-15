@@ -54,7 +54,6 @@ export default function Drawer({
   onEdit,             // callback ao clicar no botão Editar (opcional)
   footer,             // elementos React para o rodapé (botões)
   initialSize = 'default',
-  bodyStyle = {},     // overrides para o estilo do body (ex: { padding: 0 })
   children,
 }) {
   const [sizeIdx, setSizeIdx] = useState(SIZE_ORDER.indexOf(initialSize))
@@ -143,7 +142,7 @@ export default function Drawer({
         </header>
 
         {/* ── Corpo ── */}
-        <div style={{ ...s.body, ...bodyStyle }}>
+        <div style={s.body}>
           {children}
         </div>
 
@@ -207,6 +206,7 @@ export function DrawerField({
 
   return (
     <div style={s.field}>
+      {/* Label sempre em sentence case, nunca uppercase */}
       <span style={s.fieldLabel}>{label}</span>
 
       {editing ? (
@@ -234,6 +234,69 @@ export function DrawerField({
           ...(isEmpty ? s.fieldEmpty : {}),
           ...(link && !isEmpty ? s.fieldLink : {}),
         }}>
+          {isEmpty ? empty : value}
+        </span>
+      )}
+    </div>
+  )
+}
+
+// ── DrawerSidePanel — painel lateral direito dentro do drawer expandido ───────
+// Uso:
+//   <Drawer ...>
+//     <div style={{ display: 'flex', gap: 12, height: '100%' }}>
+//       <div style={{ flex: 1 }}>... conteúdo principal ...</div>
+//       <DrawerSidePanel>
+//         <DrawerSidePanelSection label="Classificação">
+//           <DrawerSidePanelField label="Tipo"        value={empresa.tipo} />
+//           <DrawerSidePanelField label="Status"      value={empresa.status} />
+//           <DrawerSidePanelField label="Responsável" value={empresa.responsavel} empty="Sem responsável" />
+//         </DrawerSidePanelSection>
+//       </DrawerSidePanel>
+//     </div>
+//   </Drawer>
+export function DrawerSidePanel({ children, width = 200 }) {
+  return (
+    <div style={{ ...s.sidePanel, width, minWidth: width }}>
+      {children}
+    </div>
+  )
+}
+
+export function DrawerSidePanelSection({ label, children }) {
+  return (
+    <div style={s.sidePanelSection}>
+      <p style={s.sidePanelSectionLabel}>{label}</p>
+      {children}
+    </div>
+  )
+}
+
+export function DrawerSidePanelField({ label, value, empty = '—', editing = false, onChange, as = 'input', children }) {
+  const [focused, setFocused] = useState(false)
+  const Tag = as
+  const isEmpty = value === null || value === undefined || value === ''
+
+  return (
+    <div style={s.sidePanelField}>
+      {/* Label cinza claro em cima */}
+      <span style={s.sidePanelLabel}>{label}</span>
+      {/* Valor preto embaixo — nunca cinza claro */}
+      {editing ? (
+        <Tag
+          value={value ?? ''}
+          onChange={onChange}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          style={{
+            ...s.sidePanelInput,
+            ...(focused ? s.fieldInputFocus : {}),
+          }}
+        >
+          {children}
+        </Tag>
+      ) : (
+        <span style={isEmpty ? s.sidePanelEmpty : s.sidePanelValue}>
           {isEmpty ? empty : value}
         </span>
       )}
@@ -355,15 +418,62 @@ const s = {
     padding: '8px 14px', borderBottom: '0.5px solid var(--surface2)',
   },
   fieldLabel: {
-    fontSize: 'var(--text-sm)', color: 'var(--text-muted)',
+    // Sentence case (nunca uppercase) — peso leve para não competir com o valor
+    fontSize: 'var(--text-sm)', fontWeight: 400, color: 'var(--text-muted)',
     width: 100, flexShrink: 0, paddingTop: 1, lineHeight: 1.5,
   },
   fieldValue: {
-    fontSize: 'var(--text-base)', color: 'var(--text)',
+    // Sempre escuro e legível — nunca cinza claro
+    fontSize: 'var(--text-base)', fontWeight: 400, color: 'var(--text)',
     flex: 1, lineHeight: 1.5, wordBreak: 'break-word',
   },
-  fieldEmpty: { color: '#C8C6C0' },
+  // Vazio: cinza médio — visível mas claramente "sem dado"
+  fieldEmpty: { color: 'var(--text-muted)', fontStyle: 'italic' },
   fieldLink: { color: 'var(--accent)', cursor: 'pointer', textDecoration: 'underline' },
+
+  // ── Side panel (coluna direita do drawer expandido) ──────────────────────
+  sidePanel: {
+    borderLeft: '1px solid var(--border)',
+    overflowY: 'auto',
+    padding: '12px 0',
+    background: 'var(--bg)',
+    flexShrink: 0,
+  },
+  sidePanelSection: {
+    padding: '0 16px 16px',
+    borderBottom: '1px solid var(--border)',
+    marginBottom: 16,
+  },
+  sidePanelSectionLabel: {
+    // Uppercase só nos títulos de seção — nunca nos labels de campo
+    fontSize: 'var(--text-xs)', fontWeight: 700,
+    textTransform: 'uppercase', letterSpacing: '0.08em',
+    color: 'var(--text-muted)', margin: '0 0 10px',
+  },
+  sidePanelField: {
+    marginBottom: 12,
+  },
+  sidePanelLabel: {
+    // Label do campo: sentence case, cinza leve
+    fontSize: 'var(--text-xs)', fontWeight: 400,
+    color: 'var(--text-muted)', display: 'block', marginBottom: 2,
+  },
+  sidePanelValue: {
+    // Valor: sempre preto e legível
+    fontSize: 'var(--text-base)', fontWeight: 400,
+    color: 'var(--text)', display: 'block', lineHeight: 1.5,
+  },
+  sidePanelEmpty: {
+    fontSize: 'var(--text-base)', color: 'var(--text-muted)',
+    fontStyle: 'italic', display: 'block',
+  },
+  sidePanelInput: {
+    width: '100%', height: 30, padding: '0 8px',
+    borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
+    background: 'var(--surface)', fontFamily: 'var(--font)',
+    fontSize: 'var(--text-sm)', color: 'var(--text)', outline: 'none',
+    transition: 'border-color var(--transition), box-shadow var(--transition)',
+  },
 
   // Field input (modo edição)
   fieldInput: {
