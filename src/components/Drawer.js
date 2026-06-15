@@ -163,7 +163,7 @@ export function DrawerSection({ icon, label, children, defaultOpen = true }) {
 
   return (
     <div style={s.section}>
-      <button style={s.sectionHeader} onClick={() => setOpen(o => !o)}>
+      <button type="button" style={s.sectionHeader} onClick={() => setOpen(o => !o)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           {icon && (
             <span style={{ color: 'var(--text-muted)', display: 'flex' }} aria-hidden="true">
@@ -388,7 +388,7 @@ const s = {
 
   // Body
   body: {
-    flex: 1, overflowY: 'auto', padding: '12px 14px',
+    flex: 1, minHeight: 0, overflowY: 'auto', padding: '12px 14px',
     display: 'flex', flexDirection: 'column', gap: 10,
   },
 

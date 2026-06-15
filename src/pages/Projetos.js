@@ -306,6 +306,7 @@ function NotionSection({ title, icon, defaultOpen = true, children, badge }) {
   return (
     <div style={{ borderTop: '1px solid var(--border)' }}>
       <button
+        type="button"
         onClick={() => setOpen(o => !o)}
         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left' }}
       >
