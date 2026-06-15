@@ -3,7 +3,8 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
-import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
+import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, DeleteZone } from '../components/NotionDrawer'
+import Drawer from '../components/Drawer'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -891,18 +892,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      {/* Mini-header interno */}
-      <div style={{ padding:'16px 24px 0', flexShrink:0, borderBottom:'1px solid var(--border2)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:10, flexWrap:'wrap' }}>
-          <span style={{ fontSize:17, fontWeight:700, color:'var(--text)', flex:1, minWidth:0,
-            whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-            {form.razao || (isNew ? 'Nova empresa' : 'Empresa')}
-          </span>
-          <TipoBadge tipo={form.tipo} />
-          <StatusBadge status={form.status} />
-        </div>
-
-        {/* Barra de abas */}
+      {/* Barra de abas */}
+      <div style={{ padding:'0 24px', flexShrink:0, borderBottom:'1px solid var(--border2)' }}>
         <div style={{ display:'flex', overflowX:'auto', overflowY:'hidden',
           scrollbarWidth:'none', msOverflowStyle:'none', gap:0 }}>
           {TABS.map(t => (
@@ -1266,11 +1257,14 @@ export default function Empresas() {
           />
       }
 
-      <NotionDrawer
+      <Drawer
         open={!!modal}
         onClose={() => setModal(null)}
-        breadcrumb="Cadastro · Empresas"
-        title={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'Empresa') : 'Nova empresa'}>
+        title={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'Empresa') : 'Nova empresa'}
+        subtitle="Cadastro · Empresas"
+        initials={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'EM').slice(0,2).toUpperCase() : 'NE'}
+        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
+      >
         {modal && (
           <EmpresaDetail
             item={modal === 'new' ? null : (modal?.editing || null)}
@@ -1280,7 +1274,7 @@ export default function Empresas() {
             empresas={empresas}
           />
         )}
-      </NotionDrawer>
+      </Drawer>
 
       {importModal && (
         <ImportModal

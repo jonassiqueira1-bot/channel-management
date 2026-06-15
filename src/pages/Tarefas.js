@@ -3,7 +3,8 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useTasks } from '../hooks/useTasks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { useLocalState } from '../hooks/useLocalState'
-import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import Drawer from '../components/Drawer'
 import Button from '../components/Button'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
@@ -329,7 +330,16 @@ function TarefaDetail({ item, onClose, onSave, onDelete }) {
     </div>
   )
 
-  return <DrawerBody left={left} right={right} />
+  return (
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+        {left}
+      </div>
+      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
+        {right}
+      </div>
+    </div>
+  )
 }
 
 function SectionLabel({ children }) {
@@ -1082,11 +1092,13 @@ export default function Tarefas() {
       )}
 
       {/* ── Notion Drawer ── */}
-      <NotionDrawer
+      <Drawer
         open={!!modal}
         onClose={() => setModal(null)}
-        breadcrumb="Comercial · Tarefas"
-        title={modal && !modal._new ? modal.titulo : 'Nova tarefa'}>
+        title={modal && !modal._new ? modal.titulo : 'Nova tarefa'}
+        subtitle="Comercial · Tarefas"
+        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
+      >
         {modal && (
           <TarefaDetail
             item={modal._new ? (modal.status ? { ...EMPTY_FORM, status: modal.status } : null) : modal}
@@ -1095,7 +1107,7 @@ export default function Tarefas() {
             onDelete={handleDelete}
           />
         )}
-      </NotionDrawer>
+      </Drawer>
 
       {importModal && (
         <ImportModal onClose={()=>setImportModal(false)}

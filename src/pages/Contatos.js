@@ -3,7 +3,8 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
 import Button from '../components/Button'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
-import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import { MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
+import Drawer from '../components/Drawer'
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 
 const ACCENT = '#6366F1'
@@ -160,7 +161,16 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
     </div>
   )
 
-  return <DrawerBody left={left} right={right} />
+  return (
+    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0 }}>
+      <div style={{ flex: '0 0 65%', overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
+        {left}
+      </div>
+      <div style={{ flex: '0 0 35%', overflowY: 'auto', background: 'var(--surface)', display: 'flex', flexDirection: 'column' }}>
+        {right}
+      </div>
+    </div>
+  )
 }
 
 // ─── Ícone Olho ───────────────────────────────────────────────────────────────
@@ -421,11 +431,13 @@ export default function Contatos() {
       </div>
 
       {/* ── Notion Drawer ── */}
-      <NotionDrawer
+      <Drawer
         open={!!modal}
         onClose={() => setModal(null)}
-        breadcrumb="Clientes · Contatos"
-        title={modal && modal !== 'novo' ? modal.nome : 'Novo contato'}>
+        title={modal && modal !== 'novo' ? modal.nome : 'Novo contato'}
+        subtitle="Clientes · Contatos"
+        bodyStyle={{ padding: 0, gap: 0, overflow: 'hidden' }}
+      >
         {modal && (
           <ContatoDetail
             item={modal === 'novo' ? null : modal}
@@ -435,7 +447,7 @@ export default function Contatos() {
             onClose={() => setModal(null)}
           />
         )}
-      </NotionDrawer>
+      </Drawer>
     </div>
   )
 }
