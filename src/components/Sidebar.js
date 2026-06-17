@@ -5,75 +5,47 @@ import { useLocalState } from '../hooks/useLocalState'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
-  ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse, Settings, ShieldAlert,
+  ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
+  Settings, ShieldAlert, ChevronDown,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
 } from 'lucide-react'
 
-// Mapa de ícones para serializar/deserializar do localStorage
 const ICON_MAP = {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
+  Settings, ShieldAlert,
 }
 
-// ─── Estrutura inicial dos grupos ────────────────────────────────────────────
 const INITIAL_GROUPS = [
   {
     id: 'visao',
     label: 'Visão Geral',
     items: [
-      { path: '/dashboard', label: 'Dashboard', iconKey: 'LayoutDashboard' },
-      { path: '/metas',     label: 'Metas',     iconKey: 'Target' },
-    ],
-  },
-  {
-    id: 'comercial',
-    label: 'Comercial',
-    items: [
-      { path: '/pipeline',  label: 'Pipeline',  iconKey: 'TrendingUp' },
-      { path: '/tarefas',   label: 'Tarefas',   iconKey: 'CheckSquare' },
-      { path: '/playbooks', label: 'Playbooks', iconKey: 'BookOpen' },
-    ],
-  },
-  {
-    id: 'canais',
-    label: 'Canais',
-    items: [
-      { path: '/vendedores', label: 'Vendedores', iconKey: 'Users' },
-      { path: '/acoes',      label: 'Ações',      iconKey: 'Zap' },
-    ],
-  },
-  {
-    id: 'clientes',
-    label: 'Clientes',
-    items: [
-      { path: '/empresas', label: 'Empresas', iconKey: 'Building2' },
-      { path: '/contatos', label: 'Contatos', iconKey: 'UserCircle' },
-    ],
-  },
-  {
-    id: 'projetos',
-    label: 'Projetos & CS',
-    items: [
-      { path: '/projetos',         label: 'Projetos',          iconKey: 'FolderKanban' },
-      { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'  },
-    ],
-  },
-  {
-    id: 'financeiro',
-    label: 'Financeiro',
-    items: [
-      { path: '/contratos',  label: 'Contratos',  iconKey: 'FileText'  },
-      { path: '/pagamentos', label: 'Pagamentos', iconKey: 'CreditCard' },
-      { path: '/comissoes',  label: 'Comissões',  iconKey: 'DollarSign' },
+      { path: '/dashboard',        label: 'Dashboard',          iconKey: 'LayoutDashboard' },
+      { path: '/metas',            label: 'Metas',              iconKey: 'Target'          },
+      { path: '/pipeline',         label: 'Pipeline',           iconKey: 'TrendingUp'      },
+      { path: '/tarefas',          label: 'Tarefas',            iconKey: 'CheckSquare'     },
+      { path: '/playbooks',        label: 'Playbooks',          iconKey: 'BookOpen'        },
+      { path: '/vendedores',       label: 'Vendedores',         iconKey: 'Users'           },
+      { path: '/acoes',            label: 'Ações',              iconKey: 'Zap'             },
+      { path: '/empresas',         label: 'Empresas',           iconKey: 'Building2'       },
+      { path: '/contatos',         label: 'Contatos',           iconKey: 'UserCircle'      },
+      { path: '/projetos',         label: 'Projetos',           iconKey: 'FolderKanban'    },
+      { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'      },
+      { path: '/contratos',        label: 'Contratos',          iconKey: 'FileText'        },
+      { path: '/pagamentos',       label: 'Pagamentos',         iconKey: 'CreditCard'      },
+      { path: '/comissoes',        label: 'Comissões',          iconKey: 'DollarSign'      },
     ],
   },
   {
     id: 'recursos',
     label: 'Recursos',
     items: [
-      { path: '/questionarios', label: 'Questionários', iconKey: 'ClipboardList' },
-      { path: '/documentos',    label: 'Documentos',    iconKey: 'FileStack'     },
+      { path: '/super-admin',    label: 'Super Admin',    iconKey: 'ShieldAlert'  },
+      { path: '/settings',       label: 'Configurações',  iconKey: 'Settings'     },
+      { path: '/questionarios',  label: 'Questionários',  iconKey: 'ClipboardList'},
+      { path: '/documentos',     label: 'Documentos',     iconKey: 'FileStack'    },
     ],
   },
 ]
@@ -84,16 +56,14 @@ let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]         = useLocalState('sidebar:groups_v5', INITIAL_GROUPS)
-  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v5', {})
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v6', INITIAL_GROUPS)
+  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v6', {})
 
-  // Edição de rótulo de grupo
   const [editingGroup, setEditingGroup] = useState(null)
   const [editValue,    setEditValue]    = useState('')
   const [hoveredGroup, setHoveredGroup] = useState(null)
   const editInputRef = useRef(null)
 
-  // Drag state: { type: 'item'|'group', gIdx, iIdx? }
   const [dragSrc,  setDragSrc]  = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const [menuEditMode, setMenuEditMode] = useState(false)
@@ -102,77 +72,55 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const navigate    = useNavigate()
   const inSettings  = !!useMatch('/settings/*')
 
-  function isOpen(groupId) {
-    return openGroups[groupId] !== false  // aberto por padrão
-  }
+  function isOpen(groupId) { return openGroups[groupId] !== false }
+  function toggleGroup(id) { setOpenGroups(prev => ({ ...prev, [id]: !isOpen(id) })) }
 
-  function toggleGroup(id) {
-    setOpenGroups(prev => ({ ...prev, [id]: !isOpen(id) }))
-  }
+  async function handleSignOut() { await signOut(); navigate('/login') }
 
-  async function handleSignOut() {
-    await signOut()
-    navigate('/login')
-  }
-
-  // ── Edição de rótulo ─────────────────────────────────────────────────────
   function startEdit(group, e) {
     e.stopPropagation()
     setEditingGroup(group.id)
     setEditValue(group.label)
     setTimeout(() => editInputRef.current?.focus(), 30)
   }
-
   function commitEdit(groupId) {
-    if (editValue.trim()) {
-      setGroups(prev => prev.map(g => g.id === groupId ? { ...g, label: editValue.trim() } : g))
-    }
+    if (editValue.trim()) setGroups(prev => prev.map(g => g.id === groupId ? { ...g, label: editValue.trim() } : g))
     setEditingGroup(null)
   }
-
   function cancelEdit() { setEditingGroup(null) }
 
-  // ── Criar grupo ──────────────────────────────────────────────────────────
   function createGroup() {
     const id = newGroupId()
-    const novo = { id, label: 'Novo grupo', items: [] }
-    setGroups(prev => [...prev, novo])
+    setGroups(prev => [...prev, { id, label: 'Novo grupo', items: [] }])
     setOpenGroups(prev => ({ ...prev, [id]: true }))
-    // Entra em modo edição imediatamente
     setEditingGroup(id)
     setEditValue('Novo grupo')
     setTimeout(() => editInputRef.current?.focus(), 60)
   }
 
-  // ── Excluir grupo ────────────────────────────────────────────────────────
   function deleteGroup(gIdx, e) {
     e.stopPropagation()
     setGroups(prev => {
       const next = prev.map(g => ({ ...g, items: [...g.items] }))
       const [removed] = next.splice(gIdx, 1)
-      // Move itens do grupo removido para o grupo anterior (ou o seguinte se for o primeiro)
       if (removed.items.length > 0 && next.length > 0) {
-        const targetIdx = Math.max(0, gIdx - 1)
-        next[targetIdx].items.push(...removed.items)
+        next[Math.max(0, gIdx - 1)].items.push(...removed.items)
       }
       return next
     })
   }
 
-  // ── Drag & Drop ──────────────────────────────────────────────────────────
   function onItemDragStart(e, gIdx, iIdx) {
     setDragSrc({ type: 'item', gIdx, iIdx })
     e.dataTransfer.effectAllowed = 'move'
     setGhost(e)
   }
-
   function onGroupDragStart(e, gIdx) {
     e.stopPropagation()
     setDragSrc({ type: 'group', gIdx })
     e.dataTransfer.effectAllowed = 'move'
     setGhost(e)
   }
-
   function setGhost(e) {
     const ghost = document.createElement('div')
     ghost.style.cssText = 'position:fixed;top:-999px;opacity:0'
@@ -180,63 +128,48 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
     e.dataTransfer.setDragImage(ghost, 0, 0)
     setTimeout(() => document.body.removeChild(ghost), 0)
   }
-
   function onDragOverItem(e, gIdx, iIdx) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'
     setDragOver({ zone: 'item', gIdx, iIdx })
   }
-
   function onDragOverGroupHeader(e, gIdx) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
+    e.preventDefault(); e.dataTransfer.dropEffect = 'move'
     setDragOver({ zone: 'group', gIdx })
   }
-
   function onDropOnItem(e, gDst, iDst) {
     e.preventDefault()
     if (!dragSrc) return
     if (dragSrc.type === 'item') moveItem(dragSrc.gIdx, dragSrc.iIdx, gDst, iDst)
     cleanup()
   }
-
   function onDropOnGroupHeader(e, gDst) {
     e.preventDefault()
     if (!dragSrc) return
     if (dragSrc.type === 'item') {
-      // Solta item no final do grupo
       moveItem(dragSrc.gIdx, dragSrc.iIdx, gDst, null)
     } else if (dragSrc.type === 'group') {
-      // Reordena grupos
       const gSrc = dragSrc.gIdx
       if (gSrc === gDst) { cleanup(); return }
       setGroups(prev => {
         const next = [...prev]
         const [grp] = next.splice(gSrc, 1)
-        const insertAt = gSrc < gDst ? gDst - 1 : gDst
-        next.splice(insertAt, 0, grp)
+        next.splice(gSrc < gDst ? gDst - 1 : gDst, 0, grp)
         return next
       })
     }
     cleanup()
   }
-
   function moveItem(gSrc, iSrc, gDst, iDst) {
     if (gSrc === gDst && (iSrc === iDst || iDst === null)) return
     setGroups(prev => {
       const next = prev.map(g => ({ ...g, items: [...g.items] }))
       const [item] = next[gSrc].items.splice(iSrc, 1)
-      if (iDst === null) {
-        next[gDst].items.push(item)
-      } else {
-        const adj = gSrc === gDst && iSrc < iDst ? iDst - 1 : iDst
-        next[gDst].items.splice(adj, 0, item)
-      }
+      if (iDst === null) next[gDst].items.push(item)
+      else next[gDst].items.splice(gSrc === gDst && iSrc < iDst ? iDst - 1 : iDst, 0, item)
       setOpenGroups(o => ({ ...o, [prev[gDst].id]: true }))
       return next
     })
   }
-
   function cleanup() { setDragSrc(null); setDragOver(null) }
 
   const width = isMobile
@@ -260,32 +193,30 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       {/* ── Nav ── */}
       <nav style={s.nav}>
         {groups.map((group, gIdx) => {
-          const isEditing     = editingGroup === group.id
-          const isHovered     = hoveredGroup === group.id
-          const open          = isOpen(group.id)
-          const isDragOverHdr = dragOver?.zone === 'group' && dragOver?.gIdx === gIdx
+          const isEditing      = editingGroup === group.id
+          const isHovered      = hoveredGroup === group.id
+          const open           = isOpen(group.id)
+          const isDragOverHdr  = dragOver?.zone === 'group' && dragOver?.gIdx === gIdx
           const isGroupDragging = dragSrc?.type === 'group' && dragSrc?.gIdx === gIdx
 
           return (
-            <div
-              key={group.id}
-              style={{ ...s.group, opacity: isGroupDragging ? 0.35 : 1 }}
-            >
+            <div key={group.id} style={{ ...s.group, opacity: isGroupDragging ? 0.35 : 1 }}>
+
               {/* ── Cabeçalho do grupo ── */}
               {!collapsed && (
                 <div
                   style={{
                     ...s.groupHeader,
-                    background: isDragOverHdr ? 'rgba(99,102,241,0.12)' : 'transparent',
-                    borderRadius: isDragOverHdr ? 6 : 0,
-                    margin: isDragOverHdr ? '0 8px' : 0,
+                    background: isDragOverHdr ? 'rgba(99,102,241,0.1)' : 'transparent',
+                    borderRadius: 6,
+                    marginTop: gIdx === 0 ? 4 : 12,
                   }}
                   onMouseEnter={() => setHoveredGroup(group.id)}
                   onMouseLeave={() => setHoveredGroup(null)}
                   onDragOver={e => onDragOverGroupHeader(e, gIdx)}
                   onDrop={e => onDropOnGroupHeader(e, gIdx)}
                 >
-                  {/* Grip do grupo — arrasta o grupo inteiro */}
+                  {/* Grip do grupo */}
                   {isHovered && !isEditing && (
                     <span
                       draggable
@@ -299,7 +230,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                   )}
 
                   {isEditing ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, padding: '0 8px' }}>
                       <input
                         ref={editInputRef}
                         value={editValue}
@@ -332,7 +263,15 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                             </span>
                           </>
                         )}
-                        <span style={{ ...s.chevron, transform: open ? 'rotate(90deg)' : 'none', opacity: isHovered ? 0.7 : 0.4 }}>›</span>
+                        <ChevronDown
+                          size={12} strokeWidth={2}
+                          style={{
+                            color: 'var(--sb-muted)',
+                            transform: open ? 'rotate(0deg)' : 'rotate(-90deg)',
+                            transition: 'transform 0.2s',
+                            opacity: isHovered ? 0.8 : 0.45,
+                          }}
+                        />
                       </div>
                     </button>
                   )}
@@ -341,9 +280,10 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
               {/* ── Itens do grupo ── */}
               {(collapsed || open) && group.items.map((item, iIdx) => {
-                const Icon          = ICON_MAP[item.iconKey]
-                const isBeingDragged = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
-                const isDragOverItem = dragOver?.zone === 'item' && dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx
+                const Icon            = ICON_MAP[item.iconKey]
+                const isBeingDragged  = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
+                const isDragOverItem  = dragOver?.zone === 'item' && dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx
+                const isSettings      = item.path === '/settings'
 
                 return (
                   <div
@@ -372,7 +312,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                       style={({ isActive }) => ({
                         ...s.navItem,
                         ...(collapsed ? s.navItemCollapsed : {}),
-                        ...(isActive  ? s.navItemActive   : {}),
+                        ...((isActive || (isSettings && inSettings)) ? s.navItemActive : {}),
                         margin: collapsed ? '1px 6px' : '1px 8px',
                       })}
                     >
@@ -391,40 +331,40 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           )
         })}
 
-        {/* ── Botão de modo edição do menu ── */}
+        {/* ── Personalizar menu ── */}
         {!collapsed && (
-          <div style={{ margin: '8px 16px 4px' }}>
+          <div style={{ margin: '12px 8px 4px' }}>
             {!menuEditMode ? (
               <button
                 onClick={() => setMenuEditMode(true)}
-                style={{ ...s.addGroupBtn, margin: 0, width: '100%', opacity: 0.5 }}
+                style={s.editMenuBtn}
                 title="Personalizar organização do menu"
               >
                 <Pencil size={11} strokeWidth={2} />
                 <span>Personalizar menu</span>
               </button>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Editar menu</span>
-                  <button onClick={() => setMenuEditMode(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2, display: 'flex' }} title="Fechar">
+              <div style={s.editMenuPanel}>
+                <div style={s.editMenuPanelHeader}>
+                  <span style={s.editMenuPanelTitle}>Editar menu</span>
+                  <button onClick={() => setMenuEditMode(false)} style={s.editMenuClose} title="Fechar">
                     <X size={12} strokeWidth={2} />
                   </button>
                 </div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={createGroup} style={{ ...s.addGroupBtn, margin: 0, flex: 1 }} title="Novo grupo">
+                  <button onClick={createGroup} style={{ ...s.addGroupBtn, flex: 1 }}>
                     <Plus size={11} strokeWidth={2} />
                     <span>Novo grupo</span>
                   </button>
                   <button
                     onClick={() => {
-                      if (window.confirm('Restaurar a organização padrão do menu? As alterações serão perdidas.')) {
+                      if (window.confirm('Restaurar a organização padrão? As alterações serão perdidas.')) {
                         setGroups(INITIAL_GROUPS)
                         setOpenGroups({})
                         setMenuEditMode(false)
                       }
                     }}
-                    style={{ ...s.addGroupBtn, margin: 0, flex: 'none', padding: '5px 8px' }}
+                    style={{ ...s.addGroupBtn, flex: 'none', padding: '5px 8px' }}
                     title="Restaurar organização padrão"
                   >
                     <RotateCcw size={11} strokeWidth={2} />
@@ -438,22 +378,6 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
       {/* ── Bottom: Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
-        <NavLink
-          to="/super-admin"
-          title={collapsed ? 'Super Admin' : undefined}
-          onClick={isMobile ? onClose : undefined}
-          onMouseDown={e => e.preventDefault()}
-          style={({ isActive }) => ({
-            ...s.navItem,
-            ...(collapsed ? { ...s.navItemCollapsed, justifyContent: 'center' } : {}),
-            ...(isActive ? s.navItemActive : {}),
-            margin: collapsed ? '1px 6px' : '1px 8px',
-          })}
-        >
-          <ShieldAlert size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
-          {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Super Admin</span>}
-        </NavLink>
-
         <NavLink
           to="/settings"
           title={collapsed ? 'Configurações' : undefined}
@@ -472,11 +396,15 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
         {!isMobile && (
           <button style={s.bottomBtn} onClick={onToggle} title={collapsed ? 'Expandir' : 'Recolher'}>
-            <span style={{ display:'inline-block', transform: collapsed ? 'rotate(180deg)' : 'none', transition:'transform 0.2s', fontFamily:'var(--mono)', fontSize:13 }}>‹‹</span>
+            <span style={{
+              display: 'inline-block',
+              transform: collapsed ? 'rotate(180deg)' : 'none',
+              transition: 'transform 0.2s',
+              fontFamily: 'var(--mono)', fontSize: 13,
+            }}>‹‹</span>
             {!collapsed && <span style={{ fontSize: 12 }}>Recolher</span>}
           </button>
         )}
-
         <button style={{ ...s.bottomBtn, ...s.signOutBtn }} onClick={handleSignOut}>
           <span style={{ fontSize: 14 }}>⎋</span>
           {!collapsed && <span>Sair</span>}
@@ -486,7 +414,6 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   )
 }
 
-// ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
   sidebar: {
     height: '100%',
@@ -525,28 +452,27 @@ const s = {
     marginLeft: 'auto', borderRadius: 5, display: 'flex', alignItems: 'center',
   },
 
-  nav: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '8px 0 4px' },
-  group: { marginBottom: 2 },
+  nav: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '4px 0 8px' },
+  group: { marginBottom: 0 },
 
   groupHeader: {
     display: 'flex', alignItems: 'center',
-    padding: '6px 8px 2px', marginTop: 10, minHeight: 26,
+    padding: '2px 0', minHeight: 28,
   },
   groupGrip: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    color: 'rgba(255,255,255,0.25)', cursor: 'grab', padding: '1px 3px',
-    marginRight: 2, flexShrink: 0,
+    color: 'rgba(255,255,255,0.25)', cursor: 'grab', padding: '1px 4px',
+    flexShrink: 0, marginLeft: 4,
   },
   groupBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     background: 'none', border: 'none', cursor: 'pointer',
-    fontFamily: 'var(--font)', padding: '2px 8px', width: '100%',
+    fontFamily: 'var(--font)', padding: '3px 8px', width: '100%',
   },
   groupLabel: {
     fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: '0.09em', color: 'var(--sb-muted)', whiteSpace: 'nowrap',
   },
-  chevron: { fontSize: 13, color: 'var(--sb-muted)', transition: 'transform 0.2s', lineHeight: 1 },
   pencilBtn: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
     color: 'var(--accent)', cursor: 'pointer', padding: '1px 2px', borderRadius: 3, opacity: 0.85,
@@ -560,8 +486,7 @@ const s = {
   },
   editAction: {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-    background: 'none', border: 'none', color: 'var(--sb-text)', cursor: 'pointer',
-    padding: '2px', borderRadius: 3,
+    background: 'none', border: 'none', color: 'var(--sb-text)', cursor: 'pointer', padding: 2, borderRadius: 3,
   },
 
   navItem: {
@@ -581,16 +506,40 @@ const s = {
   },
 
   grip: {
-    color: 'rgba(255,255,255,0.18)', cursor: 'grab', flexShrink: 0,
+    color: 'rgba(255,255,255,0.25)', cursor: 'grab', flexShrink: 0,
     display: 'flex', alignItems: 'center', marginLeft: -2,
   },
 
+  editMenuBtn: {
+    display: 'flex', alignItems: 'center', gap: 6,
+    padding: '5px 8px', width: '100%',
+    background: 'none', border: '1px dashed rgba(255,255,255,0.1)',
+    borderRadius: 6, color: 'rgba(255,255,255,0.25)', fontSize: 11,
+    cursor: 'pointer', fontFamily: 'var(--font)',
+    transition: 'border-color 0.15s, color 0.15s',
+  },
+  editMenuPanel: {
+    display: 'flex', flexDirection: 'column', gap: 6,
+    background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+    borderRadius: 8, padding: '8px 10px',
+  },
+  editMenuPanelHeader: {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2,
+  },
+  editMenuPanelTitle: {
+    fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+    letterSpacing: '0.07em', color: 'var(--sb-muted)',
+  },
+  editMenuClose: {
+    background: 'none', border: 'none', cursor: 'pointer',
+    color: 'var(--sb-muted)', padding: 2, display: 'flex', borderRadius: 4,
+  },
   addGroupBtn: {
     display: 'flex', alignItems: 'center', gap: 6,
-    margin: '8px 16px 4px', padding: '5px 8px',
+    padding: '5px 8px',
     background: 'none', border: '1px dashed rgba(255,255,255,0.12)',
     borderRadius: 6, color: 'rgba(255,255,255,0.3)', fontSize: 11,
-    cursor: 'pointer', fontFamily: 'var(--font)', width: 'calc(100% - 32px)',
+    cursor: 'pointer', fontFamily: 'var(--font)',
     transition: 'border-color 0.15s, color 0.15s',
   },
 
