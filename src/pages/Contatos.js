@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
 import Button from '../components/Button'
-import { MOCK_EMPRESAS } from '../data/mockEmpresas'
+import { useCompanies } from '../hooks/useCompanies'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
 import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
@@ -60,13 +60,14 @@ const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empre
 
 function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
   const isNew = !item?.id
-  const empresasAtivas = MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
+  const { companies } = useCompanies()
+  const empresasAtivas = companies.filter(e => e.status === 'ativo' || e.status === 'negociacao')
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
 
   function patch(k, v) {
     const next = { ...form, [k]: v }
     if (k === 'empresa_id') {
-      const emp = empresasAtivas.find(e => e.id === Number(v))
+      const emp = empresasAtivas.find(e => String(e.id) === String(v))
       next.empresa_nome = emp ? (emp.fantasia || emp.razao) : ''
     }
     setForm(next)
@@ -75,9 +76,9 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
 
   function handleCreate() {
     if (!form.nome.trim()) return alert('Nome é obrigatório')
-    const emp = empresasAtivas.find(e => e.id === Number(form.empresa_id))
+    const emp = empresasAtivas.find(e => String(e.id) === String(form.empresa_id))
     onSave({ ...form, nome: form.nome.trim(), empresa_nome: emp ? (emp.fantasia || emp.razao) : '',
-      empresa_id: form.empresa_id ? Number(form.empresa_id) : null,
+      empresa_id: form.empresa_id || null,
       id: uid(), tenant_id:'t1', criado_em: new Date().toISOString().slice(0,10) })
     onClose()
   }
@@ -207,15 +208,16 @@ export default function Contatos() {
   const [acoesOpen, setAcoesOpen]   = useState(false)
   const acoesRef                    = useRef(null)
 
+  const { companies } = useCompanies()
   const empresasUnicas = useMemo(() => {
-    const ids = new Set(contatos.map(c => c.empresa_id).filter(Boolean))
-    return MOCK_EMPRESAS.filter(e => ids.has(e.id))
-  }, [contatos])
+    const ids = new Set(contatos.map(c => String(c.empresa_id)).filter(Boolean))
+    return companies.filter(e => ids.has(String(e.id)))
+  }, [contatos, companies])
 
   const lista = useMemo(() => {
     const q = busca.toLowerCase()
     return contatos.filter(c =>
-      (!filtroEmp || c.empresa_id === Number(filtroEmp)) &&
+      (!filtroEmp || String(c.empresa_id) === String(filtroEmp)) &&
       (!filtroCargo || (c.cargo || '').toLowerCase().includes(filtroCargo.toLowerCase())) &&
       (!q || c.nome.toLowerCase().includes(q) ||
              (c.email || '').toLowerCase().includes(q) ||
