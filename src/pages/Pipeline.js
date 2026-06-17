@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { MOCK_FUNIS } from '../data/mockFunis'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
-import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
@@ -30,6 +29,7 @@ import {
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
 import { useOpportunities } from '../hooks/useOpportunities'
+import { useCompanies } from '../hooks/useCompanies'
 import SearchSelect from '../components/SearchSelect'
 import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
@@ -142,10 +142,10 @@ const EMPTY_OPP = {
 
 // ─── Autocomplete de Empresa ──────────────────────────────────────────────────
 function EmpresaSearch({ value, label, onChange }) {
-  const [query, setQuery]     = useState(label || '')
-  const [open, setOpen]       = useState(false)
-  const [companies]           = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const ref                   = useRef(null)
+  const [query, setQuery] = useState(label || '')
+  const [open, setOpen]   = useState(false)
+  const { companies }     = useCompanies()
+  const ref               = useRef(null)
 
   useEffect(() => { setQuery(label || '') }, [label])
   useEffect(() => {
@@ -157,14 +157,11 @@ function EmpresaSearch({ value, label, onChange }) {
   const opts = useMemo(() => {
     const q = query.toLowerCase()
     return companies
-      .filter(e => {
-        const nome = e.name || e.fantasia || e.razao || ''
-        return nome.toLowerCase().includes(q)
-      })
+      .filter(e => (e.fantasia || e.razao || '').toLowerCase().includes(q))
       .slice(0, 8)
   }, [query, companies])
 
-  function getNome(e) { return e.name || e.fantasia || e.razao || '' }
+  function getNome(e) { return e.fantasia || e.razao || '' }
 
   return (
     <div ref={ref} style={{ position:'relative' }}>
