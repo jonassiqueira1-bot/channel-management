@@ -36,16 +36,8 @@ const INITIAL_GROUPS = [
       { path: '/contratos',        label: 'Contratos',          iconKey: 'FileText'        },
       { path: '/pagamentos',       label: 'Pagamentos',         iconKey: 'CreditCard'      },
       { path: '/comissoes',        label: 'Comissões',          iconKey: 'DollarSign'      },
-    ],
-  },
-  {
-    id: 'recursos',
-    label: 'Recursos',
-    items: [
-      { path: '/super-admin',    label: 'Super Admin',    iconKey: 'ShieldAlert'  },
-      { path: '/settings',       label: 'Configurações',  iconKey: 'Settings'     },
-      { path: '/questionarios',  label: 'Questionários',  iconKey: 'ClipboardList'},
-      { path: '/documentos',     label: 'Documentos',     iconKey: 'FileStack'    },
+      { path: '/questionarios',    label: 'Questionários',      iconKey: 'ClipboardList'   },
+      { path: '/documentos',       label: 'Documentos',         iconKey: 'FileStack'       },
     ],
   },
 ]
@@ -56,8 +48,8 @@ let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]         = useLocalState('sidebar:groups_v6', INITIAL_GROUPS)
-  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v6', {})
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v7', INITIAL_GROUPS)
+  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v7', {})
 
   const [editingGroup, setEditingGroup] = useState(null)
   const [editValue,    setEditValue]    = useState('')
