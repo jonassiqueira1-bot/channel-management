@@ -4,7 +4,8 @@ import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
-import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
+import SlideOver from '../components/ui/SlideOver'
+import BrowseLayout from '../components/BrowseLayout'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -201,12 +202,11 @@ const ar = {
 // ─── Modal de cadastro ────────────────────────────────────────────────────────
 const ACCENT = '#6366F1'
 
-function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
+function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados' }) {
   const isNew = !item?.id
   const [form, setForm]             = useState(item || EMPTY_FORM)
   const [cnpjStatus, setCnpjStatus] = useState(null)
   const [cepStatus,  setCepStatus]  = useState(null)
-  const [tab, setTab]               = useState('dados')
   const { sections, fieldById } = useFormLayout('companies')
 
   // ── Relacionamentos persistidos ──────────────────────────────────────────
@@ -825,96 +825,20 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas }) {
     )
   }
 
-  // ── Sidebar de metadados (240px) ─────────────────────────────────────────
-  const sidebar = (
-    <DrawerSidePanel width={240}>
-      <DrawerSidePanelSection label="Classificação">
-        <DrawerSidePanelField label="Tipo" as="select" editing value={form.tipo} onChange={e => patch('tipo', e.target.value)}>
-          {tipoOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </DrawerSidePanelField>
-        <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => patch('status', e.target.value)}>
-          {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </DrawerSidePanelField>
-        <DrawerSidePanelField label="Segmento" as="select" editing value={form.segmento} onChange={e => patch('segmento', e.target.value)}>
-          {segOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </DrawerSidePanelField>
-        <DrawerSidePanelField label="Origem" as="select" editing value={form.origem || ''} onChange={e => patch('origem', e.target.value)}>
-          {origemOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </DrawerSidePanelField>
-        <DrawerSidePanelField label="Responsável" as="select" editing value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || ''} onChange={e => patch('responsavel', MOCK_USUARIOS.find(u => u.id === e.target.value)?.nome || '')}>
-          <option value="">— Sem responsável —</option>
-          {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
-        </DrawerSidePanelField>
-      </DrawerSidePanelSection>
-
-      <DrawerSidePanelSection label="Contato">
-        <DrawerSidePanelField label="E-mail" editing value={form.email || ''} onChange={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
-        <DrawerSidePanelField label="Telefone" editing value={form.telefone || ''} onChange={e => patch('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
-        <DrawerSidePanelField label="Site" editing value={form.site || ''} onChange={e => patch('site', e.target.value)} placeholder="https://…" />
-      </DrawerSidePanelSection>
-
-      <DrawerSidePanelSection label="Fiscal">
-        <DrawerSidePanelField label="CNPJ" value={form.cnpj || ''} empty="—" />
-        <DrawerSidePanelField label="CNAE" value={form.cnae_codigo ? `${form.cnae_codigo}${form.cnae_descricao ? ` — ${form.cnae_descricao.slice(0,24)}` : ''}` : ''} empty="—" />
-        <DrawerSidePanelField label="Insc. Est." editing value={form.inscricao_estadual || ''} onChange={e => patch('inscricao_estadual', e.target.value)} placeholder="000.000.000.000" />
-      </DrawerSidePanelSection>
-
+  return (
+    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
+      <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:'#F8FAFC', minWidth:0 }}>
+        {tab === 'dados'         && TabDados()}
+        {tab === 'contatos'      && TabContatos()}
+        {tab === 'opps'          && TabOportunidades()}
+        {tab === 'contratos'     && TabContratos()}
+        {tab === 'canal'         && TabCanal()}
+      </div>
       {!isNew && (
-        <div style={{ padding: '0 16px', marginTop: 8 }}>
+        <div style={{ padding:'12px 24px', borderTop:'1px solid var(--border2)', background:'var(--surface)', flexShrink:0 }}>
           <DeleteZone label="Excluir cadastro" onDelete={() => { onDelete(item.id); onClose() }} />
         </div>
       )}
-    </DrawerSidePanel>
-  )
-
-  const TABS = [
-    { id:'dados',         label:'Dados' },
-    { id:'contatos',      label:'Contatos',      count: contatos.length },
-    { id:'oportunidades', label:'Oportunidades',  count: opps.length },
-    { id:'contratos',     label:'Contratos',     count: contratos.length },
-    { id:'canal',         label:'Franquia / Canal' },
-  ]
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', height:'calc(100% + 24px)', margin:'-12px -14px' }}>
-      {/* Barra de abas */}
-      <div style={{ padding:'0 24px', flexShrink:0, borderBottom:'1px solid var(--border2)' }}>
-        <div style={{ display:'flex', overflowX:'auto', overflowY:'hidden',
-          scrollbarWidth:'none', msOverflowStyle:'none', gap:0 }}>
-          {TABS.map(t => (
-            <button key={t.id} type="button" onClick={() => setTab(t.id)}
-              style={{ padding:'9px 10px', background:'none', border:'none',
-                borderBottom:`2px solid ${tab === t.id ? ACCENT : 'transparent'}`,
-                color: tab === t.id ? ACCENT : 'var(--text-muted)',
-                fontSize:12, fontWeight: tab === t.id ? 700 : 400,
-                cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1, whiteSpace:'nowrap',
-                display:'flex', alignItems:'center', gap:5, flexShrink:0, transition:'color 0.12s' }}>
-              {t.label}
-              {t.count > 0 && (
-                <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:10,
-                  fontFamily:'var(--mono)', background:'var(--surface3)',
-                  color:'var(--text-muted)', border:'1px solid var(--border)' }}>
-                  {t.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Área principal: conteúdo da aba + sidebar */}
-      <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
-        {/* Conteúdo rolável da aba */}
-        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:'#F8FAFC', minWidth:0 }}>
-          {tab === 'dados'         && TabDados()}
-          {tab === 'contatos'      && TabContatos()}
-          {tab === 'oportunidades' && TabOportunidades()}
-          {tab === 'contratos'     && TabContratos()}
-          {tab === 'canal'         && TabCanal()}
-        </div>
-        {/* Sidebar de metadados */}
-        {sidebar}
-      </div>
     </div>
   )
 }
@@ -977,12 +901,10 @@ export default function Empresas() {
   const [filterTipo, setFilterTipo]     = useLocalState('empresas:filterTipo', '')
   const [filterSeg, setFilterSeg]       = useLocalState('empresas:filterSeg', '')
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
-  const [view, setView]                 = useLocalState('empresas:view', 'table')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
   const [modal, setModal]               = useState(null)
-  const [selected, setSelected]         = useState(new Set()) // ids selecionados
-  const [bulkAction, setBulkAction]     = useState('')        // ação em lote
+  const [soTab, setSoTab]               = useState('dados')
   const [importModal, setImportModal]   = useState(false)
   const [importLogs, setImportLogs]     = useState([])
   const [showLog, setShowLog]           = useState(false)
@@ -1014,42 +936,11 @@ export default function Empresas() {
     })
   }, [empresas, search, filterStatus, filterTipo, filterSeg, sortBy])
 
-  // ── seleção ────────────────────────────────────────────────────────────────
-  const allFilteredIds  = filtered.map(e => e.id)
-  const allSelected     = allFilteredIds.length > 0 && allFilteredIds.every(id => selected.has(id))
-  const someSelected    = allFilteredIds.some(id => selected.has(id)) && !allSelected
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelected(prev => { const s = new Set(prev); allFilteredIds.forEach(id => s.delete(id)); return s })
-    } else {
-      setSelected(prev => new Set([...prev, ...allFilteredIds]))
-    }
-  }
-
-  function toggleOne(id) {
-    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s })
-  }
-
-  function clearSelection() { setSelected(new Set()); setBulkAction('') }
-
-  // ── ações em lote ─────────────────────────────────────────────────────────
-  function applyBulkAction(action) {
-    const ids = [...selected]
-    if (action === 'delete') {
-      if (!window.confirm(`Excluir ${ids.length} empresa(s) permanentemente?`)) return
-      removeMany(ids)
-      clearSelection()
-    } else if (action) {
-      bulkSetStatus(ids, action)
-      clearSelection()
-    }
-  }
 
   // ── Export ────────────────────────────────────────────────────────────────
   function handleExport() {
-    const scope = selected.size > 0 ? 'selecionados' : (search || filterStatus || filterTipo || filterSeg) ? 'filtrados' : 'todos'
-    const rows  = selected.size > 0 ? empresas.filter(e => selected.has(e.id)) : filtered
+    const scope = (search || filterStatus || filterTipo || filterSeg) ? 'filtrados' : 'todos'
+    const rows  = filtered
     const headers = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status','mrr','contratos']
     const fileName = `empresas_${new Date().toISOString().slice(0,10)}.csv`
 
@@ -1110,9 +1001,58 @@ export default function Empresas() {
     setModal(null)
   }
 
+  // Reset soTab ao abrir modal
+  useEffect(() => { if (modal) setSoTab('dados') }, [!!modal])
+
   const totalMRR   = empresas.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
   const totalAtivo = empresas.filter(e => e.status === 'ativo').length
   const totalNegoc = empresas.filter(e => e.status === 'negociacao').length
+
+  function handleSaveAndClose() {
+    // salva o form atual via EmpresaDetail — não temos ref, então só fecha se edição inline já salvou
+    setModal(null)
+  }
+
+  const COLUMNS = [
+    { key: 'razao',    label: 'Empresa',   render: (e) => (
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={p.avatar}>{(e.fantasia || e.razao).slice(0,2).toUpperCase()}</div>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
+            {e.fantasia || e.razao}
+          </div>
+          {e.fantasia && e.fantasia !== e.razao && (
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
+              {e.razao}
+            </div>
+          )}
+        </div>
+      </div>
+    )},
+    { key: 'tipo',     label: 'Tipo',      render: (e) => <TipoBadge tipo={e.tipo} /> },
+    { key: 'status',   label: 'Status',    render: (e) => <StatusBadge status={e.status} /> },
+    { key: 'segmento', label: 'Segmento' },
+    { key: 'cidade',   label: 'Cidade/UF', render: (e) => e.cidade ? `${e.cidade}/${e.uf}` : '—' },
+    { key: 'mrr',      label: 'MRR',       render: (e) => e.mrr ? `R$ ${e.mrr.toLocaleString('pt-BR')}` : '—' },
+  ]
+
+  const FILTERS = [
+    { key: 'tipo',   label: 'Tipo',    options: TIPOS.map(t => ({ value: t.value, label: t.label })) },
+    { key: 'status', label: 'Status',  options: [{value:'ativo',label:'Ativo'},{value:'negociacao',label:'Negociação'},{value:'inativo',label:'Inativo'}] },
+    { key: 'seg',    label: 'Segmento', options: SEGMENTOS.map(s => ({ value: s, label: s })) },
+  ]
+
+  const browseActiveFilters = {
+    tipo:   filterTipo   ? [filterTipo]   : [],
+    status: filterStatus ? [filterStatus] : [],
+    seg:    filterSeg    ? [filterSeg]    : [],
+  }
+
+  function handleBrowseFilterChange(newFilters) {
+    setFilterTipo(  (newFilters.tipo   || [])[0] || '')
+    setFilterStatus((newFilters.status || [])[0] || '')
+    setFilterSeg(   (newFilters.seg    || [])[0] || '')
+  }
 
   return (
     <div style={p.page}>
@@ -1160,94 +1100,47 @@ export default function Empresas() {
         </div>
       </div>
 
-      <div style={p.toolbar}>
-        <div style={p.tbLeft}>
-          <div style={p.searchWrap}>
-            <span style={p.searchIcon}>⌕</span>
-            <input style={p.searchInput} placeholder="Buscar empresa, CNPJ, cidade…" value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-          <select style={p.select} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Todos os status</option>
-            <option value="ativo">Ativo</option>
-            <option value="negociacao">Negociação</option>
-            <option value="inativo">Inativo</option>
-          </select>
-          <select style={p.select} value={filterTipo} onChange={e => setFilterTipo(e.target.value)}>
-            <option value="">Todos os tipos</option>
-            {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
-          <select style={p.select} value={filterSeg} onChange={e => setFilterSeg(e.target.value)}>
-            <option value="">Todos os segmentos</option>
-            {SEGMENTOS.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <div style={p.tbDivider} />
-        <div style={p.tbRight}>
-          <select style={p.select} value={sortBy} onChange={e => setSortBy(e.target.value)}>
-            <option value="razao">Nome A–Z</option>
-            <option value="razao_z">Nome Z–A</option>
-            <option value="mrr_desc">Maior MRR</option>
-            <option value="mrr_asc">Menor MRR</option>
-            <option value="criado">Mais recentes</option>
-          </select>
-          <div style={p.viewToggle}>
-            <button style={{ ...p.viewBtn, ...(view==='table' ? p.viewBtnOn : {}) }} onClick={() => setView('table')}>☰</button>
-            <button style={{ ...p.viewBtn, ...(view==='card'  ? p.viewBtnOn : {}) }} onClick={() => setView('card')}>⊞</button>
-          </div>
-        </div>
-      </div>
+      <BrowseLayout
+        data={filtered}
+        columns={COLUMNS}
+        filters={FILTERS}
+        activeFilters={browseActiveFilters}
+        search={search}
+        onSearchChange={setSearch}
+        onFilterChange={handleBrowseFilterChange}
+        onRowClick={e => setModal({ editing: e })}
+        emptyState={<div style={{ textAlign:'center', color:'var(--text-muted)', padding:'40px 0', fontSize:13 }}>Nenhuma empresa encontrada</div>}
+        onNew={() => setModal('new')}
+        newLabel="+ Nova empresa"
+        storageKey="empresas_browse"
+        bulkActions={[
+          { label: '→ Ativo',      onClick: (ids) => { bulkSetStatus(ids, 'ativo') } },
+          { label: '→ Negociação', onClick: (ids) => { bulkSetStatus(ids, 'negociacao') } },
+          { label: '→ Inativo',    onClick: (ids) => { bulkSetStatus(ids, 'inativo') } },
+          { label: 'Excluir',      variant: 'danger', onClick: (ids) => { if (window.confirm(`Excluir ${ids.length} empresa(s)?`)) removeMany(ids) } },
+        ]}
+      />
 
-      <div style={p.resultRow}>
-        <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-muted)' }}>
-          {filtered.length} empresa{filtered.length !== 1 ? 's' : ''} encontrada{filtered.length !== 1 ? 's' : ''}
-        </span>
-        {(search || filterStatus || filterTipo || filterSeg) && (
-          <button style={p.clearBtn} onClick={() => { setSearch(''); setFilterStatus(''); setFilterTipo(''); setFilterSeg('') }}>Limpar filtros</button>
-        )}
-      </div>
-
-      {/* Barra de ações em lote — aparece quando há seleção */}
-      {selected.size > 0 && (
-        <div style={p.bulkBar}>
-          <span style={p.bulkCount}>
-            <span style={p.bulkDot} />{selected.size} selecionado{selected.size > 1 ? 's' : ''}
-          </span>
-          <div style={p.bulkActions}>
-            <span style={{ fontSize:12, color:'var(--text-muted)' }}>Alterar status:</span>
-            {['ativo','negociacao','inativo'].map(s => (
-              <button key={s} style={p.bulkBtn} onClick={() => applyBulkAction(s)}>
-                → {STATUS_MAP[s].label}
-              </button>
-            ))}
-            <div style={{ width:1, background:'var(--border)', alignSelf:'stretch', margin:'0 4px' }} />
-            <button style={{ ...p.bulkBtn, color:'var(--red)', borderColor:'rgba(220,38,38,0.25)' }} onClick={() => applyBulkAction('delete')}>
-              Excluir
-            </button>
-          </div>
-          <button style={p.bulkClear} onClick={clearSelection}>✕ Limpar seleção</button>
-        </div>
-      )}
-
-      {view === 'table'
-        ? <TableView
-            empresas={filtered} allEmpresas={empresas}
-            onEdit={e => setModal({ editing: e })}
-            selected={selected} onToggleAll={toggleAll} onToggleOne={toggleOne}
-            allSelected={allSelected} someSelected={someSelected}
-          />
-        : <CardView
-            empresas={filtered} allEmpresas={empresas}
-            onEdit={e => setModal({ editing: e })}
-            selected={selected} onToggleOne={toggleOne}
-          />
-      }
-
-      <Drawer
+      <SlideOver
         open={!!modal}
         onClose={() => setModal(null)}
         title={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'Empresa') : 'Nova empresa'}
-        subtitle="Cadastro · Empresas"
-        initials={modal?.editing ? (modal.editing.fantasia || modal.editing.razao || 'EM').slice(0,2).toUpperCase() : 'NE'}
+        subtitle={modal?.editing ? 'Editando empresa' : 'Novo cadastro'}
+        initialSize="default"
+        defaultWidth={720}
+        tabs={modal?.editing ? [
+          { key: 'dados',      label: 'Dados' },
+          { key: 'contatos',   label: 'Contatos' },
+          { key: 'opps',       label: 'Oportunidades' },
+          { key: 'contratos',  label: 'Contratos' },
+          { key: 'canal',      label: 'Canal' },
+        ] : undefined}
+        activeTab={soTab}
+        onTabChange={setSoTab}
+        showFooter={!!modal?.editing}
+        onSave={modal?.editing ? () => setModal(null) : undefined}
+        saveLabel="Salvar alterações"
+        cancelLabel="Cancelar"
       >
         {modal && (
           <EmpresaDetail
@@ -1256,9 +1149,10 @@ export default function Empresas() {
             onSave={handleSave}
             onDelete={handleDelete}
             empresas={empresas}
+            tab={soTab}
           />
         )}
-      </Drawer>
+      </SlideOver>
 
       {importModal && (
         <ImportModal
@@ -1705,153 +1599,6 @@ function KpiCard({ label, value, accent, mono }) {
     <div style={{ ...p.kpi, ...(accent ? { borderTopColor:'var(--accent)' } : {}) }}>
       <span style={{ ...p.kpiVal, fontFamily: mono ? 'var(--mono)' : 'var(--font)' }}>{value}</span>
       <span style={p.kpiLbl}>{label}</span>
-    </div>
-  )
-}
-
-// ─── Checkbox component ───────────────────────────────────────────────────────
-function Checkbox({ checked, indeterminate, onChange, title }) {
-  return (
-    <label title={title} style={{ display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', width:18, height:18 }}>
-      <input
-        type="checkbox"
-        checked={checked}
-        ref={el => { if (el) el.indeterminate = !!indeterminate }}
-        onChange={onChange}
-        style={{ width:15, height:15, cursor:'pointer', accentColor:'var(--accent)' }}
-      />
-    </label>
-  )
-}
-
-// ─── Table view ───────────────────────────────────────────────────────────────
-function TableView({ empresas, allEmpresas, onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected }) {
-  return (
-    <div style={p.tableWrap}>
-      <table style={p.table}>
-        <thead>
-          <tr>
-            <th style={{ ...p.th, width:40, textAlign:'center' }}>
-              <Checkbox
-                checked={allSelected}
-                indeterminate={someSelected}
-                onChange={onToggleAll}
-                title={allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
-              />
-            </th>
-            {['Empresa','Tipo / Papel','Canal Vinculado','CNPJ','Cidade · UF','Status','MRR',''].map(h => (
-              <th key={h} style={p.th}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {empresas.length === 0 && (
-            <tr><td colSpan={10} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma empresa encontrada</td></tr>
-          )}
-          {empresas.map(e => {
-            const isSelected = selected.has(e.id)
-            const franquiaAR = e.franquia_ar_id ? allEmpresas.find(a => a.id === e.franquia_ar_id) : null
-            return (
-              <tr key={e.id} style={{ ...p.tr, ...(isSelected ? p.trSelected : {}) }}>
-                <td style={{ ...p.td, textAlign:'center', width:40 }}>
-                  <Checkbox checked={isSelected} onChange={() => onToggleOne(e.id)} />
-                </td>
-                {/* Empresa: avatar + Nome Fantasia + Razão Social */}
-                <td style={p.td}>
-                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                    <div style={p.avatar}>{(e.fantasia || e.razao).slice(0,2).toUpperCase()}</div>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
-                        {e.fantasia || e.razao}
-                      </div>
-                      {e.fantasia && e.fantasia !== e.razao && (
-                        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
-                          {e.razao}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </td>
-                {/* Tipo / Papel */}
-                <td style={p.td}><TipoBadge tipo={e.tipo} /></td>
-                {/* Canal Vinculado */}
-                <td style={p.td}>
-                  {franquiaAR ? (
-                    <span style={{ fontSize:12, color:'var(--text-soft)', display:'flex', alignItems:'center', gap:5 }}>
-                      <span style={{ width:6, height:6, borderRadius:'50%', background:'var(--accent)', display:'inline-block', flexShrink:0 }} />
-                      {franquiaAR.fantasia || franquiaAR.razao}
-                    </span>
-                  ) : (
-                    <span style={{ color:'var(--border)', fontSize:12 }}>—</span>
-                  )}
-                </td>
-                {/* CNPJ */}
-                <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:11.5, color:'var(--text-soft)' }}>{e.cnpj}</td>
-                {/* Cidade · UF */}
-                <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:12, color:'var(--text-soft)', whiteSpace:'nowrap' }}>
-                  {e.cidade ? `${e.cidade} · ${e.uf}` : '—'}
-                </td>
-                <td style={p.td}><StatusBadge status={e.status} /></td>
-                {/* MRR */}
-                <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:13, fontWeight:600, color: e.mrr > 0 ? 'var(--accent)' : 'var(--text-muted)', whiteSpace:'nowrap' }}>
-                  {e.mrr > 0 ? `R$ ${e.mrr.toLocaleString('pt-BR')}` : '—'}
-                </td>
-                <td style={{ ...p.td, textAlign:'right' }}>
-                  <button style={p.editBtn} onClick={() => onEdit(e)}>Editar</button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ─── Card view ────────────────────────────────────────────────────────────────
-function CardView({ empresas, allEmpresas, onEdit, selected, onToggleOne }) {
-  return (
-    <div style={p.cardGrid}>
-      {empresas.map(e => {
-        const isSelected = selected.has(e.id)
-        const franquiaAR = e.franquia_ar_id ? allEmpresas.find(a => a.id === e.franquia_ar_id) : null
-        return (
-          <div key={e.id} style={{ ...p.card, ...(isSelected ? p.cardSelected : {}) }}>
-            <div style={p.cardTop}>
-              <Checkbox checked={isSelected} onChange={() => onToggleOne(e.id)} />
-              <div style={p.cardAvatar}>{(e.fantasia || e.razao).slice(0,2).toUpperCase()}</div>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={p.cardName}>{e.fantasia || e.razao}</div>
-                <div style={p.cardSub}>{e.segmento} · {e.cidade}/{e.uf}</div>
-              </div>
-              <TipoBadge tipo={e.tipo} />
-            </div>
-            {franquiaAR && (
-              <div style={{ fontSize:11, color:'var(--accent2)', fontFamily:'var(--mono)', padding:'4px 0', borderBottom:'1px solid var(--border2)' }}>
-                AR: {franquiaAR.fantasia || franquiaAR.razao}
-              </div>
-            )}
-            <div style={p.cardMeta}>
-              <MetaItem label="MRR"    value={e.mrr > 0 ? `R$ ${e.mrr.toLocaleString('pt-BR')}` : '—'} mono />
-              <MetaItem label="Status" value={<StatusBadge status={e.status} />} />
-              <MetaItem label="CNAE"   value={e.cnae_codigo || '—'} mono />
-            </div>
-            <div style={p.cardFooter}>
-              <span style={p.cardResp}>{e.responsavel}</span>
-              <button style={p.editBtn} onClick={() => onEdit(e)}>Editar</button>
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function MetaItem({ label, value, mono }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:1 }}>
-      <span style={{ fontSize:10, fontFamily:'var(--mono)', color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</span>
-      <span style={{ fontSize:13, fontWeight:600, fontFamily: mono ? 'var(--mono)' : 'var(--font)', color:'var(--text)' }}>{value}</span>
     </div>
   )
 }

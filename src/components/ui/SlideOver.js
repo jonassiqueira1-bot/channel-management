@@ -74,6 +74,7 @@ export default function SlideOver({
   defaultWidth,
   rightPanel,
   rightPanelOpen = false,
+  showFooter     = true,
 }) {
   const [sizeIdx, setSizeIdx] = useState(() => SIZE_ORDER.indexOf(initialSize))
   const isFullscreen = SIZE_ORDER[sizeIdx] === 'fullscreen'
@@ -355,7 +356,7 @@ export default function SlideOver({
         </div>
 
         {/* ── Footer sticky — only rendered when no tabs ─────────── */}
-        {!hasTabs && (
+        {!hasTabs && showFooter && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
             gap: 8, padding: '12px 20px', flexShrink: 0,
