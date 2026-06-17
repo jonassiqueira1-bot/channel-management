@@ -974,8 +974,10 @@ export default function Empresas() {
     if (search) {
       const q = search.toLowerCase()
       list = list.filter(e =>
-        e.razao.toLowerCase().includes(q) || e.fantasia?.toLowerCase().includes(q) ||
-        e.cnpj.includes(q) || e.cidade?.toLowerCase().includes(q)
+        (e.razao  || '').toLowerCase().includes(q) ||
+        (e.fantasia || '').toLowerCase().includes(q) ||
+        (e.cnpj   || '').includes(q) ||
+        (e.cidade || '').toLowerCase().includes(q)
       )
     }
     if (filterStatus) list = list.filter(e => e.status   === filterStatus)
