@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
-import { MOCK_PERFIS, PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
+import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import Button from '../../components/Button'
+import SettingsLayout from '../../components/ui/SettingsLayout'
 
 const ACCENT = '#6366F1'
 
@@ -780,41 +781,16 @@ function ImportModal({ onClose, onImport }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsUsuarios() {
   const [perfis, setPerfis]      = useLocalState('settings:perfis_v2', [])
-  const [rolesStore]             = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const sessao                   = SESSOES_MOCK[0]
   const [modalConvite, setModalConvite] = useState(false)
   const [modalImport, setModalImport]   = useState(false)
   const [editando, setEditando]  = useState(null)
   const [busca, setBusca]        = useState('')
-  const [filtroPapel, setFiltroPapel]   = useState('')
-  const [filtroStatus, setFiltroStatus] = useState('')
-  const [filtroTipo, setFiltroTipo]     = useState('')
-  const [sortField, setSortField]       = useState('nome')
-  const [sortDir, setSortDir]           = useState('asc')
-
-  function toggleSort(field) {
-    if (sortField === field) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
-    else { setSortField(field); setSortDir('asc') }
-  }
 
   // Filtro RLS simulado
   const perfisFiltradosSessao = useMemo(() => filtrarPorSessao(perfis, sessao), [perfis, sessao])
 
-  // Filtros de UI + ordenação
-  const lista = useMemo(() => {
-    const q = busca.toLowerCase()
-    const filtered = perfisFiltradosSessao.filter(p =>
-      (!q || p.nome.toLowerCase().includes(q) || p.email.toLowerCase().includes(q)) &&
-      (!filtroPapel  || p.papel === filtroPapel) &&
-      (!filtroStatus || p.status === filtroStatus) &&
-      (!filtroTipo   || p.tipo_usuario === filtroTipo)
-    )
-    return [...filtered].sort((a, b) => {
-      const av = (a[sortField] || '').toString().toLowerCase()
-      const bv = (b[sortField] || '').toString().toLowerCase()
-      return sortDir === 'asc' ? av.localeCompare(bv, 'pt') : bv.localeCompare(av, 'pt')
-    })
-  }, [perfisFiltradosSessao, busca, filtroPapel, filtroStatus, filtroTipo, sortField, sortDir])
+  const lista = perfisFiltradosSessao
 
   // KPIs
   const total    = perfisFiltradosSessao.length
@@ -839,21 +815,6 @@ export default function SettingsUsuarios() {
   return (
     <div style={pg.wrap}>
 
-      {/* ── Header ── */}
-      <div style={pg.header}>
-        <div>
-          <h2 style={pg.title}>Usuários</h2>
-          <p style={pg.desc}>Gerencie os usuários com acesso à plataforma e seus níveis de permissão.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Button variant="secondary" onClick={() => exportarCSV(lista)}>↓ Exportar CSV</Button>
-          <Button variant="secondary" onClick={() => setModalImport(true)}>↑ Importar</Button>
-          {podeCriar && (
-            <Button onClick={() => setModalConvite(true)}>+ Convidar usuário</Button>
-          )}
-        </div>
-      </div>
-
       {/* ── KPIs ── */}
       <div style={pg.kpiRow}>
         {[
@@ -869,171 +830,47 @@ export default function SettingsUsuarios() {
         ))}
       </div>
 
-      {/* ── Toolbar ── */}
-      <div style={pg.toolbar}>
-        <input
-          style={pg.search}
-          placeholder="Buscar por nome ou e-mail…"
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
-        />
-        <select style={pg.select} value={filtroPapel} onChange={e => setFiltroPapel(e.target.value)}>
-          <option value="">Todos os papéis</option>
-          {PAPEIS_OPTIONS.map(p => <option key={p.value} value={p.value}>{PAPEIS_CONFIG[p.value].label}</option>)}
-        </select>
-        <select style={pg.select} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
-          <option value="">Todos os status</option>
-          {Object.entries(STATUS_CONFIG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select style={pg.select} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-          <option value="">Interno / Externo</option>
-          <option value="interno">Interno (ISV)</option>
-          <option value="externo">Externo (Parceiro)</option>
-        </select>
-        {(busca || filtroPapel || filtroStatus || filtroTipo) && (
-          <button style={pg.clearBtn} onClick={() => { setBusca(''); setFiltroPapel(''); setFiltroStatus(''); setFiltroTipo('') }}>
-            ✕ Limpar
-          </button>
-        )}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-          {lista.length} de {total}
-        </span>
-      </div>
-
       {/* ── Tabela ── */}
-      <div style={pg.tableWrap}>
-        <table style={pg.table}>
-          <thead>
-            <tr style={pg.thead}>
-              {[
-                { label: 'Usuário',           field: 'nome' },
-                { label: 'E-mail',            field: 'email' },
-                { label: 'Empresa',           field: null },
-                { label: 'Papel',             field: 'papel' },
-                { label: 'Perfis de Acesso',  field: null },
-                { label: 'Status',            field: 'status' },
-                { label: 'Último acesso',     field: 'ultimo_acesso' },
-                { label: '',                  field: null },
-              ].map(({ label, field }, i) => (
-                <th key={i}
-                  onClick={field ? () => toggleSort(field) : undefined}
-                  style={{ ...pg.th, textAlign: i === 7 ? 'center' : 'left',
-                    cursor: field ? 'pointer' : 'default',
-                    userSelect: 'none',
-                    color: sortField === field ? 'var(--text)' : 'var(--text-muted)',
-                  }}>
-                  {label}
-                  {field && (
-                    <span style={{ marginLeft: 4, opacity: sortField === field ? 1 : 0.3, fontSize: 9 }}>
-                      {sortField === field ? (sortDir === 'asc' ? '▲' : '▼') : '⇅'}
+      <SettingsLayout
+        title="Usuários"
+        description="Gerencie os usuários com acesso à plataforma e seus níveis de permissão."
+        columns={[
+          { key: 'nome', label: 'Usuário', render: (v, row) => (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <Avatar perfil={row} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {row.nome}
+                  {row.id === sessao.id && (
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px',
+                      background: `${ACCENT}22`, color: ACCENT, borderRadius: 4,
+                      fontFamily: 'var(--mono)', border: `1px solid ${ACCENT}44` }}>
+                      você
                     </span>
                   )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {lista.length === 0 && (
-              <tr>
-                <td colSpan={7} style={{ padding: '48px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <div style={{ fontSize: 28, marginBottom: 8 }}>👥</div>
-                  <div style={{ fontSize: 13 }}>Nenhum usuário encontrado</div>
-                </td>
-              </tr>
-            )}
-            {lista.map(perfil => {
-              const empresa = MOCK_EMPRESAS.find(e => e.id === perfil.empresa_id)
-              const ehSessaoAtual = perfil.id === sessao.id
-              return (
-                <tr key={perfil.id}
-                  style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer',
-                    background: ehSessaoAtual ? `${ACCENT}06` : 'transparent' }}
-                  onClick={() => setEditando(perfil)}
-                  onMouseEnter={e => e.currentTarget.style.background = ehSessaoAtual ? `${ACCENT}10` : 'var(--surface2)'}
-                  onMouseLeave={e => e.currentTarget.style.background = ehSessaoAtual ? `${ACCENT}06` : 'transparent'}>
-
-                  {/* Usuário */}
-                  <td style={pg.td}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar perfil={perfil} />
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {perfil.nome}
-                          {ehSessaoAtual && (
-                            <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px',
-                              background: `${ACCENT}22`, color: ACCENT, borderRadius: 4,
-                              fontFamily: 'var(--mono)', border: `1px solid ${ACCENT}44` }}>
-                              você
-                            </span>
-                          )}
-                        </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {perfil.tipo_usuario === 'interno' ? 'ISV' : 'Parceiro'}
-                        </div>
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* E-mail */}
-                  <td style={{ ...pg.td, fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>
-                    {perfil.email}
-                  </td>
-
-                  {/* Empresa */}
-                  <td style={pg.td}>
-                    {empresa ? (
-                      <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{empresa.fantasia || empresa.razao}</span>
-                    ) : (
-                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>ISV</span>
-                    )}
-                  </td>
-
-                  {/* Papel */}
-                  <td style={pg.td}><PapelBadge papel={perfil.papel} /></td>
-
-                  {/* Perfis de Acesso */}
-                  <td style={pg.td}>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                      {(perfil.perfis_acesso_ids || []).length === 0 ? (
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>—</span>
-                      ) : (perfil.perfis_acesso_ids || []).map(pid => {
-                        const r = rolesStore.find(r => r.id === pid)
-                        if (!r) return null
-                        return (
-                          <span key={pid} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px',
-                            borderRadius: 99, background: `${r.cor}18`, color: r.cor,
-                            border: `1px solid ${r.cor}44`, whiteSpace: 'nowrap' }}>
-                            {r.nome}
-                          </span>
-                        )
-                      })}
-                    </div>
-                  </td>
-
-                  {/* Status */}
-                  <td style={pg.td}><StatusBadge status={perfil.status} /></td>
-
-                  {/* Último acesso */}
-                  <td style={{ ...pg.td, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-                    {fmtDate(perfil.ultimo_acesso)}
-                  </td>
-
-                  {/* Ação */}
-                  <td style={{ ...pg.td, textAlign: 'center' }}>
-                    <button type="button"
-                      onClick={e => { e.stopPropagation(); setEditando(perfil) }}
-                      style={{ fontSize: 11.5, fontWeight: 600, color: ACCENT, background: 'none',
-                        border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px',
-                        cursor: 'pointer', fontFamily: 'var(--font)' }}>
-                      Editar
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                </div>
+                <div style={{ fontSize: 11, color: '#71717A' }}>{row.tipo_usuario === 'interno' ? 'ISV' : 'Parceiro'}</div>
+              </div>
+            </div>
+          )},
+          { key: 'email', label: 'E-mail', priority: 2, muted: true },
+          { key: 'papel', label: 'Papel', render: (v) => <PapelBadge papel={v} /> },
+          { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} /> },
+          { key: 'ultimo_acesso', label: 'Último acesso', priority: 3, muted: true, render: (v) => fmtDate(v) },
+        ]}
+        data={lista}
+        keyField="id"
+        onNew={podeCriar ? () => setModalConvite(true) : undefined}
+        newLabel="+ Convidar usuário"
+        rowActions={[
+          { label: 'Editar', onClick: row => setEditando(row) },
+        ]}
+        emptyLabel="Nenhum usuário encontrado"
+        search={busca}
+        onSearchChange={setBusca}
+        onExportCsv={() => exportarCSV(lista)}
+        onImport={() => setModalImport(true)}
+      />
 
       {/* ── Modais ── */}
       {modalImport && (

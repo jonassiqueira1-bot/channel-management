@@ -38,6 +38,7 @@ import Questionarios from './pages/Questionarios'
 import Documentos from './pages/Documentos'
 import SuperAdmin from './pages/SuperAdmin'
 import BranchSharing from './pages/settings/BranchSharing'
+import Funis from './pages/Funis'
 
 export default function App() {
   return (
@@ -82,6 +83,7 @@ export default function App() {
               <Route path="usuarios"     element={<SettingsUsuarios />} />
               <Route path="perfis"       element={<SettingsPerfis />} />
               <Route path="habilitacoes" element={<SettingsHabilitacoes />} />
+              <Route path="funis"        element={<Funis />} />
               <Route path="produtos"     element={<Produtos />} />
               <Route path="comissoes"    element={<SettingsPage title="Esteira de Comissões"  description="Configure a estrutura de comissionamento do canal." />} />
               <Route path="tipos-acoes"  element={<SettingsTiposAcao />} />

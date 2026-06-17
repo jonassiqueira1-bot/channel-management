@@ -4,19 +4,20 @@
  * Auto-save via useLocalState (sem botão Salvar)
  */
 
-import { useState, useMemo, useCallback, useRef } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { FIELDS_SEED, LAYOUT_SEED } from '../../data/formSeeds'
 import {
-  DndContext, DragOverlay, closestCenter, PointerSensor,
+  DndContext, DragOverlay, PointerSensor,
   useSensor, useSensors, useDroppable, useDraggable,
 } from '@dnd-kit/core'
 import {
   Lock, Plus, X, Pencil, GripVertical, ChevronUp,
   ChevronDown, Trash2, Check, Eye, EyeOff, Search,
   Type, AlignLeft, Hash, Calendar, ToggleLeft, List,
-  LayoutTemplate,
 } from 'lucide-react'
+import SettingsLayout from '../../components/ui/SettingsLayout'
+import { FullPageEdit } from '../../components/ui'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const ACCENT = '#6366F1'
@@ -629,16 +630,12 @@ function ConfirmDeleteModal({ onClose, onConfirm }) {
   )
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
-export default function SettingsForms() {
-  const [fields,  setFields]  = useLocalState('settings:form_fields_v2',  FIELDS_SEED)
-  const [layout,  setLayout]  = useLocalState('settings:form_layout_v2',  LAYOUT_SEED)
-  const [entity,  setEntity]  = useState('companies')
+// ─── Editor interno (DnD 3 colunas) ───────────────────────────────────────────
+function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
   const [showPreview, setShowPreview] = useLocalState('settings:forms_preview', true)
   const [fieldModal,  setFieldModal]  = useState(null)
   const [secModal,    setSecModal]    = useState(null)
   const [confirmDel,  setConfirmDel]  = useState(null)
-  const [activeId,    setActiveId]    = useState(null)
   const [activeDrag,  setActiveDrag]  = useState(null)
   const [pendingSlot, setPendingSlot] = useState(null)
   const [savedFlash,  setSavedFlash]  = useState(false)
@@ -703,12 +700,11 @@ export default function SettingsForms() {
 
   // ── DnD ────────────────────────────────────────────────────────────────────
   function onDragStart({ active }) {
-    setActiveId(active.id)
     setActiveDrag(active.data.current)
   }
 
   function onDragEnd({ active, over }) {
-    setActiveId(null); setActiveDrag(null)
+    setActiveDrag(null)
     if (!over) return
 
     const aData  = active.data.current
@@ -814,52 +810,22 @@ export default function SettingsForms() {
   }, [activeDrag, fieldById])
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', minHeight:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
 
-      {/* ── Header ── */}
-      <div style={pg.header}>
-        <div>
-          <h2 style={pg.title}>Configuração de Campos</h2>
-          <p style={pg.desc}>
-            Arraste campos para posicioná-los no formulário. Mudanças são salvas automaticamente.
-          </p>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {savedFlash && (
-            <span style={{ fontSize:12, color:'var(--green)', fontWeight:600, display:'flex', alignItems:'center', gap:5, animation:'fadeIn 0.2s ease' }}>
-              <Check size={13} color="var(--green)" strokeWidth={2.5} /> Salvo
-            </span>
-          )}
-          <button
-            onClick={() => setShowPreview(v => !v)}
-            style={{
-              display:'flex', alignItems:'center', gap:6,
-              padding:'7px 14px', borderRadius:8,
-              border:'1px solid var(--border)',
-              background: showPreview ? 'var(--accent-glow)' : 'var(--surface)',
-              color: showPreview ? ACCENT : 'var(--text-muted)',
-              fontSize:12, fontWeight:700, fontFamily:'var(--font)', cursor:'pointer',
-              transition:'all 0.15s',
-            }}>
-            {showPreview ? <EyeOff size={13} strokeWidth={1.75}/> : <Eye size={13} strokeWidth={1.75}/>}
-            {showPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
-          </button>
-        </div>
-      </div>
-
-      {/* ── Abas de entidade ── */}
-      <div style={{ display:'flex', borderBottom:'1px solid var(--border)', padding:'0 0', flexShrink:0 }}>
-        {ENTIDADES.map(e => (
-          <button key={e.id} type="button" onClick={() => setEntity(e.id)}
-            style={{ padding:'10px 18px', background:'none', border:'none',
-              borderBottom:`2px solid ${entity===e.id ? ACCENT : 'transparent'}`,
-              color: entity===e.id ? ACCENT : 'var(--text-muted)',
-              fontSize:13, fontWeight: entity===e.id ? 700 : 500,
-              cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1, transition:'all 0.12s' }}>
-            {e.emoji} {e.label}
-          </button>
-        ))}
+      {/* ── Sub-toolbar ── */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, padding:'10px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        {savedFlash && (
+          <span style={{ fontSize:12, color:'var(--green)', fontWeight:600, display:'flex', alignItems:'center', gap:5, animation:'fadeIn 0.2s ease' }}>
+            <Check size={13} color="var(--green)" strokeWidth={2.5} /> Salvo
+          </span>
+        )}
+        <button
+          onClick={() => setShowPreview(v => !v)}
+          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1px solid var(--border)', background: showPreview ? 'var(--accent-glow)' : 'var(--surface)', color: showPreview ? ACCENT : 'var(--text-muted)', fontSize:12, fontWeight:700, fontFamily:'var(--font)', cursor:'pointer', transition:'all 0.15s' }}>
+          {showPreview ? <EyeOff size={13} strokeWidth={1.75}/> : <Eye size={13} strokeWidth={1.75}/>}
+          {showPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
+        </button>
       </div>
 
       {/* ── Layout 3 colunas ── */}
@@ -1019,11 +985,69 @@ export default function SettingsForms() {
   )
 }
 
-// ─── Estilos ──────────────────────────────────────────────────────────────────
-const pg = {
-  header:  { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'20px 24px 14px', borderBottom:'1px solid var(--border)', flexShrink:0 },
-  title:   { fontSize:18, fontWeight:700, color:'var(--text)', margin:0, letterSpacing:'-0.3px' },
-  desc:    { fontSize:13, color:'var(--text-muted)', margin:'4px 0 0', maxWidth:560 },
+// ─── Página principal ─────────────────────────────────────────────────────────
+export default function SettingsForms() {
+  const [fields,  setFields]  = useLocalState('settings:form_fields_v2',  FIELDS_SEED)
+  const [layout,  setLayout]  = useLocalState('settings:form_layout_v2',  LAYOUT_SEED)
+  const [editando, setEditando] = useState(null)
+  const [search, setSearch] = useState('')
+
+  const filtered = ENTIDADES.filter(e => !search || e.label.toLowerCase().includes(search.toLowerCase()))
+
+  if (editando) {
+    const ent = editando
+    const totalFields = fields.filter(f => f.entity === ent.id).length
+    const totalSecs   = layout[ent.id]?.sections?.length || 0
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Configuração de Campos', onClick: () => setEditando(null) }]}
+        title={`${ent.emoji} ${ent.label}`}
+        subtitle={`${totalFields} campo${totalFields !== 1 ? 's' : ''} · ${totalSecs} seção${totalSecs !== 1 ? 'ões' : ''} · Auto-salvo`}
+        onSave={() => setEditando(null)}
+        saveLabel="Concluir"
+        onCancel={() => setEditando(null)}
+      >
+        <EntityEditor
+          entity={ent.id}
+          fields={fields}
+          setFields={setFields}
+          layout={layout}
+          setLayout={setLayout}
+        />
+      </FullPageEdit>
+    )
+  }
+
+  return (
+    <SettingsLayout
+      title="Configuração de Campos"
+      description="Configure os campos e layout dos formulários de cada entidade do sistema."
+      columns={[
+        { key: 'label', label: 'Entidade', render: (v, row) => (
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:20 }}>{row.emoji}</span>
+            <span style={{ fontWeight:700, fontSize:13, color:'var(--text)' }}>{v}</span>
+          </div>
+        )},
+        { key: 'id', label: 'Campos', width: 110, render: (v) => {
+          const n = fields.filter(f => f.entity === v).length
+          return <span style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{n} campo{n !== 1 ? 's' : ''}</span>
+        }},
+        { key: 'id', label: 'Seções', width: 110, render: (v) => {
+          const n = layout[v]?.sections?.length || 0
+          return <span style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{n} seção{n !== 1 ? 'ões' : ''}</span>
+        }},
+      ]}
+      data={filtered}
+      keyField="id"
+      emptyLabel="Nenhuma entidade encontrada."
+      rowActions={[
+        { label: 'Editar campos', onClick: row => setEditando(row) },
+      ]}
+      search={search}
+      onSearchChange={setSearch}
+    />
+  )
 }
 
 const cs = {

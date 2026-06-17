@@ -146,6 +146,7 @@ function parseInput(v) { return parseFloat(String(v).replace(/\./g,'').replace('
 
 function iniciais(nome) {
   const p = (nome || '').trim().split(' ').filter(Boolean)
+  if (p.length === 0) return '?'
   return p.length === 1 ? p[0][0].toUpperCase() : (p[0][0] + p[p.length-1][0]).toUpperCase()
 }
 function corAvatar(nome) {
@@ -1084,18 +1085,27 @@ export default function Metas() {
       : byTipo
 
     // Agrupar por entidade
+    // Suporte a ambos os formatos de campo (hook novo: alvo_nome/alvo_contexto, legado: nome_ref/sub_ref)
     const entityMap = {}
     byResp.forEach(g => {
-      const idRef = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || 'global'
-      const key   = `${g.tipo_alvo}|${idRef}|${g.tipo_meta}`
+      const idRef  = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || 'global'
+      const key    = `${g.tipo_alvo}|${idRef}|${g.tipo_meta}`
+      const nomeRef = g.alvo_nome    || g.nome_ref || ''
+      const subRef  = g.alvo_contexto || g.sub_ref  || ''
       if (!entityMap[key]) {
         entityMap[key] = {
           key, tipo_alvo: g.tipo_alvo, tipo_meta: g.tipo_meta,
           subtipo_operacional: g.subtipo_operacional, valor_sufixo: g.valor_sufixo,
-          nome_ref: g.nome_ref, sub_ref: g.sub_ref, goals: {},
+          nome_ref: nomeRef, sub_ref: subRef, goals: {},
         }
       }
-      entityMap[key].goals[`${g.periodo_ano}-${g.periodo_mes}`] = g
+      // Normaliza o registro para sempre ter valor_alvo e nome_ref
+      entityMap[key].goals[`${g.periodo_ano}-${g.periodo_mes}`] = {
+        ...g,
+        nome_ref:  nomeRef,
+        sub_ref:   subRef,
+        valor_alvo: g.valor_planejado ?? g.valor_alvo ?? 0,
+      }
     })
 
     const ORDER = { vendedor: 0, unidade: 1, categoria: 2, produto: 3 }

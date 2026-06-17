@@ -37,8 +37,10 @@ import { useLocalState } from '../hooks/useLocalState'
 import {
   ShieldCheck, ShieldAlert, Eye, Pencil, Trash2, Download,
   Upload, Users, BarChart2, Target, Zap, Settings2, FileText,
-  DollarSign, CheckSquare, Megaphone, Plus, X, Shield, UserCheck,
+  DollarSign, CheckSquare, Megaphone, X, Shield, UserCheck,
 } from 'lucide-react'
+import SettingsLayout from '../components/ui/SettingsLayout'
+import { FullPageEdit, FPESection } from '../components/ui'
 
 // ─── Ação de escopo (compartilhada por todos os módulos com dados de usuário) ──
 const ACAO_ESCOPO = { id: 'apenas_proprios', label: 'Apenas registros com participação própria', icon: UserCheck, scope: true }
@@ -340,515 +342,271 @@ function NovoPerfil({ onClose, onSave }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Perfis() {
-  // Estado dinâmico de perfis (nativos + customizados)
   const [perfis, setPerfis] = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  // Estado de permissões por perfil: { [perfil.id]: { [modulo]: { [acao]: bool } } }
   const [perms, setPerms]   = useLocalState('perfis:permissions', buildSeedPerms())
-
-  const [selectedId, setSelectedId] = useState('native_master')
+  const [editando, setEditando] = useState(null)
+  const [search, setSearch]    = useState('')
   const [novoModal, setNovoModal]   = useState(false)
-  const [hasChanges, setHasChanges] = useState(false)
-  const [search, setSearch]         = useLocalState('perfis:search', '')
-  const [confirmDel, setConfirmDel] = useState(null) // id a deletar
+  const [confirmDel, setConfirmDel] = useState(null)
 
-  const selected  = perfis.find(p => p.id === selectedId) || perfis[0]
-  const rolePerms = perms[selected?.id] || {}
+  const rolePerms = perms[editando?.id] || {}
 
-  // ── Toggle individual ──────────────────────────────────────────────────────
   function toggle(modulo, acao) {
     setPerms(prev => ({
       ...prev,
-      [selected.id]: {
-        ...prev[selected.id],
-        [modulo]: {
-          ...prev[selected.id]?.[modulo],
-          [acao]: !prev[selected.id]?.[modulo]?.[acao],
-        },
+      [editando.id]: {
+        ...prev[editando.id],
+        [modulo]: { ...prev[editando.id]?.[modulo], [acao]: !prev[editando.id]?.[modulo]?.[acao] },
       },
     }))
-    setHasChanges(true)
   }
 
-  // ── Ativar/desativar todos (módulo ou tudo) ────────────────────────────────
   function setAllInModule(moduloId, value) {
     const mod = MODULOS.find(m => m.id === moduloId)
     if (!mod) return
     const next = {}
     mod.acoes.forEach(a => { next[a.id] = value })
-    setPerms(prev => ({
-      ...prev,
-      [selected.id]: { ...prev[selected.id], [moduloId]: next },
-    }))
-    setHasChanges(true)
+    setPerms(prev => ({ ...prev, [editando.id]: { ...prev[editando.id], [moduloId]: next } }))
   }
 
   function setAll(value) {
     const next = {}
-    MODULOS.forEach(mod => {
-      next[mod.id] = {}
-      mod.acoes.forEach(a => { next[mod.id][a.id] = value })
-    })
-    setPerms(prev => ({ ...prev, [selected.id]: next }))
-    setHasChanges(true)
+    MODULOS.forEach(mod => { next[mod.id] = {}; mod.acoes.forEach(a => { next[mod.id][a.id] = value }) })
+    setPerms(prev => ({ ...prev, [editando.id]: next }))
   }
 
-  // ── Restaurar padrão (apenas nativos) ─────────────────────────────────────
   function resetRole() {
-    if (!selected.nativo) return
     const seed = buildSeedPerms()
-    setPerms(prev => ({ ...prev, [selected.id]: seed[selected.id] }))
-    setHasChanges(false)
+    setPerms(prev => ({ ...prev, [editando.id]: seed[editando.id] || emptyPerms() }))
   }
 
-  // ── Salvar ─────────────────────────────────────────────────────────────────
-  function saveChanges() {
-    // Produção: upsert em roles_permissions via Supabase
-    setHasChanges(false)
-  }
-
-  // ── Criar novo perfil ──────────────────────────────────────────────────────
   function handleCriarPerfil({ nome, cor }) {
     const id = `custom_${Date.now()}`
     const novoPerfil = { id, slug: id, nome, nativo: false, cor, icon: 'Shield', desc: 'Perfil personalizado' }
     setPerfis(prev => [...prev, novoPerfil])
     setPerms(prev => ({ ...prev, [id]: emptyPerms() }))
-    setSelectedId(id)
     setNovoModal(false)
-    setHasChanges(false)
+    setEditando(novoPerfil)
   }
 
-  // ── Excluir perfil customizado ─────────────────────────────────────────────
   function handleDeletar(id) {
     setPerfis(prev => prev.filter(p => p.id !== id))
     setPerms(prev => { const n = { ...prev }; delete n[id]; return n })
-    if (selectedId === id) setSelectedId('native_master')
     setConfirmDel(null)
+    setEditando(null)
   }
 
-  // ── Filtro de módulos ──────────────────────────────────────────────────────
   const modFiltered = useMemo(() => {
     if (!search) return MODULOS
     const q = search.toLowerCase()
     return MODULOS.filter(m =>
-      m.label.toLowerCase().includes(q) ||
-      m.acoes.some(a => a.label.toLowerCase().includes(q))
+      m.label.toLowerCase().includes(q) || m.acoes.some(a => a.label.toLowerCase().includes(q))
     )
   }, [search])
 
-  const { total, active, pct } = countPerms(rolePerms)
+  if (editando) {
+    const { total, active, pct } = countPerms(rolePerms)
+    const IconComp = ICON_MAP[editando.icon] || Shield
 
-  const nativosIds = new Set(PERFIS_NATIVOS_SEED.map(p => p.id))
-
-  return (
-    <div style={s.page}>
-
-      {/* ── Page header ── */}
-      <div style={s.pageHeader}>
-        <div>
-          <div style={s.breadcrumb}>
-            Configuração <span style={{ margin: '0 5px', opacity: .5 }}>›</span> Perfis de Acesso
-          </div>
-          <h1 style={s.title}>Perfis de Acesso</h1>
-        </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          {hasChanges && (
-            <span style={{ fontSize: 12, color: '#D97706', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D97706', display: 'inline-block' }} />
-              Alterações não salvas
-            </span>
-          )}
-          {selected.nativo && (
-            <button style={s.btnSecondary} onClick={resetRole}>Restaurar padrão</button>
-          )}
-          <button style={s.btnPrimary} onClick={saveChanges}>
-            Salvar alterações
-          </button>
-        </div>
-      </div>
-
-      {/* ── Layout 2 colunas ── */}
-      <div style={s.layout}>
-
-        {/* ════ Coluna esquerda ════ */}
-        <div style={s.leftCol}>
-
-          {/* Botão novo perfil */}
-          <button style={s.newRoleBtn} onClick={() => setNovoModal(true)}>
-            <Plus size={14} />
-            Novo perfil
-          </button>
-
-          {/* Grupos: Nativos e Customizados */}
-          {[
-            { label: 'Perfis nativos',      items: perfis.filter(p => p.nativo) },
-            { label: 'Perfis personalizados', items: perfis.filter(p => !p.nativo) },
-          ].map(group => group.items.length === 0 ? null : (
-            <div key={group.label} style={{ marginBottom: 6 }}>
-              <div style={s.groupLabel}>{group.label}</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {group.items.map(perfil => {
-                  const { active: a, total: t, pct: pc } = countPerms(perms[perfil.id])
-                  const isSelected = perfil.id === selectedId
-                  const IconComp = ICON_MAP[perfil.icon] || Shield
-
-                  return (
-                    <div key={perfil.id} style={{ position: 'relative' }}>
-                      <button
-                        onClick={() => { setSelectedId(perfil.id); setHasChanges(false) }}
-                        style={{
-                          ...s.roleCard,
-                          ...(isSelected ? {
-                            borderColor: perfil.cor,
-                            background: corParaBg(perfil.cor),
-                            boxShadow: `0 0 0 3px ${perfil.cor}1A`,
-                          } : {}),
-                          paddingRight: perfil.nativo ? 14 : 36,
-                        }}>
-
-                        {/* Ícone + nome + contador */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                          <div style={{
-                            width: 34, height: 34, borderRadius: 9, flexShrink: 0,
-                            background: isSelected ? perfil.cor : `${perfil.cor}20`,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            transition: 'background 0.15s',
-                          }}>
-                            <IconComp size={16} color={isSelected ? '#fff' : perfil.cor} />
-                          </div>
-                          <div style={{ textAlign: 'left', flex: 1, minWidth: 0 }}>
-                            <div style={{
-                              fontWeight: 700, fontSize: 13, lineHeight: 1.2,
-                              color: isSelected ? perfil.cor : 'var(--text)',
-                              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                            }}>
-                              {perfil.nome}
-                            </div>
-                            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                              {a}/{t} ativas · {pc}%
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Barra de progresso */}
-                        <div style={{ height: 3, borderRadius: 2, background: 'var(--surface3)', overflow: 'hidden' }}>
-                          <div style={{
-                            height: '100%', width: `${pc}%`, borderRadius: 2,
-                            background: perfil.cor, transition: 'width 0.3s ease',
-                          }} />
-                        </div>
-                      </button>
-
-                      {/* Botão excluir (apenas customizados) */}
-                      {!perfil.nativo && (
-                        <button
-                          onClick={() => setConfirmDel(perfil.id)}
-                          title="Excluir perfil"
-                          style={{
-                            position: 'absolute', top: 10, right: 10,
-                            width: 22, height: 22, borderRadius: 6,
-                            border: '1px solid var(--border)', background: 'var(--surface)',
-                            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: 'var(--text-muted)', transition: 'all 0.12s',
-                          }}
-                          onMouseEnter={e => { e.currentTarget.style.background = '#FEF2F2'; e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.borderColor = '#FECACA' }}
-                          onMouseLeave={e => { e.currentTarget.style.background = 'var(--surface)'; e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}>
-                          <X size={11} />
-                        </button>
-                      )}
-                    </div>
-                  )
-                })}
+    return (
+      <>
+        <FullPageEdit
+          breadcrumb={[{ label: 'Perfis de Acesso', onClick: () => setEditando(null) }]}
+          title={editando.nome}
+          subtitle={editando.nativo ? 'Perfil nativo — não pode ser renomeado' : 'Perfil personalizado'}
+          onSave={() => setEditando(null)}
+          saveLabel="Salvar e voltar"
+          onCancel={() => setEditando(null)}
+          onDelete={!editando.nativo ? () => setConfirmDel(editando.id) : undefined}
+          deleteLabel="Excluir perfil"
+        >
+          <FPESection title={`Permissões — ${active}/${total} ativas (${pct}%)`}>
+            {/* Toolbar: busca + atalhos */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+              <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 14, color: 'var(--text-muted)', pointerEvents: 'none' }}>⌕</span>
+                <input className="fpe-field" style={{ paddingLeft: 30, height: 34 }}
+                  placeholder="Filtrar módulos ou ações…"
+                  value={search} onChange={e => setSearch(e.target.value)} />
               </div>
+              {editando.nativo && (
+                <button type="button" style={s.microBtn} onClick={resetRole}>Restaurar padrão</button>
+              )}
+              <button type="button" style={s.microBtn} onClick={() => setAll(true)}>Ativar todos</button>
+              <button type="button" style={{ ...s.microBtn, color: '#DC2626', borderColor: '#FECACA' }} onClick={() => setAll(false)}>Desativar todos</button>
             </div>
-          ))}
 
-          {perfis.filter(p => !p.nativo).length === 0 && (
-            <div style={{ padding: '12px 14px', borderRadius: 10, border: '1px dashed var(--border)',
-              textAlign: 'center', marginTop: 4 }}>
-              <Shield size={18} color="var(--text-muted)" style={{ margin: '0 auto 6px' }} />
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-                Nenhum perfil personalizado.<br />Clique em <strong>+ Novo perfil</strong>.
-              </div>
+            {/* Barra de progresso geral */}
+            <div style={{ height: 4, borderRadius: 2, background: 'var(--surface3)', marginBottom: 20, overflow: 'hidden' }}>
+              <div style={{ height: '100%', width: `${pct}%`, background: editando.cor, borderRadius: 2, transition: 'width 0.3s' }} />
             </div>
-          )}
-        </div>
 
-        {/* ════ Coluna direita ════ */}
-        <div style={s.rightCol}>
-
-          {/* Header do painel */}
-          <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 46, height: 46, borderRadius: 13, flexShrink: 0,
-                background: selected?.cor || 'var(--accent)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: `0 4px 14px ${selected?.cor || 'var(--accent)'}40`,
-              }}>
-                {selected && (() => { const I = ICON_MAP[selected.icon] || Shield; return <I size={22} color="#fff" /> })()}
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text)' }}>
-                    {selected?.nome}
-                  </h2>
-                  {selected?.nativo ? (
-                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
-                      padding: '2px 7px', borderRadius: 20, background: '#F5F3FF', color: '#7C3AED', border: '1px solid #DDD6FE' }}>
-                      Nativo
-                    </span>
-                  ) : (
-                    <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em',
-                      padding: '2px 7px', borderRadius: 20, background: 'var(--surface2)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
-                      Personalizado
-                    </span>
-                  )}
+            {/* Módulos */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {modFiltered.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+                  Nenhum módulo encontrado para "{search}".
                 </div>
-                <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--text-muted)' }}>
-                  {selected?.desc}
-                </p>
-              </div>
-            </div>
-
-            {/* Gauge de permissões */}
-            <div style={{ flexShrink: 0, textAlign: 'center' }}>
-              <div style={{ fontSize: 28, fontWeight: 900, color: selected?.cor, fontFamily: 'var(--mono)', lineHeight: 1 }}>
-                {pct}%
-              </div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', marginTop: 2 }}>
-                {active}/{total} ativas
-              </div>
-              {/* Mini progress */}
-              <div style={{ width: 80, height: 4, borderRadius: 2, background: 'var(--surface3)', marginTop: 6, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: selected?.cor, borderRadius: 2, transition: 'width 0.3s' }} />
-              </div>
-            </div>
-          </div>
-
-          {/* Sub-toolbar */}
-          <div style={{ padding: '10px 24px', borderBottom: '1px solid var(--border)',
-            display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div style={{ position: 'relative', flex: 1, maxWidth: 300 }}>
-              <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)',
-                fontSize: 14, color: 'var(--text-muted)', pointerEvents: 'none' }}>⌕</span>
-              <input style={{ ...s.input, paddingLeft: 30, width: '100%', height: 34 }}
-                placeholder="Filtrar módulos ou ações…"
-                value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <div style={{ flex: 1 }} />
-            <button style={s.microBtn} onClick={() => setAll(true)}>Ativar todos</button>
-            <button style={{ ...s.microBtn, color: '#DC2626', borderColor: '#FECACA' }} onClick={() => setAll(false)}>
-              Desativar todos
-            </button>
-          </div>
-
-          {/* Matriz de permissões */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {modFiltered.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)', fontSize: 13 }}>
-                Nenhum módulo encontrado para "{search}".
-              </div>
-            )}
-
-            {modFiltered.map(mod => {
-              const ModIcon = mod.icon
-              const modPerms = rolePerms[mod.id] || {}
-              const modActive = mod.acoes.filter(a => modPerms[a.id]).length
-              const allOn = modActive === mod.acoes.length
-
-              return (
-                <div key={mod.id} style={s.modCard}>
-                  {/* Cabeçalho do módulo */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--surface3)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <ModIcon size={15} color="var(--text-soft)" />
+              )}
+              {modFiltered.map(mod => {
+                const ModIcon = mod.icon
+                const modPerms = rolePerms[mod.id] || {}
+                const modActive = mod.acoes.filter(a => modPerms[a.id]).length
+                const allOn = modActive === mod.acoes.length
+                return (
+                  <div key={mod.id} style={s.modCard}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 9, background: 'var(--surface3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <ModIcon size={15} color="var(--text-soft)" />
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{mod.label}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{mod.desc}</div>
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, padding: '2px 8px', borderRadius: 20, border: `1px solid ${modActive > 0 ? editando.cor : 'var(--border)'}`, background: modActive > 0 ? corParaBg(editando.cor) : 'var(--surface2)', color: modActive > 0 ? editando.cor : 'var(--text-muted)' }}>
+                          {modActive}/{mod.acoes.length}
+                        </span>
+                        <button type="button" onClick={() => setAllInModule(mod.id, !allOn)} style={{ ...s.microBtn, fontSize: 10, padding: '2px 8px' }}>
+                          {allOn ? 'Nenhum' : 'Todos'}
+                        </button>
+                      </div>
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{mod.label}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{mod.desc}</div>
+                    <div style={{ height: 1, background: 'var(--border2)', marginBottom: 10 }} />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                      {mod.acoes.filter(a => !a.scope).map(acao => {
+                        const AcaoIcon = acao.icon
+                        const val = !!modPerms[acao.id]
+                        const locked = editando.id === 'native_master' && acao.id === 'gerenciar_perfis'
+                        return (
+                          <label key={acao.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none', background: val ? (acao.danger ? '#FEF2F222' : corParaBg(editando.cor)) : 'transparent', border: `1px solid ${val && acao.danger ? '#FECACA' : 'transparent'}`, transition: 'background 0.15s' }} onMouseEnter={e => { if (!val) e.currentTarget.style.background = 'var(--surface2)' }} onMouseLeave={e => { if (!val) e.currentTarget.style.background = 'transparent' }}>
+                            <AcaoIcon size={13} color={val ? (acao.danger ? '#DC2626' : editando.cor) : '#94A3B8'} />
+                            <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text)', lineHeight: 1.3 }}>
+                              {acao.label}
+                              {acao.danger && <span style={{ display: 'block', fontSize: 10, color: '#DC2626', fontWeight: 600, marginTop: 1 }}>⚠ Ação destrutiva</span>}
+                            </span>
+                            <Toggle value={val} onChange={() => toggle(mod.id, acao.id)} disabled={locked} />
+                          </label>
+                        )
+                      })}
                     </div>
-                    {/* Badge contador + toggle-all rápido */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <span style={{
-                        fontSize: 10, fontFamily: 'var(--mono)', fontWeight: 700, padding: '2px 8px',
-                        borderRadius: 20, border: `1px solid ${modActive > 0 ? selected?.cor : 'var(--border)'}`,
-                        background: modActive > 0 ? corParaBg(selected?.cor || '#1E3A5F') : 'var(--surface2)',
-                        color: modActive > 0 ? selected?.cor : 'var(--text-muted)',
-                      }}>
-                        {modActive}/{mod.acoes.length}
-                      </span>
-                      <button onClick={() => setAllInModule(mod.id, !allOn)}
-                        style={{ ...s.microBtn, fontSize: 10, padding: '2px 8px' }}>
-                        {allOn ? 'Nenhum' : 'Todos'}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Divisor */}
-                  <div style={{ height: 1, background: 'var(--border2)', marginBottom: 10 }} />
-
-                  {/* Ações normais (2 colunas) */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                    {mod.acoes.filter(a => !a.scope).map(acao => {
-                      const AcaoIcon = acao.icon
+                    {mod.acoes.filter(a => a.scope).map(acao => {
                       const val = !!modPerms[acao.id]
-                      const locked = selected?.id === 'native_master' && acao.id === 'gerenciar_perfis'
-
                       return (
-                        <label key={acao.id}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
-                            borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                            background: val
-                              ? acao.danger ? '#FEF2F222' : corParaBg(selected?.cor || '#1E3A5F')
-                              : 'transparent',
-                            border: `1px solid ${val && acao.danger ? '#FECACA' : 'transparent'}`,
-                            transition: 'background 0.15s',
-                          }}
-                          onMouseEnter={e => { if (!val) e.currentTarget.style.background = 'var(--surface2)' }}
-                          onMouseLeave={e => { if (!val) e.currentTarget.style.background = 'transparent' }}>
-
-                          <AcaoIcon size={13}
-                            color={val ? (acao.danger ? '#DC2626' : selected?.cor) : '#94A3B8'} />
-
-                          <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text)', lineHeight: 1.3 }}>
-                            {acao.label}
-                            {acao.danger && (
-                              <span style={{ display: 'block', fontSize: 10, color: '#DC2626', fontWeight: 600, marginTop: 1 }}>
-                                ⚠ Ação destrutiva
-                              </span>
-                            )}
-                          </span>
-
-                          <Toggle value={val} onChange={() => toggle(mod.id, acao.id)} disabled={locked} />
-                        </label>
+                        <div key={acao.id} style={{ marginTop: 8, borderTop: '1px dashed var(--border2)', paddingTop: 8 }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', userSelect: 'none', background: val ? 'rgba(245,158,11,0.07)' : 'transparent', border: `1px solid ${val ? 'rgba(245,158,11,0.3)' : 'transparent'}`, transition: 'background 0.15s' }} onMouseEnter={e => { if (!val) e.currentTarget.style.background = 'var(--surface2)' }} onMouseLeave={e => { if (!val) e.currentTarget.style.background = 'transparent' }}>
+                            <UserCheck size={13} color={val ? '#D97706' : '#94A3B8'} strokeWidth={1.75} />
+                            <span style={{ flex: 1, lineHeight: 1.3 }}>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: val ? '#D97706' : 'var(--text)' }}>{acao.label}</span>
+                              <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 400 }}>Restringe a visão do módulo aos registros em que o usuário é responsável ou participante</span>
+                            </span>
+                            <Toggle value={val} onChange={() => toggle(mod.id, acao.id)} />
+                          </label>
+                        </div>
                       )
                     })}
                   </div>
+                )
+              })}
+            </div>
+          </FPESection>
+        </FullPageEdit>
 
-                  {/* Ação de escopo — full-width com visual destacado */}
-                  {mod.acoes.filter(a => a.scope).map(acao => {
-                    const val = !!modPerms[acao.id]
-                    return (
-                      <div key={acao.id} style={{ marginTop: 8, borderTop: '1px dashed var(--border2)', paddingTop: 8 }}>
-                        <label style={{
-                          display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
-                          borderRadius: 8, cursor: 'pointer', userSelect: 'none',
-                          background: val ? 'rgba(245,158,11,0.07)' : 'transparent',
-                          border: `1px solid ${val ? 'rgba(245,158,11,0.3)' : 'transparent'}`,
-                          transition: 'background 0.15s',
-                        }}
-                          onMouseEnter={e => { if (!val) e.currentTarget.style.background = 'var(--surface2)' }}
-                          onMouseLeave={e => { if (!val) e.currentTarget.style.background = 'transparent' }}>
-                          <UserCheck size={13} color={val ? '#D97706' : '#94A3B8'} strokeWidth={1.75} />
-                          <span style={{ flex: 1, lineHeight: 1.3 }}>
-                            <span style={{ fontSize: 12, fontWeight: 600, color: val ? '#D97706' : 'var(--text)' }}>
-                              {acao.label}
-                            </span>
-                            <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)', marginTop: 1, fontWeight: 400 }}>
-                              Restringe a visão do módulo aos registros em que o usuário é responsável ou participante
-                            </span>
-                          </span>
-                          <Toggle value={val} onChange={() => toggle(mod.id, acao.id)} />
-                        </label>
-                      </div>
-                    )
-                  })}
+        {/* Confirm delete */}
+        {confirmDel && (
+          <div style={s.overlay} onClick={() => setConfirmDel(null)}>
+            <div style={{ ...s.modal, maxWidth: 380 }} onClick={e => e.stopPropagation()}>
+              <div style={s.modalHeader}>
+                <div><div style={s.modalSub}>Atenção</div><h2 style={{ ...s.modalTitle, color: '#DC2626' }}>Excluir perfil</h2></div>
+                <button onClick={() => setConfirmDel(null)} style={s.closeBtn}><X size={16} /></button>
+              </div>
+              <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.6 }}>
+                  Ao excluir este perfil, <strong>todos os usuários vinculados a ele perderão o acesso</strong>. Esta ação não pode ser desfeita.
+                </p>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button style={s.btnSecondary} onClick={() => setConfirmDel(null)}>Cancelar</button>
+                  <button style={{ ...s.btnPrimary, background: '#DC2626' }} onClick={() => handleDeletar(confirmDel)}>Excluir perfil</button>
                 </div>
-              )
-            })}
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        )}
+      </>
+    )
+  }
 
-      {/* ── Modal: Novo perfil ── */}
-      {novoModal && (
-        <NovoPerfil onClose={() => setNovoModal(false)} onSave={handleCriarPerfil} />
-      )}
+  return (
+    <>
+      <SettingsLayout
+        title="Perfis de Acesso"
+        description="Defina as permissões de cada perfil de usuário no sistema."
+        columns={[
+          { key: 'nome', label: 'Perfil', render: (v, row) => {
+            const IconComp = ICON_MAP[row.icon] || Shield
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 9, background: `${row.cor}20`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <IconComp size={15} color={row.cor} />
+                </div>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{v}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.desc}</div>
+                </div>
+              </div>
+            )
+          }},
+          { key: 'nativo', label: 'Tipo', width: 120, render: (v) => (
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: v ? '#F5F3FF' : 'var(--surface2)', color: v ? '#7C3AED' : 'var(--text-muted)', border: `1px solid ${v ? '#DDD6FE' : 'var(--border)'}` }}>
+              {v ? 'Nativo' : 'Custom'}
+            </span>
+          )},
+          { key: 'id', label: 'Permissões', width: 120, render: (v) => {
+            const { active: a, total: t, pct: pc } = countPerms(perms[v] || {})
+            return <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{a}/{t} · {pc}%</span>
+          }},
+        ]}
+        data={perfis}
+        keyField="id"
+        emptyLabel="Nenhum perfil encontrado."
+        onNew={() => setNovoModal(true)}
+        newLabel="+ Novo perfil"
+        rowActions={[
+          { label: 'Editar permissões', onClick: (row) => setEditando(row) },
+          { label: 'Excluir', danger: true, onClick: (row) => setConfirmDel(row.id), disabled: (row) => row.nativo },
+        ]}
+      />
 
-      {/* ── Confirm delete ── */}
+      {novoModal && <NovoPerfil onClose={() => setNovoModal(false)} onSave={handleCriarPerfil} />}
+
       {confirmDel && (
         <div style={s.overlay} onClick={() => setConfirmDel(null)}>
           <div style={{ ...s.modal, maxWidth: 380 }} onClick={e => e.stopPropagation()}>
             <div style={s.modalHeader}>
-              <div>
-                <div style={s.modalSub}>Atenção</div>
-                <h2 style={{ ...s.modalTitle, color: '#DC2626' }}>Excluir perfil</h2>
-              </div>
+              <div><div style={s.modalSub}>Atenção</div><h2 style={{ ...s.modalTitle, color: '#DC2626' }}>Excluir perfil</h2></div>
               <button onClick={() => setConfirmDel(null)} style={s.closeBtn}><X size={16} /></button>
             </div>
             <div style={{ padding: '16px 24px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
               <p style={{ margin: 0, fontSize: 13, color: 'var(--text-soft)', lineHeight: 1.6 }}>
-                Ao excluir este perfil, <strong>todos os usuários vinculados a ele perderão o acesso</strong>.
-                Esta ação não pode ser desfeita.
+                Ao excluir este perfil, <strong>todos os usuários vinculados a ele perderão o acesso</strong>. Esta ação não pode ser desfeita.
               </p>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
                 <button style={s.btnSecondary} onClick={() => setConfirmDel(null)}>Cancelar</button>
-                <button style={{ ...s.btnPrimary, background: '#DC2626' }} onClick={() => handleDeletar(confirmDel)}>
-                  Excluir perfil
-                </button>
+                <button style={{ ...s.btnPrimary, background: '#DC2626' }} onClick={() => handleDeletar(confirmDel)}>Excluir perfil</button>
               </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 const s = {
-  page: {
-    maxWidth: 1200, margin: '0 auto',
-    height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column',
-  },
-  pageHeader: {
-    display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between',
-    marginBottom: 20, flexShrink: 0,
-  },
-  breadcrumb: {
-    fontSize: 11, color: 'var(--text-muted)', fontWeight: 600,
-    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4,
-  },
-  title: {
-    margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.4px',
-  },
-  layout: {
-    display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, flex: 1, minHeight: 0,
-  },
-  leftCol: {
-    overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, paddingRight: 2,
-  },
-  rightCol: {
-    background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
-    boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-  },
-  groupLabel: {
-    fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em',
-    color: 'var(--text-muted)', marginBottom: 6, paddingLeft: 2,
-  },
-  newRoleBtn: {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-    width: '100%', padding: '9px 14px', borderRadius: 9,
-    border: '1.5px dashed var(--accent)', background: 'var(--accent-glow)',
-    color: 'var(--accent)', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-    fontFamily: 'var(--font)', transition: 'all 0.15s', marginBottom: 4,
-  },
-  roleCard: {
-    width: '100%', padding: '12px 14px', borderRadius: 10,
-    border: '2px solid var(--border)', background: 'var(--surface)',
-    cursor: 'pointer', fontFamily: 'var(--font)', transition: 'all 0.15s',
-  },
   modCard: {
     background: 'var(--surface)', border: '1px solid var(--border)',
     borderRadius: 12, padding: '14px 16px', flexShrink: 0,
-  },
-  input: {
-    padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)',
-    background: 'var(--surface2)', fontSize: 13, color: 'var(--text)',
-    fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
   },
   microBtn: {
     padding: '5px 11px', borderRadius: 7, border: '1px solid var(--border)',

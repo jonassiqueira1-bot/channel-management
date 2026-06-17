@@ -7,11 +7,11 @@ import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { MOCK_OPORTUNIDADES } from '../data/mockOportunidades'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
-import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineSearchSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import SearchSelect from '../components/SearchSelect'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
+import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -546,282 +546,6 @@ function gerarProvisoesPagamento(contrato) {
   return novas.length
 }
 
-// ─── Notion Drawer: Contrato Detail ───────────────────────────────────────────
-function ContratoDetail({ onClose, onSave, onDelete, item, contratos }) {
-  const isNew = !item?.id
-  const [form, setForm] = useState(item || { ...EMPTY_FORM, numero: gerarNumero(contratos) })
-  const [activacaoFeedback, setActivacaoFeedback] = useState(null) // steps para ActionFeedback
-
-  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
-  function patch(field, val) {
-    const next = { ...form, [field]: val }
-    setForm(next)
-    if (!isNew) onSave({ ...next, id: item.id })
-
-    // Ao ativar pela primeira vez (rascunho → ativo), mostra ActionFeedback
-    if (field === 'status' && val === 'ativo' && form.status === 'rascunho') {
-      const temCdu = next.data_pag_cdu && (parseFloat(next.valor_adesao) || 0) > 0
-      const temSms = next.data_pag_sms && (parseFloat(next.valor_mrr)    || 0) > 0
-      setActivacaoFeedback([
-        { id: 'status',   label: 'Status atualizado para Ativo',         sublabel: next.numero, mono: true },
-        { id: 'vigencia', label: 'Vigência confirmada',                   sublabel: next.vigencia_inicio ? `A partir de ${next.vigencia_inicio}` : 'Data de início registrada' },
-        { id: 'cdu',      label: 'Provisão CDU ativada',                  sublabel: temCdu ? `A partir de ${next.data_pag_cdu}` : undefined, skip: !temCdu },
-        { id: 'sms',      label: 'Provisão SMS/MRR ativada',              sublabel: temSms ? `A partir de ${next.data_pag_sms}` : undefined, skip: !temSms },
-        { id: 'contrato', label: 'Contrato disponível em Faturamento' },
-      ])
-    }
-  }
-
-  const valorTotal = useMemo(() => {
-    return (parseFloat(form.valor_adesao) || 0) + (parseFloat(form.valor_mrr) || 0) + (parseFloat(form.valor_servico) || 0)
-  }, [form.valor_adesao, form.valor_mrr, form.valor_servico])
-
-  function handleCreate() {
-    if (!form.empresa_id) return alert('Selecione uma empresa')
-    const novoContrato = { ...form, id: Date.now() }
-    onSave(novoContrato)
-    const provisoes = gerarProvisoesPagamento(novoContrato)
-    if (provisoes > 0) {
-      alert(`Contrato salvo! ${provisoes} provisão(ões) de pagamento gerada(s) em Faturamento.`)
-    }
-    onClose()
-  }
-
-  const statusOptions = STATUS_CONTRATO.map(s => ({ value: s.value, label: s.label }))
-  const empresaOptions = [{ value:'', label:'— Selecione —' }, ...MOCK_EMPRESAS.map(e => ({ value: String(e.id), label: e.fantasia || e.razao }))]
-
-  const { sections: ctSections, fieldById: ctFieldById } = useFormLayout('contracts')
-  const ctInp = { padding:'8px 12px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text)', fontSize:13, fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }
-  const ctLbl = { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }
-
-  function renderContratoField(key) {
-    switch (key) {
-      case 'numero':    return null  // fixo como título
-      case 'empresa_id':
-        return (
-          <select style={ctInp} value={form.empresa_id || ''} onChange={e => {
-            const emp = MOCK_EMPRESAS.find(x => x.id === Number(e.target.value))
-            setForm(f => ({ ...f, empresa_id: e.target.value ? Number(e.target.value) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
-            if (!isNew) patch('empresa_id', e.target.value ? Number(e.target.value) : null)
-          }}>
-            <option value="">— Selecione —</option>
-            {MOCK_EMPRESAS.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
-          </select>
-        )
-      case 'tipo':      return null  // não existe no form
-      case 'status':
-        return (
-          <select style={ctInp} value={form.status} onChange={e => patch('status', e.target.value)}>
-            {STATUS_CONTRATO.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        )
-      case 'valor':     return null  // calculado
-      case 'data_inicio':
-        return <input type="date" style={ctInp} value={form.vigencia_inicio || ''} onChange={e => patch('vigencia_inicio', e.target.value)} />
-      case 'data_fim':
-        return <input type="date" style={ctInp} value={form.vigencia_fim || ''} onChange={e => patch('vigencia_fim', e.target.value)} />
-      case 'responsavel':
-        return <input style={ctInp} value={form.responsavel || ''} onChange={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
-      case 'objeto':
-        return <textarea style={{ ...ctInp, minHeight:72, resize:'vertical' }} value={form.objeto || ''} onChange={e => patch('objeto', e.target.value)} placeholder="Objeto do contrato…" />
-      case 'observacoes':
-        return <textarea style={{ ...ctInp, minHeight:72, resize:'vertical' }} value={form.observacoes || ''} onChange={e => patch('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" />
-      default: return null
-    }
-  }
-
-  const left = (
-    <div style={{ padding:'32px 40px', display:'flex', flexDirection:'column', gap:20, flex:1 }}>
-      {/* Número — fixo como título */}
-      <div>
-        <input value={form.numero} onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-          onBlur={e => patch('numero', e.target.value)}
-          placeholder="Número do contrato…"
-          style={{ width:'100%', boxSizing:'border-box', border:'none', outline:'none',
-            background:'transparent', fontSize:22, fontWeight:700, color:'var(--text)',
-            fontFamily:'var(--mono)', padding:0,
-            borderBottom:'2px solid transparent', transition:'border-color 0.15s' }}
-          onFocus={e => { e.target.style.borderBottomColor = 'var(--accent)' }}
-          onBlurCapture={e => { e.target.style.borderBottomColor = 'transparent' }} />
-        <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, display:'flex', gap:8 }}>
-          {form.empresa_nome && <span style={{ color:'var(--accent)', fontWeight:600 }}>{form.empresa_nome}</span>}
-          {form.criado && <span>· Criado {fmtData(form.criado)}</span>}
-        </div>
-      </div>
-
-      {/* Campos configuráveis via Conf. de Campos */}
-      <DynamicFormLayout
-        sections={ctSections}
-        fieldById={ctFieldById}
-        renderField={renderContratoField}
-        sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
-        labelStyle={ctLbl}
-      />
-
-      {/* Produtos */}
-      <div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)',
-          textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:12 }}>Produtos contratados</div>
-        <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-          {SLOTS.map(slot => {
-            const idKey = `produto_${slot.key}_id`
-            const nomeKey = `produto_${slot.key}_nome`
-            const valorKey = `valor_${slot.key}`
-            const tabelaKey = `tabela_${slot.key}`
-            const descontoKey = `desconto_${slot.key}_pct`
-            const autorizadoKey = `desconto_autorizado_${slot.key}`
-            return (
-              <ProdutoSearch key={slot.key} slot={slot}
-                value={form[idKey]} label={form[nomeKey]}
-                valor={form[valorKey]} tabela={form[tabelaKey]}
-                descontoPct={form[descontoKey]} autorizado={form[autorizadoKey]}
-                onChangeProduto={(id, nome, preco) => {
-                  setForm(f => ({ ...f, [idKey]:id, [nomeKey]:nome||'',
-                    [valorKey]:id?(preco||''):'', [tabelaKey]:id?(preco||null):null,
-                    [descontoKey]:'0', [autorizadoKey]:false }))
-                }}
-                onChangeValor={v => set(valorKey, v)}
-                onChangeDesconto={v => set(descontoKey, v)}
-                onChangeAutorizado={v => set(autorizadoKey, v)}
-              />
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Resumo financeiro */}
-      {(form.produto_adesao_id || form.produto_mrr_id || form.produto_servico_id) && (
-        <div style={{ background:'var(--accent-glow)', border:'1px solid rgba(30,58,95,0.12)',
-          borderRadius:10, padding:'12px 16px', display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:12 }}>
-          {[
-            { label:'Adesão', val: parseFloat(form.valor_adesao)||0, color:'var(--text)' },
-            { label:'MRR', val: parseFloat(form.valor_mrr)||0, color:'var(--blue-text)', suffix:'/mês' },
-            { label:'Serviço', val: parseFloat(form.valor_servico)||0, color:'var(--purple-text)' },
-            { label:'Total recorrente', val:(parseFloat(form.valor_mrr)||0)+(parseFloat(form.valor_servico)||0), color:'var(--green-text)', suffix:'/mês' },
-          ].map(({ label, val, color, suffix }) => (
-            <div key={label}>
-              <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)',
-                marginBottom:3, textTransform:'uppercase', letterSpacing:'0.06em' }}>{label}</div>
-              <div style={{ fontSize:14, fontWeight:700, color, fontFamily:'var(--mono)' }}>
-                {fmtMoeda(val)}{suffix && <span style={{ fontSize:10, fontWeight:400 }}>{suffix}</span>}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {isNew && (
-        <button onClick={handleCreate}
-          style={{ alignSelf:'flex-start', padding:'9px 20px', background:'var(--accent)',
-            color:'#fff', border:'none', borderRadius:8, fontSize:13, fontWeight:700,
-            cursor:'pointer', fontFamily:'var(--font)' }}>
-          Salvar contrato
-        </button>
-      )}
-    </div>
-  )
-
-  const right = (
-    <div style={{ display:'flex', flexDirection:'column', flex:1 }}>
-      <MetaSection label="Contrato" />
-      <MetaRow label="Status">
-        <InlineSelect value={form.status} onChange={v => patch('status', v)} options={statusOptions} />
-      </MetaRow>
-      <MetaRow label="Empresa">
-        <InlineSearchSelect
-          value={form.empresa_id ? String(form.empresa_id) : ''}
-          onChange={v => {
-            const emp = MOCK_EMPRESAS.find(e => e.id === Number(v))
-            patch('empresa_id', v ? Number(v) : null)
-            setForm(f => ({ ...f, empresa_id: v ? Number(v) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
-          }}
-          options={empresaOptions}
-          placeholder="— Sem empresa —"
-        />
-      </MetaRow>
-      <MetaRow label="Primeira compra">
-        <div style={{ display:'flex', gap:4, paddingLeft:6 }}>
-          {[{ v:true, l:'Sim' }, { v:false, l:'Não' }].map(({ v, l }) => (
-            <button key={String(v)} onClick={() => patch('primeira_compra', v)}
-              style={{ padding:'3px 12px', borderRadius:12, fontSize:11, fontWeight:700, border:'none',
-                cursor:'pointer', transition:'all 0.12s',
-                background: form.primeira_compra === v ? 'var(--green-bg)' : 'var(--surface2)',
-                color: form.primeira_compra === v ? 'var(--green-text)' : 'var(--text-muted)' }}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </MetaRow>
-
-      <MetaSection label="Vigência" />
-      <MetaRow label="Data Aquisição">
-        <InlineDate value={form.vigencia_inicio} onChange={v => patch('vigencia_inicio', v)} placeholder="Definir data" />
-      </MetaRow>
-      <MetaRow label="Cancelamento">
-        <InlineDate value={form.vigencia_fim} onChange={v => patch('vigencia_fim', v)} placeholder="Definir data" />
-      </MetaRow>
-      <MetaRow label="Data Pag CDU">
-        <InlineDate value={form.data_pag_cdu} onChange={v => patch('data_pag_cdu', v)} placeholder="Início pagamento CDU" />
-      </MetaRow>
-      <MetaRow label="Data Pag SMS">
-        <InlineDate value={form.data_pag_sms} onChange={v => patch('data_pag_sms', v)} placeholder="Início pagamento SMS" />
-      </MetaRow>
-
-      <MetaSection label="Comercial" />
-      <MetaRow label="Origem">
-        <InlineSelect
-          value={form.origem || ''}
-          onChange={v => patch('origem', v)}
-          options={[
-            { value: '',           label: '— Não definida —' },
-            { value: 'direta',     label: 'Direta'           },
-            { value: 'indireta',   label: 'Indireta'         },
-            { value: 'incentivada',label: 'Incentivada'      },
-          ]}
-          placeholder="— Não definida —"
-        />
-      </MetaRow>
-      <MetaRow label="Prospecção">
-        <InlineSearchSelect
-          value={form.prospeccao_id ? String(form.prospeccao_id) : ''}
-          onChange={id => {
-            const opp = MOCK_OPORTUNIDADES.find(o => String(o.id) === String(id))
-            patch('prospeccao_id', id ? Number(id) : null)
-            setForm(f => ({ ...f, prospeccao_id: id ? Number(id) : null, prospeccao_titulo: opp?.titulo || '' }))
-          }}
-          options={[
-            { value: '', label: '— Sem vínculo —' },
-            ...MOCK_OPORTUNIDADES.map(o => ({ value: String(o.id), label: o.titulo, sublabel: o.empresa_nome })),
-          ]}
-          placeholder="— Sem vínculo —"
-        />
-      </MetaRow>
-      <MetaRow label="Responsável">
-        <InlineText value={form.responsavel} onChange={v => patch('responsavel', v)} placeholder="Atribuir…" />
-      </MetaRow>
-
-      {!isNew && (
-        <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(item.id); onClose() }} />
-      )}
-    </div>
-  )
-
-  return (
-    <>
-      <DrawerBody left={left} right={right} />
-      {activacaoFeedback && (
-        <ActionFeedback
-          title="Contrato ativado!"
-          subtitle={`${form.numero} · ${form.empresa_nome}`}
-          steps={activacaoFeedback}
-          onClose={() => setActivacaoFeedback(null)}
-          stepDelay={650}
-          autoClose={0}
-        />
-      )}
-    </>
-  )
-}
 
 function Section({ label, children, last }) {
   return (
@@ -879,6 +603,8 @@ export default function Contratos() {
   const [filterStatus, setFilterStatus] = useLocalState('contratos:filterStatus', '')
   const [sortBy, setSortBy]           = useLocalState('contratos:sortBy', 'numero')
   const [modal, setModal]             = useState(null)
+  const [editando, setEditando]       = useState(null)
+  const [saving, setSaving]           = useState(false)
   const [selected, setSelected]       = useState(new Set())
   const [exportLogs, setExportLogs]   = useState([])
   const [showTray, setShowTray]       = useState(false)
@@ -970,6 +696,154 @@ export default function Contratos() {
 
   const hasFilters = !!(search || filterStatus || filterVigInicio || filterVigFim)
 
+  if (editando) {
+    const isNew = !editando.id
+    const form = editando
+    const set = (field, val) => setEditando(f => ({ ...f, [field]: val }))
+
+    const valorTotal = (parseFloat(form.valor_adesao) || 0) + (parseFloat(form.valor_mrr) || 0) + (parseFloat(form.valor_servico) || 0)
+
+    async function handleSaveForm() {
+      if (!form.empresa_id) return alert('Selecione uma empresa')
+      setSaving(true)
+      try {
+        if (isNew) {
+          const novoContrato = { ...form, id: Date.now(), criado: new Date().toISOString().slice(0,10) }
+          handleSave(novoContrato)
+          const provisoes = gerarProvisoesPagamento(novoContrato)
+          if (provisoes > 0) alert(`Contrato salvo! ${provisoes} provisão(ões) de pagamento gerada(s) em Faturamento.`)
+        } else {
+          handleSave(form)
+        }
+        setEditando(null)
+      } finally {
+        setSaving(false)
+      }
+    }
+
+    function handleDeleteForm() {
+      if (!window.confirm('Excluir este contrato?')) return
+      handleDelete(form.id)
+      setEditando(null)
+    }
+
+    const statusCfg = STATUS_CONTRATO.find(s => s.value === form.status) || STATUS_CONTRATO[0]
+
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Contratos', onClick: () => setEditando(null) }, { label: isNew ? 'Novo contrato' : form.numero }]}
+        title={isNew ? 'Novo contrato' : form.numero}
+        subtitle={form.empresa_nome || 'Dados contratuais'}
+        badge={!isNew && <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:12, background:statusCfg.bg, color:statusCfg.text, fontSize:11, fontWeight:600 }}>{statusCfg.label}</span>}
+        onSave={handleSaveForm}
+        onCancel={() => setEditando(null)}
+        onDelete={!isNew ? handleDeleteForm : undefined}
+        saving={saving}
+        saveLabel={isNew ? 'Criar contrato' : 'Salvar alterações'}
+        aside={
+          <AsideCard title="Resumo financeiro">
+            {[
+              { label: 'Adesão', val: parseFloat(form.valor_adesao)||0 },
+              { label: 'MRR', val: parseFloat(form.valor_mrr)||0, suffix: '/mês' },
+              { label: 'Serviço', val: parseFloat(form.valor_servico)||0 },
+              { label: 'Total recorrente', val: (parseFloat(form.valor_mrr)||0)+(parseFloat(form.valor_servico)||0), suffix: '/mês', bold: true },
+            ].map(({ label, val, suffix, bold }) => (
+              <div key={label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'6px 0', borderBottom:'1px solid #F4F4F5' }}>
+                <span style={{ fontSize:12, color:'#71717A' }}>{label}</span>
+                <span style={{ fontSize:13, fontWeight: bold ? 700 : 600, fontFamily:'var(--mono)', color:'#18181B' }}>
+                  {fmtMoeda(val)}{suffix && <span style={{ fontSize:10, fontWeight:400 }}>{suffix}</span>}
+                </span>
+              </div>
+            ))}
+          </AsideCard>
+        }
+      >
+        <FPESection label="Identificação" noBorder columns={2}>
+          <FPEField label="Número do contrato" required>
+            <input className="fpe-field" value={form.numero} onChange={e => set('numero', e.target.value)} placeholder="CTR-2025-001" />
+          </FPEField>
+          <FPEField label="Status">
+            <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
+              {STATUS_CONTRATO.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Empresa" required span={2}>
+            <select className="fpe-field" value={form.empresa_id || ''} onChange={e => {
+              const emp = MOCK_EMPRESAS.find(x => x.id === Number(e.target.value))
+              set('empresa_id', e.target.value ? Number(e.target.value) : null)
+              setEditando(f => ({ ...f, empresa_id: e.target.value ? Number(e.target.value) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
+            }}>
+              <option value="">— Selecione —</option>
+              {MOCK_EMPRESAS.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Responsável">
+            <input className="fpe-field" value={form.responsavel || ''} onChange={e => set('responsavel', e.target.value)} placeholder="Nome do responsável" />
+          </FPEField>
+          <FPEField label="Origem">
+            <select className="fpe-field" value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
+              <option value="">— Não definida —</option>
+              <option value="direta">Direta</option>
+              <option value="indireta">Indireta</option>
+              <option value="incentivada">Incentivada</option>
+            </select>
+          </FPEField>
+          <FPEField label="Primeira compra">
+            <select className="fpe-field" value={form.primeira_compra ? 'sim' : 'nao'} onChange={e => set('primeira_compra', e.target.value === 'sim')}>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </select>
+          </FPEField>
+        </FPESection>
+
+        <FPESection label="Vigência" columns={2}>
+          <FPEField label="Data de aquisição">
+            <input type="date" className="fpe-field" value={form.vigencia_inicio || ''} onChange={e => set('vigencia_inicio', e.target.value)} />
+          </FPEField>
+          <FPEField label="Data de cancelamento">
+            <input type="date" className="fpe-field" value={form.vigencia_fim || ''} onChange={e => set('vigencia_fim', e.target.value)} />
+          </FPEField>
+          <FPEField label="Início pagamento CDU">
+            <input type="date" className="fpe-field" value={form.data_pag_cdu || ''} onChange={e => set('data_pag_cdu', e.target.value)} />
+          </FPEField>
+          <FPEField label="Início pagamento SMS">
+            <input type="date" className="fpe-field" value={form.data_pag_sms || ''} onChange={e => set('data_pag_sms', e.target.value)} />
+          </FPEField>
+        </FPESection>
+
+        <FPESection label="Produtos contratados" columns={1}>
+          {SLOTS.map(slot => {
+            const idKey = `produto_${slot.key}_id`
+            const nomeKey = `produto_${slot.key}_nome`
+            const valorKey = `valor_${slot.key}`
+            const tabelaKey = `tabela_${slot.key}`
+            const descontoKey = `desconto_${slot.key}_pct`
+            const autorizadoKey = `desconto_autorizado_${slot.key}`
+            return (
+              <FPEField key={slot.key} span={1}>
+                <ProdutoSearch slot={slot}
+                  value={form[idKey]} label={form[nomeKey]}
+                  valor={form[valorKey]} tabela={form[tabelaKey]}
+                  descontoPct={form[descontoKey]} autorizado={form[autorizadoKey]}
+                  onChangeProduto={(id, nome, preco) => setEditando(f => ({ ...f, [idKey]:id, [nomeKey]:nome||'', [valorKey]:id?(preco||''):'', [tabelaKey]:id?(preco||null):null, [descontoKey]:'0', [autorizadoKey]:false }))}
+                  onChangeValor={v => set(valorKey, v)}
+                  onChangeDesconto={v => set(descontoKey, v)}
+                  onChangeAutorizado={v => set(autorizadoKey, v)}
+                />
+              </FPEField>
+            )
+          })}
+        </FPESection>
+
+        <FPESection label="Observações" columns={1}>
+          <FPEField label="Observações">
+            <textarea className="fpe-field" value={form.observacoes || ''} onChange={e => set('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" />
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
+
   return (
     <div>
       {/* Header */}
@@ -1000,7 +874,7 @@ export default function Contratos() {
               />
             )}
           </div>
-          <Button onClick={() => setModal('new')}>+ Novo contrato</Button>
+          <Button onClick={() => setEditando({ ...EMPTY_FORM, numero: gerarNumero(contratos) })}>+ Novo contrato</Button>
         </div>
       </div>
 
@@ -1093,7 +967,7 @@ export default function Contratos() {
             {filtered.map(c => {
               const totalRec = (parseFloat(c.valor_mrr)||0) + (parseFloat(c.valor_servico)||0)
               return (
-                <tr key={c.id} onClick={() => setModal(c)} style={{ ...s.tr, background: selected.has(c.id) ? 'var(--accent-glow)' : 'transparent', cursor:'pointer' }}>
+                <tr key={c.id} onClick={() => setEditando(c)} style={{ ...s.tr, background: selected.has(c.id) ? 'var(--accent-glow)' : 'transparent', cursor:'pointer' }}>
                   <td style={{ ...s.td, width:36 }}>
                     <input type="checkbox" checked={selected.has(c.id)} onChange={() => toggleOne(c.id)} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
                   </td>
@@ -1161,7 +1035,7 @@ export default function Contratos() {
                   </td>
                   <td style={s.td}><StatusBadge status={c.status} /></td>
                   <td style={s.td}>
-                    <button style={s.editBtn} onClick={e => { e.stopPropagation(); setModal(c) }}>→</button>
+                    <button style={s.editBtn} onClick={e => { e.stopPropagation(); setEditando(c) }}>→</button>
                   </td>
                 </tr>
               )
@@ -1170,22 +1044,6 @@ export default function Contratos() {
         </table>
       </div>
 
-      {/* Notion Drawer */}
-      <NotionDrawer
-        open={!!modal}
-        onClose={() => setModal(null)}
-        breadcrumb="Clientes · Contratos"
-        title={modal && modal !== 'new' && typeof modal === 'object' ? modal.numero : 'Novo contrato'}>
-        {modal && (
-          <ContratoDetail
-            item={modal === 'new' ? null : modal}
-            onClose={() => setModal(null)}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            contratos={contratos}
-          />
-        )}
-      </NotionDrawer>
     </div>
   )
 }

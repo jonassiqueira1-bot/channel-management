@@ -4,7 +4,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import Button from '../components/Button'
-import Drawer from '../components/Drawer'
+import { FullPageEdit } from '../components/ui'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
@@ -586,18 +586,17 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
   )
 }
 
-// ─── Template Drawer ──────────────────────────────────────────────────────────
-function TemplateDrawer({ template: initial, submissions, onClose, onSave, onSaveSubmission }) {
-  const isNew   = !initial?.id
-  const [draft, setDraft]       = useState(() => initial || {
+// ─── Template FullPage ───────────────────────────────────────────────────────
+function TemplateFullPage({ template: initial, submissions, onClose, onSave, onSaveSubmission, onDelete }) {
+  const isNew = !initial?.id
+  const [draft, setDraft] = useState(() => initial || {
     id: `tpl-${uid()}`, tenant_id: 't1', title: '', description: '',
     type: 'pre_venda', is_active: true,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     estrutura_secoes: { secoes: [] },
   })
-  const [tab, setTab]           = useState('estrutura')
-  const [expanded, setExpanded] = useState(false)
-  const [saving, setSaving]     = useState(false)
+  const [tab, setTab]   = useState('estrutura')
+  const [saving, setSaving] = useState(false)
 
   function handleSave() {
     if (!draft.title.trim()) { alert('Informe o título do template'); return }
@@ -615,60 +614,54 @@ function TemplateDrawer({ template: initial, submissions, onClose, onSave, onSav
   ]
 
   return (
-    <Drawer
-      open
-      onClose={onClose}
+    <FullPageEdit
+      breadcrumb={[{ label: 'Questionários', onClick: onClose }]}
       title={isNew ? 'Novo questionário' : draft.title || 'Editar questionário'}
       subtitle={isNew ? 'Defina a estrutura do template' : `Atualizado ${fmtData(draft.updated_at)}`}
-      initialSize="default"
-      footer={
-        <>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
-            fontSize: 13, color: 'var(--text-soft)', marginRight: 'auto' }}>
-            <input type="checkbox" checked={draft.is_active}
-              onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))}
-              style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: 15, height: 15 }} />
-            Template ativo
-          </label>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
-          </Button>
-        </>
-      }
+      onSave={handleSave}
+      onCancel={onClose}
+      onDelete={!isNew && onDelete ? () => { onDelete(draft.id); onClose() } : undefined}
+      saving={saving}
+      saveLabel={saving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
+      columns={1}
     >
+      {/* Checkbox ativo */}
+      <div style={{ marginBottom: 4 }}>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#71717A' }}>
+          <input type="checkbox" checked={draft.is_active}
+            onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))}
+            style={{ accentColor: '#1E3A5F', cursor: 'pointer', width: 15, height: 15 }} />
+          Template ativo
+        </label>
+      </div>
+
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)', margin: '-12px -14px 12px', gap: 0 }}>
+      <div style={{ display: 'flex', borderBottom: '2px solid #E4E4E7', marginBottom: 20 }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding: '9px 18px', background: 'none', border: 'none',
-              fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
-              fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
-              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            style={{ padding: '9px 18px', background: 'none', border: 'none', fontSize: 13,
+              fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
+              color: tab === t.id ? '#1E3A5F' : '#71717A',
+              borderBottom: tab === t.id ? '2px solid #1E3A5F' : '2px solid transparent',
               marginBottom: -2, transition: 'color 0.15s', whiteSpace: 'nowrap' }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* Tab content */}
       {tab === 'estrutura' && (
         <EstruturaBuilder draft={draft} onChange={setDraft} />
       )}
       {tab === 'respostas' && !isNew && (
-        <RespostasTab
-          template={draft}
-          submissions={submissions}
-          onSaveSubmission={onSaveSubmission}
-        />
+        <RespostasTab template={draft} submissions={submissions} onSaveSubmission={onSaveSubmission} />
       )}
       {tab === 'respostas' && isNew && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: '#71717A' }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
           <div style={{ fontSize: 13 }}>Salve o template primeiro para receber respostas.</div>
         </div>
       )}
-    </Drawer>
+    </FullPageEdit>
   )
 }
 
@@ -701,6 +694,19 @@ export default function Questionarios() {
 
   function handleSaveTemplate(updated) { saveTemplate(updated) }
   function handleSaveSubmission(sub) { saveSubmission(sub) }
+
+  if (drawer) {
+    return (
+      <TemplateFullPage
+        template={drawer === 'novo' ? null : drawer}
+        submissions={submissions}
+        onClose={() => setDrawer(null)}
+        onSave={handleSaveTemplate}
+        onSaveSubmission={handleSaveSubmission}
+        onDelete={removeTemplate}
+      />
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
@@ -806,16 +812,6 @@ export default function Questionarios() {
         )}
       </div>
 
-      {/* ── Drawer ── */}
-      {drawer && (
-        <TemplateDrawer
-          template={drawer === 'novo' ? null : drawer}
-          submissions={submissions}
-          onClose={() => setDrawer(null)}
-          onSave={handleSaveTemplate}
-          onSaveSubmission={handleSaveSubmission}
-        />
-      )}
     </div>
   )
 }

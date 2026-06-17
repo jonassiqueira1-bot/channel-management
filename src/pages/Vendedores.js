@@ -7,6 +7,7 @@ import { useSellers } from '../hooks/useSellers'
 import SearchSelect from '../components/SearchSelect'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import { FullPageEdit, FPESection, FPEField } from '../components/ui'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCPF(v) {
@@ -578,13 +579,15 @@ export default function Vendedores() {
   const [sortBy, setSortBy]             = useLocalState('func:sortBy', 'nome')
   const [viewMode, setViewMode]         = useLocalState('func:viewMode', 'list')
 
-  const [modal, setModal]               = useState(null)
+  const [editando, setEditando]         = useState(null)
+  const [editForm, setEditForm]         = useState(null)
+  const [saving, setSaving]             = useState(false)
   const [selected, setSelected]         = useState(new Set())
   const [importModal, setImportModal]   = useState(false)
   const [showMetrics, setShowMetrics]   = useLocalState('vendedores:showMetrics', true)
 
   // Franchises disponíveis para bulk
-  const franchiseOptions = useMemo(() =>
+  const franchiseOptionsForBulk = useMemo(() =>
     companies.filter(c => c.type === 'FRANCHISE' || c.type === 'ISV')
   , [companies])
 
@@ -673,10 +676,40 @@ export default function Vendedores() {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function handleSave(form) {
-    saveSeller(modal?.editing ? { ...modal.editing, ...form } : form)
-    setModal(null)
+    setSaving(true)
+    saveSeller(editando?.id ? { ...editando, ...form } : form)
+    setSaving(false)
+    setEditando(null)
+    setEditForm(null)
   }
-  function handleDelete(id) { deleteSeller(id); setModal(null) }
+  function handleDelete(id) { deleteSeller(id); setEditando(null); setEditForm(null) }
+
+  function abrirEdicao(f) {
+    const initial = f || {}
+    setEditando(f || {})
+    setEditForm({
+      nome:          initial.nome          || '',
+      email:         initial.email         || '',
+      telefone:      initial.telefone      || '',
+      cpf:           initial.cpf           || '',
+      role:          initial.role          || 'seller',
+      regiao:        initial.regiao        || '',
+      status:        initial.status        || 'ativo',
+      company_id:    initial.company_id    || null,
+      franquia_id:   initial.franquia_id   || null,
+      franquia_nome: initial.franquia_nome || '',
+      meta_mensal:   initial.meta_mensal   || '',
+      observacoes:   initial.observacoes   || '',
+    })
+  }
+
+  const franchiseOptions = useMemo(() =>
+    companies
+      .filter(c => c.type === 'FRANCHISE')
+      .map(c => ({ id: c.id, label: c.name, sublabel: c.type }))
+  , [companies])
+
+  function setField(key, val) { setEditForm(f => ({ ...f, [key]: val })) }
 
   // ── KPIs ─────────────────────────────────────────────────────────────────────
   const totalAtivos   = funcionarios.filter(f => f.status === 'ativo').length
@@ -686,6 +719,73 @@ export default function Vendedores() {
     : 0
 
   const hasFilters = !!(search || filterStatus || filterRole || filterType)
+
+  if (editando !== null && editForm !== null) {
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Contatos Canais', onClick: () => { setEditando(null); setEditForm(null) } }]}
+        title={editando.id ? editando.nome || 'Contato Canal' : 'Novo Contato Canal'}
+        subtitle={editando.id ? editando.email : 'Preencha os dados do novo contato'}
+        onSave={() => handleSave(editForm)}
+        onCancel={() => { setEditando(null); setEditForm(null) }}
+        onDelete={editando.id ? () => handleDelete(editando.id) : undefined}
+        saving={saving}
+      >
+        <FPESection label="Dados pessoais" noBorder>
+          <FPEField label="Nome" required>
+            <input className="fpe-field" value={editForm.nome} onChange={e => setField('nome', e.target.value)} placeholder="Nome completo" />
+          </FPEField>
+          <FPEField label="E-mail">
+            <input className="fpe-field" type="email" value={editForm.email} onChange={e => setField('email', e.target.value)} placeholder="email@empresa.com" />
+          </FPEField>
+          <FPEField label="Telefone">
+            <input className="fpe-field" value={editForm.telefone} onChange={e => setField('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
+          </FPEField>
+          <FPEField label="CPF">
+            <input className="fpe-field" value={editForm.cpf} onChange={e => setField('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00" />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Cargo e status">
+          <FPEField label="Cargo">
+            <select className="fpe-field" value={editForm.role} onChange={e => setField('role', e.target.value)}>
+              {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Status">
+            <select className="fpe-field" value={editForm.status} onChange={e => setField('status', e.target.value)}>
+              {Object.entries(STATUS_MAP).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Região">
+            <select className="fpe-field" value={editForm.regiao} onChange={e => setField('regiao', e.target.value)}>
+              <option value="">Selecionar…</option>
+              {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Meta mensal (R$)">
+            <input className="fpe-field" type="number" min="0" value={editForm.meta_mensal} onChange={e => setField('meta_mensal', e.target.value)} placeholder="0" />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Equipe e empresa">
+          <FPEField label="Franquia / Equipe" span={2}>
+            <SearchSelect
+              options={franchiseOptions}
+              value={editForm.franquia_id}
+              onChange={(id, nome) => setEditForm(f => ({ ...f, franquia_id: id, franquia_nome: nome || '' }))}
+              placeholder="Pesquisar franquia…"
+              allowClear
+              inputStyle={{ padding: '0 10px', height: 36, border: '1px solid #D4D4D8', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none', background: '#fff', color: '#18181B' }}
+            />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Observações">
+          <FPEField label="Observações internas" span={2}>
+            <textarea className="fpe-field" value={editForm.observacoes} onChange={e => setField('observacoes', e.target.value)} placeholder="Notas internas…" rows={3} />
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
 
   return (
     <div style={p.page}>
@@ -771,7 +871,7 @@ export default function Vendedores() {
             <svg width="15" height="15" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </button>
 
-          <Button onClick={() => setModal('new')}>+ Novo Contato</Button>
+          <Button onClick={() => abrirEdicao(null)}>+ Novo Contato</Button>
         </div>
       </div>
 
@@ -805,7 +905,7 @@ export default function Vendedores() {
               defaultValue=""
               onChange={e => { if (e.target.value) applyBulkCompany(e.target.value) }}>
               <option value="">Selecionar empresa…</option>
-              {franchiseOptions.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {franchiseOptionsForBulk.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
             <div style={{ width:1, background:'rgba(255,255,255,0.2)', alignSelf:'stretch', margin:'0 4px' }} />
             <button style={{ ...p.bulkBtn, color:'#FCA5A5', borderColor:'rgba(248,113,113,0.35)' }} onClick={applyBulkDelete}>
@@ -820,7 +920,7 @@ export default function Vendedores() {
       {viewMode === 'list' ? (
         <TableView
           funcionarios={filtered}
-          onEdit={f => setModal({ editing: f })}
+          onEdit={f => abrirEdicao(f)}
           selected={selected}
           onToggleAll={toggleAll}
           onToggleOne={toggleOne}
@@ -831,20 +931,9 @@ export default function Vendedores() {
       ) : (
         <CardsView
           funcionarios={filtered}
-          onEdit={f => setModal({ editing: f })}
+          onEdit={f => abrirEdicao(f)}
           selected={selected}
           onToggleOne={toggleOne}
-          companies={companies}
-        />
-      )}
-
-      {/* ── Modals ── */}
-      {modal && (
-        <FuncionarioModal
-          onClose={() => setModal(null)}
-          onSave={handleSave}
-          onDelete={handleDelete}
-          initial={modal?.editing || null}
           companies={companies}
         />
       )}

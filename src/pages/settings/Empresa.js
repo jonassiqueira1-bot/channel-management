@@ -1,23 +1,13 @@
 import { useState, useMemo } from 'react'
-import {
-  Building2, Globe, Phone, Mail, MapPin, Hash,
-  ChevronRight, ChevronDown, Pencil, Save, X,
-  CheckCircle2, AlertCircle, Loader2, Users, Layers,
-  Palette, Info, Landmark,
-} from 'lucide-react'
+import { Building2, ChevronRight, ChevronDown, Users, Layers } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import {
   MOCK_COMPANIES, COMPANIES_STORAGE_KEY,
   COMPANY_TYPE_CFG, COMPANY_STATUS_CFG,
 } from '../../data/mockCompanies'
-import Button from '../../components/Button'
+import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 
-const ISV_ID  = 'a0000000-0000-0000-0000-000000000001'
-const ACCENT  = '#6366F1'
-const SZ      = 14
-
-// ─── Utilitários ──────────────────────────────────────────────────────────────
-const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('pt-BR', { day:'2-digit', month:'short', year:'numeric' }) : '—'
+const ACCENT = '#6366F1'
 
 // ─── Micro-components ─────────────────────────────────────────────────────────
 function TypeBadge({ type }) {
@@ -36,150 +26,6 @@ function StatusDot({ status }) {
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
-  )
-}
-
-function FieldRow({ label, value, mono }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:3 }}>
-      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</div>
-      <div style={{ fontSize:13, color: value ? 'var(--text)' : 'var(--text-muted)', fontFamily: mono ? 'var(--mono)' : 'var(--font)', fontStyle: value ? 'normal' : 'italic' }}>
-        {value || 'Não informado'}
-      </div>
-    </div>
-  )
-}
-
-// ─── Formulário de edição da ISV ──────────────────────────────────────────────
-function ISVForm({ isv, onSave, onCancel }) {
-  const [form, setForm]     = useState({ ...isv })
-  const [saving, setSaving] = useState(false)
-  const [err, setErr]       = useState(null)
-
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-
-  async function submit(e) {
-    e.preventDefault()
-    if (!form.name.trim()) { setErr('Nome fantasia é obrigatório.'); return }
-    setSaving(true); setErr(null)
-    await new Promise(r => setTimeout(r, 400))
-    onSave({ ...form, updated_at: new Date().toISOString() })
-    setSaving(false)
-  }
-
-  const IN = {
-    width: '100%', padding: '8px 11px', borderRadius: 8, fontSize: 13,
-    background: 'var(--surface)', border: '1px solid var(--border)',
-    color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none',
-    boxSizing: 'border-box', transition: 'border-color 0.15s',
-  }
-  const LB = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 5 }
-
-  return (
-    <form onSubmit={submit} style={{ display:'flex', flexDirection:'column', gap:24 }}>
-
-      {/* ── Identidade ─────────────────────────────────────────────────── */}
-      <Section icon={<Landmark size={13} strokeWidth={2} />} label="Identidade Jurídica">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Nome Fantasia *</label>
-            <input style={IN} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: NG Informática" />
-          </div>
-          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Razão Social</label>
-            <input style={IN} value={form.corporate_name||''} onChange={e => set('corporate_name', e.target.value)} placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>CNPJ</label>
-            <input style={{ ...IN, fontFamily:'var(--mono)' }} value={form.cnpj||''} onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Website</label>
-            <input style={IN} value={form.website||''} onChange={e => set('website', e.target.value)} placeholder="https://suaempresa.com.br" />
-          </div>
-        </div>
-      </Section>
-
-      {/* ── Contato ────────────────────────────────────────────────────── */}
-      <Section icon={<Phone size={13} strokeWidth={2} />} label="Contato">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>E-mail</label>
-            <input type="email" style={IN} value={form.email||''} onChange={e => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Telefone</label>
-            <input style={{ ...IN, fontFamily:'var(--mono)' }} value={form.phone||''} onChange={e => set('phone', e.target.value)} placeholder="(11) 0000-0000" />
-          </div>
-        </div>
-      </Section>
-
-      {/* ── Endereço ───────────────────────────────────────────────────── */}
-      <Section icon={<MapPin size={13} strokeWidth={2} />} label="Endereço">
-        <div style={{ display:'grid', gridTemplateColumns:'100px 1fr', gap:14 }}>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>CEP</label>
-            <input style={{ ...IN, fontFamily:'var(--mono)' }} value={form.cep||''} onChange={e => set('cep', e.target.value)} placeholder="00000-000" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Logradouro</label>
-            <input style={IN} value={form.address||''} onChange={e => set('address', e.target.value)} placeholder="Av. Paulista, 1374 — Sala 101" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Cidade</label>
-            <input style={IN} value={form.city||''} onChange={e => set('city', e.target.value)} placeholder="São Paulo" />
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Estado (UF)</label>
-            <input style={{ ...IN, fontFamily:'var(--mono)' }} maxLength={2} value={form.state||''} onChange={e => set('state', e.target.value.toUpperCase())} placeholder="SP" />
-          </div>
-        </div>
-      </Section>
-
-      {/* ── White-label ────────────────────────────────────────────────── */}
-      <Section icon={<Palette size={13} strokeWidth={2} />} label="White-label">
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:14, alignItems:'end' }}>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Cor primária</label>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input type="color" value={form.primary_color||'#6366F1'} onChange={e => set('primary_color', e.target.value)} style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
-              <input style={{ ...IN, fontFamily:'var(--mono)', fontSize:12 }} value={form.primary_color||''} onChange={e => set('primary_color', e.target.value)} placeholder="#6366F1" />
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Cor de destaque</label>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input type="color" value={form.accent_color||'#10B981'} onChange={e => set('accent_color', e.target.value)} style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
-              <input style={{ ...IN, fontFamily:'var(--mono)', fontSize:12 }} value={form.accent_color||''} onChange={e => set('accent_color', e.target.value)} placeholder="#10B981" />
-            </div>
-          </div>
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            <label style={LB}>Prévia</label>
-            <div style={{ display:'flex', gap:6 }}>
-              <span style={{ padding:'6px 14px', borderRadius:7, background:form.primary_color||ACCENT, color:'#fff', fontSize:12, fontWeight:700 }}>Primária</span>
-              <span style={{ padding:'6px 14px', borderRadius:7, background:form.accent_color||'#10B981', color:'#fff', fontSize:12, fontWeight:700 }}>Destaque</span>
-            </div>
-          </div>
-        </div>
-        <div style={{ marginTop:12, display:'flex', flexDirection:'column' }}>
-          <label style={LB}>Observações internas</label>
-          <textarea rows={2} style={{ ...IN, resize:'vertical' }} value={form.notes||''} onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
-        </div>
-      </Section>
-
-      {err && (
-        <div style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 12px', borderRadius:8, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13 }}>
-          <AlertCircle size={13} strokeWidth={2} />{err}
-        </div>
-      )}
-
-      <div style={{ display:'flex', gap:10, justifyContent:'flex-end', paddingTop:4 }}>
-        <Button variant="secondary" icon={<X size={13} strokeWidth={2} />} onClick={onCancel}>Cancelar</Button>
-        <Button type="submit" loading={saving} icon={<Save size={13} strokeWidth={2} />}>
-          {saving ? 'Salvando…' : 'Salvar alterações'}
-        </Button>
-      </div>
-    </form>
   )
 }
 
@@ -294,26 +140,13 @@ function ChannelTree({ companies, isvId }) {
   )
 }
 
-// ─── Section helper ───────────────────────────────────────────────────────────
-function Section({ icon, label, children }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      <div style={{ display:'flex', alignItems:'center', gap:6, paddingBottom:10, borderBottom:'1px solid var(--border)' }}>
-        <span style={{ color:'var(--text-muted)' }}>{icon}</span>
-        <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>{label}</span>
-      </div>
-      {children}
-    </div>
-  )
-}
-
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function EmpresaISV() {
   const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const [editing, setEditing]     = useState(false)
-  const [saved, setSaved]         = useState(false)
-
   const isv = useMemo(() => companies.find(c => c.type === 'ISV'), [companies])
+  const [form, setForm] = useState(null)
+
+  const current = form || isv
 
   if (!isv) {
     return (
@@ -323,132 +156,100 @@ export default function EmpresaISV() {
     )
   }
 
-  function handleSave(updated) {
-    setCompanies(prev => prev.map(c => c.id === updated.id ? updated : c))
-    setEditing(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 3000)
+  function set(k, v) { setForm(f => ({ ...(f || isv), [k]: v })) }
+
+  function handleSave() {
+    const updated = { ...(form || isv), updated_at: new Date().toISOString() }
+    setCompanies(prev => prev.map(c => c.id === isv.id ? updated : c))
+    setForm(null)
   }
 
+  function handleCancel() { setForm(null) }
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-      <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+    <FullPageEdit
+      title="Minha Empresa"
+      subtitle={isv.corporate_name || isv.name}
+      onSave={handleSave}
+      onCancel={handleCancel}
+    >
+      <FPESection title="Identidade Jurídica">
+        <FPEGrid>
+          <FPEField label="Nome Fantasia" required style={{ gridColumn: '1 / -1' }}>
+            <input className="fpe-field" value={current.name || ''} onChange={e => set('name', e.target.value)} placeholder="Ex: NG Informática" />
+          </FPEField>
+          <FPEField label="Razão Social" style={{ gridColumn: '1 / -1' }}>
+            <input className="fpe-field" value={current.corporate_name || ''} onChange={e => set('corporate_name', e.target.value)} placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
+          </FPEField>
+          <FPEField label="CNPJ">
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.cnpj || ''} onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+          </FPEField>
+          <FPEField label="Website">
+            <input className="fpe-field" value={current.website || ''} onChange={e => set('website', e.target.value)} placeholder="https://suaempresa.com.br" />
+          </FPEField>
+        </FPEGrid>
+      </FPESection>
 
-      {/* ── Header ── */}
-      <div style={{ padding:'28px 32px 20px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
-            {/* Avatar / logo */}
-            <div style={{ width:52, height:52, borderRadius:14, background:`${isv.primary_color || ACCENT}18`, border:`1.5px solid ${isv.primary_color || ACCENT}33`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-              <Building2 size={22} strokeWidth={1.5} style={{ color: isv.primary_color || ACCENT }} />
+      <FPESection title="Contato">
+        <FPEGrid>
+          <FPEField label="E-mail">
+            <input className="fpe-field" type="email" value={current.email || ''} onChange={e => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
+          </FPEField>
+          <FPEField label="Telefone">
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.phone || ''} onChange={e => set('phone', e.target.value)} placeholder="(11) 0000-0000" />
+          </FPEField>
+        </FPEGrid>
+      </FPESection>
+
+      <FPESection title="Endereço">
+        <FPEGrid>
+          <FPEField label="CEP">
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.cep || ''} onChange={e => set('cep', e.target.value)} placeholder="00000-000" />
+          </FPEField>
+          <FPEField label="Logradouro">
+            <input className="fpe-field" value={current.address || ''} onChange={e => set('address', e.target.value)} placeholder="Av. Paulista, 1374 — Sala 101" />
+          </FPEField>
+          <FPEField label="Cidade">
+            <input className="fpe-field" value={current.city || ''} onChange={e => set('city', e.target.value)} placeholder="São Paulo" />
+          </FPEField>
+          <FPEField label="UF">
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} maxLength={2} value={current.state || ''} onChange={e => set('state', e.target.value.toUpperCase())} placeholder="SP" />
+          </FPEField>
+        </FPEGrid>
+      </FPESection>
+
+      <FPESection title="Identidade Visual (White-label)">
+        <FPEGrid>
+          <FPEField label="Cor primária">
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <input type="color" value={current.primary_color || '#6366F1'} onChange={e => set('primary_color', e.target.value)}
+                style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={current.primary_color || ''} onChange={e => set('primary_color', e.target.value)} placeholder="#6366F1" />
             </div>
-            <div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                <h2 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:0, letterSpacing:'-0.3px' }}>{isv.name}</h2>
-                <TypeBadge type="ISV" />
-                <StatusDot status={isv.status} />
-              </div>
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>
-                {isv.corporate_name}
-                {isv.cnpj ? <span style={{ marginLeft:10, fontFamily:'var(--mono)' }}>{isv.cnpj}</span> : null}
-              </div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
-                Cadastro atualizado em {fmtDate(isv.updated_at)}
-              </div>
+          </FPEField>
+          <FPEField label="Cor de destaque">
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <input type="color" value={current.accent_color || '#10B981'} onChange={e => set('accent_color', e.target.value)}
+                style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={current.accent_color || ''} onChange={e => set('accent_color', e.target.value)} placeholder="#10B981" />
             </div>
-          </div>
+          </FPEField>
+          <FPEField label="Prévia">
+            <div style={{ display:'flex', gap:6 }}>
+              <span style={{ padding:'6px 14px', borderRadius:7, background:current.primary_color || ACCENT, color:'#fff', fontSize:12, fontWeight:700 }}>Primária</span>
+              <span style={{ padding:'6px 14px', borderRadius:7, background:current.accent_color || '#10B981', color:'#fff', fontSize:12, fontWeight:700 }}>Destaque</span>
+            </div>
+          </FPEField>
+        </FPEGrid>
+        <FPEField label="Observações internas">
+          <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={current.notes || ''} onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
+        </FPEField>
+      </FPESection>
 
-          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0, paddingTop:4 }}>
-            {saved && (
-              <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#10B981', fontWeight:600 }}>
-                <CheckCircle2 size={14} strokeWidth={2.5} />Salvo
-              </div>
-            )}
-            {!editing && (
-              <Button icon={<Pencil size={13} strokeWidth={2} />} onClick={() => setEditing(true)}>Editar organização</Button>
-            )}
-          </div>
-        </div>
-
-        {/* Info pills */}
-        {!editing && (
-          <div style={{ display:'flex', gap:10, marginTop:16, flexWrap:'wrap' }}>
-            {isv.email   && <InfoPill icon={<Mail size={11} strokeWidth={2} />}  value={isv.email} />}
-            {isv.phone   && <InfoPill icon={<Phone size={11} strokeWidth={2} />} value={isv.phone} />}
-            {isv.website && <InfoPill icon={<Globe size={11} strokeWidth={2} />} value={isv.website} link />}
-            {(isv.city || isv.state) && <InfoPill icon={<MapPin size={11} strokeWidth={2} />} value={[isv.city, isv.state].filter(Boolean).join('/')} />}
-          </div>
-        )}
-      </div>
-
-      {/* ── Body ── */}
-      <div style={{ flex:1, overflowY:'auto', padding:'28px 32px', display:'flex', flexDirection:'column', gap:36 }}>
-
-        {editing ? (
-          <ISVForm isv={isv} onSave={handleSave} onCancel={() => setEditing(false)} />
-        ) : (
-          <>
-            {/* Dados resumidos */}
-            <Section icon={<Landmark size={13} strokeWidth={2} />} label="Dados cadastrais">
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:20 }}>
-                <FieldRow label="Nome Fantasia"  value={isv.name} />
-                <FieldRow label="Razão Social"   value={isv.corporate_name} />
-                <FieldRow label="CNPJ"           value={isv.cnpj}    mono />
-                <FieldRow label="E-mail"         value={isv.email} />
-                <FieldRow label="Telefone"       value={isv.phone}   mono />
-                <FieldRow label="Website"        value={isv.website} />
-                <FieldRow label="CEP"            value={isv.cep}     mono />
-                <FieldRow label="Logradouro"     value={isv.address} />
-                <FieldRow label="Cidade / UF"    value={isv.city && isv.state ? `${isv.city} / ${isv.state}` : isv.city || isv.state} />
-              </div>
-            </Section>
-
-            {/* White-label */}
-            <Section icon={<Palette size={13} strokeWidth={2} />} label="Identidade visual">
-              <div style={{ display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
-                <ColorSwatch label="Cor Primária"   hex={isv.primary_color} />
-                <ColorSwatch label="Cor de Destaque" hex={isv.accent_color} />
-                {isv.notes && (
-                  <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', flex:1, minWidth:200 }}>
-                    <Info size={11} strokeWidth={2} style={{ display:'inline', marginRight:5, verticalAlign:'middle' }} />
-                    {isv.notes}
-                  </div>
-                )}
-              </div>
-            </Section>
-
-            {/* Árvore de canais */}
-            <Section icon={<Layers size={13} strokeWidth={2} />} label="Canais conectados">
-              <ChannelTree companies={companies} isvId={isv.id} />
-            </Section>
-          </>
-        )}
-      </div>
-    </div>
+      <FPESection title="Canais conectados">
+        <ChannelTree companies={companies} isvId={isv.id} />
+      </FPESection>
+    </FullPageEdit>
   )
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-function InfoPill({ icon, value, link }) {
-  const inner = (
-    <div style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 11px', borderRadius:99, fontSize:11, fontWeight:500, color:'var(--text-soft)', background:'var(--surface2)', border:'1px solid var(--border)', whiteSpace:'nowrap' }}>
-      <span style={{ color:'var(--text-muted)' }}>{icon}</span>
-      {value}
-    </div>
-  )
-  return link
-    ? <a href={value} target="_blank" rel="noreferrer" style={{ textDecoration:'none' }}>{inner}</a>
-    : inner
-}
-
-function ColorSwatch({ label, hex }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>{label}</div>
-      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-        <div style={{ width:28, height:28, borderRadius:7, background:hex||'var(--surface2)', border:'1px solid var(--border)' }} />
-        <span style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-soft)' }}>{hex || '—'}</span>
-      </div>
-    </div>
-  )
-}

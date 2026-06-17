@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import SettingsLayout from '../../components/ui/SettingsLayout'
 
 /* ─── Constants ─────────────────────────────────────────── */
 
@@ -402,91 +403,60 @@ export default function Campanhas() {
   )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <>
+      <SettingsLayout
+        title="Campanhas de Incentivo"
+        description="Crie e gerencie campanhas para motivar e engajar seus canais parceiros."
+        columns={[
+          {
+            key: 'name',
+            label: 'Campanha',
+            render: (v, row) => (
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>{v}</div>
+                {row.description && (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.description}
+                  </div>
+                )}
+              </div>
+            ),
+          },
+          { key: 'objective', label: 'Objetivo', priority: 2 },
+          {
+            key: 'start_date',
+            label: 'Período',
+            priority: 3,
+            render: (v, row) => (
+              <span style={{ fontFamily: 'var(--mono)', whiteSpace: 'nowrap', fontSize: 12 }}>
+                {fmtDate(v)}{row.end_date ? ` → ${fmtDate(row.end_date)}` : ''}
+              </span>
+            ),
+          },
+          { key: 'status', label: 'Status', render: (v) => <StatusBadge value={v} /> },
+          {
+            key: 'pontua_metas',
+            label: 'Metas',
+            priority: 2,
+            render: (v) => (
+              <span style={{ fontSize: 11, color: v ? '#10B981' : 'var(--border2)', fontWeight: 700 }}>
+                {v ? '✓ Sim' : '—'}
+              </span>
+            ),
+          },
+        ]}
+        data={filtered}
+        onNew={() => setWizard('new')}
+        newLabel="+ Nova Campanha"
+        rowActions={[
+          { label: 'Editar', onClick: row => setWizard(row) },
+          { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
+        ]}
+        emptyLabel="Nenhuma campanha cadastrada ainda."
+        search={search}
+        onSearchChange={setSearch}
+      />
 
-      {/* Page header */}
-      <div style={pg.header}>
-        <div>
-          <h2 style={pg.title}>Campanhas de Incentivo</h2>
-          <p style={pg.desc}>Crie e gerencie campanhas para motivar e engajar seus canais parceiros.</p>
-        </div>
-        <button onClick={() => setWizard('new')} style={pg.btnNew}>+ Nova Campanha</button>
-      </div>
-
-      {/* Toolbar */}
-      <div style={pg.toolbar}>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar campanha..."
-          style={pg.search}
-        />
-        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-          {filtered.length} {filtered.length === 1 ? 'campanha' : 'campanhas'}
-        </span>
-      </div>
-
-      {/* Table */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 32px 32px' }}>
-        {filtered.length === 0 ? (
-          <div style={pg.empty}>
-            <span style={{ fontSize: 28, opacity: 0.2 }}>📣</span>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-              {search ? 'Nenhuma campanha encontrada.' : 'Nenhuma campanha cadastrada ainda.'}
-            </span>
-            {!search && (
-              <button onClick={() => setWizard('new')} style={{ ...pg.btnNew, marginTop: 4 }}>+ Nova Campanha</button>
-            )}
-          </div>
-        ) : (
-          <table style={pg.table}>
-            <thead>
-              <tr>
-                {['Campanha', 'Objetivo', 'Período', 'Status', 'Metas', ''].map(h => (
-                  <th key={h} style={pg.th}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(c => (
-                <tr key={c.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={pg.td}>
-                    <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--text)' }}>{c.name}</div>
-                    {c.description && (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {c.description}
-                      </div>
-                    )}
-                  </td>
-                  <td style={pg.td}>
-                    <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{c.objective}</span>
-                  </td>
-                  <td style={pg.td}>
-                    <span style={{ fontSize: 12, color: 'var(--text-soft)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
-                      {fmtDate(c.start_date)}
-                      {c.end_date ? ` → ${fmtDate(c.end_date)}` : ''}
-                    </span>
-                  </td>
-                  <td style={pg.td}><StatusBadge value={c.status} /></td>
-                  <td style={pg.td}>
-                    <span style={{ fontSize: 11, color: c.pontua_metas ? '#10B981' : 'var(--border2)', fontWeight: 700 }}>
-                      {c.pontua_metas ? '✓ Sim' : '—'}
-                    </span>
-                  </td>
-                  <td style={{ ...pg.td, textAlign: 'right' }}>
-                    <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                      <button onClick={() => setWizard(c)} style={pg.btnAction}>Editar</button>
-                      <button onClick={() => handleDelete(c.id)} style={{ ...pg.btnAction, color: 'var(--red)' }}>Excluir</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
-      {/* Wizard */}
       {wizard && (
         <CampanhaWizard
           initial={wizard === 'new' ? null : wizard}
@@ -494,7 +464,7 @@ export default function Campanhas() {
           onSave={handleSave}
         />
       )}
-    </div>
+    </>
   )
 }
 

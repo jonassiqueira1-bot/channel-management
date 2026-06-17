@@ -30,9 +30,9 @@ const INITIAL_GROUPS = [
     id: 'comercial',
     label: 'Comercial',
     items: [
-      { path: '/pipeline', label: 'Pipeline',  iconKey: 'TrendingUp' },
-      { path: '/tarefas',  label: 'Tarefas',   iconKey: 'CheckSquare' },
-      { path: '/playbooks',label: 'Playbooks', iconKey: 'BookOpen' },
+      { path: '/pipeline',  label: 'Pipeline',  iconKey: 'TrendingUp' },
+      { path: '/tarefas',   label: 'Tarefas',   iconKey: 'CheckSquare' },
+      { path: '/playbooks', label: 'Playbooks', iconKey: 'BookOpen' },
     ],
   },
   {
@@ -47,23 +47,23 @@ const INITIAL_GROUPS = [
     id: 'clientes',
     label: 'Clientes',
     items: [
-      { path: '/empresas',  label: 'Empresas',  iconKey: 'Building2' },
-      { path: '/contatos',  label: 'Contatos',  iconKey: 'UserCircle' },
+      { path: '/empresas', label: 'Empresas', iconKey: 'Building2' },
+      { path: '/contatos', label: 'Contatos', iconKey: 'UserCircle' },
     ],
   },
   {
     id: 'projetos',
-    label: 'Projetos',
+    label: 'Projetos & CS',
     items: [
-      { path: '/projetos',        label: 'Projetos',          iconKey: 'FolderKanban' },
-      { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'   },
+      { path: '/projetos',         label: 'Projetos',          iconKey: 'FolderKanban' },
+      { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'  },
     ],
   },
   {
     id: 'financeiro',
     label: 'Financeiro',
     items: [
-      { path: '/contratos',  label: 'Contratos',  iconKey: 'FileText' },
+      { path: '/contratos',  label: 'Contratos',  iconKey: 'FileText'  },
       { path: '/pagamentos', label: 'Pagamentos', iconKey: 'CreditCard' },
       { path: '/comissoes',  label: 'Comissões',  iconKey: 'DollarSign' },
     ],
@@ -73,7 +73,7 @@ const INITIAL_GROUPS = [
     label: 'Recursos',
     items: [
       { path: '/questionarios', label: 'Questionários', iconKey: 'ClipboardList' },
-      { path: '/documentos',    label: 'Documentos',    iconKey: 'FileStack' },
+      { path: '/documentos',    label: 'Documentos',    iconKey: 'FileStack'     },
     ],
   },
 ]
@@ -84,8 +84,8 @@ let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]         = useLocalState('sidebar:groups_v4', INITIAL_GROUPS)
-  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v3', {})
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v5', INITIAL_GROUPS)
+  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v5', {})
 
   // Edição de rótulo de grupo
   const [editingGroup, setEditingGroup] = useState(null)

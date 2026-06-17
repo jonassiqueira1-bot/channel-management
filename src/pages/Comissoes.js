@@ -6,6 +6,7 @@ import {
   Zap, BarChart2, Link2, RotateCcw, Info, ChevronRight,
   User, Users, Settings, Filter,
 } from 'lucide-react'
+import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
 import {
   RECEITA_TIPOS, STATUS_CFG,
   TIPO_CALCULO_CFG, TIPO_RECORRENCIA_CFG,
@@ -1053,13 +1054,12 @@ function PaymentModal({ initial, rules, personas, onSave, onClose }) {
 }
 
 // ─── Tab: Acompanhamento de Repasses ─────────────────────────────────────────
-function TabRepasses({ payments, setPayments, rules, personas, period }) {
+function TabRepasses({ payments, setPayments, rules, personas, period, onEdit }) {
   const [search, setSearch]               = useState('')
   const [filterPersona, setFilterPersona] = useState('todas')
   const [filterStatus, setFilterStatus]   = useState('todos')
   const [filterTipo, setFilterTipo]       = useState('todos')
   const [sort, setSort]                   = useState({ key:'data_vencimento', dir:1 })
-  const [modal, setModal]                 = useState(null)
 
   const filtered = useMemo(() => {
     let list = [...payments]
@@ -1080,10 +1080,6 @@ function TabRepasses({ payments, setPayments, rules, personas, period }) {
     pago:     payments.filter(p=>p.status==='pago').reduce((s,p)=>s+Number(p.valor_comissao),0),
   }), [payments])
 
-  function handleSave(updated) {
-    setPayments(prev => prev.find(p=>p.id===updated.id) ? prev.map(p=>p.id===updated.id?updated:p) : [...prev,updated])
-    setModal(null)
-  }
   function markPago(id) { setPayments(prev => prev.map(p => p.id===id ? {...p, status:'pago', data_pagamento:today()} : p)) }
   function deletePayment(id) { if (!window.confirm('Excluir este lançamento?')) return; setPayments(prev => prev.filter(p => p.id!==id)) }
   function toggleSort(key) { setSort(s => s.key===key ? {...s,dir:s.dir*-1} : {key,dir:1}) }
@@ -1182,7 +1178,7 @@ function TabRepasses({ payments, setPayments, rules, personas, period }) {
                           <CheckCircle2 size={11} strokeWidth={2.5} />Pagar
                         </button>
                       )}
-                      <button onClick={()=>setModal({type:'edit',data:p})} style={{ padding:'4px 6px', borderRadius:6, background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center' }}><Pencil size={12} strokeWidth={2} /></button>
+                      <button onClick={()=>onEdit({type:'edit',data:p})} style={{ padding:'4px 6px', borderRadius:6, background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center' }}><Pencil size={12} strokeWidth={2} /></button>
                       <button onClick={()=>deletePayment(p.id)} style={{ padding:'4px 6px', borderRadius:6, background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', cursor:'pointer', display:'flex', alignItems:'center' }}><Trash2 size={12} strokeWidth={2} /></button>
                     </div>
                   </td>
@@ -1192,21 +1188,14 @@ function TabRepasses({ payments, setPayments, rules, personas, period }) {
           </table>
         </div>
       )}
-      {modal && <PaymentModal initial={modal.type==='edit'?modal.data:null} rules={rules} personas={personas} onSave={handleSave} onClose={()=>setModal(null)} />}
     </div>
   )
 }
 
 // ─── Tab: Regras de Configuração ──────────────────────────────────────────────
-function TabRegras({ rules, setRules, personas, setPersonas }) {
-  const [modal, setModal]         = useState(null)
+function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
   const [deleting, setDeleting]   = useState(null)
   const [showPersonas, setShowPersonas] = useState(false)
-
-  function handleSave(updated) {
-    setRules(prev => prev.find(r=>r.id===updated.id) ? prev.map(r=>r.id===updated.id?updated:r) : [...prev,updated])
-    setModal(null)
-  }
   async function deleteRule(id) {
     if (!window.confirm('Excluir esta regra?')) return
     setDeleting(id)
@@ -1219,7 +1208,7 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
   const cardActions = (rule) => (
     <div style={{ display:'flex', alignItems:'center', gap:8 }}>
       <button onClick={()=>toggleAtivo(rule)} style={{ padding:'5px 12px', borderRadius:7, background:'none', border:'1px solid var(--border)', color:'var(--text-muted)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>{rule.ativo?'Desativar':'Ativar'}</button>
-      <button onClick={()=>setModal({type:'edit',data:rule})} style={{ padding:'5px 10px', borderRadius:7, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}><Pencil size={12} strokeWidth={2} />Editar</button>
+      <button onClick={()=>onEditRule({type:'edit',data:rule})} style={{ padding:'5px 10px', borderRadius:7, background:'none', border:'1px solid var(--border)', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}><Pencil size={12} strokeWidth={2} />Editar</button>
       <button onClick={()=>deleteRule(rule.id)} disabled={deleting===rule.id} style={{ padding:'5px 8px', borderRadius:7, background:'none', border:'1px solid rgba(239,68,68,0.3)', color:'#EF4444', fontSize:12, cursor:'pointer', display:'flex', alignItems:'center' }}>
         {deleting===rule.id ? <Loader2 size={13} strokeWidth={2} style={{ animation:'spin 1s linear infinite' }} /> : <Trash2 size={13} strokeWidth={2} />}
       </button>
@@ -1244,7 +1233,7 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
         <div style={{ textAlign:'center', padding:'60px 20px', color:'var(--text-muted)', fontSize:14 }}>
           <Percent size={36} strokeWidth={1} style={{ marginBottom:14, opacity:0.25, display:'block', margin:'0 auto 14px' }} />
           Nenhuma regra cadastrada.
-          <br /><Button onClick={()=>setModal('new')} style={{ marginTop:14, background:'#6366F1' }}>+ Criar primeira regra</Button>
+          <br /><Button onClick={()=>onEditRule('new')} style={{ marginTop:14, background:'#6366F1' }}>+ Criar primeira regra</Button>
         </div>
       ) : (
         rules.map(rule => {
@@ -1445,7 +1434,6 @@ function TabRegras({ rules, setRules, personas, setPersonas }) {
         })
       )}
 
-      {modal && <RuleModal initial={modal==='new'?null:modal.data} personas={personas} onSave={handleSave} onClose={()=>setModal(null)} />}
       {showPersonas && <PersonasEditor personas={personas} onChange={p=>{setPersonas(p);setShowPersonas(false)}} onClose={()=>setShowPersonas(false)} />}
     </div>
   )
@@ -1456,11 +1444,361 @@ export default function Comissoes() {
   const [tab, setTab]           = useLocalState('comissoes:tab', 'repasses')
   const [period, setPeriod]     = useState('this_month')
   const { rules, payments, personas, setRules, setPayments, setPersonas } = useCommissions()
-  const [showModal, setShowModal] = useState(null)
+  const [editandoPayment, setEditandoPayment] = useState(null)
+  const [editandoRule, setEditandoRule]       = useState(null)
+  const [saving, setSaving]                   = useState(false)
+  const [err, setErr]                         = useState(null)
+  const [contatos]                            = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
 
   const totalPendente = useMemo(() =>
     payments.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
   [payments])
+
+  function openPayment(modal) {
+    if (modal === 'new') setEditandoPayment({ ...EMPTY_PAYMENT })
+    else if (modal?.type === 'edit') setEditandoPayment({ ...modal.data })
+  }
+
+  function openRule(modal) {
+    if (modal === 'new') {
+      setEditandoRule({ ...EMPTY_RULE, persona_percentuais: personas.map(p => ({ persona_id: p.id, cdu_pct: 0, sms_pct: 0, servicos_pct: 0 })) })
+    } else if (modal?.type === 'edit') {
+      const base = { ...EMPTY_RULE, ...modal.data }
+      const existingIds = (base.persona_percentuais || []).map(p => p.persona_id)
+      const merged = [
+        ...(base.persona_percentuais || []),
+        ...personas.filter(p => !existingIds.includes(p.id)).map(p => ({ persona_id: p.id, cdu_pct: 0, sms_pct: 0, servicos_pct: 0 })),
+      ]
+      setEditandoRule({ ...base, persona_percentuais: merged })
+    }
+  }
+
+  async function savePayment() {
+    const form = editandoPayment
+    if (!form.beneficiario_nome.trim()) { setErr('Informe o beneficiário.'); return }
+    if (!form.data_vencimento)          { setErr('Informe a data de vencimento.'); return }
+    if (!form.valor_base || parseFloat(form.valor_base) <= 0) { setErr('Informe um valor base válido.'); return }
+    setSaving(true); setErr(null)
+    try {
+      await new Promise(r => setTimeout(r, 300))
+      const base = parseFloat(form.valor_base) || 0
+      const pct  = parseFloat(form.percentual) || 0
+      const comissao = parseFloat((base * pct / 100).toFixed(2))
+      const updated = { ...form, id: form.id || `p${Date.now()}`, valor_base: base, percentual: pct, valor_comissao: comissao }
+      setPayments(prev => prev.find(p=>p.id===updated.id) ? prev.map(p=>p.id===updated.id?updated:p) : [...prev,updated])
+      setEditandoPayment(null)
+    } finally { setSaving(false) }
+  }
+
+  async function saveRule() {
+    const form = editandoRule
+    if (!form.nome.trim()) { setErr('Informe o nome da regra.'); return }
+    setSaving(true); setErr(null)
+    try {
+      await new Promise(r => setTimeout(r, 300))
+      const updated = { ...form, id: form.id || `r${Date.now()}` }
+      setRules(prev => prev.find(r=>r.id===updated.id) ? prev.map(r=>r.id===updated.id?updated:r) : [...prev,updated])
+      setEditandoRule(null)
+    } finally { setSaving(false) }
+  }
+
+  if (editandoPayment) {
+    const form = editandoPayment
+    const set = (k, v) => setEditandoPayment(f => ({ ...f, [k]: v }))
+    const isNew = !form.id
+    const selectedRule = rules.find(r => r.id === form.rule_id)
+    const comissaoCalculada = ((parseFloat(form.valor_base)||0) * (parseFloat(form.percentual)||0) / 100).toFixed(2)
+
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Comissões', onClick: () => { setEditandoPayment(null); setErr(null) } }, { label: isNew ? 'Novo Lançamento' : 'Editar Lançamento' }]}
+        title={isNew ? 'Novo Lançamento' : form.beneficiario_nome || 'Lançamento'}
+        subtitle="Registre um repasse de comissão"
+        onSave={savePayment}
+        onCancel={() => { setEditandoPayment(null); setErr(null) }}
+        saving={saving}
+        saveLabel={isNew ? 'Registrar lançamento' : 'Salvar alterações'}
+        aside={
+          <AsideCard title="Cálculo">
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, color:'#71717A' }}>Valor base</span>
+                <span style={{ fontSize:13, fontFamily:'var(--mono)', fontWeight:600 }}>{fmt(parseFloat(form.valor_base)||0)}</span>
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, color:'#71717A' }}>Percentual</span>
+                <span style={{ fontSize:13, fontFamily:'var(--mono)', fontWeight:600 }}>{fmtPct(parseFloat(form.percentual)||0)}</span>
+              </div>
+              <div style={{ borderTop:'1px solid #E4E4E7', paddingTop:8, display:'flex', justifyContent:'space-between' }}>
+                <span style={{ fontSize:12, color:'#71717A', fontWeight:600 }}>Comissão</span>
+                <span style={{ fontSize:16, fontFamily:'var(--mono)', fontWeight:800, color:'#10B981' }}>{fmt(comissaoCalculada)}</span>
+              </div>
+            </div>
+            {err && <div style={{ marginTop:12, padding:'8px 10px', borderRadius:7, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:12 }}>{err}</div>}
+          </AsideCard>
+        }
+      >
+        <FPESection label="Beneficiário" noBorder columns={2}>
+          <FPEField label="Beneficiário" required span={2}>
+            <select className="fpe-field" value={form.beneficiario_id || ''} onChange={e => {
+              const u = MOCK_USUARIOS.find(u => u.id === e.target.value)
+              set('beneficiario_id', e.target.value)
+              set('beneficiario_nome', u?.nome || '')
+            }}>
+              <option value="">— Selecionar usuário —</option>
+              {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome} · {u.cargo}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Persona">
+            <select className="fpe-field" value={form.persona} onChange={e => set('persona', e.target.value)}>
+              {personas.filter(p => p.ativo).map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Regra aplicada">
+            <select className="fpe-field" value={form.rule_id || ''} onChange={e => set('rule_id', e.target.value || null)}>
+              <option value="">— Nenhuma regra —</option>
+              {rules.filter(r => r.ativo).map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+            </select>
+          </FPEField>
+        </FPESection>
+        <FPESection label="Cálculo" columns={2}>
+          <FPEField label="Tipo de receita">
+            <select className="fpe-field" value={form.receita_tipo} onChange={e => set('receita_tipo', e.target.value)}>
+              {RECEITA_TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Status">
+            <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
+              {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Valor base (R$)" required>
+            <input type="number" min={0} step={0.01} className="fpe-field" value={form.valor_base} onChange={e => set('valor_base', e.target.value)} placeholder="0,00" />
+          </FPEField>
+          <FPEField label="Percentual (%)">
+            <input type="number" min={0} max={100} step={0.5} className="fpe-field" value={form.percentual} onChange={e => set('percentual', e.target.value)} placeholder="0,00" />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Datas" columns={3}>
+          <FPEField label="Competência">
+            <input type="date" className="fpe-field" value={form.data_competencia} onChange={e => set('data_competencia', e.target.value)} />
+          </FPEField>
+          <FPEField label="Vencimento" required>
+            <input type="date" className="fpe-field" value={form.data_vencimento} onChange={e => set('data_vencimento', e.target.value)} />
+          </FPEField>
+          <FPEField label="Data de pagamento">
+            <input type="date" className="fpe-field" value={form.data_pagamento || ''} onChange={e => set('data_pagamento', e.target.value || null)} />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Observações" columns={1}>
+          <FPEField label="Descrição / Origem">
+            <input className="fpe-field" value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Ex: Quírons QRS — MedGroup" />
+          </FPEField>
+          <FPEField label="Notas">
+            <textarea className="fpe-field" value={form.notas || ''} onChange={e => set('notas', e.target.value)} />
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
+
+  if (editandoRule) {
+    const form = editandoRule
+    const set = (k, v) => setEditandoRule(f => ({ ...f, [k]: v }))
+    const isNew = !form.id
+    const tipos = form.tipos_calculo_arr || ['percentual_fixo']
+    const isFixo   = tipos.includes('percentual_fixo')
+    const isCadeia = tipos.includes('cadeia_repasse')
+    const isEscal  = tipos.includes('escalonado')
+
+    function toggleTipo(id) {
+      if (tipos.includes(id)) {
+        if (tipos.length === 1) return
+        set('tipos_calculo_arr', tipos.filter(t => t !== id))
+      } else {
+        set('tipos_calculo_arr', [...tipos, id])
+      }
+    }
+
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Comissões', onClick: () => { setEditandoRule(null); setErr(null) } }, { label: isNew ? 'Nova Regra' : 'Editar Regra' }]}
+        title={isNew ? 'Nova Regra de Comissão' : form.nome || 'Regra'}
+        subtitle="Configure o modelo de cálculo e as condições de elegibilidade"
+        onSave={saveRule}
+        onCancel={() => { setEditandoRule(null); setErr(null) }}
+        saving={saving}
+        saveLabel={isNew ? 'Criar regra' : 'Salvar alterações'}
+        aside={
+          <AsideCard title="Status da regra">
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <Toggle value={form.ativo} onChange={v => set('ativo', v)} label="Regra ativa" />
+              <Toggle value={form.revisao_anual} onChange={v => set('revisao_anual', v)} label="Revisão anual" />
+              {err && <div style={{ padding:'8px 10px', borderRadius:7, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:12 }}>{err}</div>}
+            </div>
+          </AsideCard>
+        }
+      >
+        <FPESection label="Identificação" noBorder columns={2}>
+          <FPEField label="Nome da regra" required span={2}>
+            <input className="fpe-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
+          </FPEField>
+          <FPEField label="Descrição curta" span={2}>
+            <input className="fpe-field" value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Resumo em uma linha" />
+          </FPEField>
+          <FPEField label="Vigência início">
+            <input type="date" className="fpe-field" value={form.vigencia_inicio || ''} onChange={e => set('vigencia_inicio', e.target.value || null)} />
+          </FPEField>
+          <FPEField label="Vigência fim">
+            <input type="date" className="fpe-field" value={form.vigencia_fim || ''} onChange={e => set('vigencia_fim', e.target.value || null)} />
+          </FPEField>
+          <FPEField label="Contexto e motivação" span={2}>
+            <textarea className="fpe-field" value={form.contexto || ''} onChange={e => set('contexto', e.target.value)} placeholder="Explique o porquê desta regra…" />
+          </FPEField>
+        </FPESection>
+
+        <FPESection label="Escopo" columns={2}>
+          {[
+            { key:'escopo_interno', label:'Interna', desc:'Usuário do sistema', color:'#6366F1' },
+            { key:'escopo_externo', label:'Externa', desc:'Contato Canal',      color:'#10B981' },
+          ].map(opt => {
+            const active = !!form[opt.key]
+            return (
+              <FPEField key={opt.key}>
+                <button type="button" onClick={() => set(opt.key, !active)}
+                  style={{ width:'100%', padding:'12px 14px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                    border: active ? `2px solid ${opt.color}` : '2px solid var(--border)',
+                    background: active ? `${opt.color}12` : 'var(--surface2)', transition:'all 0.15s', fontFamily:'var(--font)' }}>
+                  <div style={{ fontSize:13, fontWeight:700, color: active ? opt.color : 'var(--text)', marginBottom:3 }}>{opt.label}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
+                </button>
+              </FPEField>
+            )
+          })}
+          {form.escopo_interno && (
+            <FPEField label="Usuário do sistema" required span={2}>
+              <select className="fpe-field" value={form.beneficiario_id || ''} onChange={e => {
+                const u = MOCK_USUARIOS.find(u => u.id === e.target.value)
+                set('beneficiario_id', e.target.value)
+                set('beneficiario_nome', u?.nome || '')
+              }}>
+                <option value="">— Selecionar usuário —</option>
+                {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome} · {u.cargo}</option>)}
+              </select>
+            </FPEField>
+          )}
+          {form.escopo_externo && (
+            <FPEField label="Contato Canal" required span={2}>
+              <select className="fpe-field" value={form.contato_id || ''} onChange={e => {
+                const c = contatos.find(c => c.id === e.target.value)
+                set('contato_id', e.target.value)
+                set('contato_nome', c?.nome || '')
+                set('contato_empresa', c?.empresa_nome || '')
+              }}>
+                <option value="">— Selecionar contato —</option>
+                {contatos.map(c => <option key={c.id} value={c.id}>{c.nome} · {c.empresa_nome}</option>)}
+              </select>
+            </FPEField>
+          )}
+        </FPESection>
+
+        <FPESection label="Tipos de cálculo" columns={3}>
+          {Object.entries(TIPO_CALCULO_CFG).map(([id, cfg]) => {
+            const sel = tipos.includes(id)
+            return (
+              <FPEField key={id}>
+                <button type="button" onClick={() => toggleTipo(id)}
+                  style={{ width:'100%', padding:'14px 12px', borderRadius:10, cursor:'pointer', textAlign:'left',
+                    border: sel ? `2px solid ${cfg.color}` : '2px solid var(--border)',
+                    background: sel ? cfg.bg : 'var(--surface2)', transition:'all 0.15s', fontFamily:'var(--font)' }}>
+                  <div style={{ fontSize:12, fontWeight:700, color: sel ? cfg.color : 'var(--text)', marginBottom:4 }}>{cfg.label}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.45 }}>{cfg.desc}</div>
+                </button>
+              </FPEField>
+            )
+          })}
+        </FPESection>
+
+        {isFixo && (
+          <FPESection label="Percentuais por Persona × Tipo de Receita" columns={1}>
+            <FPEField>
+              <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:`140px repeat(${RECEITA_TIPOS.length},1fr)`, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>Persona</div>
+                  {RECEITA_TIPOS.map(t => <div key={t} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', textAlign:'center' }}>{t}</div>)}
+                </div>
+                {personas.filter(p => p.ativo).map((p, pi) => (
+                  <div key={p.id} style={{ display:'grid', gridTemplateColumns:`140px repeat(${RECEITA_TIPOS.length},1fr)`, borderBottom:pi<personas.filter(x=>x.ativo).length-1?'1px solid var(--border)':'none', alignItems:'center' }}>
+                    <div style={{ padding:'10px 12px', display:'flex', alignItems:'center', gap:7 }}>
+                      <span style={{ width:8, height:8, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
+                      <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</span>
+                    </div>
+                    {RECEITA_TIPOS.map(tipo => (
+                      <div key={tipo} style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:4 }}>
+                        <input type="number" min={0} max={100} step={0.5}
+                          value={getPerc(form.persona_percentuais, p.id, tipo)}
+                          onChange={e => set('persona_percentuais', setPerc(form.persona_percentuais, p.id, tipo, e.target.value))}
+                          className="fpe-field"
+                        />
+                        <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </FPEField>
+          </FPESection>
+        )}
+
+        {isCadeia && (
+          <FPESection label="Parâmetros da Cadeia de Repasse" columns={3}>
+            {[
+              { key:'repasse_origem_pct',  label:'Repasse fabricante/dist. (%)', placeholder:'Ex: 50' },
+              { key:'base_calculo_pct',    label:'Base sobre líquido NG (%)',     placeholder:'Ex: 39' },
+              { key:'percentual_comissao', label:'% comissão sobre a base',       placeholder:'Ex: 5' },
+            ].map(f => (
+              <FPEField key={f.key} label={f.label}>
+                <input type="number" min={0} max={100} step={0.5} className="fpe-field" value={form[f.key] ?? ''} onChange={e => set(f.key, e.target.value)} placeholder={f.placeholder} />
+              </FPEField>
+            ))}
+            <FPEField label="Tipo de recorrência" span={2}>
+              <select className="fpe-field" value={form.tipo_recorrencia} onChange={e => set('tipo_recorrencia', e.target.value)}>
+                {Object.entries(TIPO_RECORRENCIA_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </FPEField>
+            {form.tipo_recorrencia === 'prazo_fixo' && (
+              <FPEField label="Prazo (meses)">
+                <input type="number" min={1} className="fpe-field" value={form.prazo_meses || ''} onChange={e => set('prazo_meses', parseInt(e.target.value) || null)} placeholder="Ex: 18" />
+              </FPEField>
+            )}
+          </FPESection>
+        )}
+
+        {isEscal && (
+          <FPESection label="Escala de Comissão" columns={1}>
+            <FPEField label="Escala Individual">
+              <EscalaEditor rows={form.escala_individual || DEFAULT_ESCALA_INDIVIDUAL} onChange={v => set('escala_individual', v)} valueKey="comissao_pct" valueLabel="Comissão (%)" accentColor="#F59E0B" />
+            </FPEField>
+            <FPEField label="Bônus de Equipe">
+              <EscalaEditor rows={form.escala_equipe || DEFAULT_ESCALA_EQUIPE} onChange={v => set('escala_equipe', v)} valueKey="bonus_pct" valueLabel="Bônus (%)" accentColor="#10B981" />
+            </FPEField>
+            <FPEField label="Condição para bônus de equipe">
+              <input className="fpe-field" value={form.condicao_bonus_equipe || ''} onChange={e => set('condicao_bonus_equipe', e.target.value)} placeholder="Ex: Exige atingimento prévio da meta individual" />
+            </FPEField>
+          </FPESection>
+        )}
+
+        <FPESection label="Elegibilidade" columns={1}>
+          <FPEField label="Condições de elegibilidade">
+            <ConditionBuilder conditions={form.condicoes_elegibilidade || []} onChange={v => set('condicoes_elegibilidade', v)} />
+          </FPEField>
+          <FPEField label="Notas adicionais">
+            <textarea className="fpe-field" value={form.notas_elegibilidade || ''} onChange={e => set('notas_elegibilidade', e.target.value)} placeholder="Observações, exceções ou restrições adicionais." />
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:0, minHeight:0 }}>
@@ -1489,17 +1827,14 @@ export default function Comissoes() {
         {/* Direita: período + ação */}
         <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingTop:4 }}>
           <PeriodPopover value={period} onChange={setPeriod} />
-          <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={()=>setShowModal(tab==='repasses'?'payment':'rule')}>
+          <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={() => tab === 'repasses' ? openPayment('new') : openRule('new')}>
             {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
           </Button>
         </div>
       </div>
 
-      {tab === 'repasses' && <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} period={period} />}
-      {tab === 'regras'   && <TabRegras   rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} />}
-
-      {showModal === 'payment' && <PaymentModal initial={null} rules={rules} personas={personas} onSave={p=>{setPayments(prev=>[...prev,p]);setShowModal(null)}} onClose={()=>setShowModal(null)} />}
-      {showModal === 'rule'    && <RuleModal    initial={null} personas={personas}               onSave={r=>{setRules(prev=>[...prev,r]);setShowModal(null)}}    onClose={()=>setShowModal(null)} />}
+      {tab === 'repasses' && <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} period={period} onEdit={openPayment} />}
+      {tab === 'regras'   && <TabRegras   rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} />}
     </div>
   )
 }

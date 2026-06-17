@@ -21,19 +21,19 @@ function rowToPlaybook(row) {
 }
 
 function playbookToRow(pb, tenantId, branchId) {
-  const { id, titulo, descricao, status, owner_id, criado, atualizado, ...rest } = pb
+  const { id, titulo, title, descricao, description, status, owner_id, criado, atualizado, ...rest } = pb
   return {
     tenant_id:    tenantId,
     branch_id:    branchId || null,
     owner_id:     owner_id || null,
-    titulo:       titulo,
-    descricao:    descricao || null,
+    titulo:       titulo || title || '',
+    descricao:    descricao || description || null,
     status:       status || 'rascunho',
     steps:        rest.steps || [],
     refs:         rest.refs  || [],
     resources:    rest.resources || [],
     custom_fields: Object.fromEntries(
-      Object.entries(rest).filter(([k]) => !['steps','refs','resources'].includes(k))
+      Object.entries(rest).filter(([k]) => !['steps','refs','resources','title','description'].includes(k))
     ),
   }
 }

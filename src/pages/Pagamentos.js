@@ -9,6 +9,7 @@ import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTexta
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
+import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
 
 const ACCENT = '#6366F1'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -1055,6 +1056,8 @@ export default function Pagamentos() {
   const [detalheModal, setDetalheModal]       = useState(null)
   const [gerarTodosModal, setGerarTodosModal] = useState(false)
   const [novoPagModal, setNovoPagModal]       = useState(false)
+  const [novoPagForm, setNovoPagForm]         = useState(null)
+  const [savingNovo, setSavingNovo]           = useState(false)
   const [importModal, setImportModal]         = useState(false)
   const [exportLogs, setExportLogs]       = useState([])
   const [showTray, setShowTray]           = useState(false)
@@ -1183,6 +1186,114 @@ export default function Pagamentos() {
     setPagamentos(prev=>prev.map(p=>p.reference_month===key&&!p.processed?{...p,processed:true}:p))
   }
 
+  if (novoPagForm) {
+    const form = novoPagForm
+    const set = (k, v) => setNovoPagForm(f => ({ ...f, [k]: v }))
+    const cdu      = parseFloat(form.amount_cdu)      || 0
+    const sms      = parseFloat(form.amount_sms)      || 0
+    const services = parseFloat(form.amount_services) || 0
+    const discount = parseFloat(form.amount_discount) || 0
+    const liquido  = Math.max(0, cdu + sms + services - discount)
+
+    async function handleSaveNovo() {
+      if (!form.contract_numero.trim()) return alert('Número do contrato é obrigatório')
+      if (!form.company_nome.trim())    return alert('Empresa é obrigatória')
+      setSavingNovo(true)
+      try {
+        handleNovoPagamento({
+          id: 'man_' + Date.now(),
+          contract_id: null,
+          contract_numero: form.contract_numero.trim(),
+          company_id: form.company_id,
+          company_nome: form.company_nome.trim(),
+          num_documento: null, data_emissao: null, parcela: '1/1',
+          amount_cdu: cdu, amount_sms: sms,
+          amount_services: services, amount_discount: discount,
+          amount_total_net: liquido,
+          valor_recebido: null, data_baixa: null,
+          reference_month: form.reference_month,
+          due_date: form.due_date || null,
+          status: form.status,
+          processed: false,
+          notes: form.notes,
+          tenant_id: 't1',
+          criado: new Date().toISOString().slice(0, 10),
+        })
+        setNovoPagForm(null)
+      } finally { setSavingNovo(false) }
+    }
+
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Faturamento', onClick: () => setNovoPagForm(null) }, { label: 'Novo Pagamento' }]}
+        title="Novo Pagamento"
+        subtitle="Lançamento manual de cobrança"
+        onSave={handleSaveNovo}
+        onCancel={() => setNovoPagForm(null)}
+        saving={savingNovo}
+        saveLabel="+ Adicionar pagamento"
+        aside={
+          <AsideCard title="Total líquido">
+            <div style={{ textAlign:'center', padding:'8px 0' }}>
+              <div style={{ fontSize:28, fontWeight:800, fontFamily:'var(--mono)', color: liquido > 0 ? '#18181B' : '#A1A1AA' }}>
+                {fmtMoeda(liquido)}
+              </div>
+              <div style={{ fontSize:11, color:'#71717A', marginTop:4 }}>CDU + SMS + Serviços - Desconto</div>
+            </div>
+            <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
+              {[
+                { label:'CDU',      val:cdu,      color:'#6366F1' },
+                { label:'SMS',      val:sms,      color:'#3B82F6' },
+                { label:'Serviços', val:services, color:'#10B981' },
+                { label:'Desconto', val:discount, color:'#EF4444' },
+              ].map(({ label, val, color }) => (
+                <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid #F4F4F5' }}>
+                  <span style={{ fontSize:12, color:'#71717A' }}>{label}</span>
+                  <span style={{ fontSize:12, fontFamily:'var(--mono)', fontWeight:600, color: val > 0 ? color : '#A1A1AA' }}>{val > 0 ? fmtMoeda(val) : '—'}</span>
+                </div>
+              ))}
+            </div>
+          </AsideCard>
+        }
+      >
+        <FPESection label="Identificação" noBorder columns={2}>
+          <FPEField label="Nº do contrato" required>
+            <input className="fpe-field" value={form.contract_numero} placeholder="CTR-2024-001" onChange={e => set('contract_numero', e.target.value)} />
+          </FPEField>
+          <FPEField label="Empresa" required>
+            <input className="fpe-field" value={form.company_nome} placeholder="Nome da empresa" onChange={e => set('company_nome', e.target.value)} />
+          </FPEField>
+          <FPEField label="Status">
+            <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
+              {Object.entries(STATUS_PAGAMENTO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Competência">
+            <input type="month" className="fpe-field" value={form.reference_month.slice(0, 7)} onChange={e => set('reference_month', e.target.value + '-01')} />
+          </FPEField>
+          <FPEField label="Vencimento">
+            <input type="date" className="fpe-field" value={form.due_date} onChange={e => set('due_date', e.target.value)} />
+          </FPEField>
+          <FPEField label="Observações">
+            <input className="fpe-field" value={form.notes || ''} placeholder="Observações opcionais…" onChange={e => set('notes', e.target.value)} />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Composição de valores" columns={2}>
+          {[
+            { k:'amount_cdu',      label:'CDU',      color:'#6366F1' },
+            { k:'amount_sms',      label:'SMS',      color:'#3B82F6' },
+            { k:'amount_services', label:'Serviços', color:'#10B981' },
+            { k:'amount_discount', label:'Desconto', color:'#EF4444' },
+          ].map(({ k, label, color }) => (
+            <FPEField key={k} label={label}>
+              <input type="number" min="0" step="0.01" className="fpe-field" value={form[k]} placeholder="0,00" onChange={e => set(k, e.target.value)} />
+            </FPEField>
+          ))}
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
+
   return (
     <div style={pg.wrap}>
 
@@ -1206,7 +1317,7 @@ export default function Pagamentos() {
           </button>
         </div>
         <div style={{ display:'flex', gap:8 }}>
-          <Button variant="secondary" onClick={() => setNovoPagModal(true)}>+ Novo Pagamento</Button>
+          <Button variant="secondary" onClick={() => setNovoPagForm({ ...EMPTY_PAG, reference_month: periodoKey(periodo), due_date: periodoKey(periodo) })}>+ Novo Pagamento</Button>
           <Button onClick={()=>setGerarTodosModal(true)}>
             + Gerar Todos
             {naoProcessados.length>0 && (
@@ -1598,13 +1709,6 @@ export default function Pagamentos() {
       )}
       {importModal && (
         <ImportModal onClose={()=>setImportModal(false)} onImport={handleImport}/>
-      )}
-      {novoPagModal && (
-        <NovoPagamentoModal
-          periodo={periodo}
-          onClose={() => setNovoPagModal(false)}
-          onSave={handleNovoPagamento}
-        />
       )}
     </div>
   )

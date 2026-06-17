@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { MOCK_FUNIS } from '../data/mockFunis'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
+import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
@@ -36,6 +37,7 @@ import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 import Button from '../components/Button'
+import SlideOver from '../components/ui/SlideOver'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -140,9 +142,10 @@ const EMPTY_OPP = {
 
 // ─── Autocomplete de Empresa ──────────────────────────────────────────────────
 function EmpresaSearch({ value, label, onChange }) {
-  const [query, setQuery] = useState(label || '')
-  const [open, setOpen]   = useState(false)
-  const ref               = useRef(null)
+  const [query, setQuery]     = useState(label || '')
+  const [open, setOpen]       = useState(false)
+  const [companies]           = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
+  const ref                   = useRef(null)
 
   useEffect(() => { setQuery(label || '') }, [label])
   useEffect(() => {
@@ -153,8 +156,15 @@ function EmpresaSearch({ value, label, onChange }) {
 
   const opts = useMemo(() => {
     const q = query.toLowerCase()
-    return MOCK_EMPRESAS.filter(e => (e.fantasia || e.razao).toLowerCase().includes(q)).slice(0,8)
-  }, [query])
+    return companies
+      .filter(e => {
+        const nome = e.name || e.fantasia || e.razao || ''
+        return nome.toLowerCase().includes(q)
+      })
+      .slice(0, 8)
+  }, [query, companies])
+
+  function getNome(e) { return e.name || e.fantasia || e.razao || '' }
 
   return (
     <div ref={ref} style={{ position:'relative' }}>
@@ -172,10 +182,10 @@ function EmpresaSearch({ value, label, onChange }) {
         <div style={ar.dropdown}>
           {opts.map(e => (
             <button type="button" key={e.id} style={ar.option}
-              onMouseDown={() => { onChange(e.id, e.fantasia||e.razao); setQuery(e.fantasia||e.razao); setOpen(false) }}>
-              <span style={ar.optAvatar}>{(e.fantasia||e.razao).slice(0,2).toUpperCase()}</span>
+              onMouseDown={() => { onChange(e.id, getNome(e)); setQuery(getNome(e)); setOpen(false) }}>
+              <span style={ar.optAvatar}>{getNome(e).slice(0,2).toUpperCase()}</span>
               <span>
-                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{e.fantasia||e.razao}</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{getNome(e)}</div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{e.cnpj}</div>
               </span>
             </button>
@@ -3321,8 +3331,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const oppTarefasAbertas = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id && (t.status==='pendente'||t.status==='em_andamento')).length
   const itensCount        = form.itens.length
 
-  function handleSave(e) {
-    e.preventDefault()
+  function handleSave() {
     if (!form.titulo.trim()) return alert('Título é obrigatório')
     if (!form.empresa_id)    return alert('Selecione uma empresa')
 
@@ -3440,7 +3449,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
       case 'descricao':
         return <textarea style={{ ...m.input, minHeight:72, resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Observações sobre a oportunidade…" />
       default:
-        return null
+        return undefined  // campo customizado — usa GenericInput do DynamicFormLayout
     }
   }
 
@@ -3461,308 +3470,258 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     </>
   )
 
-  return (
+  // ── chips do header (valor, produtos) ────────────────────────────────────
+  const headerChips = isEditing ? (() => {
+    const bruto  = (Number(form.valor_cdu)||0)+(Number(form.valor_sms)||0)+(Number(form.valor_servico)||0)
+    const liq    = Math.max(0, bruto - Math.min(Number(form.valor_desconto)||0, bruto))
+    const nItens = (form.itens||[]).length
+    if (!liq && !nItens) return null
+    const dot  = <span style={{ color:'var(--border2)', fontSize:12 }}>·</span>
+    const chip = (label, color) => (
+      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+        background: color+'18', color, fontFamily:'var(--mono)', letterSpacing:'0.02em' }}>
+        {label}
+      </span>
+    )
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+        {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
+        {nItens > 0 && liq > 0 && dot}
+        {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, '#6366F1')}
+        {form.valor_sms > 0 && chip(`SMS ${fmtMoeda(form.valor_sms)}`, '#3B82F6')}
+        {form.valor_servico > 0 && chip(`Serv. ${fmtMoeda(form.valor_servico)}`, '#10B981')}
+        {liq > 0 && (
+          <>
+            {(form.valor_cdu>0||form.valor_sms>0||form.valor_servico>0) && dot}
+            <span style={{ fontSize:11, fontWeight:800, fontFamily:'var(--mono)',
+              color:'var(--text)', letterSpacing:'-0.02em' }}>
+              {fmtMoeda(liq)}
+            </span>
+          </>
+        )}
+      </div>
+    )
+  })() : null
+
+  // ── tabs para edição ──────────────────────────────────────────────────────
+  const OPP_TABS = isEditing ? [
+    { key: 'dados',         label: 'Dados' },
+    { key: 'produtos',      label: 'Produtos',      badge: itensCount || undefined },
+    { key: 'tarefas',       label: 'Tarefas',       badge: oppTarefasCount || undefined },
+    { key: 'equipe',        label: 'Equipe' },
+    { key: 'documentos',    label: 'Documentos' },
+    { key: 'proposta',      label: 'Proposta' },
+    { key: 'questionarios', label: 'Questionários' },
+    { key: 'playbook',      label: 'Playbook' },
+  ] : undefined
+
+  // ── botão de histórico (headerActions) ───────────────────────────────────
+  const logToggleBtn = isEditing ? (
+    <button type="button"
+      title={logOpen ? 'Fechar histórico' : 'Histórico de alterações'}
+      onClick={() => setLogOpen(v => !v)}
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 30, borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--border)', background: logOpen ? 'var(--accent-glow)' : 'var(--surface)',
+        cursor: 'pointer', color: logOpen ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0,
+        fontSize: 14,
+      }}>
+      🕐
+    </button>
+  ) : null
+
+  // ── painel histórico (rightPanel) ─────────────────────────────────────────
+  const logPanelContent = isEditing ? (
     <>
-      {/* Backdrop */}
-      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', zIndex:999 }} onClick={onClose} />
+      <div style={{ padding:'10px 12px 8px', borderBottom:'1px solid var(--border)',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        flexShrink:0, minWidth:0 }}>
+        <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)',
+          textTransform:'uppercase', letterSpacing:'0.08em', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+          🕐 Histórico
+        </span>
+        <button type="button" onClick={() => setLogOpen(false)} title="Fechar histórico"
+          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+            fontSize:13, padding:'2px 4px', lineHeight:1, borderRadius:4, flexShrink:0 }}>
+          ✕
+        </button>
+      </div>
+      <HistoricoPanel oppId={initial.id} logs={MOCK_LOGS_OPORTUNIDADE} />
+    </>
+  ) : null
 
-      {/* Drawer lateral */}
-      <div style={{ position:'fixed', top:0, right:0, bottom:0, zIndex:1000,
-        width: expanded ? 'calc(100vw - 120px)' : (isEditing ? '860px' : '580px'),
-        maxWidth:'100vw',
-        transition:'width 0.28s ease',
-        display:'flex', flexDirection:'column',
-        background:'var(--surface)',
-        boxShadow:'-6px 0 32px rgba(0,0,0,0.18)',
-        borderLeft:'1px solid var(--border2)',
-        overflow:'hidden' }}>
+  // ── slot extra: confirmação de exclusão ───────────────────────────────────
+  const extraSlot = isEditing ? (
+    confirmDelete ? (
+      <div style={m.deleteConfirm}>
+        <span style={m.deleteConfirmText}>Excluir permanentemente?</span>
+        <button type="button" style={m.deleteConfirmYes} onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</button>
+        <button type="button" style={m.deleteConfirmNo} onClick={() => setConfirmDelete(false)}>Cancelar</button>
+      </div>
+    ) : (
+      <Button variant="danger" onClick={() => setConfirmDelete(true)}>Excluir oportunidade</Button>
+    )
+  ) : null
 
-          {/* Header */}
-          <div style={m.header}>
-            <div style={{ minWidth:0, flex:1 }}>
-              <div style={m.title}>{isEditing ? form.titulo || 'Editar oportunidade' : 'Nova oportunidade'}</div>
-              <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginTop:2 }}>
-                <div style={m.subtitle}>{isEditing ? form.empresa_nome : 'Oportunidade vinculada ao funil de vendas'}</div>
-                {isEditing && (() => {
-                  const bruto = (Number(form.valor_cdu)||0)+(Number(form.valor_sms)||0)+(Number(form.valor_servico)||0)
-                  const liq   = Math.max(0, bruto - Math.min(Number(form.valor_desconto)||0, bruto))
-                  const nItens = (form.itens||[]).length
-                  if (!liq && !nItens) return null
-                  const dot = <span style={{ color:'var(--border2)', fontSize:12 }}>·</span>
-                  const chip = (label, color) => (
-                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
-                      background: color+'18', color, fontFamily:'var(--mono)', letterSpacing:'0.02em' }}>
-                      {label}
-                    </span>
-                  )
-                  return (
-                    <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                      {dot}
-                      {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
-                      {nItens > 0 && liq > 0 && dot}
-                      {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, '#6366F1')}
-                      {form.valor_sms > 0 && chip(`SMS ${fmtMoeda(form.valor_sms)}`, '#3B82F6')}
-                      {form.valor_servico > 0 && chip(`Serv. ${fmtMoeda(form.valor_servico)}`, '#10B981')}
-                      {liq > 0 && (
-                        <>
-                          {(form.valor_cdu>0||form.valor_sms>0||form.valor_servico>0) && dot}
-                          <span style={{ fontSize:11, fontWeight:800, fontFamily:'var(--mono)',
-                            color:'var(--text)', letterSpacing:'-0.02em' }}>
-                            {fmtMoeda(liq)}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  )
-                })()}
-              </div>
-            </div>
-            <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-              {isEditing && (
-                <button type="button" style={m.closeBtn} title={logOpen ? 'Fechar histórico' : 'Histórico de alterações'}
-                  onClick={() => setLogOpen(v => !v)}>🕐</button>
-              )}
-              <button type="button" style={m.expandBtn} title={expanded ? 'Recolher' : 'Expandir'}
-                onClick={() => setExpanded(v => !v)}>{expanded ? '⊟' : '⊞'}</button>
-              <button style={m.closeBtn} onClick={onClose}>✕</button>
+  // ── conteúdo do body (tab ativa ou form simples) ──────────────────────────
+  const bodyContent = isEditing ? (
+    <>
+      {/* Aba: Dados */}
+      {tab==='dados' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0 }}>
+          <div style={m.body}>{dadosFormBody}</div>
+          <div style={m.footer}>
+            <div style={{ flex:1 }}>{extraSlot}</div>
+            <div style={{ display:'flex', gap:10 }}>
+              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+              <Button onClick={handleSave}>Salvar alterações</Button>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* ── EDITANDO: layout 2 colunas ── */}
-          {isEditing ? (
-            <div style={{ display:'flex', flex:1, overflow:'hidden', minHeight:0 }}>
+      {/* Aba: Playbook */}
+      {tab==='playbook' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0 }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
+            <OppPlaybookTab opp={initial} etapaId={form.etapa_id} etapas={etapas} playbookId={form.playbook_id} onChangePlaybook={v => set('playbook_id', v || null)} />
+          </div>
+          <div style={{ ...m.footer }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-              {/* ─── Coluna esquerda: abas + conteúdo (60%) ─── */}
-              <div style={{ flex:'3', display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
+      {/* Aba: Produtos */}
+      {tab==='produtos' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingBottom:16 }}>
+            <OppProdutosTab
+              itens={form.itens}
+              onChange={itens => set('itens', itens)}
+              onSyncValor={mrr => { set('valor_servico', Math.round(mrr)); setTab('dados') }}
+            />
+            <ValorFinanceiroSection form={form} set={set} />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button
+              onClick={() => {
+                if (!form.titulo.trim()) return alert('Salve os Dados primeiro')
+                onSave({ ...form, funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
+                onClose()
+              }}>Salvar alterações</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Tabs */}
-                <div style={{ display:'flex', borderBottom:'1px solid var(--border)', flexShrink:0,
-                  padding:'0 8px', overflowX:'auto', overflowY:'hidden',
-                  scrollbarWidth:'none', msOverflowStyle:'none' }}>
-                  {[
-                    { id:'dados',          label:'Dados' },
-                    { id:'playbook',       label:'Playbook' },
-                    { id:'produtos',       label:'Produtos',      count: itensCount },
-                    { id:'tarefas',        label:'Tarefas',       count: oppTarefasCount, alert: oppTarefasAbertas },
-                    { id:'proposta',       label:'Proposta' },
-                    { id:'questionarios',  label:'Questionários' },
-                    { id:'equipe',         label:'Equipe' },
-                    { id:'documentos',     label:'Documentos' },
-                  ].map(t => (
-                    <button key={t.id} type="button" onClick={() => setTab(t.id)}
-                      style={{ padding:'10px 9px', background:'none', border:'none',
-                        borderBottom:`2px solid ${tab===t.id ? 'var(--accent)' : 'transparent'}`,
-                        color: tab===t.id ? 'var(--accent)' : 'var(--text-muted)',
-                        fontSize:12, fontWeight: tab===t.id ? 700 : 400,
-                        cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1, whiteSpace:'nowrap',
-                        display:'flex', alignItems:'center', gap:4, flexShrink:0 }}>
-                      {t.label}
-                      {t.count > 0 && (
-                        <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:10, fontFamily:'var(--mono)',
-                          background: t.alert > 0 ? '#FEF3C7' : 'var(--surface3)',
-                          color:      t.alert > 0 ? '#92400E'  : 'var(--text-muted)',
-                          border:     t.alert > 0 ? '1px solid #F59E0B44' : '1px solid var(--border)' }}>
-                          {t.count}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
+      {/* Aba: Tarefas */}
+      {tab==='tarefas' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:8, paddingBottom:16 }}>
+            <OppTarefasTab
+              oppId={initial.id}
+              oppNome={initial.titulo}
+              tarefas={tarefas}
+              onSaveTarefa={onSaveTarefa}
+              onToggleStatus={onToggleStatus}
+            />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Aba: Dados */}
-                {tab==='dados' && (
-                  <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
-                    <div style={m.body}>{dadosFormBody}</div>
-                    <div style={m.footer}>
-                      <div style={{ flex:1 }}>
-                        {!confirmDelete && (
-                          <Button variant="danger" onClick={() => setConfirmDelete(true)}>Excluir oportunidade</Button>
-                        )}
-                        {confirmDelete && (
-                          <div style={m.deleteConfirm}>
-                            <span style={m.deleteConfirmText}>Excluir permanentemente?</span>
-                            <button type="button" style={m.deleteConfirmYes} onClick={() => { onDelete(initial.id); onClose() }}>Sim, excluir</button>
-                            <button type="button" style={m.deleteConfirmNo} onClick={() => setConfirmDelete(false)}>Cancelar</button>
-                          </div>
-                        )}
-                      </div>
-                      <div style={{ display:'flex', gap:10 }}>
-                        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-                        <Button type="submit">Salvar alterações</Button>
-                      </div>
-                    </div>
-                  </form>
-                )}
+      {/* Aba: Proposta */}
+      {tab==='proposta' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:16, paddingBottom:16 }}>
+            <OppPropostaTab opp={{ ...form, id: initial.id }} />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Aba: Playbook */}
-                {tab==='playbook' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
-                    <div style={{ flex:1, overflowY:'auto' }}>
-                      <OppPlaybookTab opp={initial} etapaId={form.etapa_id} etapas={etapas} playbookId={form.playbook_id} onChangePlaybook={v => set('playbook_id', v || null)} />
-                    </div>
-                    <div style={{ ...m.footer }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
+      {/* Aba: Questionários */}
+      {tab==='questionarios' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:16, paddingBottom:16 }}>
+            <OppQuestionariosTab
+              oppId={initial.id}
+              oppNome={initial.titulo}
+              empresaNome={initial.empresa_nome}
+              empresaId={initial.empresa_id}
+            />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Aba: Produtos */}
-                {tab==='produtos' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingBottom:16 }}>
-                      <OppProdutosTab
-                        itens={form.itens}
-                        onChange={itens => set('itens', itens)}
-                        onSyncValor={mrr => { set('valor_servico', Math.round(mrr)); setTab('dados') }}
-                      />
-                      <ValorFinanceiroSection form={form} set={set} />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                      <Button
-                        onClick={() => {
-                          if (!form.titulo.trim()) return alert('Salve os Dados primeiro')
-                          onSave({ ...form, funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
-                          onClose()
-                        }}>Salvar alterações</Button>
-                    </div>
-                  </div>
-                )}
+      {/* Aba: Equipe do Negócio */}
+      {tab==='equipe' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:4, paddingBottom:16 }}>
+            <OppEquipeTab oppId={initial.id} />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Aba: Tarefas */}
-                {tab==='tarefas' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingTop:8, paddingBottom:16 }}>
-                      <OppTarefasTab
-                        oppId={initial.id}
-                        oppNome={initial.titulo}
-                        tarefas={tarefas}
-                        onSaveTarefa={onSaveTarefa}
-                        onToggleStatus={onToggleStatus}
-                      />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
+      {/* Aba: Documentos */}
+      {tab==='documentos' && (
+        <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
+          <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:4, paddingBottom:16 }}>
+            <OppDocumentosTab oppId={initial.id} />
+          </div>
+          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
+            <div style={{ flex:1 }} />
+            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          </div>
+        </div>
+      )}
 
-                {/* Aba: Proposta */}
-                {tab==='proposta' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingTop:16, paddingBottom:16 }}>
-                      <OppPropostaTab opp={{ ...form, id: initial.id }} />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
+      {/* Coluna 2: Notas (sempre visível — rendered outside SlideOver via rightPanel) */}
+    </>
+  ) : (
+    /* Nova oportunidade: form simples */
+    <div style={m.body}>{dadosFormBody}</div>
+  )
 
-                {/* Aba: Questionários */}
-                {tab==='questionarios' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingTop:16, paddingBottom:16 }}>
-                      <OppQuestionariosTab
-                        oppId={initial.id}
-                        oppNome={initial.titulo}
-                        empresaNome={initial.empresa_nome}
-                        empresaId={initial.empresa_id}
-                      />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Aba: Equipe do Negócio */}
-                {tab==='equipe' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingTop:4, paddingBottom:16 }}>
-                      <OppEquipeTab oppId={initial.id} />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
-
-                {/* Aba: Documentos */}
-                {tab==='documentos' && (
-                  <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', padding:'0 24px' }}>
-                    <div style={{ flex:1, overflowY:'auto', paddingTop:4, paddingBottom:16 }}>
-                      <OppDocumentosTab oppId={initial.id} />
-                    </div>
-                    <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-                      <div style={{ flex:1 }} />
-                      <Button variant="secondary" onClick={onClose}>Fechar</Button>
-                    </div>
-                  </div>
-                )}
-
-              </div>{/* fim coluna 1 */}
-
-              {/* ─── Coluna 2: Notas (sempre visível) ─── */}
-              <div style={{ flex:'0 0 220px', borderLeft:'1px solid var(--border)', display:'flex',
-                flexDirection:'column', overflow:'hidden', background:'var(--surface2)' }}>
-                <NotasPanel
-                  oppId={initial.id}
-                  atividades={atividades}
-                  onAddNota={onAddAtividade}
-                />
-              </div>
-
-              {/* ─── Coluna 3: Histórico (retrátil) ─── */}
-              <div style={{
-                width: logOpen ? 280 : 0,
-                flexShrink: 0,
-                overflow: 'hidden',
-                transition: 'width 0.28s ease',
-                borderLeft: logOpen ? '1px solid var(--border)' : 'none',
-                background: '#F8FAFC',
-                display: 'flex',
-                flexDirection: 'column',
-              }}>
-                {/* Cabeçalho col 3 */}
-                <div style={{ padding:'10px 12px 8px', borderBottom:'1px solid var(--border)',
-                  display:'flex', alignItems:'center', justifyContent:'space-between',
-                  flexShrink:0, minWidth:0 }}>
-                  <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)',
-                    textTransform:'uppercase', letterSpacing:'0.08em', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-                    🕐 Histórico
-                  </span>
-                  <button type="button" onClick={() => setLogOpen(false)} title="Fechar histórico"
-                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
-                      fontSize:13, padding:'2px 4px', lineHeight:1, borderRadius:4, flexShrink:0 }}>
-                    ✕
-                  </button>
-                </div>
-                <HistoricoPanel oppId={initial.id} logs={MOCK_LOGS_OPORTUNIDADE} />
-              </div>
-
-            </div>
-          ) : (
-            /* ── NOVA OPORTUNIDADE: form simples, sem abas ── */
-            <form onSubmit={handleSave} style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden' }}>
-              <div style={m.body}>{dadosFormBody}</div>
-              <div style={m.footer}>
-                <div style={{ flex:1 }} />
-                <div style={{ display:'flex', gap:10 }}>
-                  <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-                  <Button type="submit">Cadastrar oportunidade</Button>
-                </div>
-              </div>
-            </form>
-          )}
-
-      </div>{/* fim drawer */}
+  return (
+    <>
+      <SlideOver
+        open={true}
+        onClose={onClose}
+        onSave={handleSave}
+        title={isEditing ? form.titulo || 'Editar oportunidade' : 'Nova oportunidade'}
+        subtitle={isEditing ? form.empresa_nome : 'Oportunidade vinculada ao funil de vendas'}
+        headerExtra={headerChips}
+        headerActions={logToggleBtn}
+        tabs={OPP_TABS}
+        activeTab={tab}
+        onTabChange={setTab}
+        defaultWidth={isEditing ? 860 : 580}
+        saveLabel={isEditing ? 'Salvar' : 'Criar oportunidade'}
+        cancelLabel="Cancelar"
+        rightPanel={logPanelContent}
+        rightPanelOpen={logOpen}
+      >
+        {bodyContent}
+      </SlideOver>
 
       {/* Modal de pós-fechamento — geração de contrato e/ou projeto */}
       {fechamentoModal && (
@@ -5515,7 +5474,7 @@ const m = {
   subtitle:         { fontSize:13, color:'var(--text-muted)', marginTop:3 },
   closeBtn:         { background:'none', border:'none', color:'var(--text-muted)', fontSize:16, cursor:'pointer', padding:4, lineHeight:1 },
   expandBtn:        { background:'none', border:'1px solid var(--border)', borderRadius:6, color:'var(--text-muted)', fontSize:14, cursor:'pointer', padding:'2px 6px', lineHeight:1 },
-  body:             { padding:'4px 24px 16px', overflowY:'auto', flex:1 },
+  body:             { padding:'4px 24px 16px', overflowY:'auto', flex:1, minHeight:0 },
   grid2:            { display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 },
   input:            { padding:'8px 12px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)', width:'100%', boxSizing:'border-box' },
   footer:           { display:'flex', alignItems:'center', gap:10, padding:'14px 24px', borderTop:'1px solid var(--border2)', flexShrink:0 },

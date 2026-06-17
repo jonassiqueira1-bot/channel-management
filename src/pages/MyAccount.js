@@ -2,14 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   User, Building2, Shield, Camera, Save, X, Eye, EyeOff,
-  CheckCircle2, AlertCircle, ChevronLeft, Phone, Mail,
-  Briefcase, Palette, Landmark, Lock, Info,
+  CheckCircle2, AlertCircle, Phone, Mail,
+  Palette, Landmark, Lock, Info,
 } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { COMPANY_TYPE_CFG } from '../data/mockCompanies'
+import { FullPageEdit, FPESection } from '../components/ui'
 
 const ACCENT = '#6366F1'
-const SZ     = 14
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function useToasts() {
@@ -499,17 +499,10 @@ function InfoCell({ icon, label, value, mono }) {
   )
 }
 
-const TABS = [
-  { id:'dados',    label:'Meus Dados',    icon: <User     size={SZ} strokeWidth={1.75} /> },
-  { id:'empresa',  label:'Minha Empresa', icon: <Building2 size={SZ} strokeWidth={1.75} /> },
-  { id:'seguranca',label:'Segurança',     icon: <Shield   size={SZ} strokeWidth={1.75} /> },
-]
-
 // ─── Página ────────────────────────────────────────────────────────────────────
 export default function MyAccount() {
   const navigate = useNavigate()
   const { profile, company, loading, error, reload, saveProfile, saveCompany, changePassword, uploadAvatar, isAdmin, papelCfg } = useProfile()
-  const [tab, setTab] = useState('dados')
   const { toasts, push } = useToasts()
 
   async function handleSaveProfile(patch) {
@@ -536,47 +529,23 @@ export default function MyAccount() {
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', overflow:'hidden' }}>
+    <>
       <style>{`
         @keyframes spin    { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
         @keyframes shimmer { 0%{transform:translateX(-100%)} 100%{transform:translateX(100%)} }
         @keyframes slideUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
 
-      {/* ── Cabeçalho ── */}
-      <div style={{ padding:'20px 32px 0', flexShrink:0 }}>
-        <button onClick={() => navigate(-1)} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 0', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:12, fontFamily:'var(--font)', marginBottom:14 }}>
-          <ChevronLeft size={14} strokeWidth={2} />Voltar
-        </button>
-
-        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
-          <div style={{ width:34, height:34, borderRadius:9, background:`${ACCENT}14`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <User size={16} strokeWidth={1.75} style={{ color:ACCENT }} />
-          </div>
-          <div>
-            <h1 style={{ fontSize:18, fontWeight:800, color:'var(--text)', margin:0, letterSpacing:'-0.3px' }}>Minha Conta</h1>
-            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:1 }}>Gerencie seus dados pessoais, empresa e segurança</div>
-          </div>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border)' }}>
-          {TABS.map(t => {
-            const active = tab === t.id
-            return (
-              <button key={t.id} onClick={() => setTab(t.id)} style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 18px', background:'none', border:'none', borderBottom: active ? `2px solid ${ACCENT}` : '2px solid transparent', cursor:'pointer', fontSize:13, fontWeight: active ? 700 : 500, fontFamily:'var(--font)', color: active ? ACCENT : 'var(--text-muted)', transition:'color 0.15s, border-color 0.15s', marginBottom:-1, whiteSpace:'nowrap' }}>
-                <span style={{ color: active ? ACCENT : 'var(--text-muted)', transition:'color 0.15s' }}>{t.icon}</span>
-                {t.label}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Conteúdo ── */}
-      <div style={{ flex:1, overflowY:'auto', padding:'28px 32px' }}>
+      <FullPageEdit
+        title="Minha Conta"
+        subtitle="Dados pessoais, empresa e segurança"
+        onSave={() => navigate(-1)}
+        saveLabel="Voltar"
+        onCancel={() => navigate(-1)}
+        cancelLabel="Fechar"
+      >
         {error && (
-          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13, marginBottom:24 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'12px 16px', borderRadius:10, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13 }}>
             <AlertCircle size={14} strokeWidth={2} />{error}
             <button onClick={reload} style={{ marginLeft:'auto', padding:'2px 8px', borderRadius:5, background:'none', border:'1px solid rgba(239,68,68,0.3)', color:'#EF4444', cursor:'pointer', fontSize:11, fontFamily:'var(--font)' }}>Tentar novamente</button>
           </div>
@@ -586,15 +555,23 @@ export default function MyAccount() {
           ? <SkeletonProfile />
           : profile && (
             <>
-              {tab === 'dados'     && <TabMeusDados     profile={profile}   papelCfg={papelCfg} onUpload={handleUpload} onSave={handleSaveProfile} />}
-              {tab === 'empresa'   && <TabMinhaEmpresa  company={company}   isAdmin={isAdmin}    onSave={handleSaveCompany} />}
-              {tab === 'seguranca' && <TabSeguranca                                              onChangePassword={handleChangePassword} />}
+              <FPESection title="Meus Dados">
+                <TabMeusDados profile={profile} papelCfg={papelCfg} onUpload={handleUpload} onSave={handleSaveProfile} />
+              </FPESection>
+
+              <FPESection title="Minha Empresa">
+                <TabMinhaEmpresa company={company} isAdmin={isAdmin} onSave={handleSaveCompany} />
+              </FPESection>
+
+              <FPESection title="Segurança">
+                <TabSeguranca onChangePassword={handleChangePassword} />
+              </FPESection>
             </>
           )
         }
-      </div>
+      </FullPageEdit>
 
       <ToastStack toasts={toasts} />
-    </div>
+    </>
   )
 }

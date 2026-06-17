@@ -162,5 +162,7 @@ const s = {
     overflowY: 'auto',
     padding: 28,
     minWidth: 0,
+    display: 'flex',
+    flexDirection: 'column',
   },
 }

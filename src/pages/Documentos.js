@@ -4,7 +4,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
-import Drawer from '../components/Drawer'
+import { FullPageEdit, FPESection, FPEField } from '../components/ui'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -458,13 +458,11 @@ function DocResourcesPanel({ onInsert }) {
   )
 }
 
-// ─── Drawer de Edição ─────────────────────────────────────────────────────────
-function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
+// ─── Full-page de Edição de Documento ────────────────────────────────────────
+function DocFullPage({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
   const isNew = !initial?.id
-  const [tab, setTab]           = useState('dados')
-  const [expanded, setExpanded] = useState(false)
-  const [confirmDelete, setConfirmDelete] = useState(false)
-  const textareaRef = useRef(null)
+  const [tab, setTab]   = useState('dados')
+  const textareaRef     = useRef(null)
   const [draft, setDraft] = useState(() => initial || {
     id: uid(), tenant_id: 't1',
     title: '', description: '', categoria: 'proposta',
@@ -472,6 +470,7 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
     created_by: 'Você', created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })
+  const [saving, setSaving] = useState(false)
 
   const docLogs = useMemo(
     () => allLogs.filter(l => l.doc_id === draft.id).sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
@@ -481,7 +480,7 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
   function handleSave() {
     if (!draft.title.trim()) return alert('Título é obrigatório')
     const now = new Date().toISOString()
-
+    setSaving(true)
     if (isNew) {
       const saved = { ...draft, created_at: now, updated_at: now }
       onSave(saved)
@@ -493,10 +492,8 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
       const statusEvento = draft.status !== initial.status
         ? (draft.status === 'ativo' ? 'publicado' : draft.status === 'arquivado' ? 'arquivado' : 'restaurado')
         : null
-
       const saved = { ...draft, version: newVersion, updated_at: now }
       onSave(saved)
-
       if (campos.length > 0 && !statusEvento) {
         onAddLog({ id: logId(), doc_id: saved.id, evento: 'editado', campos, usuario: 'Você', criado_em: now })
       }
@@ -504,144 +501,100 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
         onAddLog({ id: logId(), doc_id: saved.id, evento: statusEvento, campos, usuario: 'Você', criado_em: now })
       }
     }
+    setSaving(false)
+    onClose()
+  }
+
+  function handleDelete() {
+    onSave(null, draft.id)
     onClose()
   }
 
   function insertAtCursor(text) {
     const el = textareaRef.current
-    if (!el) {
-      setDraft(d => ({ ...d, content: (d.content || '') + text }))
-      return
-    }
-    const start = el.selectionStart
-    const end   = el.selectionEnd
+    if (!el) { setDraft(d => ({ ...d, content: (d.content || '') + text })); return }
+    const start  = el.selectionStart
+    const end    = el.selectionEnd
     const before = (draft.content || '').slice(0, start)
     const after  = (draft.content || '').slice(end)
-    const next   = before + text + after
-    setDraft(d => ({ ...d, content: next }))
-    requestAnimationFrame(() => {
-      el.focus()
-      el.setSelectionRange(start + text.length, start + text.length)
-    })
+    setDraft(d => ({ ...d, content: before + text + after }))
+    requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + text.length, start + text.length) })
   }
 
   const TABS = [
-    { id: 'dados',    label: 'Dados' },
-    { id: 'conteudo', label: 'Conteúdo' },
+    { id: 'dados',     label: 'Dados' },
+    { id: 'conteudo',  label: 'Conteúdo' },
     { id: 'historico', label: `Histórico (${docLogs.length})` },
   ]
 
-  const footerLeft = (
-    <div style={{ flex: 1 }}>
-      {!isNew && !confirmDelete && (
-        <button onClick={() => setConfirmDelete(true)}
-          style={{ background: 'none', border: 'none', color: 'var(--red)', fontSize: 13,
-            cursor: 'pointer', fontFamily: 'var(--font)', padding: 0, fontWeight: 500 }}>
-          Excluir documento
-        </button>
-      )}
-      {!isNew && confirmDelete && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Excluir permanentemente?</span>
-          <button onClick={() => { onSave(null, draft.id); onClose() }}
-            style={{ padding: '5px 12px', background: 'var(--red)', color: '#fff', border: 'none',
-              borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-            Sim, excluir
-          </button>
-          <button onClick={() => setConfirmDelete(false)}
-            style={{ padding: '5px 10px', background: 'none', border: '1px solid var(--border)',
-              borderRadius: 6, fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-            Cancelar
-          </button>
-        </div>
-      )}
-    </div>
-  )
-
   return (
-    <Drawer
-      open
-      onClose={onClose}
+    <FullPageEdit
+      breadcrumb={[{ label: 'Documentos', onClick: onClose }]}
       title={isNew ? 'Novo documento' : draft.title || 'Editar documento'}
       subtitle={isNew ? 'Crie um modelo de documento reutilizável' : `Versão ${draft.version} · Atualizado ${fmtDate(draft.updated_at)}`}
-      initialSize="default"
-      footer={
-        <>
-          {footerLeft}
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>{isNew ? 'Criar documento' : 'Salvar alterações'}</Button>
-        </>
-      }
+      onSave={handleSave}
+      onCancel={onClose}
+      onDelete={!isNew ? handleDelete : undefined}
+      saving={saving}
+      saveLabel={isNew ? 'Criar documento' : 'Salvar alterações'}
+      columns={1}
     >
-      {/* Abas */}
-      <div style={{ display: 'flex', borderBottom: '2px solid var(--border2)', margin: '-12px -14px 12px' }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', borderBottom: '2px solid #E4E4E7', marginBottom: 20 }}>
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setTab(t.id)}
-            style={{ padding: '9px 18px', background: 'none', border: 'none',
-              fontSize: 13, fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer',
-              fontFamily: 'var(--font)', color: tab === t.id ? 'var(--accent)' : 'var(--text-muted)',
-              borderBottom: tab === t.id ? '2px solid var(--accent)' : '2px solid transparent',
+          <button key={t.id} type="button" onClick={() => setTab(t.id)}
+            style={{ padding: '9px 18px', background: 'none', border: 'none', fontSize: 13,
+              fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
+              color: tab === t.id ? '#1E3A5F' : '#71717A',
+              borderBottom: tab === t.id ? '2px solid #1E3A5F' : '2px solid transparent',
               marginBottom: -2, whiteSpace: 'nowrap' }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      {/* ─ Aba: Dados ─ */}
       {tab === 'dados' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={s.lbl}>Título <span style={{ color: 'var(--red)' }}>*</span></label>
-            <input style={s.inp} value={draft.title}
-              onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
-              placeholder="Ex: Proposta Comercial — Canal NG Pro" />
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-            <label style={s.lbl}>Descrição</label>
-            <textarea style={{ ...s.inp, height: 68, resize: 'vertical' }}
-              value={draft.description}
-              onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
-              placeholder="Descreva brevemente o propósito deste documento…" />
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={s.lbl}>Categoria</label>
-              <select style={s.inp} value={draft.categoria}
+          <FPESection label="Identificação" noBorder style={{ paddingTop: 0 }}>
+            <FPEField label="Título" required span={2}>
+              <input className="fpe-field" value={draft.title}
+                onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                placeholder="Ex: Proposta Comercial — Canal NG Pro" />
+            </FPEField>
+            <FPEField label="Descrição" span={2}>
+              <textarea className="fpe-field" value={draft.description}
+                onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+                placeholder="Descreva brevemente o propósito deste documento…" rows={3} />
+            </FPEField>
+            <FPEField label="Categoria">
+              <select className="fpe-field" value={draft.categoria}
                 onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))}>
                 {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
                   <option key={k} value={k}>{v.icon} {v.label}</option>
                 ))}
               </select>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-              <label style={s.lbl}>Status</label>
-              <select style={s.inp} value={draft.status}
+            </FPEField>
+            <FPEField label="Status">
+              <select className="fpe-field" value={draft.status}
                 onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
                 {Object.entries(STATUS_CFG).map(([k, v]) => (
                   <option key={k} value={k}>{v.label}</option>
                 ))}
               </select>
-            </div>
-          </div>
-
-          {/* Preview dos badges */}
-          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'var(--surface2)',
-            borderRadius: 8, border: '1px solid var(--border2)', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Prévia:</span>
+            </FPEField>
+          </FPESection>
+          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#F4F4F5',
+            borderRadius: 8, border: '1px solid #E4E4E7', alignItems: 'center' }}>
+            <span style={{ fontSize: 11, color: '#71717A', marginRight: 4 }}>Prévia:</span>
             <CategoriaBadge categoria={draft.categoria} />
             <StatusBadge status={draft.status} />
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: '#71717A' }}>
               v{draft.version}
             </span>
           </div>
-
-          {/* Metadados (somente edição) */}
           {!isNew && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-              padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8,
-              border: '1px solid var(--border2)' }}>
+              padding: '12px 14px', background: '#F4F4F5', borderRadius: 8, border: '1px solid #E4E4E7' }}>
               {[
                 { lbl: 'Criado por', val: draft.created_by },
                 { lbl: 'Criado em', val: fmtDate(draft.created_at) },
@@ -649,9 +602,9 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
                 { lbl: 'Versão atual', val: `v${draft.version}` },
               ].map(({ lbl, val }) => (
                 <div key={lbl}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                  <div style={{ fontSize: 10, fontWeight: 700, color: '#71717A',
                     textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text)', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'var(--font)' }}>{val}</div>
+                  <div style={{ fontSize: 12, color: '#18181B', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'inherit' }}>{val}</div>
                 </div>
               ))}
             </div>
@@ -659,56 +612,46 @@ function DocDrawer({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
         </div>
       )}
 
-      {/* ─ Aba: Conteúdo ─ */}
       {tab === 'conteudo' && (
-        <div style={{ display: 'flex', margin: '-12px -14px', overflow: 'hidden', height: '100%' }}>
-
-          {/* Painel lateral de recursos */}
-          <div style={{ width: 260, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ display: 'flex', border: '1px solid #E4E4E7', borderRadius: 8, overflow: 'hidden', minHeight: 500 }}>
+          <div style={{ width: 260, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRight: '1px solid #E4E4E7' }}>
             <DocResourcesPanel onInsert={insertAtCursor} />
           </div>
-
-          {/* Editor */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden',
-            borderLeft: '1px solid var(--border2)' }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 16px', borderBottom: '1px solid var(--border2)', flexShrink: 0,
-              background: 'var(--surface2)' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                Markdown — <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}># Título</code>{' '}
-                <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>**negrito**</code>{' '}
-                <code style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>- lista</code>
+              padding: '8px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0, background: '#F4F4F5' }}>
+              <div style={{ fontSize: 11, color: '#71717A' }}>
+                Markdown — <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}># Título</code>{' '}
+                <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>**negrito**</code>{' '}
+                <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>- lista</code>
               </div>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+              <span style={{ fontSize: 11, color: '#71717A', fontFamily: 'var(--mono)' }}>
                 {draft.content?.length || 0} chars
               </span>
             </div>
             <textarea
               ref={textareaRef}
-              style={{ flex: 1, width: '100%', padding: '16px 18px',
-                border: 'none', outline: 'none',
-                background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
-                lineHeight: 1.75, fontFamily: 'var(--mono)',
-                resize: 'none', boxSizing: 'border-box' }}
+              style={{ flex: 1, width: '100%', padding: '16px 18px', border: 'none', outline: 'none',
+                background: '#fff', color: '#18181B', fontSize: 13, lineHeight: 1.75,
+                fontFamily: 'var(--mono)', resize: 'none', boxSizing: 'border-box', minHeight: 440 }}
               value={draft.content}
               onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
-              placeholder="Digite o conteúdo do documento em Markdown…&#10;Use o painel à esquerda para inserir variáveis e blocos prontos."
+              placeholder="Digite o conteúdo do documento em Markdown…"
               spellCheck={false}
             />
           </div>
         </div>
       )}
 
-      {/* ─ Aba: Histórico ─ */}
       {tab === 'historico' && (
         isNew
-          ? <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
+          ? <div style={{ textAlign: 'center', padding: '48px 0', color: '#71717A' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
               <div style={{ fontSize: 13 }}>Salve o documento primeiro para ver o histórico.</div>
             </div>
           : <HistoricoPanel docId={draft.id} logs={allLogs} />
       )}
-    </Drawer>
+    </FullPageEdit>
   )
 }
 
@@ -745,6 +688,18 @@ export default function Documentos() {
   }
 
   function handleAddLog(log) { setLogs(prev => [...prev, log]) }
+
+  if (drawer) {
+    return (
+      <DocFullPage
+        doc={drawer === 'novo' ? null : drawer}
+        logs={logs}
+        onClose={() => setDrawer(null)}
+        onSave={handleSave}
+        onAddLog={handleAddLog}
+      />
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
@@ -849,16 +804,6 @@ export default function Documentos() {
         )}
       </div>
 
-      {/* ── Drawer ── */}
-      {drawer && (
-        <DocDrawer
-          doc={drawer === 'novo' ? null : drawer}
-          logs={logs}
-          onClose={() => setDrawer(null)}
-          onSave={handleSave}
-          onAddLog={handleAddLog}
-        />
-      )}
     </div>
   )
 }

@@ -5,6 +5,8 @@ import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import Button from '../components/Button'
+import { FullPageEdit, FPESection, FPEField } from '../components/ui'
+import BrowseLayout from '../components/BrowseLayout'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -136,48 +138,314 @@ function Field({ label, children }) {
   )
 }
 
-// ─── New / Edit Playbook modal ────────────────────────────────────────────────
-const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '' }
+// ─── Objeções — config ────────────────────────────────────────────────────────
+const OBJ_CATS = {
+  preco:        { label: 'Preço',        icon: '💰', bg: '#FEF3C7', color: '#92400E' },
+  timing:       { label: 'Timing',       icon: '⏱', bg: '#EDE9FE', color: '#5B21B6' },
+  concorrencia: { label: 'Concorrência', icon: '⚔️', bg: '#DBEAFE', color: '#1E40AF' },
+  necessidade:  { label: 'Necessidade',  icon: '🎯', bg: '#D1FAE5', color: '#065F46' },
+  autoridade:   { label: 'Autoridade',   icon: '👤', bg: '#FEF9C3', color: '#854D0E' },
+  confianca:    { label: 'Confiança',    icon: '🛡️', bg: '#F0FDF4', color: '#166534' },
+  outro:        { label: 'Outro',        icon: '💬', bg: '#F3F4F6', color: '#374151' },
+}
 
-function PlaybookModal({ initial, onSave, onClose }) {
-  const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', ...initial } : EMPTY_PB)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+const EMPTY_OBJECAO = {
+  categoria: 'preco', etapa: '', objecao: '', resposta: '', escalonamento: '',
+}
+
+function uid() { return `obj-${Date.now()}-${Math.floor(Math.random()*999)}` }
+
+// ─── Inline editor de uma objeção ─────────────────────────────────────────────
+function ObjecaoEditor({ value, onChange, onCancel, onConfirm }) {
+  const set = (k, v) => onChange({ ...value, [k]: v })
+  const cat = OBJ_CATS[value.categoria]
   return (
-    <Modal title={initial?.id ? 'Editar Playbook' : 'Novo Playbook'} onClose={onClose}
-      onSave={() => onSave(form)} valid={form.title.trim().length > 0}>
-      <Field label="Título">
-        <input value={form.title} onChange={e => set('title', e.target.value)}
-          style={m.inp} placeholder="Ex: Canal NG Pro — Vendas para SaaS/ISV" />
-      </Field>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <Field label="Segmento">
-            <select value={form.segment} onChange={e => set('segment', e.target.value)} style={m.inp}>
+    <div style={{ border: `2px solid ${cat.color}`, borderRadius: 12, padding: 18, background: cat.bg + '55', display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* linha 1: categoria + etapa */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div>
+          <label style={oe.lbl}>Categoria</label>
+          <select className="fpe-field" value={value.categoria} onChange={e => set('categoria', e.target.value)}>
+            {Object.entries(OBJ_CATS).map(([k, v]) => (
+              <option key={k} value={k}>{v.icon} {v.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label style={oe.lbl}>Etapa do funil</label>
+          <select className="fpe-field" value={value.etapa} onChange={e => set('etapa', e.target.value)}>
+            <option value="">— Qualquer etapa —</option>
+            {Object.entries(STAGE_CFG).map(([k, v]) => (
+              <option key={k} value={k}>{v.icon} {v.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* linha 2: o que o prospect diz */}
+      <div>
+        <label style={oe.lbl}>O que o prospect diz <span style={oe.req}>*</span></label>
+        <input className="fpe-field" value={value.objecao} onChange={e => set('objecao', e.target.value)}
+          placeholder='Ex: "Já usamos um CRM, não precisamos de mais uma ferramenta."' />
+      </div>
+
+      {/* linha 3: resposta estruturada */}
+      <div>
+        <label style={oe.lbl}>
+          Resposta sugerida <span style={oe.req}>*</span>
+          <span style={oe.hint}> — siga: Reconheça → Aprofunde → Responda → Confirme</span>
+        </label>
+        <textarea className="fpe-field" value={value.resposta} onChange={e => set('resposta', e.target.value)}
+          rows={4} placeholder={'Reconheça: "Entendo, isso é uma preocupação comum…"\nAprofunde: "Como vocês estão gerenciando X hoje?"\nResponda: "Nossa solução resolve isso porque…"\nConfirme: "Isso faz sentido para vocês?"'} />
+      </div>
+
+      {/* linha 4: escalonamento (opcional) */}
+      <div>
+        <label style={oe.lbl}>Dica de escalonamento <span style={oe.opt}>(opcional)</span></label>
+        <input className="fpe-field" value={value.escalonamento} onChange={e => set('escalonamento', e.target.value)}
+          placeholder='Ex: Se persistir, acionar especialista técnico ou apresentar caso de uso do setor.' />
+      </div>
+
+      {/* ações */}
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <button type="button" onClick={onCancel} style={oe.btnCancel}>Cancelar</button>
+        <button type="button" onClick={onConfirm} disabled={!value.objecao.trim() || !value.resposta.trim()} style={oe.btnSave}>
+          Salvar objeção
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Card read-only de objeção ─────────────────────────────────────────────────
+function ObjecaoCard({ obj, onEdit, onDelete }) {
+  const cat = OBJ_CATS[obj.categoria] || OBJ_CATS.outro
+  const etapa = obj.etapa ? STAGE_CFG[obj.etapa] : null
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', overflow: 'hidden' }}>
+      <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, background: cat.bg }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: 'rgba(255,255,255,0.6)', color: cat.color }}>
+          {cat.icon} {cat.label}
+        </span>
+        {etapa && (
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+            {etapa.icon} {etapa.label}
+          </span>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+          <button type="button" onClick={onEdit} style={oe.iconBtn} title="Editar">✏️</button>
+          <button type="button" onClick={onDelete} style={{ ...oe.iconBtn, color: 'var(--red)' }} title="Excluir">🗑</button>
+        </div>
+      </div>
+      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Objeção</div>
+          <div style={{ fontSize: 13, color: 'var(--text)', fontStyle: 'italic' }}>"{obj.objecao}"</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Resposta sugerida</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-soft)', lineHeight: 1.55, whiteSpace: 'pre-line' }}>{obj.resposta}</div>
+        </div>
+        {obj.escalonamento && (
+          <div style={{ padding: '6px 10px', background: '#F0FDF4', borderRadius: 6, border: '1px solid #BBF7D0' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#065F46' }}>Escalonamento: </span>
+            <span style={{ fontSize: 11.5, color: '#065F46' }}>{obj.escalonamento}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ─── Aba de Objeções ───────────────────────────────────────────────────────────
+function ObjecoesTab({ objecoes = [], onChange }) {
+  const [editingId, setEditingId] = useState(null) // uid | 'new' | null
+  const [draft, setDraft] = useState(null)
+
+  function startNew() { setDraft({ ...EMPTY_OBJECAO }); setEditingId('new') }
+  function startEdit(obj) { setDraft({ ...obj }); setEditingId(obj.id) }
+  function cancel() { setEditingId(null); setDraft(null) }
+
+  function confirm() {
+    if (editingId === 'new') {
+      onChange([...objecoes, { ...draft, id: uid() }])
+    } else {
+      onChange(objecoes.map(o => o.id === editingId ? { ...draft, id: editingId } : o))
+    }
+    setEditingId(null); setDraft(null)
+  }
+
+  function remove(id) {
+    onChange(objecoes.filter(o => o.id !== id))
+  }
+
+  // Agrupar por categoria
+  const byCat = Object.keys(OBJ_CATS).reduce((acc, k) => {
+    acc[k] = objecoes.filter(o => o.categoria === k)
+    return acc
+  }, {})
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* cabeçalho */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+            Biblioteca de Objeções
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+            Mapeie objeções comuns e prepare respostas usando o framework Reconheça → Aprofunde → Responda → Confirme.
+          </div>
+        </div>
+        {editingId === null && (
+          <button type="button" onClick={startNew} style={oe.btnAdd}>+ Nova objeção</button>
+        )}
+      </div>
+
+      {/* editor inline (nova) */}
+      {editingId === 'new' && (
+        <ObjecaoEditor value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} />
+      )}
+
+      {/* lista agrupada por categoria */}
+      {objecoes.length === 0 && editingId !== 'new' ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
+          <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🛡️</div>
+          Nenhuma objeção cadastrada ainda.<br />
+          <span style={{ fontSize: 12 }}>Clique em "+ Nova objeção" para começar.</span>
+        </div>
+      ) : (
+        Object.entries(OBJ_CATS).map(([catKey, catCfg]) => {
+          const items = byCat[catKey]
+          if (!items.length) return null
+          return (
+            <div key={catKey}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: catCfg.color }}>
+                  {catCfg.icon} {catCfg.label}
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                  {items.length} objeç{items.length === 1 ? 'ão' : 'ões'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {items.map(obj =>
+                  editingId === obj.id ? (
+                    <ObjecaoEditor key={obj.id} value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} />
+                  ) : (
+                    <ObjecaoCard key={obj.id} obj={obj} onEdit={() => startEdit(obj)} onDelete={() => remove(obj.id)} />
+                  )
+                )}
+              </div>
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+}
+
+// ─── New / Edit Playbook FullPage ────────────────────────────────────────────
+const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [] }
+
+function PlaybookFullPage({ initial, onSave, onClose, onDelete }) {
+  const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
+  const [tab, setTab] = useState('info')
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  function handleSave() {
+    if (!form.title.trim()) { setTab('info'); return }
+    setSaving(true)
+    onSave(form)
+    setSaving(false)
+  }
+
+  const TABS = [
+    { key: 'info',      label: 'Identificação' },
+    { key: 'objecoes',  label: `Objeções${form.objecoes?.length ? ` (${form.objecoes.length})` : ''}` },
+  ]
+
+  return (
+    <FullPageEdit
+      breadcrumb={[{ label: 'Playbooks', onClick: onClose }]}
+      title={initial?.id ? initial.title || 'Playbook' : 'Novo Playbook'}
+      subtitle={initial?.id ? 'Editar dados do playbook' : 'Configure o novo playbook'}
+      onSave={handleSave}
+      onCancel={onClose}
+      onDelete={initial?.id && onDelete ? () => onDelete(initial.id) : undefined}
+      saving={saving}
+      saveLabel={initial?.id ? 'Salvar alterações' : 'Criar Playbook'}
+    >
+      {/* tab bar */}
+      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 4, gridColumn: '1 / -1' }}>
+        {TABS.map(t => (
+          <button key={t.key} type="button" onClick={() => setTab(t.key)} style={{
+            padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
+            fontFamily: 'var(--font)', fontSize: 13, fontWeight: tab === t.key ? 700 : 500,
+            color: tab === t.key ? 'var(--accent)' : 'var(--text-muted)',
+            borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+            marginBottom: -1,
+          }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'info' && <>
+        <FPESection label="Identificação" noBorder>
+          <FPEField label="Título" required span={2}>
+            <input className="fpe-field" value={form.title} onChange={e => set('title', e.target.value)}
+              placeholder="Ex: Canal NG Pro — Vendas para SaaS/ISV" />
+          </FPEField>
+          <FPEField label="Segmento">
+            <select className="fpe-field" value={form.segment} onChange={e => set('segment', e.target.value)}>
               {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
             </select>
-          </Field>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Field label="Funil (opcional)">
-            <select value={form.funil_id} onChange={e => set('funil_id', e.target.value)} style={m.inp}>
+          </FPEField>
+          <FPEField label="Funil (opcional)">
+            <select className="fpe-field" value={form.funil_id} onChange={e => set('funil_id', e.target.value)}>
               <option value="">— Nenhum —</option>
               {MOCK_FUNIS.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
             </select>
-          </Field>
+          </FPEField>
+          <FPEField label="Produto (opcional)">
+            <select className="fpe-field" value={form.produto_id} onChange={e => set('produto_id', e.target.value)}>
+              <option value="">— Nenhum —</option>
+              {MOCK_PRODUTOS.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+            </select>
+          </FPEField>
+        </FPESection>
+        <FPESection label="Descrição">
+          <FPEField label="Descrição" span={2}>
+            <textarea className="fpe-field" value={form.description} onChange={e => set('description', e.target.value)}
+              rows={4} placeholder="Descreva o objetivo e público-alvo deste playbook…" />
+          </FPEField>
+        </FPESection>
+      </>}
+
+      {tab === 'objecoes' && (
+        <div style={{ gridColumn: '1 / -1', paddingTop: 8 }}>
+          <ObjecoesTab
+            objecoes={form.objecoes || []}
+            onChange={v => set('objecoes', v)}
+          />
         </div>
-      </div>
-      <Field label="Produto (opcional)">
-        <select value={form.produto_id} onChange={e => set('produto_id', e.target.value)} style={m.inp}>
-          <option value="">— Nenhum —</option>
-          {MOCK_PRODUTOS.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
-        </select>
-      </Field>
-      <Field label="Descrição">
-        <textarea value={form.description} onChange={e => set('description', e.target.value)}
-          rows={3} style={{ ...m.inp, resize: 'vertical' }} />
-      </Field>
-    </Modal>
+      )}
+    </FullPageEdit>
   )
+}
+
+// ─── Estilos ObjecoesTab ──────────────────────────────────────────────────────
+const oe = {
+  lbl:       { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-soft)', marginBottom: 5 },
+  req:       { color: 'var(--red)' },
+  opt:       { fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 },
+  hint:      { fontWeight: 400, color: 'var(--text-muted)', fontSize: 11 },
+  btnAdd:    { padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0 },
+  btnSave:   { padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
+  btnCancel: { padding: '7px 14px', background: 'var(--surface)', color: 'var(--text-soft)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' },
+  iconBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1 },
 }
 
 // ─── Step modal ───────────────────────────────────────────────────────────────
@@ -544,11 +812,13 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
   )
 }
 
+// ─── Objeções Detail Panel ────────────────────────────────────────────────────
 // ─── Detail View ─────────────────────────────────────────────────────────────
 const DETAIL_SECTIONS = [
   { id: 'funnel',    icon: '🎯', label: 'Atividades por Etapa' },
   { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
   { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
+  { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
 ]
 
 const SEGMENT_COLORS = {
@@ -564,12 +834,13 @@ const SEGMENT_COLORS = {
 
 function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEditPlaybook,
   onAddStep, onEditStep, onDeleteStep, onAddRef, onEditRef, onDeleteRef,
-  onAddResource, onEditResource, onDeleteResource }) {
+  onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes }) {
   const [section, setSection] = useState('funnel')
   const segColor = SEGMENT_COLORS[playbook.segment] || SEGMENT_COLORS['Outro']
   const stepsCount    = steps.length
   const refsCount     = refs.length
   const resourceCount = resources.length
+  const objecoesCount = (playbook.objecoes || []).length
 
   return (
     <div style={dv.wrap}>
@@ -594,7 +865,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEdi
         <aside style={dv.sidebar}>
           <div style={dv.sbInner}>
             {DETAIL_SECTIONS.map(sec => {
-              const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : resourceCount
+              const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount : objecoesCount
               return (
                 <button key={sec.id}
                   style={{ ...dv.sbItem, ...(section === sec.id ? dv.sbItemActive : {}) }}
@@ -621,6 +892,18 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEdi
           {section === 'resources' && (
             <ResourcesPanel resources={resources} isISV={isISV} onAdd={onAddResource} onEdit={onEditResource} onDelete={onDeleteResource} />
           )}
+          {section === 'objecoes' && (
+            <div style={dp.panel}>
+              <div style={dp.panelHeader}>
+                <h2 style={dp.panelTitle}>Biblioteca de Objeções</h2>
+                <p style={dp.panelSub}>Gerencie objeções e respostas — framework: Reconheça → Aprofunde → Responda → Confirme.</p>
+              </div>
+              <ObjecoesTab
+                objecoes={playbook.objecoes || []}
+                onChange={onUpdateObjecoes}
+              />
+            </div>
+          )}
         </main>
       </div>
     </div>
@@ -629,96 +912,82 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEdi
 
 // ─── List View ────────────────────────────────────────────────────────────────
 function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew }) {
-  const [search, setSearch] = useState('')
-  const [filterSegment, setFilterSegment] = useState('Todos')
+  const [search, setSearch]               = useState('')
+  const [activeFilters, setActiveFilters] = useState({})
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
+    const segs = activeFilters.segment || []
     return playbooks.filter(pb => {
-      if (filterSegment !== 'Todos' && pb.segment !== filterSegment) return false
+      if (segs.length && !segs.includes(pb.segment)) return false
       if (q && !pb.title.toLowerCase().includes(q) && !(pb.description || '').toLowerCase().includes(q)) return false
       return true
     })
-  }, [playbooks, search, filterSegment])
+  }, [playbooks, search, activeFilters])
+
+  const COLUMNS = [
+    { key: 'title',   label: 'Título' },
+    { key: 'segment', label: 'Segmento', width: 160,
+      render: v => {
+        const c = SEGMENT_COLORS[v] || SEGMENT_COLORS['Outro']
+        return <span style={{ display: 'inline-block', padding: '2px 9px', borderRadius: 20, fontSize: 11, fontWeight: 600, background: c.bg, color: c.color }}>{v}</span>
+      }
+    },
+    { key: '_etapas',    label: 'Etapas',      width: 80,  sortable: false,
+      render: (_, row) => steps.filter(s => s.playbook_id === row.id).length },
+    { key: '_refs',      label: 'Referências', width: 110, sortable: false,
+      render: (_, row) => refs.filter(r => r.playbook_id === row.id).length },
+    { key: '_materiais', label: 'Materiais',   width: 100, sortable: false,
+      render: (_, row) => resources.filter(r => r.playbook_id === row.id).length },
+    { key: 'updated_at', label: 'Atualizado', width: 110,
+      render: v => v ? new Date(v).toLocaleDateString('pt-BR') : '—' },
+  ]
+
+  const FILTERS = [
+    { key: 'segment', label: 'Segmento',
+      options: SEGMENT_OPTIONS.map(s => ({ value: s, label: s })) },
+  ]
+
+  function renderCard(pb) {
+    const segColor    = SEGMENT_COLORS[pb.segment] || SEGMENT_COLORS['Outro']
+    const stepsCount  = steps.filter(s => s.playbook_id === pb.id).length
+    const refsCount   = refs.filter(r => r.playbook_id === pb.id).length
+    const resourceCount = resources.filter(r => r.playbook_id === pb.id).length
+    return (
+      <button onClick={() => onOpen(pb)} style={lv.card}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+          <span style={{ ...lv.segBadge, background: segColor.bg, color: segColor.color }}>{pb.segment}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+            {new Date(pb.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+          </span>
+        </div>
+        <h3 style={lv.cardTitle}>{pb.title}</h3>
+        {pb.description && <p style={lv.cardDesc}>{pb.description}</p>}
+        <div style={lv.cardStats}>
+          <span style={lv.stat}><span style={{ opacity: 0.6 }}>🎯</span> {stepsCount} etapas</span>
+          <span style={lv.stat}><span style={{ opacity: 0.6 }}>🏆</span> {refsCount} referências</span>
+          <span style={lv.stat}><span style={{ opacity: 0.6 }}>📂</span> {resourceCount} materiais</span>
+        </div>
+      </button>
+    )
+  }
 
   return (
-    <div style={lv.wrap}>
-      {/* Header */}
-      <div style={lv.header}>
-        <div>
-          <div style={lv.breadcrumb}>
-            <span>Operação</span>
-            <span style={{ color: 'var(--border)' }}>›</span>
-            <span>Playbooks</span>
-          </div>
-          <h1 style={lv.title}>Playbooks</h1>
-        </div>
-        {isISV && (
-          <Button onClick={onNew}>+ Novo Playbook</Button>
-        )}
-      </div>
-
-      {/* Toolbar */}
-      <div style={lv.toolbar}>
-        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 340 }}>
-          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' }}>⌕</span>
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar playbook…"
-            style={{ ...lv.searchInput, paddingLeft: 30 }} />
-        </div>
-        <select value={filterSegment} onChange={e => setFilterSegment(e.target.value)} style={lv.select}>
-          <option value="Todos">Todos os segmentos</option>
-          {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>
-          {filtered.length} playbook{filtered.length !== 1 ? 's' : ''}
-        </div>
-      </div>
-
-      {/* Cards */}
-      {filtered.length === 0 ? (
-        <div style={lv.empty}>
-          <div style={{ fontSize: 48, opacity: 0.25, marginBottom: 16 }}>☰</div>
-          <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
-            {playbooks.length === 0 ? 'Nenhum playbook criado ainda' : 'Nenhum resultado encontrado'}
-          </div>
-          <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-            {playbooks.length === 0 && isISV ? 'Crie o primeiro playbook para começar.' : 'Tente ajustar os filtros de busca.'}
-          </div>
-          {playbooks.length === 0 && isISV && (
-            <Button onClick={onNew} style={{ marginTop: 20 }}>+ Novo Playbook</Button>
-          )}
-        </div>
-      ) : (
-        <div style={lv.grid}>
-          {filtered.map(pb => {
-            const segColor = SEGMENT_COLORS[pb.segment] || SEGMENT_COLORS['Outro']
-            const stepsCount    = steps.filter(s => s.playbook_id === pb.id).length
-            const refsCount     = refs.filter(r => r.playbook_id === pb.id).length
-            const resourceCount = resources.filter(r => r.playbook_id === pb.id).length
-
-            return (
-              <button key={pb.id} onClick={() => onOpen(pb)} style={lv.card}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
-                  <span style={{ ...lv.segBadge, background: segColor.bg, color: segColor.color }}>{pb.segment}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
-                    v{new Date(pb.updated_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                  </span>
-                </div>
-                <h3 style={lv.cardTitle}>{pb.title}</h3>
-                {pb.description && (
-                  <p style={lv.cardDesc}>{pb.description}</p>
-                )}
-                <div style={lv.cardStats}>
-                  <span style={lv.stat}><span style={{ opacity: 0.6 }}>🎯</span> {stepsCount} etapas</span>
-                  <span style={lv.stat}><span style={{ opacity: 0.6 }}>🏆</span> {refsCount} referências</span>
-                  <span style={lv.stat}><span style={{ opacity: 0.6 }}>📂</span> {resourceCount} materiais</span>
-                </div>
-              </button>
-            )
-          })}
-        </div>
-      )}
-    </div>
+    <BrowseLayout
+      columns={COLUMNS}
+      data={filtered}
+      keyField="id"
+      filters={FILTERS}
+      activeFilters={activeFilters}
+      onFilterChange={setActiveFilters}
+      search={search}
+      onSearchChange={setSearch}
+      onNew={isISV ? onNew : undefined}
+      newLabel="+ Novo Playbook"
+      renderCard={renderCard}
+      onRowClick={onOpen}
+      storageKey="playbooks"
+    />
   )
 }
 
@@ -739,10 +1008,17 @@ export default function Playbooks() {
   const pbRefs      = useMemo(() => refs.filter(r => r.playbook_id === selectedPb?.id),      [refs, selectedPb])
   const pbResources = useMemo(() => resources.filter(r => r.playbook_id === selectedPb?.id), [resources, selectedPb])
 
-  function savePlaybook(form) {
-    savePb(form)
+  async function savePlaybook(form) {
+    const result = await savePb(form)
+    if (result?.ok === false) { alert('Erro ao salvar playbook: ' + result.message); return }
     if (form.id && selectedPb?.id === form.id) setSelectedPb(p => ({ ...p, ...form }))
     setModal(null)
+  }
+
+  async function updateObjecoes(objecoes) {
+    const updated = { ...selectedPb, objecoes }
+    setSelectedPb(updated)
+    await savePb(updated)
   }
 
   function saveStep(form) {
@@ -791,8 +1067,19 @@ export default function Playbooks() {
     if (window.confirm('Remover este material?')) setResources(prev => prev.filter(r => r.id !== id))
   }
 
+  if (modal?.type === 'playbook') {
+    return (
+      <PlaybookFullPage
+        initial={modal.data}
+        onSave={savePlaybook}
+        onClose={() => setModal(null)}
+        onDelete={modal.data?.id ? (id) => { deletePb(id); setSelectedPb(null); setModal(null) } : undefined}
+      />
+    )
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    <>
       {selectedPb ? (
         <PlaybookDetail
           playbook={selectedPb}
@@ -811,6 +1098,7 @@ export default function Playbooks() {
           onAddResource={() => setModal({ type: 'resource' })}
           onEditResource={res => setModal({ type: 'resource', data: res })}
           onDeleteResource={deleteResource}
+          onUpdateObjecoes={updateObjecoes}
         />
       ) : (
         <PlaybookList
@@ -825,9 +1113,6 @@ export default function Playbooks() {
       )}
 
       {/* Modais */}
-      {modal?.type === 'playbook' && (
-        <PlaybookModal initial={modal.data} onSave={savePlaybook} onClose={() => setModal(null)} />
-      )}
       {modal?.type === 'step' && (
         <StepModal
           initial={modal.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal.data?.stage || 'prospeccao' }}
@@ -839,7 +1124,7 @@ export default function Playbooks() {
       {modal?.type === 'resource' && (
         <ResourceModal initial={modal.data} onSave={saveResource} onClose={() => setModal(null)} />
       )}
-    </div>
+    </>
   )
 }
 

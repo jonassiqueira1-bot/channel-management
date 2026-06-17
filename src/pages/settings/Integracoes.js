@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
 import {
-  Search, X, Check, ChevronRight, AlertCircle, Clock,
-  Copy, CheckCheck, ExternalLink, Zap, RefreshCw,
+  X, Check, AlertCircle, Clock,
+  Copy, CheckCheck, ExternalLink, RefreshCw,
   ToggleLeft, ToggleRight, Play, ArrowRight, Info,
 } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
@@ -10,7 +10,8 @@ import {
   INTEGRATIONS_STORAGE_KEY,
 } from '../../data/mockIntegrations'
 import Button from '../../components/Button'
-import Drawer from '../../components/Drawer'
+import SettingsLayout from '../../components/ui/SettingsLayout'
+import { FullPageEdit, FPESection } from '../../components/ui'
 
 const ACCENT = '#6366F1'
 
@@ -508,112 +509,12 @@ function ConfigTab({ provider, setting, onSave, onDisconnect, toast }) {
   )
 }
 
-// ─── Drawer Lateral ───────────────────────────────────────────────────────────
-function IntegrationDrawer({ provider, setting, onClose, onSave, onDisconnect, toast }) {
-  const [tab, setTab] = useState('config')
-  const logCount = (MOCK_LOGS[provider.id]||[]).length
-  const isWebhook = provider.id === 'webhook'
-
-  return (
-    <Drawer
-      open
-      onClose={onClose}
-      title={provider.name}
-      subtitle={provider.description}
-    >
-      <style>{`
-        @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
-        @keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
-      `}</style>
-
-      {/* Provider icon + status + tabs */}
-      <div style={{ margin:'-12px -14px 12px', padding:'12px 20px 0', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:12 }}>
-          <ProviderIcon provider={provider} size={36}/>
-          <StatusBadge status={setting.status}/>
-        </div>
-
-        {/* Tabs */}
-        <div style={{ display:'flex', gap:0 }}>
-          {[
-            { id:'config',    label:'Configuração' },
-            ...(isWebhook ? [{ id:'mapping', label:'Pipeline' }] : []),
-            { id:'logs',      label:`Logs${logCount ? ` (${logCount})` : ''}` },
-          ].map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ padding:'9px 18px', fontSize:13, fontWeight:tab===t.id?700:500, color:tab===t.id?ACCENT:'var(--text-muted)', background:'none', border:'none', borderBottom:`2px solid ${tab===t.id?ACCENT:'transparent'}`, cursor:'pointer', fontFamily:'var(--font)', transition:'color 0.15s' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      {tab === 'config'  && <ConfigTab provider={provider} setting={setting} onSave={onSave} onDisconnect={onDisconnect} toast={toast}/>}
-      {tab === 'mapping' && <WebhookMapeamentoTab toast={toast}/>}
-      {tab === 'logs'    && <LogsTab providerId={provider.id}/>}
-    </Drawer>
-  )
-}
-
-// ─── Card de integração ───────────────────────────────────────────────────────
-function IntegrationCard({ provider, setting, onClick }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{ display:'flex', flexDirection:'column', gap:0, padding:0, background:'var(--surface)', border:`1.5px solid ${hovered ? provider.color+'44' : 'var(--border2)'}`, borderRadius:14, cursor:'pointer', textAlign:'left', fontFamily:'var(--font)', overflow:'hidden', transition:'border-color 0.15s, box-shadow 0.15s', boxShadow: hovered ? `0 4px 20px ${provider.color}14` : 'none' }}
-    >
-      {/* Topo colorido */}
-      <div style={{ height:4, background: setting.status==='active' ? provider.color : 'var(--border2)' }}/>
-
-      <div style={{ padding:'18px 18px 16px', display:'flex', flexDirection:'column', gap:12, flex:1 }}>
-        {/* Icon + status */}
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between' }}>
-          <ProviderIcon provider={provider} size={44}/>
-          <StatusBadge status={setting.status}/>
-        </div>
-
-        {/* Info */}
-        <div>
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{provider.name}</div>
-          <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5 }}>{provider.description}</div>
-        </div>
-
-        {/* Categoria + seta */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto', paddingTop:4 }}>
-          <span style={{ fontSize:10.5, fontWeight:600, padding:'2px 8px', borderRadius:99, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border2)' }}>{provider.category}</span>
-          <ChevronRight size={15} strokeWidth={2} color={hovered ? provider.color : 'var(--text-muted)'} style={{ transition:'color 0.15s' }}/>
-        </div>
-      </div>
-    </button>
-  )
-}
-
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Integracoes() {
   const [settings, setSettings] = useLocalState(INTEGRATIONS_STORAGE_KEY, DEFAULT_SETTINGS)
   const [search,  setSearch]    = useState('')
-  const [filter,  setFilter]    = useState('all')  // all | active | inactive | error
-  const [openId,  setOpenId]    = useState(null)   // provider_name do drawer aberto
+  const [editando, setEditando] = useState(null)
   const toast = useToast()
-
-  const filtered = useMemo(() => {
-    return PROVIDERS.filter(p => {
-      const setting = settings.find(s => s.provider_name === p.id)
-      const status  = setting?.status || 'inactive'
-      const matchQ  = !search.trim() || p.name.toLowerCase().includes(search.toLowerCase()) || p.description.toLowerCase().includes(search.toLowerCase()) || p.category.toLowerCase().includes(search.toLowerCase())
-      const matchF  = filter === 'all' || status === filter
-      return matchQ && matchF
-    })
-  }, [search, filter, settings])
-
-  const counts = useMemo(() => ({
-    active:   settings.filter(s => s.status==='active').length,
-    error:    settings.filter(s => s.status==='error').length,
-  }), [settings])
 
   function getSetting(providerId) {
     return settings.find(s => s.provider_name === providerId) || {
@@ -631,122 +532,98 @@ export default function Integracoes() {
     setSettings(prev => prev.map(s => s.id === settingId ? { ...s, status:'inactive', credentials:{}, updated_at: new Date().toISOString() } : s))
   }
 
-  const openProvider = openId ? PROVIDERS.find(p => p.id === openId) : null
-  const openSetting  = openId ? getSetting(openId) : null
+  const allProviders = useMemo(() => PROVIDERS.map(p => ({
+    ...p,
+    setting: getSetting(p.id),
+    status: getSetting(p.id).status,
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  })), [settings])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return allProviders.filter(p => !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
+  }, [search, allProviders])
+
+  if (editando) {
+    const provider = editando
+    const setting  = getSetting(provider.id)
+    const isWebhook = provider.id === 'webhook'
+    const logCount  = (MOCK_LOGS[provider.id] || []).length
+
+    return (
+      <>
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <FullPageEdit
+          breadcrumb={[{ label: 'Integrações e APIs', onClick: () => setEditando(null) }]}
+          title={provider.name}
+          subtitle={provider.description}
+          onSave={() => setEditando(null)}
+          saveLabel="Fechar"
+          onCancel={() => setEditando(null)}
+        >
+          {/* Status + icon summary */}
+          <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 18px', background:'var(--surface2)', borderRadius:10, border:'1px solid var(--border)', marginBottom:8 }}>
+            <ProviderIcon provider={provider} size={44}/>
+            <div>
+              <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{provider.name}</div>
+              <StatusBadge status={setting.status}/>
+            </div>
+          </div>
+
+          <FPESection title="Configuração">
+            <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
+          </FPESection>
+
+          {isWebhook && (
+            <FPESection title="Mapeamento para Pipeline">
+              <WebhookMapeamentoTab toast={toast}/>
+            </FPESection>
+          )}
+
+          <FPESection title={`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}>
+            <LogsTab providerId={provider.id}/>
+          </FPESection>
+        </FullPageEdit>
+        <Toasts items={toast.toasts}/>
+      </>
+    )
+  }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0, overflow:'hidden' }}>
-      <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
-
-      {/* ── Cabeçalho ── */}
-      <div style={pg.header}>
-        <div>
-          <h1 style={pg.title}>Integrações e APIs</h1>
-          <p style={pg.desc}>Conecte o canal a ferramentas externas e monitore os eventos em tempo real.</p>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          {/* Busca */}
-          <div style={{ position:'relative' }}>
-            <Search size={14} strokeWidth={1.75} style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }}/>
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Buscar integração…"
-              style={{ ...pg.searchInput, paddingLeft:32, paddingRight: search ? 28 : 12 }}
-            />
-            {search && (
-              <button onClick={() => setSearch('')} style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex', padding:0 }}>
-                <X size={13} strokeWidth={2}/>
-              </button>
-            )}
-          </div>
-
-          {/* Filtro status */}
-          <select value={filter} onChange={e => setFilter(e.target.value)} style={pg.select}>
-            <option value="all">Todos os status</option>
-            <option value="active">Conectados</option>
-            <option value="inactive">Disponíveis</option>
-            <option value="error">Com erro</option>
-          </select>
-        </div>
-      </div>
-
-      {/* ── KPIs ── */}
-      <div style={pg.kpis}>
-        <div style={pg.kpi}>
-          <div>
-            <div style={{ ...pg.kpiVal, color: counts.active > 0 ? '#10B981' : 'var(--text)' }}>{counts.active}</div>
-            <div style={pg.kpiLbl}>Conectadas</div>
-          </div>
-          <Zap size={18} strokeWidth={1.75} color={counts.active>0?'#10B981':'var(--border)'}/>
-        </div>
-        <div style={pg.kpi}>
-          <div>
-            <div style={pg.kpiVal}>{PROVIDERS.length}</div>
-            <div style={pg.kpiLbl}>Disponíveis</div>
-          </div>
-        </div>
-        <div style={{ ...pg.kpi, borderRight:'none' }}>
-          <div>
-            <div style={{ ...pg.kpiVal, color: counts.error > 0 ? '#EF4444' : 'var(--text)' }}>{counts.error}</div>
-            <div style={pg.kpiLbl}>Com Erro</div>
-          </div>
-          {counts.error > 0 && <AlertCircle size={18} strokeWidth={1.75} color="#EF4444"/>}
-        </div>
-      </div>
-
-      {/* ── Grid de cards ── */}
-      <div style={{ flex:1, overflowY:'auto', padding:'24px 32px' }}>
-        {filtered.length === 0 ? (
-          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:10, minHeight:200, justifyContent:'center', color:'var(--text-muted)' }}>
-            <Search size={28} strokeWidth={1} style={{ opacity:0.3 }}/>
-            <span style={{ fontSize:14 }}>Nenhuma integração encontrada</span>
-            {search && <button onClick={() => setSearch('')} style={{ fontSize:12, color:ACCENT, background:'none', border:'none', cursor:'pointer' }}>Limpar busca</button>}
-          </div>
-        ) : (
-          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(260px, 1fr))', gap:16 }}>
-            {filtered.map(provider => (
-              <IntegrationCard
-                key={provider.id}
-                provider={provider}
-                setting={getSetting(provider.id)}
-                onClick={() => setOpenId(provider.id)}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ── Drawer ── */}
-      {openProvider && openSetting && (
-        <IntegrationDrawer
-          provider={openProvider}
-          setting={openSetting}
-          onClose={() => setOpenId(null)}
-          onSave={handleSave}
-          onDisconnect={handleDisconnect}
-          toast={toast}
-        />
-      )}
-
+    <>
+      <SettingsLayout
+        title="Integrações e APIs"
+        description="Conecte o canal a ferramentas externas e monitore os eventos em tempo real."
+        columns={[
+          { key: 'name', label: 'Integração', render: (v, row) => (
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <ProviderIcon provider={row} size={36}/>
+              <div>
+                <div style={{ fontWeight:700, fontSize:13, color:'var(--text)' }}>{v}</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{row.description}</div>
+              </div>
+            </div>
+          )},
+          { key: 'category', label: 'Categoria', width: 130, render: (v) => (
+            <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:99, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border2)' }}>{v}</span>
+          )},
+          { key: 'status', label: 'Status', width: 130, render: (v) => <StatusBadge status={v}/> },
+        ]}
+        data={filtered}
+        keyField="id"
+        emptyLabel="Nenhuma integração encontrada."
+        rowActions={[
+          { label: 'Configurar', onClick: row => setEditando(PROVIDERS.find(p => p.id === row.id)) },
+        ]}
+        search={search}
+        onSearchChange={setSearch}
+      />
       <Toasts items={toast.toasts}/>
-    </div>
+    </>
   )
 }
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
-const pg = {
-  header:     { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'28px 32px 16px', borderBottom:'1px solid var(--border)', flexShrink:0 },
-  title:      { fontSize:18, fontWeight:700, color:'var(--text)', margin:0, letterSpacing:'-0.3px' },
-  desc:       { fontSize:13, color:'var(--text-muted)', margin:'4px 0 0' },
-  kpis:       { display:'flex', borderBottom:'1px solid var(--border)', flexShrink:0 },
-  kpi:        { flex:1, padding:'14px 32px', display:'flex', alignItems:'center', justifyContent:'space-between', borderRight:'1px solid var(--border)', borderTop:'3px solid var(--border)' },
-  kpiVal:     { fontSize:22, fontWeight:800, color:'var(--text)', letterSpacing:'-0.5px', lineHeight:1 },
-  kpiLbl:     { fontSize:12, color:'var(--text-muted)', marginTop:2 },
-  searchInput:{ height:34, fontSize:13, border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', color:'var(--text)', fontFamily:'var(--font)', width:200, outline:'none' },
-  select:     { height:34, fontSize:12, border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', color:'var(--text)', fontFamily:'var(--font)', padding:'0 10px', outline:'none', cursor:'pointer' },
-}
-
 const s = {
   overlay:   { position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:600, backdropFilter:'blur(2px)' },
   modal:     { background:'var(--surface)', borderRadius:14, width:'100%', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden', animation:'fadeIn 0.2s ease' },

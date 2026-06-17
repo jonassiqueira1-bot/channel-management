@@ -5,10 +5,8 @@ import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes
 import { useActions } from '../hooks/useActions'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
-import { useFormLayout } from '../hooks/useFormLayout'
-import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
-import Drawer from '../components/Drawer'
+import { FullPageEdit, FPESection, FPEField } from '../components/ui'
 
 const ACCENT = '#6366F1'
 
@@ -79,78 +77,6 @@ function VagasBar({ vagas, inscritos }) {
 }
 
 // ─── Dropdown inline de Tipo de Ação ─────────────────────────────────────────
-function TipoAcaoDropdown({ value, onChange, tiposMap }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  const map = tiposMap || TIPOS_ACAO_DEFAULT
-  const cfg = map[value] || map.outros || Object.values(map)[0] || { icon: '◎', label: value, bg: '#F3F4F6', text: '#374151', color: '#6B7280' }
-
-  useEffect(() => {
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-
-  return (
-    <div>
-      <label style={lbl}>Tipo de ação *</label>
-      <div ref={ref} style={{ position: 'relative', marginTop: 6, display: 'inline-block', minWidth: 200 }}>
-        <button
-          type="button"
-          onClick={() => setOpen(o => !o)}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 8,
-            padding: '8px 12px', borderRadius: 7, cursor: 'pointer',
-            border: `1.5px solid ${open ? cfg.color : 'var(--border)'}`,
-            background: cfg.bg, color: cfg.text,
-            fontFamily: 'var(--font)', fontSize: 13, fontWeight: 600,
-            boxShadow: open ? `0 0 0 3px ${cfg.color}22` : 'none',
-            transition: 'all 0.15s', width: '100%', justifyContent: 'space-between',
-          }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-            <span style={{ fontSize: 15 }}>{cfg.icon}</span>
-            {cfg.label}
-          </span>
-          <span style={{ fontSize: 10, opacity: 0.6, transform: open ? 'rotate(180deg)' : 'none',
-            transition: 'transform 0.15s', display: 'inline-block' }}>▼</span>
-        </button>
-
-        {open && (
-          <div style={{
-            position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-            background: 'var(--surface)', border: '1px solid var(--border)',
-            borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.14)',
-            zIndex: 400, overflow: 'hidden',
-          }}>
-            {Object.entries(map).map(([k, c]) => {
-              const ativo = value === k
-              return (
-                <div key={k}
-                  onMouseDown={() => { onChange(k); setOpen(false) }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '9px 14px', cursor: 'pointer',
-                    background: ativo ? c.bg : 'transparent',
-                    borderLeft: `3px solid ${ativo ? c.color : 'transparent'}`,
-                    transition: 'background 0.1s',
-                  }}
-                  onMouseEnter={e => { if (!ativo) e.currentTarget.style.background = 'var(--surface2)' }}
-                  onMouseLeave={e => { if (!ativo) e.currentTarget.style.background = 'transparent' }}>
-                  <span style={{ fontSize: 16 }}>{c.icon}</span>
-                  <span style={{ fontSize: 13, fontWeight: ativo ? 700 : 500,
-                    color: ativo ? c.text : 'var(--text)' }}>{c.label}</span>
-                  {ativo && <span style={{ marginLeft: 'auto', fontSize: 11, color: c.color }}>✓</span>}
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ─── Drawer de Ação ───────────────────────────────────────────────────────────
 const RESPONSAVEIS = [
   { id: 'u1', nome: 'Lucas Ferreira' },
   { id: 'u2', nome: 'Carla Menezes' },
@@ -167,153 +93,6 @@ const EMPTY_ACAO = {
   local: '', vagas: '', inscritos: 0,
   status: 'agendado',
   tenant_id: 't1',
-}
-
-function AcaoModal({ initial, onClose, onSave, onDelete, tiposMap }) {
-  const isEditing = !!initial
-  const [expanded, setExpanded] = useState(false)
-  const [form, setForm] = useState(
-    initial
-      ? { ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' }
-      : { ...EMPTY_ACAO }
-  )
-  const [confirmDel, setConfirmDel] = useState(false)
-
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  const empresasAtivas = MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
-  const { sections: acSections, fieldById: acFieldById } = useFormLayout('actions')
-
-  function renderAcaoField(key) {
-    switch (key) {
-      case 'titulo':
-        return <input style={inp} value={form.titulo} autoFocus onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3" />
-      case 'tipo':
-        return null  // TipoAcaoDropdown fixo no topo
-      case 'status':
-        return isEditing ? (
-          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-            {Object.entries(STATUS_ACAO).map(([k, cfg]) => {
-              const ativo = form.status === k
-              return (
-                <button key={k} type="button" onClick={() => set('status', k)}
-                  style={{ padding:'6px 13px', borderRadius:8, cursor:'pointer', fontFamily:'var(--font)', fontSize:12, fontWeight: ativo ? 700 : 500,
-                    border:`1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
-                    background: ativo ? cfg.bg : 'none', color: ativo ? cfg.text : 'var(--text-soft)', transition:'all 0.15s' }}>
-                  {cfg.label}
-                </button>
-              )
-            })}
-          </div>
-        ) : null
-      case 'prioridade':    return null
-      case 'responsavel':
-        return (
-          <select style={inp} value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
-            {RESPONSAVEIS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
-          </select>
-        )
-      case 'empresa_id':
-        return (
-          <select style={inp} value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}>
-            <option value="">— Selecione —</option>
-            {empresasAtivas.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
-          </select>
-        )
-      case 'oportunidade_id': return null
-      case 'data_prevista':
-        return <input type="date" style={inp} value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)} />
-      case 'data_conclusao':
-        return <input type="date" style={inp} value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
-      case 'descricao':
-        return <textarea style={{ ...inp, height:72, resize:'vertical' }} value={form.descricao || ''} placeholder="Objetivos, conteúdo programático, observações…" onChange={e => set('descricao', e.target.value)} />
-      default: return null
-    }
-  }
-
-  function handleSave() {
-    if (!form.titulo.trim()) return alert('Título obrigatório')
-    if (!form.empresa_id)    return alert('Selecione a unidade/franquia')
-    if (!form.data_inicio)   return alert('Data de início obrigatória')
-    const emp = MOCK_EMPRESAS.find(e => e.id === Number(form.empresa_id))
-    const resp = RESPONSAVEIS.find(r => r.id === form.responsavel_id)
-    onSave({
-      ...form,
-      id:              initial?.id || novoId([]),
-      empresa_id:      Number(form.empresa_id),
-      empresa_nome:    emp?.fantasia || emp?.razao || '',
-      responsavel_nome:resp?.nome || '',
-      vagas:           form.vagas ? Number(form.vagas) : null,
-      criado_em:       initial?.criado_em || new Date().toISOString(),
-    })
-    onClose()
-  }
-
-  const footerLeft = (
-    <div style={{ flex: 1 }}>
-      {isEditing && !confirmDel && (
-        <button type="button" onClick={() => setConfirmDel(true)}
-          style={{ fontSize: 12, color: 'var(--red)', background: 'none',
-            border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>
-          Excluir ação
-        </button>
-      )}
-      {confirmDel && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Confirmar exclusão?</span>
-          <button type="button"
-            style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--red)',
-              border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
-            onClick={() => { onDelete(initial.id); onClose() }}>
-            Sim, excluir
-          </button>
-          <button type="button"
-            style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none',
-              border: 'none', cursor: 'pointer' }}
-            onClick={() => setConfirmDel(false)}>Cancelar</button>
-        </div>
-      )}
-    </div>
-  )
-
-  return (
-    <Drawer
-      open
-      onClose={onClose}
-      title={isEditing ? 'Editar ação' : 'Nova ação'}
-      subtitle="Atividade operacional com unidade de franquia"
-      footer={
-        <>
-          {footerLeft}
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={handleSave}>
-            {isEditing ? 'Salvar alterações' : 'Criar ação'}
-          </Button>
-        </>
-      }
-    >
-      {/* Tipo — dropdown inline flutuante — fixo */}
-      <TipoAcaoDropdown value={form.tipo} onChange={v => set('tipo', v)} tiposMap={tiposMap} />
-
-      {/* Campos configuráveis via Conf. de Campos */}
-      <DynamicFormLayout
-        sections={acSections}
-        fieldById={acFieldById}
-        renderField={renderAcaoField}
-        sectionStyle={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 16px', gap:12 }}
-        labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
-      />
-    </Drawer>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <label style={lbl}>{label}</label>
-      {children}
-    </div>
-  )
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
@@ -369,8 +148,9 @@ export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
   const [tiposLista]            = useLocalState(TIPOS_KEY, [])
   const tiposMap = useMemo(() => tiposLista.length ? listToMap(tiposLista) : TIPOS_ACAO_DEFAULT, [tiposLista])
-  const [modal, setModal]       = useState(false)
   const [editando, setEditando] = useState(null)
+  const [editForm, setEditForm] = useState(null)
+  const [savingAcao, setSavingAcao] = useState(false)
   const [busca, setBusca]       = useLocalState('acoes:busca', '')
   const [filtroTipo, setFiltroTipo]     = useLocalState('acoes:filtroTipo', '')
   const [filtroStatus, setFiltroStatus] = useLocalState('acoes:filtroStatus', '')
@@ -412,8 +192,122 @@ export default function Acoes() {
 
   const temFiltro = busca || filtroTipo || filtroStatus || filtroEmp || filtroPeriodoInicio || filtroPeriodoFim || filtroResp
 
-  function salvar(acao) { saveAcao(acao) }
-  function deletar(id) { deleteAcao(id) }
+  function abrirEdicaoAcao(acao) {
+    const a = acao || { ...EMPTY_ACAO }
+    setEditando(acao || null)
+    setEditForm({ ...EMPTY_ACAO, ...a, vagas: a.vagas || '', empresa_id: a.empresa_id || '' })
+  }
+
+  function setAcaoField(f, v) { setEditForm(p => ({ ...p, [f]: v })) }
+
+  function salvarAcao() {
+    if (!editForm.titulo.trim()) return alert('Título obrigatório')
+    if (!editForm.empresa_id)    return alert('Selecione a unidade/franquia')
+    if (!editForm.data_inicio)   return alert('Data de início obrigatória')
+    const emp  = MOCK_EMPRESAS.find(e => e.id === Number(editForm.empresa_id))
+    const resp = RESPONSAVEIS.find(r => r.id === editForm.responsavel_id)
+    setSavingAcao(true)
+    saveAcao({
+      ...editForm,
+      id:               editando?.id || novoId([]),
+      empresa_id:       Number(editForm.empresa_id),
+      empresa_nome:     emp?.fantasia || emp?.razao || '',
+      responsavel_nome: resp?.nome || '',
+      vagas:            editForm.vagas ? Number(editForm.vagas) : null,
+      criado_em:        editando?.criado_em || new Date().toISOString(),
+    })
+    setSavingAcao(false)
+    setEditando(null)
+    setEditForm(null)
+  }
+
+  function deletarAcao(id) {
+    deleteAcao(id)
+    setEditando(null)
+    setEditForm(null)
+  }
+
+  const empresasAtivas = MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
+
+  if (editForm !== null) {
+    const isEditing = !!editando?.id
+    return (
+      <FullPageEdit
+        breadcrumb={[{ label: 'Ações', onClick: () => { setEditando(null); setEditForm(null) } }]}
+        title={isEditing ? editando.titulo || 'Ação' : 'Nova ação'}
+        subtitle="Atividade operacional com unidade de franquia"
+        onSave={salvarAcao}
+        onCancel={() => { setEditando(null); setEditForm(null) }}
+        onDelete={isEditing ? () => deletarAcao(editando.id) : undefined}
+        saving={savingAcao}
+        saveLabel={isEditing ? 'Salvar alterações' : 'Criar ação'}
+      >
+        <FPESection label="Tipo e título" noBorder>
+          <FPEField label="Tipo de ação" required>
+            <select className="fpe-field" value={editForm.tipo} onChange={e => setAcaoField('tipo', e.target.value)}>
+              {Object.entries(tiposMap).map(([k, c]) => (
+                <option key={k} value={k}>{c.icon} {c.label}</option>
+              ))}
+            </select>
+          </FPEField>
+          <FPEField label="Título" required>
+            <input className="fpe-field" value={editForm.titulo} onChange={e => setAcaoField('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3" />
+          </FPEField>
+        </FPESection>
+        <FPESection label="Unidade e responsável">
+          <FPEField label="Unidade / Franquia" required>
+            <select className="fpe-field" value={editForm.empresa_id} onChange={e => setAcaoField('empresa_id', e.target.value)}>
+              <option value="">— Selecione —</option>
+              {empresasAtivas.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
+            </select>
+          </FPEField>
+          <FPEField label="Responsável (ISV)">
+            <select className="fpe-field" value={editForm.responsavel_id} onChange={e => setAcaoField('responsavel_id', e.target.value)}>
+              {RESPONSAVEIS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+            </select>
+          </FPEField>
+        </FPESection>
+        <FPESection label="Datas e local">
+          <FPEField label="Data de início" required>
+            <input className="fpe-field" type="date" value={editForm.data_inicio} onChange={e => setAcaoField('data_inicio', e.target.value)} />
+          </FPEField>
+          <FPEField label="Data de fim">
+            <input className="fpe-field" type="date" value={editForm.data_fim || ''} onChange={e => setAcaoField('data_fim', e.target.value)} />
+          </FPEField>
+          <FPEField label="Local">
+            <input className="fpe-field" value={editForm.local || ''} onChange={e => setAcaoField('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
+          </FPEField>
+          <FPEField label="Vagas">
+            <input className="fpe-field" type="number" min="0" value={editForm.vagas} onChange={e => setAcaoField('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
+          </FPEField>
+        </FPESection>
+        {isEditing && (
+          <FPESection label="Status">
+            <FPEField label="Status da ação" span={2}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {Object.entries(STATUS_ACAO).map(([k, cfg]) => {
+                  const ativo = editForm.status === k
+                  return (
+                    <button key={k} type="button" onClick={() => setAcaoField('status', k)}
+                      style={{ padding: '6px 13px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: ativo ? 700 : 500,
+                        border: `1.5px solid ${ativo ? cfg.color : '#D4D4D8'}`,
+                        background: ativo ? cfg.bg : 'transparent', color: ativo ? cfg.text : '#71717A', transition: 'all 0.15s' }}>
+                      {cfg.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </FPEField>
+          </FPESection>
+        )}
+        <FPESection label="Descrição">
+          <FPEField label="Descrição / Objetivos" span={2}>
+            <textarea className="fpe-field" value={editForm.descricao || ''} onChange={e => setAcaoField('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" rows={4} />
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
@@ -451,7 +345,7 @@ export default function Acoes() {
                 />
               )}
             </div>
-            <Button onClick={() => setModal(true)}>+ Nova ação</Button>
+            <Button onClick={() => abrirEdicaoAcao(null)}>+ Nova ação</Button>
           </div>
         </div>
 
@@ -560,7 +454,7 @@ export default function Acoes() {
               const atrasado = acao.status === 'agendado' && acao.data_inicio < hoje
               const tipoCfg = (tiposMap || TIPOS_ACAO_DEFAULT)[acao.tipo] || { icon: '◎', color: '#6B7280', bg: '#F3F4F6' }
               return (
-                <div key={acao.id} onClick={() => setEditando(acao)}
+                <div key={acao.id} onClick={() => abrirEdicaoAcao(acao)}
                   style={{ background: 'var(--surface)', border: '1px solid var(--border2)',
                     borderRadius: 10, padding: '14px 16px', cursor: 'pointer',
                     boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'column', gap: 10,
@@ -649,7 +543,7 @@ export default function Acoes() {
               return (
                 <tr key={acao.id}
                   style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer' }}
-                  onClick={() => setEditando(acao)}
+                  onClick={() => abrirEdicaoAcao(acao)}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
 
@@ -707,7 +601,7 @@ export default function Acoes() {
 
                   <td style={{ padding: '11px 12px', verticalAlign: 'middle', textAlign: 'center' }}>
                     <button type="button"
-                      onClick={e => { e.stopPropagation(); setEditando(acao) }}
+                      onClick={e => { e.stopPropagation(); abrirEdicaoAcao(acao) }}
                       style={{ background: 'none', border: 'none', cursor: 'pointer',
                         color: 'var(--text-muted)', fontSize: 14, padding: '4px 8px', borderRadius: 6 }}
                       onMouseEnter={e => e.currentTarget.style.color = ACCENT}
@@ -723,13 +617,6 @@ export default function Acoes() {
       </div>
       )}
 
-      {/* ── Drawers ── */}
-      {modal && (
-        <AcaoModal onClose={() => setModal(false)} onSave={salvar} onDelete={deletar} initial={null} tiposMap={tiposMap} />
-      )}
-      {editando && (
-        <AcaoModal onClose={() => setEditando(null)} onSave={salvar} onDelete={deletar} initial={editando} tiposMap={tiposMap} />
-      )}
     </div>
   )
 }
@@ -760,27 +647,3 @@ const pg = {
   resultRow:   { display: 'flex', alignItems: 'center', gap: 12 },
 }
 
-const ov = {
-  header:    { padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
-               display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 },
-  title:     { fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 },
-  sub:       { fontSize: 12, color: 'var(--text-muted)', marginTop: 2 },
-  closeBtn:  { background: 'none', border: 'none', cursor: 'pointer',
-               color: 'var(--text-muted)', fontSize: 16, padding: '4px 8px', borderRadius: 6 },
-  expandBtn: { background: 'none', border: '1px solid var(--border)', borderRadius: 6,
-               color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer', padding: '2px 6px', lineHeight: 1 },
-  body:      { padding: '20px 24px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 16 },
-  footer:    { padding: '12px 24px 16px', borderTop: '1px solid var(--border)',
-               display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
-  cancelBtn: { padding: '8px 18px', background: 'none', border: '1px solid var(--border)',
-               borderRadius: 8, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer',
-               fontFamily: 'var(--font)' },
-  saveBtn:   { padding: '8px 20px', background: ACCENT, color: '#fff', border: 'none',
-               borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-               fontFamily: 'var(--font)' },
-}
-
-const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: 0.4 }
-const inp = { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 7,
-              fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
-              fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' }
