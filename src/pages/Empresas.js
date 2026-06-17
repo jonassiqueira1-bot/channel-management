@@ -9,6 +9,9 @@ import BrowseLayout from '../components/BrowseLayout'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import { useContacts } from '../hooks/useContacts'
+import { useOpportunities } from '../hooks/useOpportunities'
+import { useContracts } from '../hooks/useContracts'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -209,13 +212,18 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const [cepStatus,  setCepStatus]  = useState(null)
   const { sections, fieldById } = useFormLayout('companies')
 
-  // ── Relacionamentos persistidos ──────────────────────────────────────────
-  const [contatos, setContatos]     = useLocalState('empresa:contatos:' + item?.id, [])
-  const [opps, setOpps]             = useLocalState('empresa:opps:' + item?.id, [])
-  const [contratos, setContratos]   = useLocalState('empresa:contratos:' + item?.id, [])
-  const [canal, setCanal]           = useLocalState('empresa:canal:' + item?.id, {
-    resp_ar: '', franquia_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
+  // ── Relacionamentos via hooks reais ──────────────────────────────────────
+  const { contacts: allContacts, save: saveContact, remove: removeContact } = useContacts()
+  const { opps: allOpps,         save: saveOpp,     remove: removeOpp }     = useOpportunities()
+  const { contratos: allContratos, save: saveContrato, remove: removeContrato } = useContracts()
+  const [franquias] = useLocalState('settings:franquias_v2', [])
+  const [canal, setCanal] = useLocalState('empresa:canal:' + item?.id, {
+    resp_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
   })
+
+  const contatos  = useMemo(() => allContacts.filter(c  => String(c.empresa_id)  === String(item?.id)), [allContacts,  item?.id])
+  const opps      = useMemo(() => allOpps.filter(o      => String(o.empresa_id)  === String(item?.id)), [allOpps,      item?.id])
+  const contratos = useMemo(() => allContratos.filter(c => String(c.empresa_id)  === String(item?.id)), [allContratos, item?.id])
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
   function patch(field, val) {
@@ -460,9 +468,9 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     const [novoContato, setNovoContato] = useState({ nome:'', cargo:'', email:'', telefone:'' })
     const [adicionando, setAdicionando] = useState(false)
 
-    function salvarContato() {
+    async function salvarContato() {
       if (!novoContato.nome.trim()) return
-      setContatos(prev => [...prev, { ...novoContato, id: Date.now() }])
+      await saveContact({ ...novoContato, empresa_id: item?.id })
       setNovoContato({ nome:'', cargo:'', email:'', telefone:'' })
       setAdicionando(false)
     }
@@ -524,7 +532,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               <div style={{ width:34, height:34, borderRadius:8, background:'var(--accent-glow)', color:ACCENT,
                 display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700,
                 fontFamily:'var(--mono)', flexShrink:0 }}>
-                {c.nome.slice(0,2).toUpperCase()}
+                {(c.nome || '?').slice(0,2).toUpperCase()}
               </div>
               <div style={{ flex:1, minWidth:0 }}>
                 <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</div>
@@ -534,7 +542,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 {c.email && <span style={{ fontSize:12, color:'var(--text-soft)', fontFamily:'var(--mono)' }}>{c.email}</span>}
                 {c.telefone && <span style={{ fontSize:12, color:'var(--text-soft)', fontFamily:'var(--mono)' }}>{c.telefone}</span>}
               </div>
-              <button onClick={() => setContatos(prev => prev.filter(x => x.id !== c.id))}
+              <button onClick={() => removeContact(c.id)}
                 style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
                   fontSize:13, padding:'2px 6px', borderRadius:4, lineHeight:1 }}
                 title="Remover contato">✕</button>
@@ -543,7 +551,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
           {contatos.length === 0 && !adicionando && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
-              Nenhum contato cadastrado
+              Nenhum contato vinculado a esta empresa
             </div>
           )}
         </div>
@@ -556,14 +564,18 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     const [adicionando, setAdicionando] = useState(false)
     const [novaOpp, setNovaOpp] = useState({ titulo:'', situacao:'em_andamento', valor:'', data:'' })
 
-    function salvarOpp() {
+    async function salvarOpp() {
       if (!novaOpp.titulo.trim()) return
-      setOpps(prev => [...prev, { ...novaOpp, id: Date.now(), valor: Number(novaOpp.valor) || 0 }])
+      await saveOpp({
+        titulo: novaOpp.titulo, situacao: novaOpp.situacao,
+        valor: Number(novaOpp.valor) || 0, prazo: novaOpp.data || null,
+        empresa_id: item?.id, empresa_nome: form.fantasia || form.razao || '',
+      })
       setNovaOpp({ titulo:'', situacao:'em_andamento', valor:'', data:'' })
       setAdicionando(false)
     }
 
-    const SIT = { em_andamento:{ label:'Em andamento', color:'var(--yellow)', bg:'#FFFBEB', text:'#92400E' }, ganha:{ label:'Ganha', color:'var(--green)', bg:'var(--green-bg)', text:'var(--green-text)' }, perdida:{ label:'Perdida', color:'var(--red)', bg:'#FEF2F2', text:'#991B1B' } }
+    const SIT = { em_andamento:{ label:'Em andamento', bg:'#FFFBEB', text:'#92400E' }, ganha:{ label:'Ganha', bg:'var(--green-bg)', text:'var(--green-text)' }, perdida:{ label:'Perdida', bg:'#FEF2F2', text:'#991B1B' } }
 
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -571,7 +583,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           <div style={{ display:'flex', gap:16, padding:'12px 20px', background:'var(--surface)',
             borderRadius:12, border:'1px solid var(--border2)', boxShadow:'0 1px 3px rgba(0,0,0,0.06)' }}>
             <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-              <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Total de oportunidades</span>
+              <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Total</span>
               <span style={{ fontSize:20, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{opps.length}</span>
             </div>
             <div style={{ width:1, background:'var(--border2)' }} />
@@ -620,7 +632,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                     placeholder="0" />
                 </div>
                 <div>
-                  <label style={lbl}>Data</label>
+                  <label style={lbl}>Prazo</label>
                   <input style={inpStyle} type="date" value={novaOpp.data}
                     onChange={e => setNovaOpp(p => ({ ...p, data:e.target.value }))} />
                 </div>
@@ -642,7 +654,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{o.titulo}</div>
-                  {o.data && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>{o.data}</div>}
+                  {o.prazo && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>Prazo: {o.prazo}</div>}
                 </div>
                 <span style={{ padding:'2px 9px', borderRadius:20, background:sit.bg, color:sit.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
                   {sit.label}
@@ -652,7 +664,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                     R$ {Number(o.valor).toLocaleString('pt-BR')}
                   </span>
                 )}
-                <button onClick={() => setOpps(prev => prev.filter(x => x.id !== o.id))}
+                <button onClick={() => removeOpp(o.id)}
                   style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
                     fontSize:13, padding:'2px 6px', borderRadius:4, lineHeight:1 }}
                   title="Remover">✕</button>
@@ -662,7 +674,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
           {opps.length === 0 && !adicionando && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
-              Nenhuma oportunidade vinculada
+              Nenhuma oportunidade vinculada a esta empresa
             </div>
           )}
         </div>
@@ -674,9 +686,15 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     const [adicionando, setAdicionando] = useState(false)
     const [novoContrato, setNovoContrato] = useState({ numero:'', tipo:'', status:'ativo', valor:'', validade:'' })
 
-    function salvarContrato() {
+    async function salvarContrato() {
       if (!novoContrato.numero.trim()) return
-      setContratos(prev => [...prev, { ...novoContrato, id: Date.now(), valor: Number(novoContrato.valor) || 0 }])
+      await saveContrato({
+        numero: novoContrato.numero, status: novoContrato.status,
+        valor_mrr: Number(novoContrato.valor) || 0,
+        vigencia_fim: novoContrato.validade || null,
+        empresa_id: item?.id, empresa_nome: form.fantasia || form.razao || '',
+        produto_mrr_nome: novoContrato.tipo,
+      })
       setNovoContrato({ numero:'', tipo:'', status:'ativo', valor:'', validade:'' })
       setAdicionando(false)
     }
@@ -710,7 +728,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                     placeholder="Ex: CT-2025-001" />
                 </div>
                 <div>
-                  <label style={lbl}>Tipo</label>
+                  <label style={lbl}>Tipo / Produto</label>
                   <input style={inpStyle} value={novoContrato.tipo}
                     onChange={e => setNovoContrato(p => ({ ...p, tipo:e.target.value }))}
                     placeholder="Ex: Licença, Serviço…" />
@@ -725,7 +743,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>Valor (R$)</label>
+                  <label style={lbl}>Valor MRR (R$)</label>
                   <input style={inpStyle} type="number" min="0" value={novoContrato.valor}
                     onChange={e => setNovoContrato(p => ({ ...p, valor:e.target.value }))}
                     placeholder="0" />
@@ -745,6 +763,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
           {contratos.map((c, i) => {
             const sc = STATUS_CONTRATO[c.status] || STATUS_CONTRATO.ativo
+            const valor = c.valor_mrr || c.valor || 0
             return (
               <div key={c.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px',
                 borderBottom: i < contratos.length - 1 ? '1px solid var(--border2)' : 'none',
@@ -754,19 +773,19 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <span style={{ fontSize:13, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{c.numero}</span>
-                    {c.tipo && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{c.tipo}</span>}
+                    {c.produto_mrr_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{c.produto_mrr_nome}</span>}
                   </div>
-                  {c.validade && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>Validade: {c.validade}</div>}
+                  {c.vigencia_fim && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>Validade: {c.vigencia_fim}</div>}
                 </div>
                 <span style={{ padding:'2px 9px', borderRadius:20, background:sc.bg, color:sc.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
                   {sc.label}
                 </span>
-                {c.valor > 0 && (
+                {valor > 0 && (
                   <span style={{ fontSize:13, fontWeight:700, color:ACCENT, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-                    R$ {Number(c.valor).toLocaleString('pt-BR')}
+                    R$ {Number(valor).toLocaleString('pt-BR')}
                   </span>
                 )}
-                <button onClick={() => setContratos(prev => prev.filter(x => x.id !== c.id))}
+                <button onClick={() => removeContrato(c.id)}
                   style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
                     fontSize:13, padding:'2px 6px', borderRadius:4, lineHeight:1 }}
                   title="Remover">✕</button>
@@ -776,7 +795,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
           {contratos.length === 0 && !adicionando && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
-              Nenhum contrato cadastrado
+              Nenhum contrato vinculado a esta empresa
             </div>
           )}
         </div>
@@ -785,22 +804,57 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   }
 
   function TabCanal() {
+    const franquiaAtual = franquias.find(f => String(f.id) === String(form.franquia_ar_id))
+
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        {/* Franquia vinculada */}
+        <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
+          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)',
+          display:'flex', flexDirection:'column', gap:12 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:4 }}>
+            Franquia (AR)
+          </div>
+          <div>
+            <label style={lbl}>Franquia vinculada</label>
+            <select style={inpStyle}
+              value={form.franquia_ar_id || ''}
+              onChange={e => {
+                const f = franquias.find(x => String(x.id) === e.target.value)
+                patch('franquia_ar_id',   f?.id   || null)
+                patch('franquia_ar_nome', f?.nome || '')
+              }}>
+              <option value="">— Nenhuma —</option>
+              {franquias.filter(f => f.situacao !== 'inativo').map(f => (
+                <option key={f.id} value={f.id}>{f.nome}</option>
+              ))}
+            </select>
+          </div>
+          {franquiaAtual && (
+            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px',
+              background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
+              <span style={{ width:8, height:8, borderRadius:'50%',
+                background: franquiaAtual.situacao === 'ativo' ? 'var(--green)' : '#9CA3AF', flexShrink:0 }} />
+              <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{franquiaAtual.nome}</span>
+              <span style={{ fontSize:11, color:'var(--text-muted)', marginLeft:'auto', fontFamily:'var(--mono)' }}>
+                ID: {franquiaAtual.id}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Dados de canal */}
         <div style={{ background:'var(--surface)', borderRadius:12, padding:'20px 24px',
           boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)',
           display:'grid', gridTemplateColumns:'1fr 1fr', gap:16 }}>
+          <div style={{ gridColumn:'1 / -1', fontSize:12, fontWeight:700, color:'var(--text)', borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:4 }}>
+            Dados do Canal
+          </div>
           <div>
             <label style={lbl}>Responsável AR</label>
             <input style={inpStyle} value={canal.resp_ar || ''}
               onChange={e => setCanal(p => ({ ...p, resp_ar:e.target.value }))}
               placeholder="Nome do responsável" />
-          </div>
-          <div>
-            <label style={lbl}>Franquia AR</label>
-            <input style={inpStyle} value={canal.franquia_ar || ''}
-              onChange={e => setCanal(p => ({ ...p, franquia_ar:e.target.value }))}
-              placeholder="Nome da franquia" />
           </div>
           <div>
             <label style={lbl}>Código do Canal</label>
@@ -813,7 +867,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             <input style={inpStyle} type="date" value={canal.data_credenciamento || ''}
               onChange={e => setCanal(p => ({ ...p, data_credenciamento:e.target.value }))} />
           </div>
-          <div style={{ gridColumn:'1 / -1' }}>
+          <div>
             <label style={lbl}>Nível de Parceria</label>
             <select style={inpStyle} value={canal.nivel_parceria || ''}
               onChange={e => setCanal(p => ({ ...p, nivel_parceria:e.target.value }))}>
