@@ -1016,7 +1016,7 @@ export default function Empresas() {
   const COLUMNS = [
     { key: 'razao',    label: 'Empresa',   render: (e) => (
       <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={p.avatar}>{(e.fantasia || e.razao).slice(0,2).toUpperCase()}</div>
+        <div style={p.avatar}>{(e.fantasia || e.razao || '?').slice(0,2).toUpperCase()}</div>
         <div style={{ minWidth:0 }}>
           <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
             {e.fantasia || e.razao}
