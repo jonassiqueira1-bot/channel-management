@@ -828,11 +828,11 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   return (
     <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
       <div style={{ flex:1, overflowY:'auto', padding:'20px 24px', background:'#F8FAFC', minWidth:0 }}>
-        {tab === 'dados'         && TabDados()}
-        {tab === 'contatos'      && TabContatos()}
-        {tab === 'opps'          && TabOportunidades()}
-        {tab === 'contratos'     && TabContratos()}
-        {tab === 'canal'         && TabCanal()}
+        <div style={{ display: tab === 'dados'     ? 'contents' : 'none' }}>{TabDados()}</div>
+        <div style={{ display: tab === 'contatos'  ? 'contents' : 'none' }}>{TabContatos()}</div>
+        <div style={{ display: tab === 'opps'      ? 'contents' : 'none' }}>{TabOportunidades()}</div>
+        <div style={{ display: tab === 'contratos' ? 'contents' : 'none' }}>{TabContratos()}</div>
+        <div style={{ display: tab === 'canal'     ? 'contents' : 'none' }}>{TabCanal()}</div>
       </div>
       {!isNew && (
         <div style={{ padding:'12px 24px', borderTop:'1px solid var(--border2)', background:'var(--surface)', flexShrink:0 }}>
