@@ -3,6 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useContacts } from '../hooks/useContacts'
 import Button from '../components/Button'
 import { useCompanies } from '../hooks/useCompanies'
+import EmpresaSearch from '../components/EmpresaSearch'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
 import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
 import { ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
@@ -84,8 +85,6 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
   }
 
   const av = avatarColor(form.nome || '?')
-  const empOptions = [{ value:'', label:'— Sem empresa —' }, ...empresasAtivas.map(e => ({ value: String(e.id), label: e.fantasia || e.razao }))]
-
   const left = (
     <div style={{ padding:'32px 40px', display:'flex', flexDirection:'column', gap:16, flex:1 }}>
       {/* Avatar + Nome */}
@@ -133,9 +132,18 @@ function ContatoDetail({ item, existentes, onSave, onDelete, onClose }) {
       <DrawerSidePanel width={240}>
         <DrawerSidePanelSection label="Identificação">
           <DrawerSidePanelField label="Cargo" editing value={form.cargo || ''} onChange={e => patch('cargo', e.target.value)} placeholder="Ex: Diretor Comercial" />
-          <DrawerSidePanelField label="Empresa" as="select" editing value={form.empresa_id ? String(form.empresa_id) : ''} onChange={e => patch('empresa_id', e.target.value)}>
-            {empOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </DrawerSidePanelField>
+          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+            <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Empresa</span>
+            <EmpresaSearch
+              value={form.empresa_id}
+              label={form.empresa_nome}
+              onChange={(id, nome) => {
+                const next = { ...form, empresa_id: id, empresa_nome: nome || '' }
+                setForm(next)
+                if (!isNew) onSave({ ...next, id: item.id })
+              }}
+            />
+          </div>
         </DrawerSidePanelSection>
 
         <DrawerSidePanelSection label="Contato">
