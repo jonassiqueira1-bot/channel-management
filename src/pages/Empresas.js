@@ -434,8 +434,45 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
       case 'observacoes':
         return <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
           placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
-      default:
-        return null
+      default: {
+        // Campo customizado — renderiza input genérico conectado ao form
+        if (!key) return null
+        const val = form[key] ?? ''
+        const fieldDef = fieldById[Object.keys(fieldById).find(id => fieldById[id].field_key === key)]
+        const ft = fieldDef?.field_type || 'text'
+        const opts = fieldDef?.options || []
+        if (ft === 'textarea')
+          return <InlineTextarea value={String(val)} onChange={v => patch(key, v)} minRows={3}
+            placeholder={fieldDef?.label || '—'} />
+        if (ft === 'boolean')
+          return (
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+              padding:'8px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)' }}>
+              <input type="checkbox" checked={!!val} onChange={e => patch(key, e.target.checked)}
+                style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
+              <span style={{ fontSize:13, color:'var(--text)' }}>{fieldDef?.label || key}</span>
+            </label>
+          )
+        if (ft === 'date')
+          return <input style={inpStyle} type="date" value={val}
+            onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+            onBlur={e => patch(key, e.target.value)} />
+        if (ft === 'number')
+          return <input style={inpStyle} type="number" value={val}
+            onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+            onBlur={e => patch(key, e.target.value)} />
+        if (ft === 'select' && opts.length)
+          return (
+            <select style={inpStyle} value={val} onChange={e => patch(key, e.target.value)}>
+              <option value="">— Selecione —</option>
+              {opts.map(o => <option key={o} value={o}>{o}</option>)}
+            </select>
+          )
+        return <input style={inpStyle} type="text" value={val}
+          placeholder={fieldDef?.label || '—'}
+          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+          onBlur={e => patch(key, e.target.value)} />
+      }
     }
   }
 
