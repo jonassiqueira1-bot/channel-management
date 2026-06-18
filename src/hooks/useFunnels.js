@@ -63,13 +63,19 @@ export function useFunnels() {
   useEffect(() => { load() }, [load])
 
   const persistAll = useCallback(async (list) => {
-    if (isMockMode.current) return
-    await supabase.from('form_layouts').upsert({
-      tenant_id:  tenantId,
-      entity:     'funis',
-      fields:     list,
-      layout:     [],
-    }, { onConflict: 'tenant_id,entity' })
+    if (!tenantId) return
+    const { data: existing } = await supabase
+      .from('form_layouts').select('id').eq('tenant_id', tenantId).eq('entity', 'funis').limit(1)
+    if (existing && existing.length > 0) {
+      const { error } = await supabase
+        .from('form_layouts').update({ fields: list }).eq('tenant_id', tenantId).eq('entity', 'funis')
+      if (error) console.warn('[useFunnels] update error:', error.message)
+    } else {
+      const { error } = await supabase
+        .from('form_layouts').insert({ tenant_id: tenantId, entity: 'funis', fields: list, layout: [] })
+      if (error) console.warn('[useFunnels] insert error:', error.message)
+    }
+    isMockMode.current = false
   }, [tenantId])
 
   const save = useCallback(async (data) => {

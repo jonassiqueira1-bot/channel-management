@@ -4196,7 +4196,7 @@ function FunilDropdown({ funis, funilAtivo, onChange }) {
             )
           })}
           <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border2)', background:'var(--surface2)' }}>
-            <a href="/configuracao/funis" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', fontWeight:500 }}>⚙ Configurar funis</a>
+            <a href="/settings/funis" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', fontWeight:500 }}>⚙ Configurar funis</a>
           </div>
         </div>
       )}
