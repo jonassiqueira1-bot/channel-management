@@ -5,8 +5,9 @@ import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { useProducts } from '../hooks/useProducts'
 import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
 import { MOCK_ATIVIDADES } from '../data/mockAtividades'
-import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { MOCK_MEMBROS_OPP, PAPEIS } from '../data/mockMembroOportunidade'
+import { useSellers } from '../hooks/useSellers'
+import { useContacts } from '../hooks/useContacts'
 import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
 import {
   MOCK_TEMPLATES as MOCK_Q_TEMPLATES,
@@ -137,6 +138,32 @@ const EMPTY_OPP = {
   campanha_id: null,
   situacao:'em_andamento', motivo_perda:'',
   custom_fields: { tipo_implantacao:'', segmento_industria:'', exige_integracao:false },
+}
+
+// ─── Autocomplete de Seller/Responsável ──────────────────────────────────────
+function SellerSelect({ value, onChange, style }) {
+  const { sellers } = useSellers()
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const ativos = sellers.filter(s => s.status === 'ativo')
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <select
+        style={{ ...m.input, ...style }}
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        onFocus={() => setOpen(true)}
+      >
+        <option value="">— Responsável —</option>
+        {ativos.map(s => <option key={s.id} value={s.nome}>{s.nome}</option>)}
+      </select>
+    </div>
+  )
 }
 
 // ─── Autocomplete de Empresa ──────────────────────────────────────────────────
@@ -959,7 +986,7 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
             </div>
             <div>
               <label style={tb.lbl}>Responsável</label>
-              <input style={m.input} value={quickForm.responsavel} onChange={e=>qset('responsavel',e.target.value)} placeholder="Nome…" />
+              <SellerSelect value={quickForm.responsavel} onChange={v=>qset('responsavel',v)} />
             </div>
           </div>
           <textarea style={{ ...m.input, height:52, resize:'none', marginBottom:8, fontSize:12 }}
@@ -1719,16 +1746,23 @@ function UserAvatar({ usuario, size = 32 }) {
 // Em produção, substituir por SELECT/INSERT/DELETE em oportunidade_membros via Supabase.
 function OppEquipeTab({ oppId }) {
   const [membros, setMembros] = useLocalState('opp_membros_v1', MOCK_MEMBROS_OPP)
+  const { sellers }           = useSellers()
+  const { contacts }          = useContacts()
 
-  // Membros desta oportunidade enriquecidos com dados do usuário
+  // Pool combinado: sellers (internos) + contacts (externos/canais)
+  const todosMembros = useMemo(() => [
+    ...sellers.map(s => ({ id:`s_${s.id}`, nome: s.nome, cargo: s.cargo || s.role || '', email: s.email, tipo: 'interno', avatar: (s.nome||'?').slice(0,2).toUpperCase() })),
+    ...contacts.map(c => ({ id:`c_${c.id}`, nome: c.nome || c.email || 'Sem nome', cargo: c.cargo || '', email: c.email, tipo: 'externo', avatar: (c.nome||c.email||'?').slice(0,2).toUpperCase() })),
+  ], [sellers, contacts])
+
+  // Membros desta oportunidade enriquecidos
   const equipe = useMemo(() => {
     return membros
       .filter(m => m.oportunidade_id === oppId)
-      .map(m => ({ ...m, usuario: MOCK_USUARIOS.find(u => u.id === m.user_id) }))
+      .map(m => ({ ...m, usuario: todosMembros.find(u => u.id === m.user_id) }))
       .filter(m => m.usuario)
-  }, [membros, oppId])
+  }, [membros, oppId, todosMembros])
 
-  // Estado do formulário de adição
   const [showAdd, setShowAdd]   = useState(false)
   const [query,   setQuery]     = useState('')
   const [selUser, setSelUser]   = useState(null)
@@ -1742,17 +1776,15 @@ function OppEquipeTab({ oppId }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  // Usuários já na equipe (para excluir do seletor)
   const jaAdicionados = new Set(equipe.map(m => m.user_id))
 
-  // Sugestões filtradas
   const sugestoes = useMemo(() => {
     const q = query.toLowerCase()
-    return MOCK_USUARIOS.filter(u =>
+    return todosMembros.filter(u =>
       !jaAdicionados.has(u.id) &&
-      (u.nome.toLowerCase().includes(q) || u.cargo.toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      ((u.nome||'').toLowerCase().includes(q) || (u.cargo||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
     ).slice(0, 8)
-  }, [query, jaAdicionados])
+  }, [query, jaAdicionados, todosMembros])
 
   function handleAdd() {
     if (!selUser) return
@@ -3383,11 +3415,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           empresaId={form.empresa_id} allContatos={todosContatos}
           onChange={(id, nome) => { set('primary_contact_id', id); set('primary_contact_nome', nome) }} />
       case 'responsavel':
-        return <SearchSelect
-          options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: '#6366F1' }))}
-          value={MOCK_USUARIOS.find(u => u.nome === form.responsavel)?.id || null}
-          onChange={(id, nome) => set('responsavel', nome)}
-          placeholder="Pesquisar responsável…" inputStyle={m.input} />
+        return <SellerSelect value={form.responsavel} onChange={nome => set('responsavel', nome)} style={m.input} />
       case 'situacao':
         return (
           <div style={{ position:'relative' }}>
