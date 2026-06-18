@@ -12,6 +12,7 @@ import DynamicFormLayout from '../components/DynamicFormLayout'
 import { useContacts } from '../hooks/useContacts'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
+import { useProjects } from '../hooks/useProjects'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -216,6 +217,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const { contacts: allContacts, save: saveContact, remove: removeContact } = useContacts()
   const { opps: allOpps,         save: saveOpp,     remove: removeOpp }     = useOpportunities()
   const { contratos: allContratos, save: saveContrato, remove: removeContrato } = useContracts()
+  const { projetos: allProjetos, save: saveProjeto } = useProjects()
   const [franquias] = useLocalState('settings:franquias_v2', [])
   const [canal, setCanal] = useLocalState('empresa:canal:' + item?.id, {
     resp_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
@@ -224,6 +226,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const contatos  = useMemo(() => allContacts.filter(c  => String(c.empresa_id)  === String(item?.id)), [allContacts,  item?.id])
   const opps      = useMemo(() => allOpps.filter(o      => String(o.empresa_id)  === String(item?.id)), [allOpps,      item?.id])
   const contratos = useMemo(() => allContratos.filter(c => String(c.empresa_id)  === String(item?.id)), [allContratos, item?.id])
+  const projetos  = useMemo(() => allProjetos.filter(p  => String(p.company_id)  === String(item?.id)), [allProjetos,  item?.id])
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
   function patch(field, val) {
@@ -803,6 +806,124 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     )
   }
 
+  function TabProjetos() {
+    const [adicionando, setAdicionando] = useState(false)
+    const [novoPrj, setNovoPrj] = useState({ name:'', status:'em_andamento', phase:'iniciacao' })
+
+    const FASES = [
+      { value:'iniciacao',   label:'Iniciação'   },
+      { value:'diagnostico', label:'Diagnóstico'  },
+      { value:'planejamento',label:'Planejamento' },
+      { value:'execucao',    label:'Execução'     },
+      { value:'validacao',   label:'Validação'    },
+      { value:'encerramento',label:'Encerramento' },
+    ]
+    const STATUS = {
+      em_andamento: { label:'Em andamento', bg:'#FFFBEB', text:'#92400E' },
+      concluido:    { label:'Concluído',    bg:'#D1FAE5', text:'#065F46' },
+      pausado:      { label:'Pausado',      bg:'#F3F4F6', text:'#374151' },
+      cancelado:    { label:'Cancelado',    bg:'#FEF2F2', text:'#991B1B' },
+    }
+
+    async function salvarProjeto() {
+      if (!novoPrj.name.trim()) return
+      await saveProjeto({
+        name: novoPrj.name.trim(),
+        status: novoPrj.status,
+        phase: novoPrj.phase,
+        current_phase_index: FASES.findIndex(f => f.value === novoPrj.phase) + 1 || 1,
+        company_id: item?.id,
+        company_nome: form.fantasia || form.razao || '',
+        total_hours_estimated: 0,
+        total_hours_executed: 0,
+      })
+      setNovoPrj({ name:'', status:'em_andamento', phase:'iniciacao' })
+      setAdicionando(false)
+    }
+
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
+          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', overflow:'hidden' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+            padding:'14px 20px', borderBottom: projetos.length > 0 || adicionando ? '1px solid var(--border2)' : 'none' }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
+              {projetos.length} projeto{projetos.length !== 1 ? 's' : ''}
+            </span>
+            <Button size="sm" onClick={() => setAdicionando(true)}>+ Novo projeto</Button>
+          </div>
+
+          {adicionando && (
+            <div style={{ padding:'16px 20px', background:'var(--surface2)', borderBottom:'1px solid var(--border2)',
+              display:'flex', flexDirection:'column', gap:8 }}>
+              <div>
+                <label style={lbl}>Nome do projeto</label>
+                <input style={inpStyle} value={novoPrj.name} autoFocus
+                  onChange={e => setNovoPrj(p => ({ ...p, name:e.target.value }))}
+                  placeholder="Ex: Implantação ERP" />
+              </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <div>
+                  <label style={lbl}>Fase MIT</label>
+                  <select style={inpStyle} value={novoPrj.phase}
+                    onChange={e => setNovoPrj(p => ({ ...p, phase:e.target.value }))}>
+                    {FASES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label style={lbl}>Status</label>
+                  <select style={inpStyle} value={novoPrj.status}
+                    onChange={e => setNovoPrj(p => ({ ...p, status:e.target.value }))}>
+                    {Object.entries(STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
+                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
+                <Button size="sm" onClick={salvarProjeto}>Salvar</Button>
+              </div>
+            </div>
+          )}
+
+          {projetos.map((p, i) => {
+            const sit = STATUS[p.status] || STATUS.em_andamento
+            const fase = FASES.find(f => f.value === p.phase) || FASES[0]
+            return (
+              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px',
+                borderBottom: i < projetos.length - 1 ? '1px solid var(--border2)' : 'none',
+                transition:'background 0.1s' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.name}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, fontFamily:'var(--mono)' }}>
+                    {fase.label}
+                    {p.end_date_estimated ? ` · até ${p.end_date_estimated}` : ''}
+                  </div>
+                </div>
+                <span style={{ padding:'2px 9px', borderRadius:20, background:sit.bg, color:sit.text,
+                  fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+                  {sit.label}
+                </span>
+                {(Number(p.total_hours_estimated) > 0) && (
+                  <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+                    {Number(p.total_hours_executed).toFixed(0)}h/{Number(p.total_hours_estimated)}h
+                  </span>
+                )}
+              </div>
+            )
+          })}
+
+          {projetos.length === 0 && !adicionando && (
+            <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
+              Nenhum projeto vinculado a esta empresa
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   function TabCanal() {
     const franquiaAtual = franquias.find(f => String(f.id) === String(form.franquia_ar_id))
 
@@ -886,6 +1007,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
         <div style={{ display: tab === 'contatos'  ? 'contents' : 'none' }}>{TabContatos()}</div>
         <div style={{ display: tab === 'opps'      ? 'contents' : 'none' }}>{TabOportunidades()}</div>
         <div style={{ display: tab === 'contratos' ? 'contents' : 'none' }}>{TabContratos()}</div>
+        <div style={{ display: tab === 'projetos'  ? 'contents' : 'none' }}>{TabProjetos()}</div>
         <div style={{ display: tab === 'canal'     ? 'contents' : 'none' }}>{TabCanal()}</div>
       </div>
       {!isNew && (
@@ -1189,6 +1311,7 @@ export default function Empresas() {
           { key: 'contatos',   label: 'Contatos' },
           { key: 'opps',       label: 'Oportunidades' },
           { key: 'contratos',  label: 'Contratos' },
+          { key: 'projetos',   label: 'Projetos' },
           { key: 'canal',      label: 'Canal' },
         ] : undefined}
         activeTab={soTab}
