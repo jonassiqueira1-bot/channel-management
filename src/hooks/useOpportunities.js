@@ -74,6 +74,7 @@ function oppToRow(opp, tenantId, branchId) {
     custom_fields: {
       funil_id:              opp.funil_id,
       funil_nome:            opp.funil_nome || '',
+      etapa_id:              opp.etapa_id || null,
       etapa_id:              opp.etapa_id,
       playbook_id:           opp.playbook_id,
       empresa_nome:          opp.empresa_nome,
