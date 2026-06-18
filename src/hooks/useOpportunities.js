@@ -23,6 +23,7 @@ function rowToOpp(row) {
     id:                    row.id,
     titulo:                row.titulo || '',
     funil_id:              row.funil_id || cf.funil_id || null,
+    funil_nome:            cf.funil_nome || '',
     etapa_id:              row.stage_id || null,
     playbook_id:           cf.playbook_id || null,
     empresa_id:            row.company_id || null,
@@ -73,6 +74,7 @@ function oppToRow(opp, tenantId, branchId) {
     motivo_perda:opp.motivo_perda || '',
     custom_fields: {
       funil_id:              opp.funil_id,
+      funil_nome:            opp.funil_nome || '',
       playbook_id:           opp.playbook_id,
       empresa_nome:          opp.empresa_nome,
       primary_contact_nome:  opp.primary_contact_nome,

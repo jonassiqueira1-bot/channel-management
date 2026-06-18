@@ -5196,7 +5196,7 @@ export default function Pipeline() {
   }
 
   // ── save/delete ───────────────────────────────────────────────────────────
-  function handleSave(data) { saveOpp(data); setModal(null) }
+  function handleSave(data) { saveOpp({ ...data, funil_nome: funil?.nome || '' }); setModal(null) }
   function handleDelete(id) { removeOpp(id); setModal(null) }
 
   function handleSaveTarefa(tarefa) {
