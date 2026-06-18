@@ -5,6 +5,8 @@ import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
+import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
+import { useBranches } from '../../hooks/useBranches'
 
 const ACCENT = '#6366F1'
 
@@ -262,341 +264,202 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
 }
 
 // ─── Modal de edição de perfil ────────────────────────────────────────────────
-function EditarModal({ perfil, onClose, onSave, onDelete, sessao }) {
+// ─── Toggle switch ────────────────────────────────────────────────────────────
+function Toggle({ checked, onChange, disabled }) {
+  return (
+    <button type="button" onClick={() => !disabled && onChange(!checked)}
+      style={{ width:40, height:22, borderRadius:99, padding:0, flexShrink:0,
+        background: checked ? 'var(--accent)' : 'var(--border)',
+        border:'none', cursor: disabled ? 'default' : 'pointer', position:'relative', transition:'background 0.2s' }}>
+      <span style={{ position:'absolute', top:3, left: checked ? 21 : 3,
+        width:16, height:16, borderRadius:'50%', background:'#fff',
+        transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.25)' }} />
+    </button>
+  )
+}
+
+// ─── Editar usuário (página inteira) ─────────────────────────────────────────
+function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const [form, setForm] = useState({
     nome:               perfil.nome,
     papel:              perfil.papel,
     status:             perfil.status,
-    empresa_id:         perfil.empresa_id || '',
     perfis_acesso_ids:  perfil.perfis_acesso_ids || [],
+    branch_ids:         perfil.branch_ids || [],
   })
-  const [confirmDel, setConfirmDel]     = useState(false)
-  const [perfilSearch, setPerfilSearch] = useState('')
-  const [perfilOpen, setPerfilOpen]     = useState(false)
-  const perfilRef                       = useRef(null)
-  const [rolesStore]  = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [permsStore]  = useLocalState('perfis:permissions', {})
+  const [confirmDel, setConfirmDel] = useState(false)
+  const [rolesStore] = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
+  const { branches } = useBranches()
 
-  useEffect(() => {
-    if (!perfilOpen) return
-    function h(e) { if (perfilRef.current && !perfilRef.current.contains(e.target)) { setPerfilOpen(false); setPerfilSearch('') } }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [perfilOpen])
-
-  // Permissões efetivas = union de todos os perfis atribuídos
-  const permissoesEfetivas = useMemo(() => {
-    const result = {}
-    ;(form.perfis_acesso_ids || []).forEach(pid => {
-      const p = permsStore[pid] || {}
-      Object.entries(p).forEach(([mod, acoes]) => {
-        if (!result[mod]) result[mod] = {}
-        Object.entries(acoes).forEach(([acao, val]) => {
-          if (val) result[mod][acao] = true
-        })
-      })
+  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
+  function toggleBranch(id) {
+    setForm(f => {
+      const ids = f.branch_ids || []
+      return { ...f, branch_ids: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] }
     })
-    return result
-  }, [form.perfis_acesso_ids, permsStore])
-
-  function togglePerfilAcesso(id) {
+  }
+  function togglePerfil(id) {
     setForm(f => {
       const ids = f.perfis_acesso_ids || []
       return { ...f, perfis_acesso_ids: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] }
     })
   }
 
-  function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
-
-  const papeisDisp = papeisCadastravelPor(sessao)
-  const podeEditar = sessao.papel === 'admin_isv' ||
-    (sessao.papel === 'admin_franquia' && perfil.empresa_id === sessao.empresa_id)
+  const papeisDisp  = papeisCadastravelPor(sessao)
+  const podeEditar  = sessao.papel === 'admin_isv' || (sessao.papel === 'admin_franquia' && perfil.empresa_id === sessao.empresa_id)
   const podeExcluir = sessao.papel === 'admin_isv' && perfil.id !== sessao.id
+  const papelSel    = PAPEIS_OPTIONS.find(p => p.value === form.papel)
 
-  const papelSelecionado = PAPEIS_OPTIONS.find(p => p.value === form.papel)
-  const precisaEmpresa   = papelSelecionado?.tipo === 'externo'
-
-  function handleSave(e) {
-    e.preventDefault()
+  function handleSave() {
     onSave({
       ...perfil,
       nome:              form.nome.trim(),
       papel:             form.papel,
-      tipo_usuario:      papelSelecionado?.tipo || perfil.tipo_usuario,
-      empresa_id:        precisaEmpresa ? (Number(form.empresa_id) || null) : null,
+      tipo_usuario:      papelSel?.tipo || perfil.tipo_usuario,
       status:            form.status,
       perfis_acesso_ids: form.perfis_acesso_ids,
+      branch_ids:        form.branch_ids,
     })
     onClose()
   }
 
+  const ROW = { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 0', borderBottom:'1px solid var(--border)' }
+  const LABEL = { fontSize:13, fontWeight:600, color:'var(--text)' }
+  const DESC  = { fontSize:11, color:'var(--text-muted)', marginTop:2 }
+
   return (
-    <div style={ov.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={ov.modal}>
+    <FullPageEdit
+      title={perfil.nome}
+      subtitle={perfil.email}
+      onSave={podeEditar ? handleSave : undefined}
+      onCancel={onClose}
+    >
+      {/* Dados básicos */}
+      <FPESection title="Dados do Usuário">
+        <FPEGrid>
+          <FPEField label="Nome completo" style={{ gridColumn:'1/-1' }}>
+            <input className="fpe-field" value={form.nome} disabled={!podeEditar} onChange={e => set('nome', e.target.value)} />
+          </FPEField>
+          <FPEField label="E-mail" style={{ gridColumn:'1/-1' }}>
+            <input className="fpe-field" value={perfil.email} disabled style={{ opacity:0.6 }} />
+          </FPEField>
+        </FPEGrid>
 
-        {/* Header */}
-        <div style={ov.header}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Avatar perfil={perfil} size={40} />
-            <div>
-              <div style={ov.title}>{perfil.nome}</div>
-              <div style={ov.subtitle}>{perfil.email}</div>
+        {/* Info datas */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, padding:'10px 14px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', marginTop:8 }}>
+          {[['Criado em', fmtDate(perfil.criado_em)], ['Último acesso', fmtDate(perfil.ultimo_acesso)]].map(([l, v]) => (
+            <div key={l}>
+              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', marginBottom:4 }}>{l}</div>
+              <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text)' }}>{v}</div>
             </div>
-          </div>
-          <button style={ov.closeBtn} onClick={onClose}>✕</button>
+          ))}
         </div>
+      </FPESection>
 
-        <form onSubmit={handleSave}>
-          <div style={ov.body}>
-
-            <Field label="Nome completo">
-              <input style={inp.base} value={form.nome} disabled={!podeEditar}
-                onChange={e => set('nome', e.target.value)} />
-            </Field>
-
-            {/* Papel */}
-            {podeEditar && (
-              <Field label="Papel">
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {papeisDisp.map(p => {
-                    const cfg = PAPEIS_CONFIG[p.value]
-                    const ativo = form.papel === p.value
-                    return (
-                      <button key={p.value} type="button" onClick={() => set('papel', p.value)}
-                        style={{
-                          padding: '7px 13px', borderRadius: 8, cursor: 'pointer',
-                          fontFamily: 'var(--font)', fontSize: 12, fontWeight: ativo ? 700 : 500,
-                          border: `1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
-                          background: ativo ? cfg.bg : 'none',
-                          color: ativo ? cfg.text : 'var(--text-soft)',
-                          transition: 'all 0.15s',
-                        }}>
-                        {cfg.icon} {cfg.label}
-                      </button>
-                    )
-                  })}
+      {/* Papel */}
+      <FPESection title="Papel">
+        <div style={{ display:'flex', flexDirection:'column' }}>
+          {papeisDisp.map(p => {
+            const cfg = PAPEIS_CONFIG[p.value]
+            const ativo = form.papel === p.value
+            return (
+              <div key={p.value} style={ROW}>
+                <div>
+                  <div style={{ ...LABEL, color: ativo ? cfg.color : 'var(--text)' }}>{cfg.icon} {cfg.label}</div>
+                  {p.desc && <div style={DESC}>{p.desc}</div>}
                 </div>
-              </Field>
-            )}
-
-            {!podeEditar && (
-              <Field label="Papel">
-                <PapelBadge papel={perfil.papel} />
-              </Field>
-            )}
-
-            {/* Empresa */}
-            {precisaEmpresa && (
-              <Field label="Empresa">
-                {sessao.papel === 'admin_isv' ? (
-                  <select style={inp.base} value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}>
-                    <option value="">— Nenhuma —</option>
-                    {MOCK_EMPRESAS.map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.fantasia || emp.razao}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
-                    {MOCK_EMPRESAS.find(e => e.id === perfil.empresa_id)?.fantasia || '—'}
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>(fixo)</span>
-                  </div>
-                )}
-              </Field>
-            )}
-
-            {/* Status */}
-            {podeEditar && (
-              <Field label="Status">
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {['ativo', 'inativo'].map(s => {
-                    const cfg = STATUS_CONFIG[s]
-                    const ativo = form.status === s
-                    return (
-                      <button key={s} type="button" onClick={() => set('status', s)}
-                        style={{
-                          padding: '6px 14px', borderRadius: 8, cursor: 'pointer',
-                          fontFamily: 'var(--font)', fontSize: 12, fontWeight: ativo ? 700 : 500,
-                          border: `1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
-                          background: ativo ? cfg.bg : 'none',
-                          color: ativo ? cfg.text : 'var(--text-soft)',
-                          transition: 'all 0.15s',
-                        }}>
-                        {cfg.label}
-                      </button>
-                    )
-                  })}
-                </div>
-              </Field>
-            )}
-
-            {/* Perfis de Acesso */}
-            <Field label="Perfis de Acesso">
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-
-                {/* Chips dos perfis atribuídos */}
-                {(form.perfis_acesso_ids || []).length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {(form.perfis_acesso_ids || []).map(pid => {
-                      const p = rolesStore.find(r => r.id === pid)
-                      if (!p) return null
-                      return (
-                        <span key={pid} style={{ display: 'inline-flex', alignItems: 'center', gap: 5,
-                          padding: '3px 8px 3px 10px', borderRadius: 99, fontSize: 12, fontWeight: 600,
-                          background: `${p.cor}18`, color: p.cor,
-                          border: `1px solid ${p.cor}44` }}>
-                          {p.nome}
-                          {podeEditar && (
-                            <button type="button" onClick={() => togglePerfilAcesso(pid)}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer',
-                                color: p.cor, display: 'flex', alignItems: 'center', padding: 0, fontSize: 13 }}>×</button>
-                          )}
-                        </span>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {/* Busca para adicionar */}
-                {podeEditar && (
-                  <div ref={perfilRef} style={{ position: 'relative' }}>
-                    <input
-                      value={perfilSearch}
-                      onFocus={() => setPerfilOpen(true)}
-                      onChange={e => { setPerfilSearch(e.target.value); setPerfilOpen(true) }}
-                      placeholder={(form.perfis_acesso_ids || []).length > 0 ? '+ Adicionar perfil…' : 'Buscar perfil de acesso…'}
-                      style={{ ...inp.base, fontSize: 13 }}
-                    />
-                    {perfilOpen && (
-                      <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0,
-                        zIndex: 600, background: 'var(--surface)', border: '1px solid var(--border)',
-                        borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
-                        {rolesStore
-                          .filter(r => !perfilSearch || r.nome.toLowerCase().includes(perfilSearch.toLowerCase()))
-                          .map(r => {
-                            const sel = (form.perfis_acesso_ids || []).includes(r.id)
-                            return (
-                              <button key={r.id} type="button"
-                                onMouseDown={e => { e.preventDefault(); togglePerfilAcesso(r.id); setPerfilSearch('') }}
-                                style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-                                  padding: '8px 12px', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                  fontFamily: 'var(--font)', background: sel ? `${r.cor}10` : 'transparent' }}
-                                onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface2)' }}
-                                onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'transparent' }}>
-                                <div style={{ width: 10, height: 10, borderRadius: '50%', background: r.cor, flexShrink: 0 }} />
-                                <div style={{ flex: 1 }}>
-                                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{r.nome}</div>
-                                  {r.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.desc}</div>}
-                                </div>
-                                {sel && <span style={{ fontSize: 11, color: r.cor, fontWeight: 700 }}>✓</span>}
-                              </button>
-                            )
-                          })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Permissões efetivas */}
-                {(form.perfis_acesso_ids || []).length > 0 && Object.keys(permissoesEfetivas).length > 0 && (
-                  <div style={{ marginTop: 4, padding: '10px 12px', background: 'var(--surface2)',
-                    border: '1px solid var(--border)', borderRadius: 8 }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                      letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 8 }}>
-                      Permissões efetivas (union dos perfis)
-                    </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                      {Object.entries(permissoesEfetivas).map(([mod, acoes]) => {
-                        const ativos = Object.entries(acoes).filter(([, v]) => v).map(([k]) => k)
-                        if (!ativos.length) return null
-                        return (
-                          <div key={mod} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)',
-                              minWidth: 90, paddingTop: 2, textTransform: 'capitalize' }}>{mod}</span>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-                              {ativos.map(a => (
-                                <span key={a} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4,
-                                  background: 'rgba(99,102,241,0.1)', color: '#6366F1',
-                                  fontWeight: 600, fontFamily: 'var(--mono)' }}>{a}</span>
-                              ))}
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {(form.perfis_acesso_ids || []).length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                    Nenhum perfil atribuído — o usuário terá apenas as permissões do papel.
-                  </div>
-                )}
+                <Toggle checked={ativo} onChange={() => podeEditar && set('papel', p.value)} disabled={!podeEditar} />
               </div>
-            </Field>
+            )
+          })}
+        </div>
+      </FPESection>
 
-            {/* Info: datas */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: '10px 14px',
-              background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Criado em</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text)' }}>
-                  {fmtDate(perfil.criado_em)}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 4 }}>Último acesso</div>
-                <div style={{ fontSize: 12, fontFamily: 'var(--mono)', color: perfil.ultimo_acesso ? 'var(--text)' : 'var(--text-muted)' }}>
-                  {fmtDate(perfil.ultimo_acesso)}
-                </div>
-              </div>
-            </div>
-
-            {/* tenant_id / id (info dev) */}
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
-              padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6,
-              border: '1px solid var(--border2)' }}>
-              id: <span style={{ color: 'var(--accent)' }}>{perfil.id}</span>
-              {' · '}tenant: <span style={{ color: 'var(--accent)' }}>{perfil.tenant_id}</span>
-            </div>
-
+      {/* Status */}
+      <FPESection title="Status">
+        <div style={ROW}>
+          <div>
+            <div style={LABEL}>Usuário ativo</div>
+            <div style={DESC}>Usuário inativo não consegue fazer login</div>
           </div>
+          <Toggle checked={form.status === 'ativo'} onChange={v => podeEditar && set('status', v ? 'ativo' : 'inativo')} disabled={!podeEditar} />
+        </div>
+      </FPESection>
 
-          <div style={ov.footer}>
-            <div style={{ flex: 1 }}>
-              {podeExcluir && !confirmDel && (
-                <button type="button"
-                  style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: 'none',
-                    cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}
-                  onClick={() => setConfirmDel(true)}>
-                  Remover usuário
-                </button>
-              )}
-              {confirmDel && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Confirmar remoção?</span>
-                  <button type="button"
-                    style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: 'var(--red)',
-                      border: 'none', borderRadius: 6, padding: '4px 12px', cursor: 'pointer' }}
-                    onClick={() => { onDelete(perfil.id); onClose() }}>
-                    Sim, remover
-                  </button>
-                  <button type="button"
-                    style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none',
-                      border: 'none', cursor: 'pointer' }}
-                    onClick={() => setConfirmDel(false)}>
-                    Cancelar
-                  </button>
-                </div>
-              )}
-            </div>
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
-            {podeEditar && <Button type="submit">Salvar</Button>}
+      {/* Unidades */}
+      <FPESection title="Unidades com acesso" description="Selecione as unidades (branches) que este usuário pode visualizar e operar.">
+        {branches.length === 0 ? (
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>
+            Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
-        </form>
-      </div>
-    </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column' }}>
+            {branches.map(b => {
+              const cf = b.custom_fields || {}
+              const sel = (form.branch_ids || []).includes(b.id)
+              return (
+                <div key={b.id} style={ROW}>
+                  <div>
+                    <div style={{ ...LABEL, display:'flex', alignItems:'center', gap:6 }}>
+                      {b.name}
+                      {cf.is_matriz && <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px' }}>Matriz</span>}
+                    </div>
+                    {(cf.cidade || cf.uf) && <div style={DESC}>{[cf.cidade, cf.uf].filter(Boolean).join('/')}</div>}
+                  </div>
+                  <Toggle checked={sel} onChange={() => podeEditar && toggleBranch(b.id)} disabled={!podeEditar} />
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </FPESection>
+
+      {/* Perfis de acesso */}
+      <FPESection title="Perfis de acesso" description="Perfis adicionam permissões granulares além do papel base.">
+        <div style={{ display:'flex', flexDirection:'column' }}>
+          {rolesStore.map(r => {
+            const sel = (form.perfis_acesso_ids || []).includes(r.id)
+            return (
+              <div key={r.id} style={ROW}>
+                <div>
+                  <div style={{ ...LABEL, display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background:r.cor, flexShrink:0, display:'inline-block' }} />
+                    {r.nome}
+                  </div>
+                  {r.desc && <div style={DESC}>{r.desc}</div>}
+                </div>
+                <Toggle checked={sel} onChange={() => podeEditar && togglePerfil(r.id)} disabled={!podeEditar} />
+              </div>
+            )
+          })}
+          {rolesStore.length === 0 && <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>}
+        </div>
+      </FPESection>
+
+      {/* Zona de perigo */}
+      {podeExcluir && (
+        <FPESection title="Zona de perigo">
+          {!confirmDel ? (
+            <button type="button" onClick={() => setConfirmDel(true)}
+              style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+              Remover usuário
+            </button>
+          ) : (
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar remoção de <strong>{perfil.nome}</strong>?</span>
+              <button type="button" onClick={() => { onDelete(perfil.id); onClose() }}
+                style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                Confirmar
+              </button>
+              <button type="button" onClick={() => setConfirmDel(false)}
+                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer' }}>
+                Cancelar
+              </button>
+            </div>
+          )}
+        </FPESection>
+      )}
+    </FullPageEdit>
   )
 }
 
@@ -812,6 +675,18 @@ export default function SettingsUsuarios() {
 
   const podeCriar = sessao.papel === 'admin_isv' || sessao.papel === 'admin_franquia'
 
+  if (editando) {
+    return (
+      <EditarUsuario
+        perfil={editando}
+        onClose={() => setEditando(null)}
+        onSave={salvarPerfil}
+        onDelete={deletarPerfil}
+        sessao={sessao}
+      />
+    )
+  }
+
   return (
     <div style={pg.wrap}>
 
@@ -885,15 +760,6 @@ export default function SettingsUsuarios() {
           onSave={salvarPerfil}
           sessao={sessao}
           perfisExistentes={perfis}
-        />
-      )}
-      {editando && (
-        <EditarModal
-          perfil={editando}
-          onClose={() => setEditando(null)}
-          onSave={salvarPerfil}
-          onDelete={deletarPerfil}
-          sessao={sessao}
         />
       )}
     </div>
