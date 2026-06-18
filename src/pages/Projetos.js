@@ -12,6 +12,7 @@ import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
+import EmpresaSearch from '../components/EmpresaSearch'
 
 const ACCENT = 'var(--accent)'
 
@@ -220,7 +221,7 @@ function KanbanColuna({ fase, projetos, blockedIds, execTotals, onEdit, onDragSt
 
 // ─── Novo Projeto Modal ───────────────────────────────────────────────────────
 function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) {
-  const [form, setForm] = useState({ ...EMPTY_FORM, phase: defaultPhase || 'iniciacao', current_phase_index: defaultPhaseIndex || 1 })
+  const [form, setForm] = useState({ ...EMPTY_FORM, phase: defaultPhase || 'iniciacao', current_phase_index: defaultPhaseIndex || 1, company_id: null })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   return (
@@ -241,7 +242,12 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div style={ms.fg}>
             <label style={ms.lbl}>Empresa <span style={{ color: 'var(--red)' }}>*</span></label>
-            <input style={ms.inp} value={form.company_nome} onChange={e => set('company_nome', e.target.value)} placeholder="Nexus Tech" />
+            <EmpresaSearch
+              value={form.company_id}
+              label={form.company_nome}
+              onChange={(id, nome) => setForm(f => ({ ...f, company_id: id, company_nome: nome || '' }))}
+              placeholder="Buscar empresa…"
+            />
           </div>
           <div style={ms.fg}>
             <label style={ms.lbl}>Franquia / Canal</label>
