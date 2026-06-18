@@ -64,7 +64,6 @@ function oppToRow(opp, tenantId, branchId) {
     company_id:  isValidUuid(opp.empresa_id) ? opp.empresa_id : null,
     contact_id:  isValidUuid(opp.primary_contact_id) ? opp.primary_contact_id : null,
     stage_id:    (typeof opp.etapa_id === 'string' && opp.etapa_id.includes('-')) ? opp.etapa_id : null,
-    funil_id:    opp.funil_id != null ? String(opp.funil_id) : null,
     responsavel: opp.responsavel || '',
     valor:       opp.valor || 0,
     situacao:    opp.situacao || 'em_andamento',
