@@ -82,11 +82,20 @@ function oppToRow(opp, tenantId, branchId) {
   }
 }
 
+const LS_KEY = 'opps_cache_v1'
+
+function lsLoad() {
+  try { const s = localStorage.getItem(LS_KEY); return s ? JSON.parse(s) : null } catch { return null }
+}
+function lsSave(list) {
+  try { localStorage.setItem(LS_KEY, JSON.stringify(list)) } catch {}
+}
+
 export function useOpportunities() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [opps,    setOpps]    = useState(MOCK_OPORTUNIDADES)
+  const [opps,    setOpps]    = useState(() => lsLoad() || MOCK_OPORTUNIDADES)
   const [loading, setLoading] = useState(true)
   const isMockMode  = useRef(true)
   const tenantIdRef = useRef(null)
@@ -95,15 +104,19 @@ export function useOpportunities() {
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
-  // Mantém refs sempre atualizados para que callbacks não capturem valores stale
   useEffect(() => { tenantIdRef.current = tenantId }, [tenantId])
   useEffect(() => { branchIdRef.current = branchId }, [branchId])
+
+  // Persiste no localStorage sempre que opps mudam
+  useEffect(() => { lsSave(opps) }, [opps])
 
   const load = useCallback(async () => {
     setLoading(true)
 
     if (!session?.user) {
-      setOpps(MOCK_OPORTUNIDADES)
+      // Não autenticado: usa cache local se existir, senão mock
+      const cached = lsLoad()
+      setOpps(cached || MOCK_OPORTUNIDADES)
       isMockMode.current = true
       setLoading(false)
       return
@@ -115,14 +128,18 @@ export function useOpportunities() {
       .order('created_at', { ascending: false })
 
     if (error) {
+      console.warn('[useOpportunities] load error:', error.message)
+      // Supabase falhou: usa cache local para não perder dados
+      const cached = lsLoad()
+      if (cached) setOpps(cached)
       isMockMode.current = true
-      setOpps(MOCK_OPORTUNIDADES)
       setLoading(false)
       return
     }
 
     isMockMode.current = false
-    setOpps((data || []).map(rowToOpp))
+    const fromDb = (data || []).map(rowToOpp)
+    setOpps(fromDb)
     setLoading(false)
   }, [session])
 
