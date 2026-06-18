@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useFunnels } from '../hooks/useFunnels'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
-import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useProducts } from '../hooks/useProducts'
 import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
 import { MOCK_ATIVIDADES } from '../data/mockAtividades'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
@@ -275,7 +275,6 @@ const ar = {
 }
 
 // ─── Aba de Produtos da Oportunidade ─────────────────────────────────────────
-const PRODUTOS_ATIVOS = MOCK_PRODUTOS.filter(p => p.status === 'ativo')
 
 const COB_LABEL = { mensal:'MRR', anual:'Anual', unico:'Único' }
 const COB_BG    = { mensal:'#DBEAFE', anual:'#EDE9FE', unico:'#FEF3C7' }
@@ -289,14 +288,16 @@ function ProdutoSearch({ onAdd }) {
   const [q, setQ]           = useState('')
   const [open, setOpen]     = useState(false)
   const ref                 = useRef(null)
+  const { products }        = useProducts()
+  const produtosAtivos      = products.filter(p => p.status === 'ativo')
 
   const sugestoes = useMemo(() => {
-    if (!q.trim()) return PRODUTOS_ATIVOS.slice(0, 6)
+    if (!q.trim()) return produtosAtivos.slice(0, 6)
     const lq = q.toLowerCase()
-    return PRODUTOS_ATIVOS.filter(p =>
-      p.nome.toLowerCase().includes(lq) || p.codigo.toLowerCase().includes(lq)
+    return produtosAtivos.filter(p =>
+      (p.nome||'').toLowerCase().includes(lq) || (p.codigo||'').toLowerCase().includes(lq)
     ).slice(0, 8)
-  }, [q])
+  }, [q, produtosAtivos])
 
   useEffect(() => {
     function onClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
