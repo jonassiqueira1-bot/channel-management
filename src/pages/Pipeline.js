@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { MOCK_FUNIS } from '../data/mockFunis'
+import { useFunnels } from '../hooks/useFunnels'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
@@ -41,7 +41,6 @@ import SlideOver from '../components/ui/SlideOver'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
-const FUNIS_ATIVOS = MOCK_FUNIS.filter(f => f.status === 'ativo')
 
 const ORIGEM_COLORS = {
   Inbound:    { color:'#10B981', bg:'rgba(16,185,129,0.10)', text:'#059669' },
@@ -4973,6 +4972,8 @@ const fp = {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Pipeline() {
   // ── estado persistido em localStorage ───────────────────────────────────
+  const { funis: todosOsFunis } = useFunnels()
+  const FUNIS_ATIVOS = todosOsFunis.filter(f => f.status === 'ativo')
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', FUNIS_ATIVOS[0]?.id || null)
   const [view, setView]                 = useLocalState('pipeline:view', 'kanban')
   const [search, setSearch]             = useLocalState('pipeline:search', '')
