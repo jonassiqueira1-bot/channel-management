@@ -22,7 +22,7 @@ function rowToOpp(row) {
   return {
     id:                    row.id,
     titulo:                row.titulo || '',
-    funil_id:              cf.funil_id || null,
+    funil_id:              row.funil_id || cf.funil_id || null,
     etapa_id:              row.stage_id || null,
     playbook_id:           cf.playbook_id || null,
     empresa_id:            row.company_id || null,
@@ -63,6 +63,7 @@ function oppToRow(opp, tenantId, branchId) {
     company_id:  isValidUuid(opp.empresa_id) ? opp.empresa_id : null,
     contact_id:  isValidUuid(opp.primary_contact_id) ? opp.primary_contact_id : null,
     stage_id:    (typeof opp.etapa_id === 'string' && opp.etapa_id.includes('-')) ? opp.etapa_id : null,
+    funil_id:    opp.funil_id != null ? String(opp.funil_id) : null,
     responsavel: opp.responsavel || '',
     valor:       opp.valor || 0,
     situacao:    opp.situacao || 'em_andamento',
