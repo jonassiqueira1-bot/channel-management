@@ -134,16 +134,18 @@ export function useOpportunities() {
     }
 
     const row = oppToRow(data, tenantId, branchId)
+    // É update se tiver UUID real (com traço) OU se já existe na lista local
     const isUuid = typeof data.id === 'string' && data.id.includes('-')
+    const existeLocal = isUuid // IDs reais do Supabase são sempre UUIDs
 
-    if (isUuid) {
+    if (existeLocal) {
       // Atualiza local imediatamente
       setOpps(prev => prev.map(o => o.id === data.id ? { ...o, ...data } : o))
       const { error } = await supabase.from('opportunities').update(row).eq('id', data.id)
       if (error) console.warn('[useOpportunities] update error:', error.message)
     } else {
-      // Insere localmente com ID temporário enquanto aguarda Supabase
-      const tempId = `temp_${Date.now()}`
+      // Insere localmente com UUID temporário (com traço) para que edições subsequentes tomem o caminho UPDATE
+      const tempId = crypto.randomUUID()
       const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
       setOpps(prev => [...prev, optimistic])
       const { data: inserted, error } = await supabase.from('opportunities').insert(row).select('*, companies(nome_fantasia, razao_social)').single()
