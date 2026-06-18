@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Building2, Plus, Pencil, Trash2, X, Check, MapPin, Star } from 'lucide-react'
+import { useState, useMemo, useRef } from 'react'
+import { Building2, Plus, Pencil, Trash2, X, Check, MapPin, Star, Upload, ImageOff } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../../data/mockCompanies'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
@@ -22,6 +22,48 @@ function Label({ children, required }) {
   )
 }
 
+function LogoUpload({ value, onChange }) {
+  const inputRef = useRef()
+
+  function handleFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 500 * 1024) { alert('Imagem deve ter no máximo 500 KB'); return }
+    const reader = new FileReader()
+    reader.onload = ev => onChange(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+      <div
+        onClick={() => inputRef.current?.click()}
+        style={{ width:72, height:72, borderRadius:10, border:`2px dashed var(--border)`, background:'var(--surface)', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0, transition:'border-color 0.15s' }}
+        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+      >
+        {value
+          ? <img src={value} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain' }} />
+          : <Upload size={20} style={{ color:'var(--text-muted)' }} />}
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+        <button type="button" onClick={() => inputRef.current?.click()}
+          style={{ padding:'5px 12px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text)', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+          {value ? 'Trocar imagem' : 'Selecionar imagem'}
+        </button>
+        {value && (
+          <button type="button" onClick={() => onChange('')}
+            style={{ padding:'5px 12px', borderRadius:7, border:'none', background:'none', color:'#ef4444', fontSize:12, fontWeight:600, cursor:'pointer', textAlign:'left' }}>
+            Remover
+          </button>
+        )}
+        <span style={{ fontSize:10, color:'var(--text-muted)' }}>PNG, JPG ou SVG · máx 500 KB</span>
+      </div>
+      <input ref={inputRef} type="file" accept="image/*" style={{ display:'none' }} onChange={handleFile} />
+    </div>
+  )
+}
+
 function UnitForm({ value, onChange, onSave, onCancel, saving, isFirst }) {
   const cf = value.custom_fields || {}
   const set = (k, v) => onChange({ ...value, [k]: v })
@@ -29,6 +71,14 @@ function UnitForm({ value, onChange, onSave, onCancel, saving, isFirst }) {
 
   return (
     <div style={{ padding:'20px', borderTop:'1px solid var(--border)', background:'var(--surface2)', display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Logotipo */}
+      <div>
+        <Label>Logotipo da Unidade</Label>
+        <div style={{ marginTop:8 }}>
+          <LogoUpload value={cf.logo || ''} onChange={v => setCf('logo', v)} />
+        </div>
+      </div>
+
       {/* Nome e Responsável */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
         <div style={{ gridColumn:'1/-1' }}>
@@ -118,8 +168,10 @@ function UnitRow({ branch, onEdit, onDelete }) {
   const cf = branch.custom_fields || {}
   return (
     <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', borderTop:'1px solid var(--border)' }}>
-      <div style={{ width:36, height:36, borderRadius:9, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative' }}>
-        <Building2 size={15} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
+      <div style={{ width:44, height:44, borderRadius:9, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative', overflow:'hidden' }}>
+        {cf.logo
+          ? <img src={cf.logo} alt={branch.name} style={{ width:'100%', height:'100%', objectFit:'contain', padding:4 }} />
+          : <Building2 size={16} strokeWidth={1.75} style={{ color:'var(--accent)' }} />}
         {cf.is_matriz && (
           <span title="Matriz" style={{ position:'absolute', top:-4, right:-4, background:'var(--accent)', borderRadius:'50%', width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
             <Star size={8} style={{ color:'#fff' }} fill="#fff" />
