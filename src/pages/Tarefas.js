@@ -1,12 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTasks } from '../hooks/useTasks'
-import { MOCK_EMPRESAS } from '../data/mockEmpresas'
+import { useOpportunities } from '../hooks/useOpportunities'
+import { useCompanies } from '../hooks/useCompanies'
 import { useLocalState } from '../hooks/useLocalState'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
-import { MOCK_CONTATOS } from '../data/mockContatos'
+import { useContacts } from '../hooks/useContacts'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
 const MOCK_OPPS = [
@@ -113,6 +114,8 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
   const [query, setQuery] = useState(label||'')
   const [open, setOpen]   = useState(false)
   const ref               = useRef(null)
+  const { opps }          = useOpportunities()
+  const { companies }     = useCompanies()
 
   useEffect(() => { setQuery(label||'') }, [label])
   useEffect(() => {
@@ -122,11 +125,11 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
 
   const opts = useMemo(() => {
     const q = query.toLowerCase()
-    if (entidadeTipo==='oportunidade') return MOCK_OPPS.filter(o=>o.nome.toLowerCase().includes(q)).slice(0,8)
-    if (entidadeTipo==='empresa')      return MOCK_EMPRESAS.filter(e=>(e.fantasia||e.razao).toLowerCase().includes(q)).slice(0,8).map(e=>({ id:e.id, nome:e.fantasia||e.razao }))
+    if (entidadeTipo==='oportunidade') return opps.filter(o=>(o.titulo||'').toLowerCase().includes(q)).slice(0,8).map(o=>({ id:o.id, nome:o.titulo }))
+    if (entidadeTipo==='empresa')      return companies.filter(e=>(e.fantasia||e.razao||'').toLowerCase().includes(q)).slice(0,8).map(e=>({ id:e.id, nome:e.fantasia||e.razao }))
     if (entidadeTipo==='contrato')     return MOCK_CONTRATOS.filter(c=>c.nome.toLowerCase().includes(q)).slice(0,8)
     return []
-  }, [query, entidadeTipo])
+  }, [query, entidadeTipo, opps, companies])
 
   if (!entidadeTipo) return null
 
@@ -171,6 +174,7 @@ function ContatoSearch({ value, label, onChange }) {
   const [query, setQuery] = useState(label || '')
   const [open, setOpen]   = useState(false)
   const ref               = useRef(null)
+  const { contacts }      = useContacts()
 
   useEffect(() => { setQuery(label || '') }, [label])
   useEffect(() => {
@@ -180,10 +184,10 @@ function ContatoSearch({ value, label, onChange }) {
 
   const opts = useMemo(() => {
     const q = query.toLowerCase()
-    return MOCK_CONTATOS
-      .filter(c => c.nome.toLowerCase().includes(q) || c.empresa_nome.toLowerCase().includes(q) || (c.cargo||'').toLowerCase().includes(q))
+    return contacts
+      .filter(c => (c.nome||'').toLowerCase().includes(q) || (c.empresa_nome||'').toLowerCase().includes(q) || (c.cargo||'').toLowerCase().includes(q))
       .slice(0, 8)
-  }, [query])
+  }, [query, contacts])
 
   return (
     <div ref={ref} style={{ position:'relative' }}>
