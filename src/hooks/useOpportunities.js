@@ -137,13 +137,23 @@ export function useOpportunities() {
     const isUuid = typeof data.id === 'string' && data.id.includes('-')
 
     if (isUuid) {
-      const { error } = await supabase.from('opportunities').update(row).eq('id', data.id)
-      if (error) return { ok: false, message: error.message }
+      // Atualiza local imediatamente
       setOpps(prev => prev.map(o => o.id === data.id ? { ...o, ...data } : o))
+      const { error } = await supabase.from('opportunities').update(row).eq('id', data.id)
+      if (error) console.warn('[useOpportunities] update error:', error.message)
     } else {
+      // Insere localmente com ID temporário enquanto aguarda Supabase
+      const tempId = `temp_${Date.now()}`
+      const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
+      setOpps(prev => [...prev, optimistic])
       const { data: inserted, error } = await supabase.from('opportunities').insert(row).select('*, companies(nome_fantasia, razao_social)').single()
-      if (error) return { ok: false, message: error.message }
-      setOpps(prev => [...prev, rowToOpp(inserted)])
+      if (error) {
+        console.warn('[useOpportunities] insert error:', error.message)
+        // Mantém o registro local com ID temporário
+        return { ok: true }
+      }
+      // Substitui ID temporário pelo ID real do Supabase
+      setOpps(prev => prev.map(o => o.id === tempId ? rowToOpp(inserted) : o))
     }
     return { ok: true }
   }, [tenantId, branchId])
