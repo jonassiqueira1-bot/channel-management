@@ -88,10 +88,16 @@ export function useOpportunities() {
 
   const [opps,    setOpps]    = useState(MOCK_OPORTUNIDADES)
   const [loading, setLoading] = useState(true)
-  const isMockMode            = useRef(true)
+  const isMockMode  = useRef(true)
+  const tenantIdRef = useRef(null)
+  const branchIdRef = useRef(null)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
+
+  // Mantém refs sempre atualizados para que callbacks não capturem valores stale
+  useEffect(() => { tenantIdRef.current = tenantId }, [tenantId])
+  useEffect(() => { branchIdRef.current = branchId }, [branchId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -133,10 +139,11 @@ export function useOpportunities() {
       return { ok: true }
     }
 
-    const row = oppToRow(data, tenantId, branchId)
-    // É update se tiver UUID real (com traço) OU se já existe na lista local
+    const tid = tenantIdRef.current
+    const bid = branchIdRef.current
+    const row = oppToRow(data, tid, bid)
     const isUuid = typeof data.id === 'string' && data.id.includes('-')
-    const existeLocal = isUuid // IDs reais do Supabase são sempre UUIDs
+    const existeLocal = isUuid
 
     if (existeLocal) {
       // Atualiza local imediatamente

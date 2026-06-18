@@ -85,10 +85,15 @@ export function useCompanies() {
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
   // true quando a tabela companies não existe no Supabase (modo demo)
-  const isMockMode = useRef(false)
+  const isMockMode  = useRef(false)
+  const tenantIdRef = useRef(null)
+  const branchIdRef = useRef(null)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
+
+  useEffect(() => { tenantIdRef.current = tenantId }, [tenantId])
+  useEffect(() => { branchIdRef.current = branchId }, [branchId])
 
   // ── Carregar ────────────────────────────────────────────────
   const load = useCallback(async () => {
@@ -131,13 +136,13 @@ export function useCompanies() {
       return { ok: true, data: nova }
     }
 
-    const row = empresaToRow(form, tenantId, branchId)
+    const row = empresaToRow(form, tenantIdRef.current, branchIdRef.current)
     const { data, error } = await supabase.from('companies').insert(row).select().single()
     if (error) return { ok: false, message: error.message }
     const nova = rowToEmpresa(data)
     setCompanies(prev => [...prev, nova])
     return { ok: true, data: nova }
-  }, [tenantId, branchId])
+  }, [])
 
   // ── Atualizar ───────────────────────────────────────────────
   const update = useCallback(async (id, patch) => {
@@ -151,7 +156,7 @@ export function useCompanies() {
     if (!current) return { ok: false, message: 'Empresa não encontrada' }
 
     const merged = { ...current, ...patch }
-    const row    = empresaToRow(merged, tenantId, branchId)
+    const row    = empresaToRow(merged, tenantIdRef.current, branchIdRef.current)
 
     // Atualiza local imediatamente (otimista) para refletir na lista
     setCompanies(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
@@ -162,7 +167,7 @@ export function useCompanies() {
       return { ok: false, message: error.message }
     }
     return { ok: true }
-  }, [companies, tenantId, branchId])
+  }, [companies])
 
   // ── Remover ─────────────────────────────────────────────────
   const remove = useCallback(async (id) => {
