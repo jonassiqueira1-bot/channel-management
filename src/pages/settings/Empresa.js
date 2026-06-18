@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react'
-import { Building2, ChevronRight, ChevronDown, Users, Layers } from 'lucide-react'
+import { Building2, ChevronRight, ChevronDown, Users, Layers, Plus, Pencil, Trash2, X, Check } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import {
   MOCK_COMPANIES, COMPANIES_STORAGE_KEY,
   COMPANY_TYPE_CFG, COMPANY_STATUS_CFG,
 } from '../../data/mockCompanies'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
+import { useBranches } from '../../hooks/useBranches'
 
 const ACCENT = '#6366F1'
 
@@ -140,6 +141,140 @@ function ChannelTree({ companies, isvId }) {
   )
 }
 
+// ─── Gerenciamento de Filiais ──────────────────────────────────────────────────
+const BRANCH_EMPTY = { name: '', custom_fields: { cnpj: '', cidade: '', uf: '', responsavel: '' } }
+
+function FilialRow({ branch, onEdit, onDelete }) {
+  const cf = branch.custom_fields || {}
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderTop:'1px solid var(--border)' }}>
+      <div style={{ width:34, height:34, borderRadius:9, background:'rgba(99,102,241,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+        <Building2 size={15} strokeWidth={1.75} style={{ color:'#6366F1' }} />
+      </div>
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{branch.name}</div>
+        {(cf.cidade || cf.uf || cf.cnpj) && (
+          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+            {[cf.cnpj, cf.cidade && cf.uf ? `${cf.cidade}/${cf.uf}` : cf.cidade || cf.uf].filter(Boolean).join(' · ')}
+          </div>
+        )}
+      </div>
+      {cf.responsavel && (
+        <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{cf.responsavel}</span>
+      )}
+      <div style={{ display:'flex', gap:4, flexShrink:0 }}>
+        <button onClick={() => onEdit(branch)} style={{ background:'none', border:'none', cursor:'pointer', padding:4, color:'var(--text-muted)', borderRadius:6 }}>
+          <Pencil size={13} />
+        </button>
+        <button onClick={() => onDelete(branch.id)} style={{ background:'none', border:'none', cursor:'pointer', padding:4, color:'#ef4444', borderRadius:6 }}>
+          <Trash2 size={13} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function FilialForm({ value, onChange, onSave, onCancel, saving }) {
+  const cf = value.custom_fields || {}
+  const set = (k, v) => onChange({ ...value, [k]: v })
+  const setCf = (k, v) => onChange({ ...value, custom_fields: { ...cf, [k]: v } })
+  return (
+    <div style={{ padding:'16px', borderTop:'1px solid var(--border)', background:'var(--surface2)', display:'flex', flexDirection:'column', gap:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        <div style={{ gridColumn:'1/-1' }}>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Nome da Filial *</label>
+          <input className="fpe-field" style={{ marginTop:4 }} value={value.name || ''} onChange={e => set('name', e.target.value)} placeholder="Ex: Filial São Paulo" autoFocus />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>CNPJ</label>
+          <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} value={cf.cnpj || ''} onChange={e => setCf('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Responsável</label>
+          <input className="fpe-field" style={{ marginTop:4 }} value={cf.responsavel || ''} onChange={e => setCf('responsavel', e.target.value)} placeholder="Nome do responsável" />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Cidade</label>
+          <input className="fpe-field" style={{ marginTop:4 }} value={cf.cidade || ''} onChange={e => setCf('cidade', e.target.value)} placeholder="São Paulo" />
+        </div>
+        <div>
+          <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>UF</label>
+          <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} maxLength={2} value={cf.uf || ''} onChange={e => setCf('uf', e.target.value.toUpperCase())} placeholder="SP" />
+        </div>
+      </div>
+      <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
+        <button onClick={onCancel} style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
+          <X size={13} /> Cancelar
+        </button>
+        <button onClick={onSave} disabled={!value.name?.trim() || saving} style={{ padding:'7px 14px', borderRadius:7, border:'none', background:'#6366F1', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, opacity: (!value.name?.trim() || saving) ? 0.5 : 1 }}>
+          <Check size={13} /> {saving ? 'Salvando…' : 'Salvar'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GerenciarFiliais() {
+  const { branches, loading, saving, error, save, remove } = useBranches()
+  const [editando, setEditando] = useState(null)
+  const [form, setForm] = useState(null)
+
+  function handleNew() { setEditando('novo'); setForm(BRANCH_EMPTY) }
+  function handleEdit(b) { setEditando(b.id); setForm({ id: b.id, name: b.name, custom_fields: b.custom_fields || {} }) }
+  function handleCancel() { setEditando(null); setForm(null) }
+
+  async function handleSave() {
+    const result = await save(form)
+    if (result?.ok) handleCancel()
+    else if (result?.error) alert('Erro: ' + result.error)
+  }
+
+  async function handleDelete(id) {
+    if (!window.confirm('Remover esta filial?')) return
+    const result = await remove(id)
+    if (!result?.ok) alert('Erro: ' + result?.error)
+  }
+
+  return (
+    <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--surface2)' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Filiais cadastradas</span>
+          <span style={{ fontSize:11, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:99, padding:'1px 8px' }}>
+            {loading ? '…' : branches.length}
+          </span>
+        </div>
+        {editando !== 'novo' && (
+          <button onClick={handleNew} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'#6366F1', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+            <Plus size={12} /> Nova filial
+          </button>
+        )}
+      </div>
+
+      {error && <div style={{ padding:'10px 16px', fontSize:12, color:'#ef4444', borderTop:'1px solid var(--border)' }}>Erro ao carregar: {error}</div>}
+
+      {editando === 'novo' && (
+        <FilialForm value={form} onChange={setForm} onSave={handleSave} onCancel={handleCancel} saving={saving} />
+      )}
+
+      {loading ? (
+        <div style={{ padding:'20px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>Carregando…</div>
+      ) : branches.length === 0 && editando !== 'novo' ? (
+        <div style={{ padding:'20px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>Nenhuma filial cadastrada.</div>
+      ) : branches.map(b => (
+        <div key={b.id}>
+          {editando === b.id ? (
+            <FilialForm value={form} onChange={setForm} onSave={handleSave} onCancel={handleCancel} saving={saving} />
+          ) : (
+            <FilialRow branch={b} onEdit={handleEdit} onDelete={handleDelete} />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function EmpresaISV() {
   const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
@@ -244,6 +379,10 @@ export default function EmpresaISV() {
         <FPEField label="Observações internas">
           <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={current.notes || ''} onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
         </FPEField>
+      </FPESection>
+
+      <FPESection title="Filiais (Unidades de Negócio)">
+        <GerenciarFiliais />
       </FPESection>
 
       <FPESection title="Canais conectados">
