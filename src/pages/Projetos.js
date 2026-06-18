@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { SlidersHorizontal, ChevronDown } from 'lucide-react'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
   MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
@@ -11,7 +12,6 @@ import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
-import BrowseLayout from '../components/BrowseLayout'
 
 const ACCENT = 'var(--accent)'
 
@@ -1062,7 +1062,6 @@ export default function Projetos() {
   const [search,       setSearch]      = useLocalState('projetos:search', '')
   const [showMetrics,  setShowMetrics] = useLocalState('projetos:showMetrics', true)
   const [sortBy,       setSortBy]      = useLocalState('projetos:sortBy', 'recente')
-  const [view,         setView]        = useLocalState('projetos:view', 'kanban')
 
   // blocked projects = have any critica+aberta issue
   const blockedIds = useMemo(() => {
@@ -1163,50 +1162,6 @@ export default function Projetos() {
   const hasFilters   = filtros.status || filtros.franchise || search
   const filterCount  = [filtros.status, filtros.franchise].filter(Boolean).length
 
-  const BROWSE_COLUMNS = [
-    { key: 'name', label: 'Projeto', render: p => (
-      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={{ width:32, height:32, borderRadius:8, flexShrink:0, background:'var(--accent-glow)', color:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800 }}>
-          {initials(p.company_nome)}
-        </div>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontWeight:600, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{p.name}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{p.company_nome}</div>
-        </div>
-      </div>
-    )},
-    { key: 'phase', label: 'Fase', render: p => {
-      const fase = FASES_MIT.find(f => f.value === p.phase) || FASES_MIT[0]
-      return <span style={{ fontSize:10.5, fontWeight:700, padding:'2px 8px', borderRadius:20, background:fase.bg, color:fase.text, whiteSpace:'nowrap' }}>{fase.label}</span>
-    }},
-    { key: 'status', label: 'Status', render: p => <StatusBadge status={p.status} /> },
-    { key: 'horas', label: 'Horas', render: p => {
-      const exe = execTotals[p.id] ?? Number(p.total_hours_executed)
-      const est = Number(p.total_hours_estimated)
-      const pct = est > 0 ? Math.min(100, Math.round((exe / est) * 100)) : 0
-      const color = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981'
-      return (
-        <div style={{ minWidth:90 }}>
-          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
-            <span style={{ fontSize:10, color:'var(--text-muted)' }}>{exe.toFixed(0)}h/{est}h</span>
-            <span style={{ fontSize:10, fontWeight:700, color }}>{pct}%</span>
-          </div>
-          <div style={{ height:4, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
-            <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:3 }} />
-          </div>
-        </div>
-      )
-    }},
-    { key: 'end_date_estimated', label: 'Prazo', render: p =>
-      <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{fmtDate(p.end_date_estimated)}</span>
-    },
-    { key: 'franchise_nome', label: 'Canal', render: p =>
-      p.franchise_nome
-        ? <span style={{ fontSize:11, color:'var(--text-soft)', background:'var(--surface2)', borderRadius:5, padding:'2px 6px' }}>{p.franchise_nome}</span>
-        : <span style={{ fontSize:11, color:'var(--border2)' }}>—</span>
-    },
-  ]
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', gap: 0, overflow: 'hidden' }}>
       <PulseStyle />
@@ -1254,11 +1209,6 @@ export default function Projetos() {
 
           {/* ── Esquerda ── */}
           <div style={pg.tbLeft}>
-            {/* Badge metodologia fixo */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', fontSize: 12, fontWeight: 600, color: 'var(--text)', flexShrink: 0, whiteSpace: 'nowrap' }}>
-              ▦ Kanban MIT
-            </div>
-
             {/* Search */}
             <div style={pg.searchWrap}>
               <span style={pg.searchIcon}>⌕</span>
@@ -1286,14 +1236,26 @@ export default function Projetos() {
           {/* ── Direita ── */}
           <div style={pg.tbRight}>
 
-            {/* Filtros avançados */}
+            {/* Filtros avançados — padrão BrowseLayout */}
             <div style={{ position: 'relative' }}>
               <button
+                type="button"
                 onClick={() => setFiltrosOpen(o => !o)}
-                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '0 13px', height: 36, borderRadius: 8, border: `1.5px solid ${filterCount > 0 ? 'var(--accent)' : 'var(--border)'}`, background: filterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)', color: filterCount > 0 ? 'var(--accent)' : 'var(--text-soft)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', fontFamily: 'var(--font)' }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  height: 36, padding: '0 10px', borderRadius: 7,
+                  border: `1px solid ${filterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
+                  background: filterCount > 0 ? 'var(--accent-lite)' : 'var(--surface)',
+                  color: filterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
+                  fontFamily: 'var(--font)', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
               >
-                ⚡ Filtros
-                {filterCount > 0 && <span style={{ background: 'var(--accent)', color: '#fff', borderRadius: 10, fontSize: 10, fontWeight: 700, padding: '1px 6px' }}>{filterCount}</span>}
+                <SlidersHorizontal size={13} />
+                Filtros
+                {filterCount > 0 && (
+                  <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--accent)', color: '#fff', borderRadius: 10, padding: '0 5px' }}>{filterCount}</span>
+                )}
+                <ChevronDown size={12} />
               </button>
               <FiltrosPopover open={filtrosOpen} onClose={() => setFiltrosOpen(false)} filtros={filtros} setFiltros={setFiltros} projetos={projetos} />
             </div>
@@ -1305,16 +1267,6 @@ export default function Projetos() {
               <option value="horas">Mais horas</option>
               <option value="nome">Nome A–Z</option>
             </select>
-
-            {/* View toggle — Kanban | Lista */}
-            <div style={pg.viewToggle}>
-              <button onClick={() => setView('kanban')} style={{ ...pg.viewBtn, ...(view === 'kanban' ? pg.viewBtnOn : {}) }} title="Kanban">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
-              </button>
-              <button onClick={() => setView('lista')} style={{ ...pg.viewBtn, ...(view === 'lista' ? pg.viewBtnOn : {}) }} title="Lista">
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="12" height="2" rx="1" fill="currentColor"/></svg>
-              </button>
-            </div>
 
             {/* Limpar */}
             {hasFilters && (
@@ -1333,37 +1285,25 @@ export default function Projetos() {
         </div>
       </div>
 
-      {/* Kanban ou Lista */}
-      {view === 'kanban' ? (
-        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
-          <div style={{ display: 'flex', gap: 12, height: '100%' }}>
-            {FASES_MIT.map(fase => (
-              <KanbanColuna
-                key={fase.value}
-                fase={fase}
-                projetos={filtered.filter(p => p.phase === fase.value)}
-                blockedIds={blockedIds}
-                execTotals={execTotals}
-                onEdit={setDrawer}
-                onDragStart={handleDragStart}
-                onDrop={handleDrop}
-                onDragOver={handleDragOver}
-                onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
-              />
-            ))}
-          </div>
+      {/* Kanban */}
+      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
+        <div style={{ display: 'flex', gap: 12, height: '100%' }}>
+          {FASES_MIT.map(fase => (
+            <KanbanColuna
+              key={fase.value}
+              fase={fase}
+              projetos={filtered.filter(p => p.phase === fase.value)}
+              blockedIds={blockedIds}
+              execTotals={execTotals}
+              onEdit={setDrawer}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
+            />
+          ))}
         </div>
-      ) : (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <BrowseLayout
-            data={filtered}
-            columns={BROWSE_COLUMNS}
-            onRowClick={setDrawer}
-            storagePrefix="projetos_browse"
-            keyField="id"
-          />
-        </div>
-      )}
+      </div>
 
       {/* Modal — criar */}
       {modal && (
