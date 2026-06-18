@@ -10,7 +10,8 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
-import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
+import SlideOver from '../components/ui/SlideOver'
+import BrowseLayout from '../components/BrowseLayout'
 
 const ACCENT = 'var(--accent)'
 
@@ -223,76 +224,72 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   return (
-    <Drawer
+    <SlideOver
       open
       onClose={onClose}
       title="Novo Projeto"
       subtitle="Operação · Projetos"
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={() => form.name.trim() && onSave(form)}>Criar projeto</Button>
-        </>
-      }
+      defaultWidth={600}
+      showFooter={false}
     >
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
-        {/* Formulário principal */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-            <div style={ms.fg}>
-              <label style={ms.lbl}>Nome do Projeto <span style={{ color: 'var(--red)' }}>*</span></label>
-              <input style={ms.inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Implantação ERP — Empresa X" />
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={ms.fg}>
-                <label style={ms.lbl}>Empresa <span style={{ color: 'var(--red)' }}>*</span></label>
-                <input style={ms.inp} value={form.company_nome} onChange={e => set('company_nome', e.target.value)} placeholder="Nexus Tech" />
-              </div>
-              <div style={ms.fg}>
-                <label style={ms.lbl}>Franquia / Canal</label>
-                <input style={ms.inp} value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
-              </div>
-            </div>
-          </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={ms.fg}>
+          <label style={ms.lbl}>Nome do Projeto <span style={{ color: 'var(--red)' }}>*</span></label>
+          <input style={ms.inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Implantação ERP — Empresa X" autoFocus />
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div style={ms.fg}>
-                <label style={ms.lbl}>Data de Início</label>
-                <input style={ms.inp} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
-              </div>
-              <div style={ms.fg}>
-                <label style={ms.lbl}>Previsão de Término</label>
-                <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
-              </div>
-            </div>
-            <div style={ms.fg}>
-              <label style={ms.lbl}>Horas Estimadas</label>
-              <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => set('total_hours_estimated', e.target.value)} placeholder="160" />
-            </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Empresa <span style={{ color: 'var(--red)' }}>*</span></label>
+            <input style={ms.inp} value={form.company_nome} onChange={e => set('company_nome', e.target.value)} placeholder="Nexus Tech" />
           </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '16px 18px' }}>
-            <div style={ms.fg}>
-              <label style={ms.lbl}>Observações</label>
-              <textarea style={{ ...ms.inp, height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
-            </div>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Franquia / Canal</label>
+            <input style={ms.inp} value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
           </div>
         </div>
 
-        {/* Painel lateral */}
-        <DrawerSidePanel width={200}>
-          <DrawerSidePanelSection label="Classificação">
-            <DrawerSidePanelField label="Fase" as="select" editing value={form.phase} onChange={e => { set('phase', e.target.value); set('current_phase_index', FASES_MIT.find(x => x.value === e.target.value)?.order || 1); }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Fase MIT</label>
+            <select style={ms.inp} value={form.phase} onChange={e => { set('phase', e.target.value); set('current_phase_index', FASES_MIT.find(x => x.value === e.target.value)?.order || 1) }}>
               {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </DrawerSidePanelField>
-            <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => set('status', e.target.value)}>
+            </select>
+          </div>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Status</label>
+            <select style={ms.inp} value={form.status} onChange={e => set('status', e.target.value)}>
               {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </DrawerSidePanelField>
-          </DrawerSidePanelSection>
-        </DrawerSidePanel>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Horas estimadas</label>
+            <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => set('total_hours_estimated', e.target.value)} placeholder="160" />
+          </div>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Data de início</label>
+            <input style={ms.inp} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+          </div>
+          <div style={ms.fg}>
+            <label style={ms.lbl}>Previsão de término</label>
+            <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
+          </div>
+        </div>
+
+        <div style={ms.fg}>
+          <label style={ms.lbl}>Observações</label>
+          <textarea style={{ ...ms.inp, height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
+          <button onClick={onClose} style={ms.btn}>Cancelar</button>
+          <button onClick={() => form.name.trim() && onSave(form)} style={ms.btnPrimary}>Criar projeto</button>
+        </div>
       </div>
-    </Drawer>
+    </SlideOver>
   )
 }
 
@@ -959,58 +956,51 @@ const DRAWER_TABS = [
 ]
 
 function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember }) {
-  const [tab,      setTab]      = useState('projeto')
-  const [expanded, setExpanded] = useState(false)
-  const fase = FASES_MIT[projeto.current_phase_index - 1] || FASES_MIT[0]
+  const [tab, setTab] = useState('projeto')
+  const fase        = FASES_MIT[projeto.current_phase_index - 1] || FASES_MIT[0]
   const isBlocked   = blockedIds.has(projeto.id)
   const pendAbertas = issues.filter(i => i.project_id === projeto.id && i.status === 'aberta').length
   const myTeam      = members.filter(m => m.project_id === projeto.id).length
 
-  const drawerWidth = expanded ? 'calc(100vw - 160px)' : 560
+  const tabsWithBadge = DRAWER_TABS.map(t => ({
+    ...t,
+    badge: t.key === 'bloqueios' && pendAbertas > 0 ? pendAbertas : t.key === 'projeto' && myTeam > 0 ? `${myTeam}👤` : undefined,
+  }))
 
   return (
-    <Drawer
+    <SlideOver
       open
       onClose={onClose}
       title={projeto.name}
       subtitle={`${projeto.company_nome}${projeto.franchise_nome ? ` · ${projeto.franchise_nome}` : ''}`}
-    >
-      {/* Badges + progress */}
-      <div style={{ margin: '-12px -14px 12px', padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: fase.bg, color: fase.text }}>{fase.label}</span>
-          <StatusBadge status={projeto.status} />
-          {isBlocked && (
-            <div className="prj-blocked-badge" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#EF4444', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.04em' }}>⚠ BLOQUEADO</div>
-          )}
+      defaultWidth={680}
+      showFooter={false}
+      tabs={tabsWithBadge}
+      activeTab={tab}
+      onTabChange={setTab}
+      headerExtra={
+        <div style={{ marginTop: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: fase.bg, color: fase.text }}>{fase.label}</span>
+            <StatusBadge status={projeto.status} />
+            {isBlocked && (
+              <div className="prj-blocked-badge" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#EF4444', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.04em' }}>⚠ BLOQUEADO</div>
+            )}
+          </div>
+          <ProgressBar executed={Number(projeto.total_hours_executed)} estimated={Number(projeto.total_hours_estimated)} />
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{projeto.total_hours_executed}h executadas de {projeto.total_hours_estimated}h estimadas</div>
         </div>
-        <ProgressBar executed={Number(projeto.total_hours_executed)} estimated={Number(projeto.total_hours_estimated)} />
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{projeto.total_hours_executed}h executadas de {projeto.total_hours_estimated}h estimadas (projeto total)</div>
+      }
+    >
+      {/* Conteúdo rolável por tab */}
+      <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
+        {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
+        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} />}
+        {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
+        {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
+        {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
       </div>
-
-      {/* Tab bar */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', margin: '0 -14px 12px', overflowX: 'auto' }}>
-        {DRAWER_TABS.map(t => {
-          const active = tab === t.key
-          let badge = null
-          if (t.key === 'bloqueios'  && pendAbertas > 0) badge = pendAbertas
-          if (t.key === 'projeto'    && myTeam > 0)      badge = `${myTeam}👤`
-          return (
-            <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, minWidth: 80, padding: '10px 4px', fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--accent)' : 'var(--text-muted)', background: 'none', border: 'none', borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent', cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3, marginBottom: -1, whiteSpace: 'nowrap' }}>
-              {t.label}
-              {badge && <span style={{ fontSize: 9.5, fontWeight: 700, background: t.key === 'bloqueios' ? '#EF4444' : 'var(--surface2)', color: t.key === 'bloqueios' ? '#fff' : 'var(--text-muted)', borderRadius: 20, padding: '0 5px' }}>{badge}</span>}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* Tab content */}
-      {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
-      {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} />}
-      {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
-      {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
-      {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
-    </Drawer>
+    </SlideOver>
   )
 }
 
@@ -1072,6 +1062,7 @@ export default function Projetos() {
   const [search,       setSearch]      = useLocalState('projetos:search', '')
   const [showMetrics,  setShowMetrics] = useLocalState('projetos:showMetrics', true)
   const [sortBy,       setSortBy]      = useLocalState('projetos:sortBy', 'recente')
+  const [view,         setView]        = useLocalState('projetos:view', 'kanban')
 
   // blocked projects = have any critica+aberta issue
   const blockedIds = useMemo(() => {
@@ -1172,6 +1163,50 @@ export default function Projetos() {
   const hasFilters   = filtros.status || filtros.franchise || search
   const filterCount  = [filtros.status, filtros.franchise].filter(Boolean).length
 
+  const BROWSE_COLUMNS = [
+    { key: 'name', label: 'Projeto', render: p => (
+      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+        <div style={{ width:32, height:32, borderRadius:8, flexShrink:0, background:'var(--accent-glow)', color:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800 }}>
+          {initials(p.company_nome)}
+        </div>
+        <div style={{ minWidth:0 }}>
+          <div style={{ fontWeight:600, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{p.name}</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:200 }}>{p.company_nome}</div>
+        </div>
+      </div>
+    )},
+    { key: 'phase', label: 'Fase', render: p => {
+      const fase = FASES_MIT.find(f => f.value === p.phase) || FASES_MIT[0]
+      return <span style={{ fontSize:10.5, fontWeight:700, padding:'2px 8px', borderRadius:20, background:fase.bg, color:fase.text, whiteSpace:'nowrap' }}>{fase.label}</span>
+    }},
+    { key: 'status', label: 'Status', render: p => <StatusBadge status={p.status} /> },
+    { key: 'horas', label: 'Horas', render: p => {
+      const exe = execTotals[p.id] ?? Number(p.total_hours_executed)
+      const est = Number(p.total_hours_estimated)
+      const pct = est > 0 ? Math.min(100, Math.round((exe / est) * 100)) : 0
+      const color = pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981'
+      return (
+        <div style={{ minWidth:90 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+            <span style={{ fontSize:10, color:'var(--text-muted)' }}>{exe.toFixed(0)}h/{est}h</span>
+            <span style={{ fontSize:10, fontWeight:700, color }}>{pct}%</span>
+          </div>
+          <div style={{ height:4, borderRadius:3, background:'var(--border)', overflow:'hidden' }}>
+            <div style={{ height:'100%', width:`${pct}%`, background:color, borderRadius:3 }} />
+          </div>
+        </div>
+      )
+    }},
+    { key: 'end_date_estimated', label: 'Prazo', render: p =>
+      <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{fmtDate(p.end_date_estimated)}</span>
+    },
+    { key: 'franchise_nome', label: 'Canal', render: p =>
+      p.franchise_nome
+        ? <span style={{ fontSize:11, color:'var(--text-soft)', background:'var(--surface2)', borderRadius:5, padding:'2px 6px' }}>{p.franchise_nome}</span>
+        : <span style={{ fontSize:11, color:'var(--border2)' }}>—</span>
+    },
+  ]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', gap: 0, overflow: 'hidden' }}>
       <PulseStyle />
@@ -1271,10 +1306,13 @@ export default function Projetos() {
               <option value="nome">Nome A–Z</option>
             </select>
 
-            {/* View toggle (apenas kanban disponível) */}
+            {/* View toggle — Kanban | Lista */}
             <div style={pg.viewToggle}>
-              <button style={{ ...pg.viewBtn, ...pg.viewBtnOn }} title="Kanban">
+              <button onClick={() => setView('kanban')} style={{ ...pg.viewBtn, ...(view === 'kanban' ? pg.viewBtnOn : {}) }} title="Kanban">
                 <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
+              </button>
+              <button onClick={() => setView('lista')} style={{ ...pg.viewBtn, ...(view === 'lista' ? pg.viewBtnOn : {}) }} title="Lista">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="12" height="2" rx="1" fill="currentColor"/></svg>
               </button>
             </div>
 
@@ -1295,25 +1333,37 @@ export default function Projetos() {
         </div>
       </div>
 
-      {/* Kanban */}
-      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
-        <div style={{ display: 'flex', gap: 12, height: '100%' }}>
-          {FASES_MIT.map(fase => (
-            <KanbanColuna
-              key={fase.value}
-              fase={fase}
-              projetos={filtered.filter(p => p.phase === fase.value)}
-              blockedIds={blockedIds}
-              execTotals={execTotals}
-              onEdit={setDrawer}
-              onDragStart={handleDragStart}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
-            />
-          ))}
+      {/* Kanban ou Lista */}
+      {view === 'kanban' ? (
+        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
+          <div style={{ display: 'flex', gap: 12, height: '100%' }}>
+            {FASES_MIT.map(fase => (
+              <KanbanColuna
+                key={fase.value}
+                fase={fase}
+                projetos={filtered.filter(p => p.phase === fase.value)}
+                blockedIds={blockedIds}
+                execTotals={execTotals}
+                onEdit={setDrawer}
+                onDragStart={handleDragStart}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+          <BrowseLayout
+            data={filtered}
+            columns={BROWSE_COLUMNS}
+            onRowClick={setDrawer}
+            storagePrefix="projetos_browse"
+            keyField="id"
+          />
+        </div>
+      )}
 
       {/* Modal — criar */}
       {modal && (
