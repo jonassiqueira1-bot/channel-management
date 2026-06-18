@@ -182,14 +182,12 @@ export function useOpportunities() {
       const tempId = crypto.randomUUID()
       const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
       setOpps(prev => [...prev, optimistic])
-      const { data: inserted, error } = await supabase.from('opportunities').insert(row).select('*').single()
+      const { error } = await supabase.from('opportunities').insert(row)
       if (error) {
         console.warn('[useOpportunities] insert error:', error.message)
-        // Mantém o registro local com ID temporário
-        return { ok: true }
       }
-      // Substitui ID temporário pelo ID real do Supabase
-      setOpps(prev => prev.map(o => o.id === tempId ? rowToOpp(inserted) : o))
+      // Recarrega do Supabase para obter o ID real e dados completos
+      load()
     }
     return { ok: true }
   }, [tenantId, branchId])
