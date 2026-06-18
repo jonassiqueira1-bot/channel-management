@@ -4474,24 +4474,30 @@ function OrigemBadge({ origem }) {
 }
 
 // ─── Card do Kanban ───────────────────────────────────────────────────────────
-function OppCard({ opp, cor, onClick }) {
+function OppCard({ opp, cor, onClick, onDragStart, onDragEnd }) {
   const [hovered, setHovered] = useState(false)
+  const [dragging, setDragging] = useState(false)
   const dias     = diasRestantes(opp.prazo)
   const atrasado = dias !== null && dias < 0
   const urgente  = dias !== null && dias >= 0 && dias <= 7
 
   return (
     <div
+      draggable
       onClick={onClick}
+      onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; setDragging(true); onDragStart && onDragStart() }}
+      onDragEnd={() => { setDragging(false); onDragEnd && onDragEnd() }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
         ...k.card,
-        transform:  hovered ? 'translateY(-2px) scale(1.01)' : 'none',
-        boxShadow:  hovered
+        opacity: dragging ? 0.4 : 1,
+        transform: dragging ? 'scale(0.97)' : hovered ? 'translateY(-2px) scale(1.01)' : 'none',
+        boxShadow: hovered && !dragging
           ? '0 8px 24px rgba(0,0,0,0.13), 0 2px 6px rgba(0,0,0,0.07)'
           : '0 1px 3px rgba(0,0,0,0.06)',
         borderColor: hovered ? cor + '55' : 'var(--border)',
+        cursor: 'grab',
       }}
     >
       {/* Barra de etapa */}
@@ -4615,12 +4621,51 @@ function OppCard({ opp, cor, onClick }) {
 }
 
 // ─── Coluna Kanban ────────────────────────────────────────────────────────────
-function KanbanColuna({ etapa, opps, onAddOpp, onClickOpp }) {
+function KanbanBoard({ etapas, filtered, setModal, moveToStage }) {
+  const draggedId = useRef(null)
+  const [overEtapa, setOverEtapa] = useState(null)
+
+  function handleDrop(etapaId) {
+    if (draggedId.current && etapaId) {
+      moveToStage(draggedId.current, etapaId)
+    }
+    draggedId.current = null
+    setOverEtapa(null)
+  }
+
+  return (
+    <div style={{ flex:1, overflowX:'auto', overflowY:'hidden', paddingBottom:16 }}>
+      <div style={{ display:'flex', gap:12, height:'100%', paddingRight:4 }}>
+        {etapas.map(etapa => (
+          <KanbanColuna
+            key={etapa.id}
+            etapa={etapa}
+            opps={filtered.filter(o => o.etapa_id === etapa.id)}
+            onAddOpp={etapa_id => setModal({ _new:true, etapa_id })}
+            onClickOpp={o => setModal(o)}
+            isDragOver={overEtapa === etapa.id}
+            onDragOver={() => { if (draggedId.current) setOverEtapa(etapa.id) }}
+            onDrop={() => handleDrop(etapa.id)}
+            onCardDragStart={id => { draggedId.current = id }}
+            onCardDragEnd={() => { draggedId.current = null; setOverEtapa(null) }}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function KanbanColuna({ etapa, opps, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   return (
-    <div style={k.coluna}>
-      <div style={{ padding:'11px 13px 9px', borderBottom:`2px solid ${etapa.cor}`, background:'rgba(255,255,255,0.85)', borderRadius:'14px 14px 0 0', flexShrink:0 }}>
+    <div
+      style={{ ...k.coluna, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
+      onDragOver={e => { e.preventDefault(); onDragOver && onDragOver() }}
+      onDragLeave={onDrop && (() => onDragOver && onDragOver(null))}
+      onDrop={e => { e.preventDefault(); onDrop && onDrop() }}
+    >
+      <div style={{ padding:'11px 13px 9px', borderBottom:`2px solid ${etapa.cor}`, background: isDragOver ? etapa.cor+'11' : 'rgba(255,255,255,0.85)', borderRadius:'14px 14px 0 0', flexShrink:0, transition:'background 0.15s' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
           <span style={{ fontSize:12, fontWeight:700, color:etapa.cor, fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{etapa.nome}</span>
           <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)', background:etapa.cor+'22', color:etapa.cor, padding:'1px 7px', borderRadius:10, flexShrink:0 }}>{opps.length}</span>
@@ -4632,8 +4677,8 @@ function KanbanColuna({ etapa, opps, onAddOpp, onClickOpp }) {
           )}
         </div>
       </div>
-      <div style={k.cards}>
-        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} onClick={()=>onClickOpp(o)} />)}
+      <div style={{ ...k.cards, background: isDragOver ? etapa.cor+'08' : 'transparent', transition:'background 0.15s' }}>
+        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} />)}
         {opps.length===0 && <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:12, opacity:0.6 }}>—</div>}
       </div>
       <button style={k.addBtn} onClick={()=>onAddOpp(etapa.id)}>+ Adicionar</button>
@@ -5376,19 +5421,12 @@ export default function Pipeline() {
       )}
 
       {view==='kanban' && (
-        <div style={{ flex:1, overflowX:'auto', overflowY:'hidden', paddingBottom:16 }}>
-          <div style={{ display:'flex', gap:12, height:'100%', paddingRight:4 }}>
-            {etapas.map(etapa=>(
-              <KanbanColuna
-                key={etapa.id}
-                etapa={etapa}
-                opps={filtered.filter(o=>o.etapa_id===etapa.id)}
-                onAddOpp={etapa_id=>setModal({ _new:true, etapa_id })}
-                onClickOpp={o=>setModal(o)}
-              />
-            ))}
-          </div>
-        </div>
+        <KanbanBoard
+          etapas={etapas}
+          filtered={filtered}
+          setModal={setModal}
+          moveToStage={moveToStage}
+        />
       )}
 
       {/* ── Modais ── */}
