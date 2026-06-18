@@ -5065,6 +5065,8 @@ export default function Pipeline() {
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { console.log('[Pipeline opps]', opps.length, opps.map(o=>({id:o.id,funil:o.funil_id,etapa:o.etapa_id}))) }, [opps])
   // ── estado efêmero (não persiste) ────────────────────────────────────────
   const [tarefas, setTarefas]           = useState(MOCK_TAREFAS)
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)

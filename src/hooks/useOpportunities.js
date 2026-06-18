@@ -24,7 +24,7 @@ function rowToOpp(row) {
     titulo:                row.titulo || '',
     funil_id:              row.funil_id || cf.funil_id || null,
     funil_nome:            cf.funil_nome || '',
-    etapa_id:              row.stage_id || null,
+    etapa_id:              row.stage_id || cf.etapa_id || null,
     playbook_id:           cf.playbook_id || null,
     empresa_id:            row.company_id || null,
     empresa_nome:          row.companies?.nome_fantasia || row.companies?.razao_social || cf.empresa_nome || '',
@@ -74,6 +74,7 @@ function oppToRow(opp, tenantId, branchId) {
     custom_fields: {
       funil_id:              opp.funil_id,
       funil_nome:            opp.funil_nome || '',
+      etapa_id:              opp.etapa_id,
       playbook_id:           opp.playbook_id,
       empresa_nome:          opp.empresa_nome,
       primary_contact_nome:  opp.primary_contact_nome,
@@ -117,6 +118,7 @@ export function useOpportunities() {
   useEffect(() => { lsSave(opps) }, [opps])
 
   const load = useCallback(async () => {
+    console.log('[load] chamado, session:', !!session?.user)
     setLoading(true)
 
     if (!session?.user) {
@@ -153,6 +155,7 @@ export function useOpportunities() {
 
   // Salvar (insert ou update)
   const save = useCallback(async (data) => {
+    console.log('[save] isMockMode:', isMockMode.current, 'funil_id:', data.funil_id, 'titulo:', data.titulo)
     if (isMockMode.current) {
       setOpps(prev => {
         const idx = prev.findIndex(o => o.id === data.id)
