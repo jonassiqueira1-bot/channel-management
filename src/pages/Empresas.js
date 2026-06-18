@@ -1232,7 +1232,8 @@ export default function Empresas() {
     { key: 'razao',    label: 'Empresa',   render: (e) => {
       const nome = e.fantasia || e.razao
       const sub  = nome && e.fantasia && e.fantasia !== e.razao ? e.razao : (e.cnpj || e.email || null)
-      const avatarLetters = nome ? nome.slice(0,2).toUpperCase() : (e.cnpj ? e.cnpj.replace(/\D/g,'').slice(0,2) : '?')
+      const fallback = e.email ? e.email[0].toUpperCase() : (e.cnpj ? e.cnpj.replace(/\D/g,'').slice(0,2) : '?')
+      const avatarLetters = nome ? nome.slice(0,2).toUpperCase() : fallback
       return (
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={p.avatar}>{avatarLetters}</div>
