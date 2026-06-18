@@ -612,8 +612,64 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
   const currentPct   = currentEst > 0 ? (currentExe / currentEst) * 100 : 0
   const showSugestao = currentPct >= 90 && currentIdx < 6 && projeto.status !== 'concluido'
 
+  // Totais para régua geral
+  const totalEst = myPhases.reduce((s, p) => s + Number(p.hours_estimated || 0), 0)
+  const totalExe = myPhases.reduce((s, p) => s + (execByPhase[p.id] || 0), 0)
+  const phasesCompleted = myPhases.filter(p => p.is_completed).length
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+      {/* ── Régua de Avanço MIT ── */}
+      <div style={{ marginBottom: 20, padding: '16px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Progresso MIT</span>
+          <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+            {phasesCompleted}/{FASES_MIT.length} fases · {totalEst > 0 ? Math.round((totalExe / totalEst) * 100) : 0}% horas
+          </span>
+        </div>
+
+        {/* Régua segmentada */}
+        <div style={{ display: 'flex', gap: 3, height: 10, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
+          {FASES_MIT.map((fase, i) => {
+            const ph      = myPhases.find(p => p.phase_order === fase.order)
+            const isDone  = ph?.is_completed
+            const isActive= fase.order === currentIdx
+            const exe     = ph ? (execByPhase[ph.id] || 0) : 0
+            const est     = ph ? Number(ph.hours_estimated || 0) : 0
+            const pct     = est > 0 ? Math.min(100, (exe / est) * 100) : 0
+            return (
+              <div key={fase.value} style={{ flex: 1, position: 'relative', background: isDone ? fase.color : isActive ? fase.color + '33' : 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
+                {isActive && !isDone && pct > 0 && (
+                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: fase.color, transition: 'width 0.4s ease' }} />
+                )}
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Labels das fases */}
+        <div style={{ display: 'flex', gap: 3 }}>
+          {FASES_MIT.map((fase) => {
+            const ph      = myPhases.find(p => p.phase_order === fase.order)
+            const isDone  = ph?.is_completed
+            const isActive= fase.order === currentIdx
+            return (
+              <div key={fase.value} style={{ flex: 1, textAlign: 'center' }}>
+                <div style={{
+                  fontSize: 9, fontWeight: isActive ? 800 : 600,
+                  color: isDone ? fase.color : isActive ? fase.color : 'var(--text-muted)',
+                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  fontFamily: 'var(--mono)',
+                }}>
+                  {isDone ? '✓ ' : isActive ? '▶ ' : ''}{fase.label}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
       {/* Sugestão de avanço de fase */}
       {showSugestao && (
         <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '14px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
