@@ -150,7 +150,7 @@ function FranquiaARSearch({ value, label, onChange, empresas, excludeId, filterT
       .filter(e =>
         e.id !== excludeId &&
         (!filterTipo || e.tipo === filterTipo) &&
-        (e.fantasia || e.razao).toLowerCase().includes(q)
+        (e.fantasia || e.razao || '').toLowerCase().includes(q)
       )
       .slice(0, 8)
   }, [query, empresas, excludeId, filterTipo])
@@ -180,7 +180,7 @@ function FranquiaARSearch({ value, label, onChange, empresas, excludeId, filterT
           {options.map(e => (
             <button type="button" key={e.id} style={ar.option}
               onMouseDown={() => { onChange(e.id, e.fantasia || e.razao); setQuery(e.fantasia || e.razao); setOpen(false) }}>
-              <span style={ar.optAvatar}>{(e.fantasia || e.razao).slice(0,2).toUpperCase()}</span>
+              <span style={ar.optAvatar}>{(e.fantasia || e.razao || '?').slice(0,2).toUpperCase()}</span>
               <span>
                 <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{e.fantasia || e.razao}</div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{e.cnpj} · {e.cidade}/{e.uf}</div>
