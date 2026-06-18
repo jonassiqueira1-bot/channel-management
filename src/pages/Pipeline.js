@@ -288,8 +288,8 @@ function ProdutoSearch({ onAdd }) {
   const [q, setQ]           = useState('')
   const [open, setOpen]     = useState(false)
   const ref                 = useRef(null)
-  const { products }        = useProducts()
-  const produtosAtivos      = products.filter(p => p.status === 'ativo')
+  const { produtos }        = useProducts()
+  const produtosAtivos      = (produtos || []).filter(p => p.status === 'ativo')
 
   const sugestoes = useMemo(() => {
     if (!q.trim()) return produtosAtivos.slice(0, 6)
