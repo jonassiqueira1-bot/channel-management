@@ -179,20 +179,22 @@ export default function Contatos() {
   // ── COLUMNS para BrowseLayout ────────────────────────────────────────────────
   const COLUMNS = [
     { key: 'nome', label: 'Contato', render: c => {
-      const av = avatarColor(c.nome)
+      const display = c.nome || c.email || 'Sem nome'
+      const av = avatarColor(display)
+      const avatarText = c.nome ? initials(c.nome) : (c.email ? c.email[0].toUpperCase() : '?')
       return (
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
           <div style={{ width:32, height:32, borderRadius:'50%', background:av.bg, color:av.color,
             display:'flex', alignItems:'center', justifyContent:'center',
             fontSize:11, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0,
             border:`1px solid ${av.color}33` }}>
-            {initials(c.nome)}
+            {avatarText}
           </div>
           <div style={{ minWidth:0 }}>
-            <div style={{ fontWeight:600, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
-              {c.nome}
+            <div style={{ fontWeight:600, fontSize:13, color: c.nome ? 'var(--text)' : 'var(--text-muted)', fontStyle: c.nome ? 'normal' : 'italic', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
+              {display}
             </div>
-            {c.email && (
+            {c.nome && c.email && (
               <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
                 {c.email}
               </div>

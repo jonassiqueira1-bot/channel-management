@@ -1229,21 +1229,26 @@ export default function Empresas() {
   }
 
   const COLUMNS = [
-    { key: 'razao',    label: 'Empresa',   render: (e) => (
-      <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-        <div style={p.avatar}>{(e.fantasia || e.razao || '?').slice(0,2).toUpperCase()}</div>
-        <div style={{ minWidth:0 }}>
-          <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
-            {e.fantasia || e.razao}
-          </div>
-          {e.fantasia && e.fantasia !== e.razao && (
-            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
-              {e.razao}
+    { key: 'razao',    label: 'Empresa',   render: (e) => {
+      const nome = e.fantasia || e.razao
+      const sub  = nome && e.fantasia && e.fantasia !== e.razao ? e.razao : (e.cnpj || e.email || null)
+      const avatarLetters = nome ? nome.slice(0,2).toUpperCase() : (e.cnpj ? e.cnpj.replace(/\D/g,'').slice(0,2) : '?')
+      return (
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={p.avatar}>{avatarLetters}</div>
+          <div style={{ minWidth:0 }}>
+            <div style={{ fontWeight:700, fontSize:13, color: nome ? 'var(--text)' : 'var(--text-muted)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180, fontStyle: nome ? 'normal' : 'italic' }}>
+              {nome || 'Sem nome'}
             </div>
-          )}
+            {sub && (
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', maxWidth:180 }}>
+                {sub}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
-    )},
+      )
+    }},
     { key: 'tipo',     label: 'Tipo',      render: (e) => <TipoBadge tipo={e.tipo} /> },
     { key: 'status',   label: 'Status',    render: (e) => <StatusBadge status={e.status} /> },
     { key: 'segmento', label: 'Segmento' },
