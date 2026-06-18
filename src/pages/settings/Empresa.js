@@ -7,7 +7,7 @@ import {
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import { useBranches } from '../../hooks/useBranches'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Gerenciamento de Filiais ──────────────────────────────────────────────────
 const BRANCH_EMPTY = { name: '', custom_fields: { cnpj: '', cidade: '', uf: '', responsavel: '' } }
@@ -17,7 +17,7 @@ function FilialRow({ branch, onEdit, onDelete }) {
   return (
     <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 16px', borderTop:'1px solid var(--border)' }}>
       <div style={{ width:34, height:34, borderRadius:9, background:'rgba(99,102,241,0.1)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-        <Building2 size={15} strokeWidth={1.75} style={{ color:'#6366F1' }} />
+        <Building2 size={15} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
       </div>
       <div style={{ flex:1, minWidth:0 }}>
         <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{branch.name}</div>
@@ -74,7 +74,7 @@ function FilialForm({ value, onChange, onSave, onCancel, saving }) {
         <button onClick={onCancel} style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
           <X size={13} /> Cancelar
         </button>
-        <button onClick={onSave} disabled={!value.name?.trim() || saving} style={{ padding:'7px 14px', borderRadius:7, border:'none', background:'#6366F1', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, opacity: (!value.name?.trim() || saving) ? 0.5 : 1 }}>
+        <button onClick={onSave} disabled={!value.name?.trim() || saving} style={{ padding:'7px 14px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, opacity: (!value.name?.trim() || saving) ? 0.5 : 1 }}>
           <Check size={13} /> {saving ? 'Salvando…' : 'Salvar'}
         </button>
       </div>
@@ -114,7 +114,7 @@ function GerenciarFiliais() {
           </span>
         </div>
         {editando !== 'novo' && (
-          <button onClick={handleNew} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'#6366F1', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+          <button onClick={handleNew} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
             <Plus size={12} /> Nova filial
           </button>
         )}
@@ -225,7 +225,7 @@ export default function EmpresaISV() {
         <FPEGrid>
           <FPEField label="Cor primária">
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input type="color" value={current.primary_color || '#6366F1'} onChange={e => set('primary_color', e.target.value)}
+              <input type="color" value={current.primary_color || 'var(--accent)'} onChange={e => set('primary_color', e.target.value)}
                 style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
               <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={current.primary_color || ''} onChange={e => set('primary_color', e.target.value)} placeholder="#6366F1" />
             </div>
