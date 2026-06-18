@@ -51,14 +51,18 @@ function rowToOpp(row) {
   }
 }
 
+function isValidUuid(v) {
+  return typeof v === 'string' && v.includes('-') && v.length > 8
+}
+
 function oppToRow(opp, tenantId, branchId) {
   return {
     tenant_id:   tenantId,
     branch_id:   branchId || null,
     titulo:      opp.titulo,
-    company_id:  opp.empresa_id || null,
-    contact_id:  opp.primary_contact_id || null,
-    stage_id:    opp.etapa_id || null,
+    company_id:  isValidUuid(opp.empresa_id) ? opp.empresa_id : null,
+    contact_id:  isValidUuid(opp.primary_contact_id) ? opp.primary_contact_id : null,
+    stage_id:    (typeof opp.etapa_id === 'string' && opp.etapa_id.includes('-')) ? opp.etapa_id : null,
     responsavel: opp.responsavel || '',
     valor:       opp.valor || 0,
     situacao:    opp.situacao || 'em_andamento',
