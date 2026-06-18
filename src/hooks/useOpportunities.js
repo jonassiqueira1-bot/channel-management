@@ -130,7 +130,7 @@ export function useOpportunities() {
 
     const { data, error } = await supabase
       .from('opportunities')
-      .select('*, companies(nome_fantasia, razao_social)')
+      .select('*')
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -178,7 +178,7 @@ export function useOpportunities() {
       const tempId = crypto.randomUUID()
       const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
       setOpps(prev => [...prev, optimistic])
-      const { data: inserted, error } = await supabase.from('opportunities').insert(row).select('*, companies(nome_fantasia, razao_social)').single()
+      const { data: inserted, error } = await supabase.from('opportunities').insert(row).select('*').single()
       if (error) {
         console.warn('[useOpportunities] insert error:', error.message)
         // Mantém o registro local com ID temporário
