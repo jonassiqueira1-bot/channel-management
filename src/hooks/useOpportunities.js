@@ -148,8 +148,14 @@ export function useOpportunities() {
 
     isMockMode.current = false
     const fromDb = (data || []).map(rowToOpp)
-    console.log('[load] Supabase retornou:', fromDb.length, 'opps, funilIds:', [...new Set(fromDb.map(o=>o.funil_id))])
-    setOpps(fromDb)
+    console.log('[load] Supabase retornou:', fromDb.length, 'opps')
+    if (fromDb.length > 0) {
+      setOpps(fromDb)
+    } else {
+      // Supabase retornou vazio — pode ser timing de auth. Mantém estado atual.
+      const cached = lsLoad()
+      if (cached && cached.length > 0) setOpps(cached)
+    }
     setLoading(false)
   }, [session])
 
@@ -185,9 +191,11 @@ export function useOpportunities() {
       setOpps(prev => [...prev, optimistic])
       const { error } = await supabase.from('opportunities').insert(row)
       if (error) {
-        console.warn('[useOpportunities] insert error:', error.message)
+        console.warn('[useOpportunities] insert error:', error.message, 'row:', JSON.stringify(row).slice(0,200))
+        // Mantém o opp otimístico — não chama load() para não sobrescrever
+        return { ok: true }
       }
-      // Recarrega do Supabase para obter o ID real e dados completos
+      // INSERT ok: recarrega para obter ID real
       load()
     }
     return { ok: true }
