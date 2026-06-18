@@ -197,17 +197,25 @@ export function useOpportunities() {
   const moveToStage = useCallback(async (id, etapaId) => {
     setOpps(prev => prev.map(o => o.id === id ? { ...o, etapa_id: etapaId } : o))
     if (!isMockMode.current) {
-      await supabase.from('opportunities').update({ stage_id: etapaId }).eq('id', id)
+      const opp = opps.find(o => o.id === id)
+      const cf = { ...(opp?.custom_fields || {}), etapa_id: etapaId }
+      const stage_id = isValidUuid(etapaId) ? etapaId : null
+      await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
     }
-  }, [])
+  }, [opps])
 
   // Bulk mover para etapa
   const bulkMoveToStage = useCallback(async (ids, etapaId) => {
     setOpps(prev => prev.map(o => ids.includes(o.id) ? { ...o, etapa_id: etapaId } : o))
     if (!isMockMode.current) {
-      await supabase.from('opportunities').update({ stage_id: etapaId }).in('id', ids)
+      const stage_id = isValidUuid(etapaId) ? etapaId : null
+      for (const id of ids) {
+        const opp = opps.find(o => o.id === id)
+        const cf = { ...(opp?.custom_fields || {}), etapa_id: etapaId }
+        await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
+      }
     }
-  }, [])
+  }, [opps])
 
   // Remover
   const remove = useCallback(async (id) => {
