@@ -36,7 +36,6 @@ import MyAccount from './pages/MyAccount'
 import Produtos from './pages/Produtos'
 import Questionarios from './pages/Questionarios'
 import Documentos from './pages/Documentos'
-import SuperAdmin from './pages/SuperAdmin'
 import BranchSharing from './pages/settings/BranchSharing'
 import Funis from './pages/Funis'
 
@@ -94,7 +93,6 @@ export default function App() {
               <Route path="franquias"    element={<SettingsFranquias />} />
               <Route path="compartilhamento" element={<BranchSharing />} />
             </Route>
-            <Route path="/super-admin" element={<SuperAdmin />} />
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
