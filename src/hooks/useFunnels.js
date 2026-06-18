@@ -50,9 +50,9 @@ export function useFunnels() {
       .from('form_layouts')
       .select('*')
       .eq('entity', 'funis')
-      .single()
-    if (error || !data) { isMockMode.current = true; setLoading(false); return }
-    const stored = data.fields
+      .limit(1)
+    if (error || !data || data.length === 0) { isMockMode.current = true; setLoading(false); return }
+    const stored = data[0].fields
     if (Array.isArray(stored) && stored.length > 0) {
       isMockMode.current = false
       setFunis(stored)
