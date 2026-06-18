@@ -119,7 +119,7 @@ export function useOpportunities() {
   useEffect(() => { lsSave(opps) }, [opps])
 
   const load = useCallback(async () => {
-    console.log('[load] chamado, session:', !!session?.user)
+    console.log('[load] chamado, session:', !!session?.user, 'tenantId:', tenantIdRef.current)
     setLoading(true)
 
     if (!session?.user) {
@@ -148,6 +148,7 @@ export function useOpportunities() {
 
     isMockMode.current = false
     const fromDb = (data || []).map(rowToOpp)
+    console.log('[load] Supabase retornou:', fromDb.length, 'opps, funilIds:', [...new Set(fromDb.map(o=>o.funil_id))])
     setOpps(fromDb)
     setLoading(false)
   }, [session])
@@ -156,7 +157,7 @@ export function useOpportunities() {
 
   // Salvar (insert ou update)
   const save = useCallback(async (data) => {
-    console.log('[save] isMockMode:', isMockMode.current, 'funil_id:', data.funil_id, 'titulo:', data.titulo)
+    console.log('[save] isMockMode:', isMockMode.current, 'funil_id:', data.funil_id, 'titulo:', data.titulo, 'tenantId:', tenantIdRef.current)
     if (isMockMode.current) {
       setOpps(prev => {
         const idx = prev.findIndex(o => o.id === data.id)

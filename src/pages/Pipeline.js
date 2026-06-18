@@ -4669,7 +4669,7 @@ function KanbanBoard({ etapas, filtered, setModal, moveToStage }) {
           <KanbanColuna
             key={etapa.id}
             etapa={etapa}
-            opps={filtered.filter(o => o.etapa_id === etapa.id)}
+            opps={filtered.filter(o => String(o.etapa_id) === String(etapa.id))}
             onAddOpp={etapa_id => setModal({ _new:true, etapa_id })}
             onClickOpp={o => setModal(o)}
             isDragOver={overEtapa === etapa.id}
@@ -5104,7 +5104,7 @@ export default function Pipeline() {
 
     const q = search.toLowerCase()
     let list = opps.filter(o => {
-      if (o.funil_id !== funilAtivo) return false
+      if (String(o.funil_id) !== String(funilAtivo)) { return false }
       if (filterOrigem      && o.origem      !== filterOrigem)      return false
       if (filterEtapa       && String(o.etapa_id) !== filterEtapa)  return false
       if (filterResponsavel && o.responsavel !== filterResponsavel) return false
@@ -5151,7 +5151,7 @@ export default function Pipeline() {
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const totalValor      = filtered.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado  = filtered.reduce((s,o)=>{ const e=etapas.find(e=>e.id===o.etapa_id); return s+(parseFloat(o.valor)||0)*(e?.probabilidade||0)/100 },0)
-  const qtdFechadas     = opps.filter(o=>o.funil_id===funilAtivo && etapas.find(e=>e.id===o.etapa_id&&e.probabilidade===100)).length
+  const qtdFechadas     = opps.filter(o=>String(o.funil_id)===String(funilAtivo) && etapas.find(e=>String(e.id)===String(o.etapa_id)&&e.probabilidade===100)).length
 
   // ── seleção ───────────────────────────────────────────────────────────────
   const allFilteredIds = filtered.map(o=>o.id)
@@ -5219,7 +5219,7 @@ export default function Pipeline() {
   }
 
   const responsaveis = useMemo(() =>
-    [...new Set(opps.filter(o => o.funil_id===funilAtivo).map(o => o.responsavel).filter(Boolean))].sort()
+    [...new Set(opps.filter(o => String(o.funil_id)===String(funilAtivo)).map(o => o.responsavel).filter(Boolean))].sort()
   , [opps, funilAtivo])
 
   const advancedFilterCount = [filterOrigem, filterEtapa, filterResponsavel, filterAbertura, filterPrazo, filterTarefa].filter(Boolean).length
