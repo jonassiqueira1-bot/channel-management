@@ -153,10 +153,14 @@ export function useCompanies() {
     const merged = { ...current, ...patch }
     const row    = empresaToRow(merged, tenantId, branchId)
 
-    const { error } = await supabase.from('companies').update(row).eq('id', id)
-    if (error) return { ok: false, message: error.message }
-
+    // Atualiza local imediatamente (otimista) para refletir na lista
     setCompanies(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
+
+    const { error } = await supabase.from('companies').update(row).eq('id', id)
+    if (error) {
+      console.warn('[useCompanies] update error:', error.message)
+      return { ok: false, message: error.message }
+    }
     return { ok: true }
   }, [companies, tenantId, branchId])
 
