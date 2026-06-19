@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import MetricasStrip from '../components/MetricasStrip'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { useProducts } from '../hooks/useProducts'
@@ -5284,6 +5285,7 @@ export default function Pipeline() {
             <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
             <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
           </div>
+          <MetricasStrip modulo="pipeline" />
         </div>
       </div>
 
