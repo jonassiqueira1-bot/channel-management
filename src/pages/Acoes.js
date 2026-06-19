@@ -3,7 +3,7 @@ import { ChevronUp, ChevronDown } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import { useActions } from '../hooks/useActions'
-import { MOCK_EMPRESAS } from '../data/mockEmpresas'
+import { useBranches } from '../hooks/useBranches'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import Button from '../components/Button'
 import { FullPageEdit, FPESection, FPEField } from '../components/ui'
@@ -146,6 +146,8 @@ function AcoesDropdown({ onImport, onExport, onClose, anchorRef }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
+  const [franquiasCad] = useLocalState('settings:franquias_v2', [])
+  const { branches }   = useBranches()
   const [tiposLista]            = useLocalState(TIPOS_KEY, [])
   const tiposMap = useMemo(() => tiposLista.length ? listToMap(tiposLista) : TIPOS_ACAO_DEFAULT, [tiposLista])
   const [editando, setEditando] = useState(null)
@@ -185,10 +187,18 @@ export default function Acoes() {
     canceladas:acoes.filter(a => a.status === 'cancelado').length,
   }
 
+  // Franquias para seleção: cadastro de Configurações → Franquias; fallback para branches do tenant
+  const franquiasOpts = useMemo(() => {
+    if (franquiasCad.length > 0)
+      return franquiasCad.filter(f => f.situacao !== 'inativo')
+        .map(f => ({ id: String(f.id), nome: f.codigo ? `[${f.codigo}] ${f.nome}` : f.nome }))
+    return branches.map(b => ({ id: b.id, nome: b.name }))
+  }, [franquiasCad, branches])
+
   const empresasUnicas = useMemo(() => {
-    const ids = new Set(acoes.map(a => a.empresa_id))
-    return MOCK_EMPRESAS.filter(e => ids.has(e.id))
-  }, [acoes])
+    const ids = new Set(acoes.map(a => String(a.empresa_id)))
+    return franquiasOpts.filter(f => ids.has(f.id))
+  }, [acoes, franquiasOpts])
 
   const temFiltro = busca || filtroTipo || filtroStatus || filtroEmp || filtroPeriodoInicio || filtroPeriodoFim || filtroResp
 
@@ -204,14 +214,14 @@ export default function Acoes() {
     if (!editForm.titulo.trim()) return alert('Título obrigatório')
     if (!editForm.empresa_id)    return alert('Selecione a unidade/franquia')
     if (!editForm.data_inicio)   return alert('Data de início obrigatória')
-    const emp  = MOCK_EMPRESAS.find(e => e.id === Number(editForm.empresa_id))
+    const emp  = franquiasOpts.find(f => String(f.id) === String(editForm.empresa_id))
     const resp = RESPONSAVEIS.find(r => r.id === editForm.responsavel_id)
     setSavingAcao(true)
     saveAcao({
       ...editForm,
       id:               editando?.id || novoId([]),
-      empresa_id:       Number(editForm.empresa_id),
-      empresa_nome:     emp?.fantasia || emp?.razao || '',
+      empresa_id:       editForm.empresa_id,
+      empresa_nome:     emp?.nome || '',
       responsavel_nome: resp?.nome || '',
       vagas:            editForm.vagas ? Number(editForm.vagas) : null,
       criado_em:        editando?.criado_em || new Date().toISOString(),
@@ -227,7 +237,7 @@ export default function Acoes() {
     setEditForm(null)
   }
 
-  const empresasAtivas = MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
+  const empresasAtivas = franquiasOpts
 
   if (editForm !== null) {
     const isEditing = !!editando?.id
@@ -258,7 +268,7 @@ export default function Acoes() {
           <FPEField label="Unidade / Franquia" required>
             <select className="fpe-field" value={editForm.empresa_id} onChange={e => setAcaoField('empresa_id', e.target.value)}>
               <option value="">— Selecione —</option>
-              {empresasAtivas.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
+              {empresasAtivas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
             </select>
           </FPEField>
           <FPEField label="Responsável (ISV)">
@@ -384,7 +394,7 @@ export default function Acoes() {
             <select style={pg.select} value={filtroEmp} onChange={e => setFiltroEmp(e.target.value)}>
               <option value="">Todas as unidades</option>
               {empresasUnicas.map(e => (
-                <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>
+                <option key={e.id} value={e.id}>{e.nome}</option>
               ))}
             </select>
 
