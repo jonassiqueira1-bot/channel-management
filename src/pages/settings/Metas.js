@@ -73,12 +73,12 @@ function MetaForm({ item, metas, onSave, onCancel }) {
 
   return (
     <FullPageEdit
-      titulo={form.id ? form.nome : 'Nova meta'}
+      title={form.id ? form.nome : 'Nova meta'}
       onSave={() => podeGravar && onSave(form)}
       onCancel={onCancel}
       podeGravar={!!podeGravar}
     >
-      <FPESection titulo="Identificação">
+      <FPESection title="Identificação">
         <FPEField label="Nome" required>
           <input className="fpe-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: MRR mensal, Conversão do funil…" />
         </FPEField>
@@ -95,7 +95,7 @@ function MetaForm({ item, metas, onSave, onCancel }) {
         </FPEField>
       </FPESection>
 
-      <FPESection titulo="Responsável">
+      <FPESection title="Responsável">
         <FPEField label="Escopo">
           <select className="fpe-field" value={form.scope} onChange={e => set('scope', e.target.value)}>
             {ESCOPOS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -118,7 +118,7 @@ function MetaForm({ item, metas, onSave, onCancel }) {
         )}
       </FPESection>
 
-      <FPESection titulo="Meta">
+      <FPESection title="Meta">
         <FPEField label={`Valor-alvo${indSel?.unidade ? ` (${indSel.unidade})` : ''}`} required>
           <input className="fpe-field" type="number" value={form.valor_alvo} onChange={e => set('valor_alvo', e.target.value)} placeholder="Ex: 50000" />
         </FPEField>
@@ -135,7 +135,7 @@ function MetaForm({ item, metas, onSave, onCancel }) {
         </FPEField>
       </FPESection>
 
-      <FPESection titulo="Hierarquia">
+      <FPESection title="Hierarquia">
         <FPEField label="Meta pai">
           <select className="fpe-field" value={form.meta_pai_id} onChange={e => set('meta_pai_id', e.target.value)}>
             <option value="">Nenhuma (meta raiz)</option>
@@ -147,7 +147,7 @@ function MetaForm({ item, metas, onSave, onCancel }) {
         </FPEField>
       </FPESection>
 
-      <FPESection titulo="Status">
+      <FPESection title="Status">
         <FPEField label="Status">
           <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
             <option value="ativo">Ativo</option>
@@ -214,8 +214,8 @@ export default function SettingsMetas() {
 
   return (
     <BrowseLayout
-      titulo="Metas e KPIs"
-      subtitulo="Instâncias com responsável, valor-alvo e período"
+      title="Metas e KPIs"
+      subtitle="Instâncias com responsável, valor-alvo e período"
       colunas={COLUNAS}
       onNew={() => setEditando({ ...EMPTY })}
       newLabel="+ Nova meta"

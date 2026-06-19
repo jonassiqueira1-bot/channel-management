@@ -246,12 +246,12 @@ function IndicadorForm({ item, onSave, onCancel }) {
 
   return (
     <FullPageEdit
-      titulo={form.id ? form.nome : 'Novo indicador'}
+      title={form.id ? form.nome : 'Novo indicador'}
       onSave={() => podeGravar && onSave(form)}
       onCancel={onCancel}
       podeGravar={!!podeGravar}
     >
-      <FPESection titulo="Identificação">
+      <FPESection title="Identificação">
         <FPEField label="Nome" required>
           <input className="fpe-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Ex: MRR, Qtd. ganhas, NPS..." />
         </FPEField>
@@ -260,7 +260,7 @@ function IndicadorForm({ item, onSave, onCancel }) {
         </FPEField>
       </FPESection>
 
-      <FPESection titulo="Módulo e cálculo">
+      <FPESection title="Módulo e cálculo">
         <FPEField label="Módulo" required>
           <select className="fpe-field" value={form.modulo} onChange={e => handleModulo(e.target.value)}>
             <option value="">Selecione...</option>
@@ -288,7 +288,7 @@ function IndicadorForm({ item, onSave, onCancel }) {
       </FPESection>
 
       {form.modulo === 'pipeline' && (
-        <FPESection titulo="Filtros">
+        <FPESection title="Filtros">
           {(produtos || []).length > 0 && (
             <FPEField label="Produtos">
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
@@ -341,7 +341,7 @@ function IndicadorForm({ item, onSave, onCancel }) {
         </FPESection>
       )}
 
-      <FPESection titulo="Status">
+      <FPESection title="Status">
         <FPEField label="Status">
           <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
             <option value="ativo">Ativo</option>
@@ -385,8 +385,8 @@ export default function SettingsIndicadores() {
 
   return (
     <BrowseLayout
-      titulo="Indicadores"
-      subtitulo="Defina o que medir e como calcular automaticamente"
+      title="Indicadores"
+      subtitle="Defina o que medir e como calcular automaticamente"
       colunas={COLUNAS}
       onNew={() => setEditando({ ...EMPTY })}
       newLabel="+ Novo indicador"
