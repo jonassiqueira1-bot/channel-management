@@ -48,47 +48,53 @@ export const FONTES_CALCULO = [
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
     fn: (data, metrica) => {
+      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
       const ganhas = data.filter(o => o.situacao === 'ganha')
-      if (!metrica?.produto_id) return ganhas.length
-      return ganhas.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id))).length
+      if (!pids.length) return ganhas.length
+      return ganhas.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id)))).length
     },
   },
   {
     value: 'pipeline_opps_fechadas_valor',
     label: 'Pipeline — Valor total das oportunidades ganhas (R$)',
-    desc: 'Soma o campo "valor" das oportunidades ganhas. Se a métrica tiver produto vinculado, soma apenas o subtotal desse produto nos itens.',
+    desc: 'Soma o campo "valor" das oportunidades ganhas. Se a métrica tiver produtos vinculados, soma apenas os subtotais desses produtos nos itens.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
     fn: (data, metrica) => {
+      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
       const ganhas = data.filter(o => o.situacao === 'ganha')
-      if (!metrica?.produto_id) return ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0)
+      if (!pids.length) return ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0)
       return ganhas.reduce((s, o) => {
-        const item = (o.itens || []).find(i => String(i.produto_id) === String(metrica.produto_id))
-        return s + (item ? (Number(item.subtotal) || 0) : 0)
+        const subtotal = (o.itens || [])
+          .filter(i => pids.includes(String(i.produto_id)))
+          .reduce((si, i) => si + (Number(i.subtotal) || 0), 0)
+        return s + subtotal
       }, 0)
     },
   },
   {
     value: 'pipeline_opps_abertas_qtd',
     label: 'Pipeline — Qtd. oportunidades em aberto',
-    desc: 'Conta oportunidades que não estão ganhas nem perdidas. Filtra por produto se a métrica tiver um vinculado.',
+    desc: 'Conta oportunidades que não estão ganhas nem perdidas. Filtra por produtos se vinculados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
     fn: (data, metrica) => {
+      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
       const abertas = data.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida')
-      if (!metrica?.produto_id) return abertas.length
-      return abertas.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id))).length
+      if (!pids.length) return abertas.length
+      return abertas.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id)))).length
     },
   },
   {
     value: 'pipeline_taxa_conversao',
     label: 'Pipeline — Taxa de conversão (%)',
-    desc: 'Percentual de oportunidades ganhas sobre o total. Filtra por produto se a métrica tiver um vinculado.',
+    desc: 'Percentual de oportunidades ganhas sobre o total. Filtra por produtos se vinculados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
     fn: (data, metrica) => {
-      const base = metrica?.produto_id
-        ? data.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id)))
+      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
+      const base = pids.length
+        ? data.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id))))
         : data
       if (!base.length) return 0
       const ganhas = base.filter(o => o.situacao === 'ganha').length
@@ -135,7 +141,7 @@ const EMPTY = {
   valor_alvo: '', unidade: '', tendencia: 'subir',
   periodo: 1, intervalo: 'meses',
   data_inicio: '', data_fim: '',
-  usuario_ids: [], franquia_ids: [], produto_id: '',
+  usuario_ids: [], franquia_ids: [], produto_ids: [],
   fonte_calculo: 'manual',
   cor: '#3B82F6', status: 'ativo',
 }
@@ -382,7 +388,7 @@ export default function Metricas() {
     const data = {
       ...form,
       valor_alvo: Number(form.valor_alvo),
-      produto_id: form.produto_id || null,
+      produto_ids: (form.produto_ids || []).map(String).filter(Boolean),
     }
     if (editando === 'novo') {
       setMetricas(prev => [...prev, { ...data, id: uid(), criado_em: new Date().toISOString() }])
@@ -571,16 +577,31 @@ export default function Metricas() {
         )}
 
         {/* Produto */}
-        <FPESection title="Produto" description="Associa esta métrica a um produto específico. Quando vinculada, os cálculos automáticos filtrarão apenas oportunidades que contenham este produto.">
-          <FPEField label="Produto relacionado" style={{ gridColumn: '1/-1' }}>
-            <select className="fpe-field" value={form.produto_id || ''} onChange={e => set('produto_id', e.target.value || '')}>
-              <option value="">— Nenhum (todos os produtos) —</option>
-              {produtos.filter(p => p.status === 'ativo').map(p => (
-                <option key={p.id} value={String(p.id)}>
-                  {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
-                </option>
-              ))}
-            </select>
+        <FPESection title="Produtos" description="Selecione um ou mais produtos. Quando preenchido, os cálculos automáticos consideram apenas oportunidades que contenham esses produtos. Em branco = todos.">
+          <FPEField label="Produtos relacionados" style={{ gridColumn: '1/-1' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {produtos.filter(p => p.status === 'ativo').map(p => {
+                const pid = String(p.id)
+                const checked = (form.produto_ids || []).map(String).includes(pid)
+                return (
+                  <label key={pid} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                    padding: '5px 8px', borderRadius: 6,
+                    background: checked ? 'var(--accent-lite)' : 'transparent' }}>
+                    <input type="checkbox" checked={checked} onChange={() => {
+                      const ids = (form.produto_ids || []).map(String)
+                      set('produto_ids', checked ? ids.filter(x => x !== pid) : [...ids, pid])
+                    }} />
+                    <span style={{ fontSize: 13, color: 'var(--text)' }}>
+                      {p.codigo ? <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>[{p.codigo}]</span> : null}
+                      {p.nome}
+                    </span>
+                  </label>
+                )
+              })}
+              {produtos.filter(p => p.status === 'ativo').length === 0 && (
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nenhum produto ativo cadastrado.</span>
+              )}
+            </div>
           </FPEField>
         </FPESection>
 
