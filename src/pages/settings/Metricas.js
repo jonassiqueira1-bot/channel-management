@@ -379,7 +379,11 @@ export default function Metricas() {
 
   function handleSave() {
     if (!podeGravar) return
-    const data = { ...form, valor_alvo: Number(form.valor_alvo) }
+    const data = {
+      ...form,
+      valor_alvo: Number(form.valor_alvo),
+      produto_id: form.produto_id || null,
+    }
     if (editando === 'novo') {
       setMetricas(prev => [...prev, { ...data, id: uid(), criado_em: new Date().toISOString() }])
     } else {
