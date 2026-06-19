@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useProducts } from '../../hooks/useProducts'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
@@ -347,7 +348,7 @@ export default function Metricas() {
   const [metricas, setMetricas] = useLocalState(METRICAS_KEY, [])
   const [usuarios]  = useLocalState('settings:perfis_v2', [])
   const [franquias] = useLocalState('settings:franquias_v2', [])
-  const [produtos]  = useLocalState('produtos:lista_v2', [])
+  const { produtos } = useProducts()
 
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
@@ -566,20 +567,18 @@ export default function Metricas() {
         )}
 
         {/* Produto */}
-        {produtos.length > 0 && (
-          <FPESection title="Produto" description="Associa esta métrica a um produto específico (opcional).">
-            <FPEField label="Produto relacionado" style={{ gridColumn: '1/-1' }}>
-              <select className="fpe-field" value={form.produto_id || ''} onChange={e => set('produto_id', e.target.value || '')}>
-                <option value="">— Nenhum —</option>
-                {produtos.filter(p => p.status === 'ativo').map(p => (
-                  <option key={p.id} value={String(p.id)}>
-                    {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
-                  </option>
-                ))}
-              </select>
-            </FPEField>
-          </FPESection>
-        )}
+        <FPESection title="Produto" description="Associa esta métrica a um produto específico. Quando vinculada, os cálculos automáticos filtrarão apenas oportunidades que contenham este produto.">
+          <FPEField label="Produto relacionado" style={{ gridColumn: '1/-1' }}>
+            <select className="fpe-field" value={form.produto_id || ''} onChange={e => set('produto_id', e.target.value || '')}>
+              <option value="">— Nenhum (todos os produtos) —</option>
+              {produtos.filter(p => p.status === 'ativo').map(p => (
+                <option key={p.id} value={String(p.id)}>
+                  {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
+                </option>
+              ))}
+            </select>
+          </FPEField>
+        </FPESection>
 
         {/* Cálculo */}
         <FPESection title="Cálculo" description="Define como o valor atual desta métrica é obtido — manualmente ou extraído automaticamente dos dados do sistema.">
