@@ -278,6 +278,67 @@ function Toggle({ checked, onChange, disabled }) {
   )
 }
 
+// ─── ChoiceList ───────────────────────────────────────────────────────────────
+// multi=false → radio (seleciona um); multi=true → checkbox (múltipla seleção)
+function ChoiceList({ options, value, onChange, multi = false, disabled = false }) {
+  // value: string (radio) | string[] (multi)
+  function isSelected(v) {
+    return multi ? (value || []).includes(v) : value === v
+  }
+  function toggle(v) {
+    if (disabled) return
+    if (multi) {
+      const cur = value || []
+      onChange(cur.includes(v) ? cur.filter(x => x !== v) : [...cur, v])
+    } else {
+      onChange(v)
+    }
+  }
+  return (
+    <div style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+      {options.map((opt, i) => {
+        const sel = isSelected(opt.value)
+        return (
+          <div key={opt.value}
+            onClick={() => toggle(opt.value)}
+            style={{
+              display:'flex', alignItems:'center', gap:12,
+              padding:'11px 14px',
+              borderTop: i === 0 ? 'none' : '1px solid var(--border)',
+              background: sel ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--surface)',
+              cursor: disabled ? 'default' : 'pointer',
+              transition:'background 0.12s',
+            }}
+            onMouseEnter={e => { if (!disabled && !sel) e.currentTarget.style.background = 'var(--surface2)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = sel ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'var(--surface)' }}
+          >
+            {/* Indicador radio/checkbox */}
+            <div style={{
+              width:16, height:16, borderRadius: multi ? 4 : '50%', flexShrink:0,
+              border: sel ? '2px solid var(--accent)' : '2px solid var(--border)',
+              background: sel ? 'var(--accent)' : 'transparent',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              transition:'all 0.12s',
+            }}>
+              {sel && <span style={{ width: multi ? 8 : 6, height: multi ? 8 : 6,
+                background:'#fff', borderRadius: multi ? 2 : '50%', display:'block' }} />}
+            </div>
+            {/* Conteúdo */}
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight: sel ? 600 : 500, color: sel ? 'var(--accent)' : 'var(--text)', display:'flex', alignItems:'center', gap:6 }}>
+                {opt.icon && <span>{opt.icon}</span>}
+                {opt.label}
+                {opt.badge && opt.badge}
+              </div>
+              {opt.desc && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{opt.desc}</div>}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ─── Editar usuário (página inteira) ─────────────────────────────────────────
 function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const [form, setForm] = useState({
@@ -358,32 +419,28 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
 
       {/* Papel */}
       <FPESection title="Papel">
-        <div style={{ display:'flex', flexDirection:'column' }}>
-          {papeisDisp.map(p => {
+        <ChoiceList
+          value={form.papel}
+          onChange={v => podeEditar && set('papel', v)}
+          disabled={!podeEditar}
+          options={papeisDisp.map(p => {
             const cfg = PAPEIS_CONFIG[p.value]
-            const ativo = form.papel === p.value
-            return (
-              <div key={p.value} style={ROW}>
-                <div>
-                  <div style={{ ...LABEL, color: ativo ? cfg.color : 'var(--text)' }}>{cfg.icon} {cfg.label}</div>
-                  {p.desc && <div style={DESC}>{p.desc}</div>}
-                </div>
-                <Toggle checked={ativo} onChange={() => podeEditar && set('papel', p.value)} disabled={!podeEditar} />
-              </div>
-            )
+            return { value: p.value, label: cfg.label, icon: cfg.icon, desc: p.desc }
           })}
-        </div>
+        />
       </FPESection>
 
       {/* Status */}
       <FPESection title="Status">
-        <div style={ROW}>
-          <div>
-            <div style={LABEL}>Usuário ativo</div>
-            <div style={DESC}>Usuário inativo não consegue fazer login</div>
-          </div>
-          <Toggle checked={form.status === 'ativo'} onChange={v => podeEditar && set('status', v ? 'ativo' : 'inativo')} disabled={!podeEditar} />
-        </div>
+        <ChoiceList
+          value={form.status}
+          onChange={v => podeEditar && set('status', v)}
+          disabled={!podeEditar}
+          options={[
+            { value: 'ativo',   label: 'Ativo',   desc: 'Usuário consegue fazer login normalmente' },
+            { value: 'inativo', label: 'Inativo', desc: 'Usuário bloqueado, não consegue fazer login' },
+          ]}
+        />
       </FPESection>
 
       {/* Unidades */}
@@ -393,47 +450,44 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
         ) : (
-          <div style={{ display:'flex', flexDirection:'column' }}>
-            {branches.map(b => {
+          <ChoiceList
+            multi
+            value={form.branch_ids || []}
+            onChange={ids => podeEditar && setForm(f => ({ ...f, branch_ids: ids }))}
+            disabled={!podeEditar}
+            options={branches.map(b => {
               const cf = b.custom_fields || {}
-              const sel = (form.branch_ids || []).includes(b.id)
-              return (
-                <div key={b.id} style={ROW}>
-                  <div>
-                    <div style={{ ...LABEL, display:'flex', alignItems:'center', gap:6 }}>
-                      {b.name}
-                      {cf.is_matriz && <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px' }}>Matriz</span>}
-                    </div>
-                    {(cf.cidade || cf.uf) && <div style={DESC}>{[cf.cidade, cf.uf].filter(Boolean).join('/')}</div>}
-                  </div>
-                  <Toggle checked={sel} onChange={() => podeEditar && toggleBranch(b.id)} disabled={!podeEditar} />
-                </div>
-              )
+              return {
+                value: b.id,
+                label: b.name,
+                desc: [cf.cidade, cf.uf].filter(Boolean).join('/') || undefined,
+                badge: cf.is_matriz ? (
+                  <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px' }}>Matriz</span>
+                ) : null,
+              }
             })}
-          </div>
+          />
         )}
       </FPESection>
 
       {/* Perfis de acesso */}
       <FPESection title="Perfis de acesso" description="Perfis adicionam permissões granulares além do papel base.">
-        <div style={{ display:'flex', flexDirection:'column' }}>
-          {rolesStore.map(r => {
-            const sel = (form.perfis_acesso_ids || []).includes(r.id)
-            return (
-              <div key={r.id} style={ROW}>
-                <div>
-                  <div style={{ ...LABEL, display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ width:8, height:8, borderRadius:'50%', background:r.cor, flexShrink:0, display:'inline-block' }} />
-                    {r.nome}
-                  </div>
-                  {r.desc && <div style={DESC}>{r.desc}</div>}
-                </div>
-                <Toggle checked={sel} onChange={() => podeEditar && togglePerfil(r.id)} disabled={!podeEditar} />
-              </div>
-            )
-          })}
-          {rolesStore.length === 0 && <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>}
-        </div>
+        {rolesStore.length === 0 ? (
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>
+        ) : (
+          <ChoiceList
+            multi
+            value={form.perfis_acesso_ids || []}
+            onChange={ids => podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: ids }))}
+            disabled={!podeEditar}
+            options={rolesStore.map(r => ({
+              value: r.id,
+              label: r.nome,
+              desc: r.desc,
+              icon: <span style={{ width:8, height:8, borderRadius:'50%', background:r.cor, display:'inline-block', flexShrink:0 }} />,
+            }))}
+          />
+        )}
       </FPESection>
 
       {/* Zona de perigo */}
