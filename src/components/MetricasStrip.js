@@ -82,7 +82,7 @@ export default function MetricasStrip({ modulo, usuarioId }) {
   const metasAtivas = useMemo(() => {
     return metas.filter(m => {
       if (m.status !== 'ativo') return false
-      const ind = indicadores.find(i => i.id === m.indicador_id)
+      const ind = indicadores.find(i => String(i.id) === String(m.indicador_id))
       if (!ind || ind.modulo !== modulo) return false
       if (m.data_inicio && hoje < m.data_inicio) return false
       if (m.data_fim && hoje > m.data_fim) return false
@@ -115,7 +115,7 @@ export default function MetricasStrip({ modulo, usuarioId }) {
   return (
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
       {metasRaiz.map(meta => {
-        const ind = indicadores.find(i => i.id === meta.indicador_id)
+        const ind = indicadores.find(i => String(i.id) === String(meta.indicador_id))
         const filhos = filhosPor[meta.id] || []
         return (
           <MetaCard key={meta.id} meta={meta} indicador={ind} funis={funis} filhos={filhos} />
