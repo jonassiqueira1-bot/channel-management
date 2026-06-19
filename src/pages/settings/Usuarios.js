@@ -709,12 +709,6 @@ export default function SettingsUsuarios() {
 
   const lista = perfisFiltradosSessao
 
-  // KPIs
-  const total    = perfisFiltradosSessao.length
-  const ativos   = perfisFiltradosSessao.filter(p => p.status === 'ativo').length
-  const pendentes= perfisFiltradosSessao.filter(p => p.status === 'pendente').length
-  const externos = perfisFiltradosSessao.filter(p => p.tipo_usuario === 'externo').length
-
   function salvarPerfil(novo) {
     setPerfis(prev => {
       const idx = prev.findIndex(p => p.id === novo.id)
@@ -744,20 +738,6 @@ export default function SettingsUsuarios() {
   return (
     <div style={pg.wrap}>
 
-      {/* ── KPIs ── */}
-      <div style={pg.kpiRow}>
-        {[
-          { label: 'Total',     value: total,    color: 'var(--text)' },
-          { label: 'Ativos',    value: ativos,   color: '#10B981' },
-          { label: 'Pendentes', value: pendentes, color: '#F59E0B' },
-          { label: 'Externos',  value: externos,  color: '#8B5CF6' },
-        ].map(k => (
-          <div key={k.label} style={pg.kpiCard}>
-            <span style={{ ...pg.kpiN, color: k.color }}>{k.value}</span>
-            <span style={pg.kpiL}>{k.label}</span>
-          </div>
-        ))}
-      </div>
 
       {/* ── Tabela ── */}
       <SettingsLayout
