@@ -104,7 +104,8 @@ export default function Settings() {
         width: collapsed ? 44 : 250,
         minWidth: collapsed ? 44 : 250,
         transition: 'width 0.2s ease, min-width 0.2s ease',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto',
       }}>
         {/* Header com botão de recolher */}
         <div style={{ ...s.asideHeader, display:'flex', alignItems:'center', justifyContent:'space-between', paddingRight: 8 }}>
