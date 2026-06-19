@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef } from 'react'
-import { Building2, Plus, Star, Upload, ImageOff } from 'lucide-react'
+import { Building2, Star, Upload, ImageOff } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../../data/mockCompanies'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
+import BrowseLayout from '../../components/BrowseLayout'
 import { useBranches } from '../../hooks/useBranches'
 
 // ─── Formulário de Unidade ─────────────────────────────────────────────────────
@@ -56,77 +57,57 @@ function LogoUpload({ value, onChange }) {
   )
 }
 
-// ─── Tabela de unidades (presentacional) ──────────────────────────────────────
-function TabelaUnidades({ branches, loading, error, onEdit, onNew }) {
-  return (
-    <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--surface2)' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Unidades</span>
-          <span style={{ fontSize:11, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:99, padding:'1px 8px' }}>
-            {loading ? '…' : branches.length}
-          </span>
-        </div>
-        <button onClick={onNew}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-          <Plus size={12} /> Nova unidade
-        </button>
-      </div>
-
-      {error && <div style={{ padding:'10px 16px', fontSize:12, color:'#ef4444', borderTop:'1px solid var(--border)' }}>Erro: {error}</div>}
-
-      {!loading && branches.length > 0 && (
-        <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 140px 120px 100px 24px', padding:'6px 16px', borderTop:'1px solid var(--border)', background:'var(--surface2)' }}>
-          {['', 'Nome', 'CNPJ', 'Cidade/UF', 'Responsável', ''].map((h, i) => (
-            <span key={i} style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{h}</span>
-          ))}
-        </div>
-      )}
-
-      {loading ? (
-        <div style={{ padding:'24px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>Carregando…</div>
-      ) : branches.length === 0 ? (
-        <div style={{ padding:'32px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>
-          <Building2 size={24} style={{ color:'var(--border)', display:'block', margin:'0 auto 8px' }} />
-          Nenhuma unidade cadastrada. Cadastre a Matriz primeiro.
-        </div>
-      ) : branches.map((b, i) => {
-        const cf = b.custom_fields || {}
-        return (
-          <div key={b.id} onClick={() => onEdit(b)}
-            style={{ display:'grid', gridTemplateColumns:'44px 1fr 140px 120px 100px 24px', alignItems:'center',
-              padding:'10px 16px', borderTop:'1px solid var(--border)', cursor:'pointer',
-              background: i % 2 === 1 ? 'var(--surface2)' : 'transparent' }}
-            onMouseEnter={e => e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 6%, transparent)'}
-            onMouseLeave={e => e.currentTarget.style.background = i % 2 === 1 ? 'var(--surface2)' : 'transparent'}
-          >
-            <div style={{ width:32, height:32, borderRadius:7, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative' }}>
-              {cf.logo
-                ? <img src={cf.logo} alt="" style={{ width:'100%', height:'100%', objectFit:'contain', padding:3 }} />
-                : <Building2 size={13} style={{ color:'var(--accent)' }} />}
-              {cf.is_matriz && (
-                <span style={{ position:'absolute', top:-3, right:-3, background:'var(--accent)', borderRadius:'50%', width:12, height:12, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Star size={7} fill="#fff" style={{ color:'#fff' }} />
-                </span>
-              )}
-            </div>
-            <div style={{ minWidth:0, paddingRight:8 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.name}</span>
-                {cf.is_matriz && <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px', flexShrink:0, textTransform:'uppercase' }}>Matriz</span>}
-              </div>
-              {cf.cnae && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>CNAE {cf.cnae}</div>}
-            </div>
-            <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cf.cnpj || '—'}</span>
-            <span style={{ fontSize:12, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{[cf.cidade, cf.uf].filter(Boolean).join('/') || '—'}</span>
-            <span style={{ fontSize:12, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cf.responsavel || '—'}</span>
-            <span style={{ fontSize:14, color:'var(--text-muted)', textAlign:'right' }}>›</span>
+const BRANCH_COLUMNS = [
+  {
+    key: 'nome',
+    label: 'Unidade',
+    render: (_, row) => {
+      const cf = row.custom_fields || {}
+      return (
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <div style={{ width:32, height:32, borderRadius:7, background:'var(--surface2)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative', flexShrink:0 }}>
+            {cf.logo
+              ? <img src={cf.logo} alt="" style={{ width:'100%', height:'100%', objectFit:'contain', padding:3 }} />
+              : <Building2 size={13} style={{ color:'var(--accent)' }} />}
+            {cf.is_matriz && (
+              <span style={{ position:'absolute', top:-3, right:-3, background:'var(--accent)', borderRadius:'50%', width:12, height:12, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <Star size={7} fill="#fff" style={{ color:'#fff' }} />
+              </span>
+            )}
           </div>
-        )
-      })}
-    </div>
-  )
-}
+          <div>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontWeight:600, color:'var(--text)' }}>{row.name}</span>
+              {cf.is_matriz && <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px', textTransform:'uppercase' }}>Matriz</span>}
+            </div>
+            {cf.cnae && <div style={{ fontSize:11, color:'var(--text-muted)' }}>CNAE {cf.cnae}</div>}
+          </div>
+        </div>
+      )
+    },
+  },
+  {
+    key: 'cnpj',
+    label: 'CNPJ',
+    width: 160,
+    render: (_, row) => <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-muted)' }}>{row.custom_fields?.cnpj || '—'}</span>,
+  },
+  {
+    key: 'cidade',
+    label: 'Cidade / UF',
+    width: 140,
+    render: (_, row) => {
+      const cf = row.custom_fields || {}
+      return <span style={{ color:'var(--text-muted)' }}>{[cf.cidade, cf.uf].filter(Boolean).join(' / ') || '—'}</span>
+    },
+  },
+  {
+    key: 'responsavel',
+    label: 'Responsável',
+    width: 160,
+    render: (_, row) => <span style={{ color:'var(--text-muted)' }}>{row.custom_fields?.responsavel || '—'}</span>,
+  },
+]
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function EmpresaISV() {
@@ -381,13 +362,22 @@ export default function EmpresaISV() {
         title="Unidades"
         description="Cada unidade é uma branch obrigatória no sistema. Todo dado pertence a uma unidade e o campo branch é preenchido automaticamente pelo usuário logado."
       >
-        <TabelaUnidades
-          branches={branches}
-          loading={loadingBranches}
-          error={errorBranches}
-          onEdit={abrirEditarUnidade}
-          onNew={abrirNovaUnidade}
-        />
+        <div style={{ gridColumn:'1/-1', height:400, border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+          <BrowseLayout
+            columns={BRANCH_COLUMNS}
+            data={branches}
+            storageKey="empresa_unidades"
+            newLabel="Nova unidade"
+            onNew={abrirNovaUnidade}
+            onRowClick={abrirEditarUnidade}
+            emptyState={
+              <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, color:'var(--text-muted)' }}>
+                <Building2 size={28} style={{ opacity:0.3 }} />
+                <span style={{ fontSize:13 }}>Nenhuma unidade cadastrada. Cadastre a Matriz primeiro.</span>
+              </div>
+            }
+          />
+        </div>
       </FPESection>
     </FullPageEdit>
   )
