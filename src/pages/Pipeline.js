@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useFunnels } from '../hooks/useFunnels'
+import { usePlaybooks } from '../hooks/usePlaybooks'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { useProducts } from '../hooks/useProducts'
@@ -3354,7 +3355,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     setForm(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, [key]: value } }))
   }
 
-  const [playbooks] = useLocalState(PB_STORAGE_KEY, MOCK_PLAYBOOKS)
+  const { playbooks } = usePlaybooks()
 
   const oppTarefasCount   = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id).length
   const oppTarefasAbertas = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id && (t.status==='pendente'||t.status==='em_andamento')).length
@@ -3772,7 +3773,7 @@ function mapEtapaToStage(etapaNome) {
 }
 
 function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) {
-  const [playbooks]  = useLocalState(PB_STORAGE_KEY,           MOCK_PLAYBOOKS)
+  const { playbooks } = usePlaybooks()
   const [allSteps]   = useLocalState(PB_STEPS_STORAGE_KEY,     MOCK_FUNNEL_STEPS)
   const [allRefs]    = useLocalState(PB_REFS_STORAGE_KEY,      MOCK_REFERENCES)
   const [allRes]     = useLocalState(PB_RESOURCES_STORAGE_KEY, MOCK_RESOURCES)
