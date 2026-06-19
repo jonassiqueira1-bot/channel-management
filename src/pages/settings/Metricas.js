@@ -221,6 +221,36 @@ export const FONTES_CALCULO = [
   },
 ]
 
+function avançarData(d, n, intervalo) {
+  const r = new Date(d)
+  switch (intervalo) {
+    case 'horas':     r.setHours(r.getHours() + n);         break
+    case 'dias':      r.setDate(r.getDate() + n);           break
+    case 'semanas':   r.setDate(r.getDate() + n * 7);       break
+    case 'meses':     r.setMonth(r.getMonth() + n);         break
+    case 'trimestre': r.setMonth(r.getMonth() + n * 3);     break
+    case 'semestre':  r.setMonth(r.getMonth() + n * 6);     break
+    case 'ano':       r.setFullYear(r.getFullYear() + n);   break
+    default:          r.setMonth(r.getMonth() + n)
+  }
+  return r
+}
+
+// Gera a lista de datas previstas de apontamento a partir da configuração da métrica
+export function gerarAgenda(metrica) {
+  const { data_inicio, data_fim, periodo, intervalo } = metrica
+  if (!data_inicio) return []
+  const n   = Number(periodo) || 1
+  const fim = data_fim ? new Date(data_fim + 'T23:59:59') : new Date()
+  const datas = []
+  let d = new Date(data_inicio + 'T12:00:00')
+  while (d <= fim && datas.length < 500) {
+    datas.push(d.toISOString().slice(0, 10))
+    d = avançarData(d, n, intervalo || 'meses')
+  }
+  return datas
+}
+
 const EMPTY = {
   nome: '', descricao: '',
   modulo: '',
@@ -315,9 +345,24 @@ function MedicoesTable({ metrica }) {
   const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
   const [modal, setModal] = useState(false)
 
-  const minhas = leituras
-    .filter(l => l.metrica_id === metrica.id)
-    .sort((a, b) => new Date(b.data) - new Date(a.data))
+  const isAuto = metrica.fonte_calculo && metrica.fonte_calculo !== 'manual'
+  const agenda = useMemo(() => gerarAgenda(metrica), [metrica])
+  const hoje   = new Date().toISOString().slice(0, 10)
+
+  const minhas = leituras.filter(l => l.metrica_id === metrica.id)
+
+  // Para modo automático: mescla agenda com leituras capturadas
+  const linhas = useMemo(() => {
+    if (!isAuto) {
+      return minhas.sort((a, b) => new Date(b.data) - new Date(a.data))
+    }
+    // Para cada data da agenda, verifica se há leitura capturada naquele dia
+    return agenda.map(data => {
+      const leitura = minhas.find(l => l.data?.slice(0, 10) === data)
+      const passada = data <= hoje
+      return { data, leitura, passada }
+    }).sort((a, b) => new Date(b.data) - new Date(a.data))
+  }, [isAuto, minhas, agenda, hoje])
 
   function handleSave(leitura) {
     setLeituras(prev => [...prev, { ...leitura, id: uid() }])
@@ -331,7 +376,10 @@ function MedicoesTable({ metrica }) {
   }
 
   const bloqueio = foraDoperiodo(metrica)
-  const podeRegistrar = !bloqueio && metrica.fonte_calculo === 'manual'
+  const podeRegistrar = !bloqueio && !isAuto
+  const capturados = isAuto ? linhas.filter(l => l.leitura).length : minhas.length
+  const previstos  = isAuto ? linhas.filter(l => !l.passada).length : 0
+  const pendentes  = isAuto ? linhas.filter(l => l.passada && !l.leitura).length : 0
 
   return (
     <>
@@ -340,12 +388,22 @@ function MedicoesTable({ metrica }) {
       <div style={{ padding: '0 32px 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Medições registradas</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              {minhas.length} registro{minhas.length !== 1 ? 's' : ''}
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>
+              {isAuto ? 'Agenda de apontamentos' : 'Medições registradas'}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 10 }}>
+              {isAuto ? (
+                <>
+                  <span style={{ color: '#10B981' }}>{capturados} capturado{capturados !== 1 ? 's' : ''}</span>
+                  {pendentes > 0 && <span style={{ color: '#F59E0B' }}>{pendentes} pendente{pendentes !== 1 ? 's' : ''}</span>}
+                  <span style={{ color: 'var(--text-muted)' }}>{previstos} previsto{previstos !== 1 ? 's' : ''}</span>
+                </>
+              ) : (
+                <span>{capturados} registro{capturados !== 1 ? 's' : ''}</span>
+              )}
               {(metrica.data_inicio || metrica.data_fim) && (
-                <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>
-                  · vigência {metrica.data_inicio ? fmtData(metrica.data_inicio) : '…'} → {metrica.data_fim ? fmtData(metrica.data_fim) : '…'}
+                <span style={{ fontFamily: 'var(--mono)', fontSize: 11 }}>
+                  · {metrica.data_inicio ? fmtData(metrica.data_inicio) : '…'} → {metrica.data_fim ? fmtData(metrica.data_fim) : '…'}
                 </span>
               )}
             </div>
@@ -357,33 +415,65 @@ function MedicoesTable({ metrica }) {
               + Nova medição
             </button>
           )}
-          {!podeRegistrar && bloqueio && (
+          {isAuto && (
+            <span style={{ fontSize: 12, color: '#065F46', background: '#D1FAE5', border: '1px solid #10B981',
+              borderRadius: 8, padding: '6px 12px' }}>✓ Coleta automática</span>
+          )}
+          {!isAuto && bloqueio && (
             <span style={{ fontSize: 12, color: '#92400E', background: '#FEF3C7', border: '1px solid #F59E0B',
               borderRadius: 8, padding: '6px 12px' }}>⚠ {bloqueio}</span>
           )}
-          {!podeRegistrar && !bloqueio && metrica.fonte_calculo !== 'manual' && (
-            <span style={{ fontSize: 12, color: '#065F46', background: '#D1FAE5', border: '1px solid #10B981',
-              borderRadius: 8, padding: '6px 12px' }}>✓ Cálculo automático</span>
-          )}
         </div>
 
-        {minhas.length === 0 ? (
+        {linhas.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13,
             border: '1px dashed var(--border)', borderRadius: 10 }}>
-            Nenhuma medição registrada ainda.
+            {isAuto && !metrica.data_inicio ? 'Defina uma data de início para gerar a agenda.' : 'Nenhum apontamento ainda.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--border)' }}>
-                {['Data', 'Valor', 'Observação', ''].map(h => (
+                {['Data prevista', 'Valor capturado', 'Observação', ''].map(h => (
                   <th key={h} style={{ textAlign: 'left', padding: '6px 12px', fontSize: 11, fontWeight: 700,
                     textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {minhas.map((l, i) => (
+              {isAuto ? linhas.map((item, i) => {
+                const { data, leitura, passada } = item
+                const isPendente = passada && !leitura
+                const isFuturo   = !passada
+                return (
+                  <tr key={data} style={{ borderBottom: '1px solid var(--border)',
+                    background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)',
+                    opacity: isFuturo ? 0.55 : 1 }}>
+                    <td style={{ padding: '10px 12px', fontFamily: 'var(--mono)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                      {fmtData(data)}
+                      {data === hoje && <span style={{ marginLeft: 6, fontSize: 10, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>hoje</span>}
+                    </td>
+                    <td style={{ padding: '10px 12px', fontWeight: 700, fontFamily: 'var(--mono)',
+                      color: leitura ? 'var(--accent)' : isPendente ? '#F59E0B' : 'var(--text-muted)' }}>
+                      {leitura
+                        ? `${metrica.unidade} ${Number(leitura.valor).toLocaleString('pt-BR')}`
+                        : isPendente ? '— pendente' : '— previsto'}
+                    </td>
+                    <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>
+                      {leitura?.nota || '—'}
+                    </td>
+                    <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                      {leitura && (
+                        <button type="button" onClick={() => handleDelete(leitura.id)}
+                          title="Remover" style={{ background: 'none', border: 'none', cursor: 'pointer',
+                            color: '#EF4444', fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}>
+                          ×
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                )
+              }) : minhas.sort((a,b) => new Date(b.data)-new Date(a.data)).map((l, i) => (
                 <tr key={l.id} style={{ borderBottom: '1px solid var(--border)',
                   background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
                   <td style={{ padding: '10px 12px', fontFamily: 'var(--mono)', fontSize: 12, whiteSpace: 'nowrap' }}>

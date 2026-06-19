@@ -5,10 +5,10 @@
  *   modulo   string   — chave do módulo ('pipeline', 'projetos', etc.)
  *   usuarioId string  — id do usuário logado (para filtrar métricas pessoais)
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFunnels } from '../hooks/useFunnels'
-import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS, FONTES_CALCULO } from '../pages/settings/Metricas'
+import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS, FONTES_CALCULO, gerarAgenda } from '../pages/settings/Metricas'
 
 function calcStatus(metrica, valorAtual) {
   if (valorAtual === null || valorAtual === undefined) return 'sem_dados'
@@ -169,6 +169,60 @@ export default function MetricasStrip({ modulo, usuarioId }) {
   const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
   const [logModal, setLogModal] = useState(null)
   const { funis }               = useFunnels()
+
+  // Captura automática: ao montar, registra leituras para datas passadas sem apontamento
+  useEffect(() => {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const novas = []
+
+    metricas.forEach(metrica => {
+      if (!metrica.fonte_calculo || metrica.fonte_calculo === 'manual') return
+      if (metrica.status !== 'ativo') return
+      const fonte = FONTES_CALCULO.find(f => f.value === metrica.fonte_calculo)
+      if (!fonte?.fn || !fonte?.storageKey) return
+
+      const agenda = gerarAgenda(metrica)
+      const datasPassadas = agenda.filter(d => d <= hoje)
+      if (!datasPassadas.length) return
+
+      const capturadas = new Set(
+        leituras
+          .filter(l => l.metrica_id === metrica.id && l.auto)
+          .map(l => l.data?.slice(0, 10))
+      )
+
+      const faltam = datasPassadas.filter(d => !capturadas.has(d))
+      if (!faltam.length) return
+
+      let dados = []
+      try { const raw = localStorage.getItem(fonte.storageKey); dados = raw ? JSON.parse(raw) : [] } catch {}
+
+      faltam.forEach(data => {
+        try {
+          const valor = fonte.fn(dados, metrica, funis || [])
+          if (valor !== null && valor !== undefined && !isNaN(valor)) {
+            novas.push({
+              id: Date.now() + Math.random(),
+              metrica_id: metrica.id,
+              valor: Number(valor),
+              data: data + 'T12:00:00.000Z',
+              nota: 'Apontamento automático',
+              auto: true,
+            })
+          }
+        } catch {}
+      })
+    })
+
+    if (novas.length > 0) {
+      setLeituras(prev => {
+        const existentes = new Set(prev.filter(l => l.auto).map(l => `${l.metrica_id}|${l.data?.slice(0,10)}`))
+        const filtradas  = novas.filter(n => !existentes.has(`${n.metrica_id}|${n.data?.slice(0,10)}`))
+        return filtradas.length ? [...prev, ...filtradas] : prev
+      })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [metricas, funis])
 
   const metricasModulo = useMemo(() => {
     return metricas.filter(m =>
