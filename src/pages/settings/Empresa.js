@@ -138,6 +138,29 @@ export default function EmpresaISV() {
     if (!temMatriz && updated.name?.trim()) {
       await saveBranch({ name: updated.name.trim(), custom_fields: { is_matriz: true } })
     }
+    // Registra o owner na lista de usuários (apenas no primeiro save)
+    if (!jaTemOwner && owner.nome.trim() && owner.email.trim()) {
+      try {
+        const perfisAtual = JSON.parse(localStorage.getItem('settings:perfis_v2') || '[]')
+        const jaExiste = perfisAtual.some(p => p.email === owner.email.trim())
+        if (!jaExiste) {
+          const novoOwner = {
+            id: `owner_${Date.now()}`,
+            nome: owner.nome.trim(),
+            email: owner.email.trim(),
+            papel: 'admin_isv',
+            tipo_usuario: 'interno',
+            status: 'ativo',
+            is_owner: true,
+            criado_em: new Date().toISOString(),
+            ultimo_acesso: null,
+            perfis_acesso_ids: [],
+            branch_ids: [],
+          }
+          localStorage.setItem('settings:perfis_v2', JSON.stringify([novoOwner, ...perfisAtual]))
+        }
+      } catch {}
+    }
     setForm(null)
   }
 
