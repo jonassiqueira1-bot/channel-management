@@ -445,26 +445,21 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       </FPESection>
 
       {/* Unidades */}
-      <FPESection title="Unidades com acesso" description="Segure Ctrl (ou ⌘) para selecionar múltiplas unidades.">
+      <FPESection title="Unidades com acesso">
         {branches.length === 0 ? (
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
         ) : (
-          <FPEField label="Unidades" style={{ gridColumn:'1/-1' }}>
-            <select multiple disabled={!podeEditar}
-              size={branches.length}
-              value={form.branch_ids || []}
-              onChange={e => {
-                const sel = Array.from(e.target.selectedOptions).map(o => o.value)
-                podeEditar && setForm(f => ({ ...f, branch_ids: sel }))
-              }}
-              className="fpe-field"
-              style={{ height:'auto', backgroundImage:'none', padding:'4px 0' }}>
+          <FPEField label="Unidade" style={{ gridColumn:'1/-1' }}>
+            <select className="fpe-field" disabled={!podeEditar}
+              value={(form.branch_ids || [])[0] || ''}
+              onChange={e => podeEditar && setForm(f => ({ ...f, branch_ids: e.target.value ? [e.target.value] : [] }))}>
+              <option value="">— Selecione a unidade —</option>
               {branches.map(b => {
                 const cf = b.custom_fields || {}
                 return (
-                  <option key={b.id} value={b.id} style={{ padding:'7px 10px' }}>
+                  <option key={b.id} value={b.id}>
                     {cf.is_matriz ? '★ ' : ''}{b.name}{cf.cidade ? ` — ${cf.cidade}` : ''}
                   </option>
                 )
@@ -475,22 +470,17 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       </FPESection>
 
       {/* Perfis de acesso */}
-      <FPESection title="Perfis de acesso" description="Segure Ctrl (ou ⌘) para selecionar múltiplos perfis.">
+      <FPESection title="Perfis de acesso">
         {rolesStore.length === 0 ? (
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhum perfil configurado.</div>
         ) : (
-          <FPEField label="Perfis" style={{ gridColumn:'1/-1' }}>
-            <select multiple disabled={!podeEditar}
-              size={rolesStore.length}
-              value={form.perfis_acesso_ids || []}
-              onChange={e => {
-                const sel = Array.from(e.target.selectedOptions).map(o => o.value)
-                podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: sel }))
-              }}
-              className="fpe-field"
-              style={{ height:'auto', backgroundImage:'none', padding:'4px 0' }}>
+          <FPEField label="Perfil" style={{ gridColumn:'1/-1' }}>
+            <select className="fpe-field" disabled={!podeEditar}
+              value={(form.perfis_acesso_ids || [])[0] || ''}
+              onChange={e => podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: e.target.value ? [e.target.value] : [] }))}>
+              <option value="">— Selecione o perfil —</option>
               {rolesStore.map(r => (
-                <option key={r.id} value={r.id} style={{ padding:'7px 10px' }}>{r.nome}</option>
+                <option key={r.id} value={r.id}>{r.nome}</option>
               ))}
             </select>
           </FPEField>
