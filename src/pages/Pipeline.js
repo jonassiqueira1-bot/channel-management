@@ -3363,6 +3363,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const oppTarefasCount   = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id).length
   const oppTarefasAbertas = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id && (t.status==='pendente'||t.status==='em_andamento')).length
   const itensCount        = form.itens.length
+  const { membros: todosMembrosOpp } = useOppMembros()
+  const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
 
   function handleSave() {
     if (!form.titulo.trim()) return alert('Título é obrigatório')
@@ -3538,7 +3540,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     { key: 'dados',         label: 'Dados' },
     { key: 'produtos',      label: 'Produtos',      badge: itensCount || undefined },
     { key: 'tarefas',       label: 'Tarefas',       badge: oppTarefasCount || undefined },
-    { key: 'equipe',        label: 'Equipe' },
+    { key: 'equipe',        label: 'Equipe',        badge: oppEquipeCount || undefined },
     { key: 'documentos',    label: 'Documentos' },
     { key: 'proposta',      label: 'Proposta' },
     { key: 'questionarios', label: 'Questionários' },
