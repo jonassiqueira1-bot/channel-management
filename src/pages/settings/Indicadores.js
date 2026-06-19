@@ -197,14 +197,14 @@ function uid() { return Date.now() + Math.floor(Math.random() * 999) }
 export default function SettingsIndicadores() {
   const [indicadores, setIndicadores] = useLocalState(INDICADORES_KEY, [])
   const [editando, setEditando] = useState(null)
+  const [form, setForm] = useState(null)
   const { produtos } = useProducts()
   const { funis } = useFunnels()
 
-  function abrir(ind) { setEditando(ind) }
-  function fechar()   { setEditando(null) }
+  function abrir(ind) { setEditando(ind); setForm({ ...ind }) }
+  function fechar()   { setEditando(null); setForm(null) }
 
   function handleSave() {
-    const form = editando
     if (!form.nome || !form.modulo || !form.fonte_calculo) return
     setIndicadores(prev => {
       if (form.id) return prev.map(i => i.id === form.id ? form : i)
@@ -213,7 +213,7 @@ export default function SettingsIndicadores() {
     fechar()
   }
 
-  function set(k, v) { setEditando(f => ({ ...f, [k]: v })) }
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   function toggleArr(k, v) {
     setEditando(f => {
@@ -243,20 +243,19 @@ export default function SettingsIndicadores() {
     },
   ], [])
 
-  if (editando !== null) {
-    const form = editando
+  if (editando !== null && form !== null) {
     const fontesModulo = FONTES_INDICADOR.filter(f => f.modulos.includes(form.modulo))
     const fonteSel = FONTES_INDICADOR.find(f => f.value === form.fonte_calculo)
     const mostraEtapas = ['pipeline_opps_por_etapa', 'pipeline_conversao_etapa'].includes(form.fonte_calculo)
     const podeGravar = !!(form.nome && form.modulo && form.fonte_calculo)
 
     function handleModulo(v) {
-      setEditando(f => ({ ...f, modulo: v, fonte_calculo: '', unidade: '' }))
+      setForm(f => ({ ...f, modulo: v, fonte_calculo: '', unidade: '' }))
     }
     function handleFonte(v) {
       const fonte = FONTES_INDICADOR.find(f => f.value === v)
       const unidade = fonte?.tipo === 'amount' ? 'R$' : fonte?.tipo === 'count' ? 'un' : form.unidade
-      setEditando(f => ({ ...f, fonte_calculo: v, unidade }))
+      setForm(f => ({ ...f, fonte_calculo: v, unidade }))
     }
 
     return (

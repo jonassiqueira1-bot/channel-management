@@ -35,14 +35,14 @@ export default function SettingsMetas() {
   const [metas, setMetas] = useLocalState(METAS_KEY, [])
   const [indicadores] = useLocalState(INDICADORES_KEY, [])
   const [editando, setEditando] = useState(null)
+  const [form, setForm] = useState(null)
   const { funis } = useFunnels()
   const [perfis] = useLocalState('settings:perfis_v2', [])
 
-  function abrir(meta) { setEditando(meta) }
-  function fechar()    { setEditando(null) }
+  function abrir(meta) { setEditando(meta); setForm({ ...meta }) }
+  function fechar()    { setEditando(null); setForm(null) }
 
   function handleSave() {
-    const form = editando
     if (!form.nome || !form.indicador_id || !form.valor_alvo) return
     setMetas(prev => {
       if (form.id) return prev.map(m => m.id === form.id ? form : m)
@@ -51,7 +51,7 @@ export default function SettingsMetas() {
     fechar()
   }
 
-  function set(k, v) { setEditando(f => ({ ...f, [k]: v })) }
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
   const columns = useMemo(() => [
     {
@@ -107,8 +107,7 @@ export default function SettingsMetas() {
     },
   ], [indicadores, metas, perfis])
 
-  if (editando !== null) {
-    const form = editando
+  if (editando !== null && form !== null) {
     const indicadoresAtivos = indicadores.filter(i => i.status === 'ativo')
     const indSel = indicadoresAtivos.find(i => i.id === form.indicador_id)
     const metasPai = metas.filter(m =>
