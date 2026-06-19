@@ -112,7 +112,7 @@ export default function Franquias() {
   }, [franquias, search])
 
   function abrirNovo() {
-    setForm({ nome: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null })
+    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null })
     setEditando('novo')
   }
 
@@ -130,8 +130,7 @@ export default function Franquias() {
     ) ? 'Já existe um registro com este nome' : null
   }, [form?.nome, franquias, editando])
 
-  const podeGravar = form?.nome?.trim() && !nomeErr &&
-    (form?.classificacao !== 'unidade' || form?.franquia_id)
+  const podeGravar = form?.nome?.trim() && !nomeErr
 
   function handleSave() {
     if (!podeGravar) return
@@ -175,10 +174,13 @@ export default function Franquias() {
         const franquiaMae = row.franquia_id ? franquias.find(f => f.id === row.franquia_id) : null
         return (
           <div>
-            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{v}</div>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              {row.codigo && <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:5, padding:'1px 6px' }}>{row.codigo}</span>}
+              <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{v}</span>
+            </div>
             {franquiaMae && (
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                ↳ {franquiaMae.nome}
+                ↳ {franquiaMae.codigo ? `[${franquiaMae.codigo}] ` : ''}{franquiaMae.nome}
               </div>
             )}
           </div>
@@ -211,84 +213,52 @@ export default function Franquias() {
         onDelete={editando !== 'novo' ? () => handleDelete(editando.id) : undefined}
       >
         <FPESection title="Identificação">
-          <FPEGrid>
-            {/* Classificação */}
-            <FPEField label="Classificação" required style={{ gridColumn: '1/-1' }}>
-              <div style={{ display: 'flex', gap: 10 }}>
+          {/* Linha 1: Classificação + Situação */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, gridColumn:'1/-1' }}>
+            <FPEField label="Classificação" required>
+              <select className="fpe-field" value={form.classificacao || 'franquia'}
+                onChange={e => { set('classificacao', e.target.value); set('franquia_id', null) }}>
                 {Object.entries(CLASSIF_CONFIG).map(([val, cfg]) => (
-                  <button key={val} type="button"
-                    onClick={() => { set('classificacao', val); set('franquia_id', null) }}
-                    style={{
-                      flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      border: form.classificacao === val ? `2px solid ${cfg.color}` : '2px solid var(--border)',
-                      background: form.classificacao === val ? cfg.bg : 'var(--surface)',
-                      transition: 'all 0.15s',
-                    }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: form.classificacao === val ? cfg.color : 'var(--text-muted)' }}>
-                      {cfg.label}
-                    </span>
-                  </button>
+                  <option key={val} value={val}>{cfg.label}</option>
                 ))}
-              </div>
+              </select>
             </FPEField>
+            <FPEField label="Situação">
+              <select className="fpe-field" value={form.situacao || 'ativo'}
+                onChange={e => set('situacao', e.target.value)}>
+                <option value="ativo">Ativa</option>
+                <option value="inativo">Inativa</option>
+              </select>
+            </FPEField>
+          </div>
 
-            {/* Franquia detentora — só se Unidade */}
-            {isUnidade && (
-              <FPEField label="Franquia detentora" required style={{ gridColumn: '1/-1' }}>
-                <select className="fpe-field" value={form.franquia_id || ''}
-                  onChange={e => set('franquia_id', e.target.value || null)}>
-                  <option value="">— Selecione a franquia —</option>
-                  {franquiasMae.filter(f => f.id !== editando?.id).map(f => (
-                    <option key={f.id} value={f.id}>{f.nome}</option>
-                  ))}
-                </select>
-                {franquiasMae.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>
-                    Nenhuma franquia disponível. Cadastre uma franquia antes de criar uma unidade vinculada.
-                  </div>
-                )}
-              </FPEField>
-            )}
-
-            {/* Nome */}
-            <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: '1/-1' }}>
-              <input className="fpe-field"
-                value={form.nome}
+          {/* Linha 2: Código + Nome */}
+          <div style={{ display:'grid', gridTemplateColumns:'160px 1fr', gap:12, gridColumn:'1/-1' }}>
+            <FPEField label="Código">
+              <input className="fpe-field" value={form.codigo || ''}
+                onChange={e => set('codigo', e.target.value)}
+                placeholder="Ex: FRQ-001" />
+            </FPEField>
+            <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr}>
+              <input className="fpe-field" value={form.nome}
                 onChange={e => set('nome', e.target.value)}
                 placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Franquia Norte'}
-                style={nomeErr ? { borderColor: 'var(--red)' } : {}}
-              />
+                style={nomeErr ? { borderColor: 'var(--red)' } : {}} />
             </FPEField>
+          </div>
 
-            {/* Situação */}
-            <FPEField label="Situação" style={{ gridColumn: '1/-1' }}>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {[
-                  { value: 'ativo',   label: 'Ativa',   color: '#10B981', bg: '#ECFDF5' },
-                  { value: 'inativo', label: 'Inativa', color: '#9A9590', bg: '#F1F5F9' },
-                ].map(opt => (
-                  <button key={opt.value} type="button" onClick={() => set('situacao', opt.value)}
-                    style={{
-                      flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                      border: form.situacao === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
-                      background: form.situacao === opt.value ? opt.bg : 'var(--surface)',
-                      transition: 'all 0.15s',
-                    }}>
-                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color }} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: form.situacao === opt.value ? opt.color : 'var(--text-muted)' }}>
-                      {opt.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </FPEField>
-          </FPEGrid>
-
-          {editando !== 'novo' && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)', gridColumn: '1/-1' }}>
-              id: <span style={{ color: 'var(--accent)' }}>{editando.id}</span>
+          {/* Linha 3: Franquia detentora — só se Unidade */}
+          {isUnidade && (
+            <div style={{ gridColumn:'1/-1' }}>
+              <FPEField label="Franquia detentora">
+                <select className="fpe-field" value={form.franquia_id || ''}
+                  onChange={e => set('franquia_id', e.target.value || null)}>
+                  <option value="">— Nenhuma —</option>
+                  {franquiasMae.filter(f => f.id !== editando?.id).map(f => (
+                    <option key={f.id} value={f.id}>{f.codigo ? `[${f.codigo}] ` : ''}{f.nome}</option>
+                  ))}
+                </select>
+              </FPEField>
             </div>
           )}
         </FPESection>
