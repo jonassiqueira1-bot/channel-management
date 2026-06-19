@@ -58,6 +58,13 @@ function MetaChip({ meta, indicador, funis }) {
       >
         <span style={{ fontSize: 11, color: cfg.cor }}>{cfg.dot}</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{meta.nome}</span>
+        <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+          {fmtVal(valorAtual, indicador?.unidade)}
+        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', opacity: 0.5 }}>/</span>
+        <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+          {fmtVal(alvo, indicador?.unidade)}
+        </span>
         <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: cfg.cor, fontWeight: 700 }}>
           {pct}%
         </span>
