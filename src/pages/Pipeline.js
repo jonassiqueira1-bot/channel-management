@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import { useTasks } from '../hooks/useTasks'
 import MetricasStrip from '../components/MetricasStrip'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
@@ -5070,7 +5071,7 @@ export default function Pipeline() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { console.log('[Pipeline opps]', opps.length, opps.map(o=>({id:o.id,funil:o.funil_id,etapa:o.etapa_id}))) }, [opps])
   // ── estado efêmero (não persiste) ────────────────────────────────────────
-  const [tarefas, setTarefas]           = useState(MOCK_TAREFAS)
+  const { tarefas, save: saveTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
   const filtrosRef                      = useRef(null)
@@ -5203,17 +5204,9 @@ export default function Pipeline() {
   function handleSave(data) { saveOpp({ ...data, funil_nome: funil?.nome || '' }); setModal(null) }
   function handleDelete(id) { removeOpp(id); setModal(null) }
 
-  function handleSaveTarefa(tarefa) {
-    setTarefas(prev => {
-      const idx = prev.findIndex(t=>t.id===tarefa.id)
-      if (idx>=0) { const n=[...prev]; n[idx]=tarefa; return n }
-      return [tarefa, ...prev]
-    })
-  }
+  function handleSaveTarefa(tarefa) { saveTask(tarefa) }
   function handleToggleStatus(tarefaId, novoStatus) {
-    setTarefas(prev => prev.map(t =>
-      t.id===tarefaId ? { ...t, status:novoStatus, concluida_em: novoStatus==='concluida' ? new Date().toISOString().slice(0,10) : null } : t
-    ))
+    bulkSetTaskStatus([tarefaId], novoStatus)
   }
 
   function handleAddAtividade(ativ) {
