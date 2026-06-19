@@ -283,54 +283,107 @@ export default function EmpresaISV() {
   const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
   const isv = useMemo(() => companies.find(c => c.type === 'ISV'), [companies])
   const [form, setForm] = useState(null)
+  const { branches, save: saveBranch } = useBranches()
 
   const current = form || isv
+  const temMatriz = branches.some(b => b.custom_fields?.is_matriz)
 
-  if (!isv) {
-    return (
-      <div style={{ padding:32, color:'var(--text-muted)', fontSize:14 }}>
-        Organização não encontrada.
-      </div>
-    )
-  }
+  if (!isv) return (
+    <div style={{ padding:32, color:'var(--text-muted)', fontSize:14 }}>Organização não encontrada.</div>
+  )
 
   function set(k, v) { setForm(f => ({ ...(f || isv), [k]: v })) }
 
-  function handleSave() {
-    setCompanies(prev => prev.map(c => c.id === isv.id ? { ...(form || isv), updated_at: new Date().toISOString() } : c))
+  async function handleSave() {
+    const updated = { ...(form || isv), updated_at: new Date().toISOString() }
+    setCompanies(prev => prev.map(c => c.id === isv.id ? updated : c))
+
+    // Auto-cria Matriz se ainda não existe
+    if (!temMatriz && updated.name?.trim()) {
+      await saveBranch({
+        name: updated.name.trim(),
+        custom_fields: {
+          is_matriz: true,
+          cnpj: updated.cnpj || '',
+          responsavel: '',
+          cidade: updated.city || '',
+          uf: updated.state || '',
+          cep: updated.cep || '',
+          logradouro: updated.address || '',
+          email: updated.email || '',
+          telefone: updated.phone || '',
+        },
+      })
+    }
+
     setForm(null)
   }
 
+  const nomeOk = current?.name?.trim().length > 0
+  const razaoOk = current?.corporate_name?.trim().length > 0
+  const podeGravar = nomeOk && razaoOk
+
   return (
     <FullPageEdit
-      title="Organização"
+      title="Empresa / ISV"
       subtitle={isv.corporate_name || isv.name}
-      onSave={handleSave}
+      onSave={podeGravar ? handleSave : undefined}
       onCancel={() => setForm(null)}
     >
-      <FPESection title="Identidade Jurídica">
+      {/* ── Organização: campos obrigatórios ── */}
+      <FPESection
+        title="Organização"
+        description="Campos obrigatórios para ativação da conta. Ao salvar pela primeira vez, a Matriz será criada automaticamente como primeira unidade do sistema."
+      >
         <FPEGrid>
-          <FPEField label="Nome Fantasia" required style={{ gridColumn: '1 / -1' }}>
-            <input className="fpe-field" value={current.name || ''} onChange={e => set('name', e.target.value)} placeholder="Ex: NG Informática" />
+          <FPEField label="Nome da Organização" required style={{ gridColumn:'1/-1' }}>
+            <input className="fpe-field" value={current.name || ''}
+              onChange={e => set('name', e.target.value)}
+              placeholder="Ex: NG Informática" />
           </FPEField>
-          <FPEField label="Razão Social" style={{ gridColumn: '1 / -1' }}>
-            <input className="fpe-field" value={current.corporate_name || ''} onChange={e => set('corporate_name', e.target.value)} placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
+          <FPEField label="Razão Social" required style={{ gridColumn:'1/-1' }}>
+            <input className="fpe-field" value={current.corporate_name || ''}
+              onChange={e => set('corporate_name', e.target.value)}
+              placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
           </FPEField>
+        </FPEGrid>
+
+        {!podeGravar && (
+          <div style={{ marginTop:8, padding:'8px 12px', background:'color-mix(in srgb, var(--accent) 8%, transparent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)', borderRadius:8, fontSize:12, color:'var(--accent)' }}>
+            Preencha Nome da Organização e Razão Social para habilitar o cadastro.
+          </div>
+        )}
+
+        {!temMatriz && podeGravar && (
+          <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', borderRadius:8, fontSize:12, color:'#10B981' }}>
+            ★ Ao salvar, a Matriz será criada automaticamente com o nome da organização.
+          </div>
+        )}
+      </FPESection>
+
+      {/* ── Dados complementares ── */}
+      <FPESection title="Dados complementares">
+        <FPEGrid>
           <FPEField label="CNPJ">
-            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.cnpj || ''} onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.cnpj || ''}
+              onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
           </FPEField>
           <FPEField label="Website">
-            <input className="fpe-field" value={current.website || ''} onChange={e => set('website', e.target.value)} placeholder="https://suaempresa.com.br" />
+            <input className="fpe-field" value={current.website || ''}
+              onChange={e => set('website', e.target.value)} placeholder="https://suaempresa.com.br" />
           </FPEField>
           <FPEField label="E-mail">
-            <input className="fpe-field" type="email" value={current.email || ''} onChange={e => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
+            <input className="fpe-field" type="email" value={current.email || ''}
+              onChange={e => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
           </FPEField>
           <FPEField label="Telefone">
-            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.phone || ''} onChange={e => set('phone', e.target.value)} placeholder="(11) 0000-0000" />
+            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.phone || ''}
+              onChange={e => set('phone', e.target.value)} placeholder="(11) 0000-0000" />
           </FPEField>
         </FPEGrid>
       </FPESection>
 
+      {/* ── White-label ── */}
       <FPESection title="Identidade Visual (White-label)">
         <FPEGrid>
           <FPEField label="Cor primária">
@@ -355,11 +408,16 @@ export default function EmpresaISV() {
           </FPEField>
         </FPEGrid>
         <FPEField label="Observações internas">
-          <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={current.notes || ''} onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
+          <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={current.notes || ''}
+            onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
         </FPEField>
       </FPESection>
 
-      <FPESection title="Unidades" description="Cada unidade corresponde a uma branch no sistema. O campo branch é obrigatório em todas as tabelas e é preenchido automaticamente conforme o usuário logado.">
+      {/* ── Unidades ── */}
+      <FPESection
+        title="Unidades"
+        description="Cada unidade é uma branch obrigatória no sistema. Todo dado (oportunidade, contato, empresa) pertence a uma unidade. O campo branch é preenchido automaticamente pelo usuário logado."
+      >
         <GerenciarUnidades />
       </FPESection>
     </FullPageEdit>
