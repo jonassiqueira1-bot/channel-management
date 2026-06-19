@@ -11,7 +11,8 @@ const UNIT_EMPTY = {
   name: '',
   custom_fields: {
     cnpj: '', cnae: '', cep: '', logradouro: '', cidade: '', uf: '',
-    email: '', telefone: '', responsavel: '', is_matriz: false,
+    email: '', telefone: '', website: '', responsavel: '', is_matriz: false,
+    primary_color: '', accent_color: '', notes: '',
   },
 }
 
@@ -193,26 +194,6 @@ export default function EmpresaISV() {
                 onChange={e => setUf('name', e.target.value)}
                 placeholder={branches.length === 0 ? 'Ex: Matriz — NG Informática SP' : 'Ex: Filial Campinas'} />
             </FPEField>
-            <FPEField label="CNPJ">
-              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnpj || ''}
-                onChange={e => setCf('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
-            </FPEField>
-            <FPEField label="CNAE">
-              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnae || ''}
-                onChange={e => setCf('cnae', e.target.value)} placeholder="6202-3/00" />
-            </FPEField>
-            <FPEField label="Responsável">
-              <input className="fpe-field" value={cf.responsavel || ''}
-                onChange={e => setCf('responsavel', e.target.value)} placeholder="Nome do responsável" />
-            </FPEField>
-            <FPEField label="Telefone">
-              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.telefone || ''}
-                onChange={e => setCf('telefone', e.target.value)} placeholder="(11) 0000-0000" />
-            </FPEField>
-            <FPEField label="E-mail" style={{ gridColumn:'1/-1' }}>
-              <input className="fpe-field" type="email" value={cf.email || ''}
-                onChange={e => setCf('email', e.target.value)} placeholder="contato@empresa.com.br" />
-            </FPEField>
           </FPEGrid>
         </FPESection>
 
@@ -235,6 +216,66 @@ export default function EmpresaISV() {
                 onChange={e => setCf('cidade', e.target.value)} placeholder="São Paulo" />
             </FPEField>
           </FPEGrid>
+        </FPESection>
+
+        <FPESection title="Contato">
+          <FPEGrid>
+            <FPEField label="CNPJ">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnpj || ''}
+                onChange={e => setCf('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+            </FPEField>
+            <FPEField label="CNAE">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnae || ''}
+                onChange={e => setCf('cnae', e.target.value)} placeholder="6202-3/00" />
+            </FPEField>
+            <FPEField label="Website">
+              <input className="fpe-field" value={cf.website || ''}
+                onChange={e => setCf('website', e.target.value)} placeholder="https://suaempresa.com.br" />
+            </FPEField>
+            <FPEField label="E-mail">
+              <input className="fpe-field" type="email" value={cf.email || ''}
+                onChange={e => setCf('email', e.target.value)} placeholder="contato@empresa.com.br" />
+            </FPEField>
+            <FPEField label="Telefone">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.telefone || ''}
+                onChange={e => setCf('telefone', e.target.value)} placeholder="(11) 0000-0000" />
+            </FPEField>
+            <FPEField label="Responsável">
+              <input className="fpe-field" value={cf.responsavel || ''}
+                onChange={e => setCf('responsavel', e.target.value)} placeholder="Nome do responsável" />
+            </FPEField>
+          </FPEGrid>
+        </FPESection>
+
+        <FPESection title="Identidade Visual (White-label)">
+          <FPEGrid>
+            <FPEField label="Cor primária">
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <input type="color" value={cf.primary_color || '#000000'} onChange={e => setCf('primary_color', e.target.value)}
+                  style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={cf.primary_color || ''}
+                  onChange={e => setCf('primary_color', e.target.value)} placeholder="#000000" />
+              </div>
+            </FPEField>
+            <FPEField label="Cor de destaque">
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <input type="color" value={cf.accent_color || '#10B981'} onChange={e => setCf('accent_color', e.target.value)}
+                  style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={cf.accent_color || ''}
+                  onChange={e => setCf('accent_color', e.target.value)} placeholder="#10B981" />
+              </div>
+            </FPEField>
+            <FPEField label="Prévia">
+              <div style={{ display:'flex', gap:6 }}>
+                {cf.primary_color && <span style={{ padding:'6px 14px', borderRadius:7, background:cf.primary_color, color:'#fff', fontSize:12, fontWeight:700 }}>Primária</span>}
+                {cf.accent_color && <span style={{ padding:'6px 14px', borderRadius:7, background:cf.accent_color, color:'#fff', fontSize:12, fontWeight:700 }}>Destaque</span>}
+              </div>
+            </FPEField>
+          </FPEGrid>
+          <FPEField label="Observações internas">
+            <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={cf.notes || ''}
+              onChange={e => setCf('notes', e.target.value)} placeholder="Anotações internas sobre esta unidade." />
+          </FPEField>
         </FPESection>
 
         <FPESection title="Configuração">
@@ -306,56 +347,6 @@ export default function EmpresaISV() {
             ★ Ao salvar, a Matriz será criada automaticamente com o nome da organização.
           </div>
         )}
-      </FPESection>
-
-      <FPESection title="Dados complementares">
-        <FPEGrid>
-          <FPEField label="CNPJ">
-            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.cnpj || ''}
-              onChange={e => set('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
-          </FPEField>
-          <FPEField label="Website">
-            <input className="fpe-field" value={current.website || ''}
-              onChange={e => set('website', e.target.value)} placeholder="https://suaempresa.com.br" />
-          </FPEField>
-          <FPEField label="E-mail">
-            <input className="fpe-field" type="email" value={current.email || ''}
-              onChange={e => set('email', e.target.value)} placeholder="contato@empresa.com.br" />
-          </FPEField>
-          <FPEField label="Telefone">
-            <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={current.phone || ''}
-              onChange={e => set('phone', e.target.value)} placeholder="(11) 0000-0000" />
-          </FPEField>
-        </FPEGrid>
-      </FPESection>
-
-      <FPESection title="Identidade Visual (White-label)">
-        <FPEGrid>
-          <FPEField label="Cor primária">
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input type="color" value={current.primary_color || '#6366F1'} onChange={e => set('primary_color', e.target.value)}
-                style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
-              <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={current.primary_color || ''} onChange={e => set('primary_color', e.target.value)} placeholder="#6366F1" />
-            </div>
-          </FPEField>
-          <FPEField label="Cor de destaque">
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <input type="color" value={current.accent_color || '#10B981'} onChange={e => set('accent_color', e.target.value)}
-                style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
-              <input className="fpe-field" style={{ fontFamily:'var(--mono)', fontSize:12 }} value={current.accent_color || ''} onChange={e => set('accent_color', e.target.value)} placeholder="#10B981" />
-            </div>
-          </FPEField>
-          <FPEField label="Prévia">
-            <div style={{ display:'flex', gap:6 }}>
-              <span style={{ padding:'6px 14px', borderRadius:7, background:current.primary_color || 'var(--accent)', color:'#fff', fontSize:12, fontWeight:700 }}>Primária</span>
-              <span style={{ padding:'6px 14px', borderRadius:7, background:current.accent_color || '#10B981', color:'#fff', fontSize:12, fontWeight:700 }}>Destaque</span>
-            </div>
-          </FPEField>
-        </FPEGrid>
-        <FPEField label="Observações internas">
-          <textarea className="fpe-field" rows={2} style={{ resize:'vertical' }} value={current.notes || ''}
-            onChange={e => set('notes', e.target.value)} placeholder="Anotações internas sobre a organização." />
-        </FPEField>
       </FPESection>
 
       <FPESection
