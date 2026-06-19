@@ -7,7 +7,7 @@
  */
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS } from '../pages/settings/Metricas'
+import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS, FONTES_CALCULO } from '../pages/settings/Metricas'
 
 function calcStatus(metrica, valorAtual) {
   if (valorAtual === null || valorAtual === undefined) return 'sem_dados'
@@ -82,6 +82,66 @@ function LogModal({ metrica, onSave, onClose }) {
   )
 }
 
+// Hook para calcular valor automático de uma métrica a partir do localStorage
+function useAutoCalculo(metrica) {
+  const fonte = FONTES_CALCULO.find(f => f.value === metrica?.fonte_calculo)
+  const [dados] = useLocalState(fonte?.storageKey || '__noop__', [])
+  if (!fonte || fonte.value === 'manual' || !fonte.fn) return null
+  try { return fonte.fn(dados) } catch { return null }
+}
+
+// Wrapper individual para cada métrica (hooks não podem ser condicionais)
+function MetricaCard({ m, ultimaLeitura, onLog }) {
+  const autoValor = useAutoCalculo(m)
+  const isAuto    = m.fonte_calculo && m.fonte_calculo !== 'manual'
+  const ul        = ultimaLeitura(m.id)
+  const atual     = isAuto ? autoValor : (ul ? ul.valor : null)
+  const status    = calcStatus(m, atual)
+  const cfg       = STATUS_CFG[status]
+  const pct       = atual !== null
+    ? Math.min(Math.round((m.tendencia === 'subir' ? atual / m.valor_alvo : m.valor_alvo / atual) * 100), 100)
+    : 0
+  const intervaloLabel = INTERVALOS.find(i => i.value === m.intervalo)?.label || m.intervalo
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+      borderRadius: 12, padding: '12px 16px', minWidth: 200, maxWidth: 260, flex: '1 1 200px',
+      borderLeft: `4px solid ${m.cor || cfg.cor}` }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1, marginRight: 8 }}>{m.nome}</span>
+        <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '1px 8px',
+          background: cfg.bg, color: cfg.cor, whiteSpace: 'nowrap' }}>{cfg.label}</span>
+      </div>
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: cfg.cor, borderRadius: 3, transition: 'width 0.4s' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>
+            {atual !== null ? `${m.unidade} ${Number(atual).toLocaleString('pt-BR')}` : '—'}
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
+            / {m.unidade} {Number(m.valor_alvo).toLocaleString('pt-BR')}
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+            {m.periodo}× {intervaloLabel}
+          </span>
+          {isAuto
+            ? <span style={{ fontSize: 10, color: '#10B981', background: '#D1FAE5', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>auto</span>
+            : <button type="button" onClick={() => onLog(m)} title="Registrar leitura"
+                style={{ background: 'var(--accent-lite)', border: 'none', borderRadius: 6,
+                  color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: '2px 8px', fontWeight: 700, lineHeight: 1 }}>
+                +
+              </button>
+          }
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function MetricasStrip({ modulo, usuarioId }) {
   const [metricas]          = useLocalState(METRICAS_KEY, [])
   const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
@@ -114,56 +174,9 @@ export default function MetricasStrip({ modulo, usuarioId }) {
         <LogModal metrica={logModal} onSave={registrarLeitura} onClose={() => setLogModal(null)} />
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {metricasModulo.map(m => {
-          const ultima  = ultimaLeitura(m.id)
-          const atual   = ultima ? ultima.valor : null
-          const status  = calcStatus(m, atual)
-          const cfg     = STATUS_CFG[status]
-          const pct     = atual !== null
-            ? Math.min(Math.round((m.tendencia === 'subir' ? atual / m.valor_alvo : m.valor_alvo / atual) * 100), 100)
-            : 0
-          const intervaloLabel = INTERVALOS.find(i => i.value === m.intervalo)?.label || m.intervalo
-
-          return (
-            <div key={m.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)',
-              borderRadius: 12, padding: '12px 16px', minWidth: 200, maxWidth: 260, flex: '1 1 200px',
-              borderLeft: `4px solid ${m.cor || cfg.cor}` }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1, marginRight: 8 }}>{m.nome}</span>
-                <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '1px 8px',
-                  background: cfg.bg, color: cfg.cor, whiteSpace: 'nowrap' }}>{cfg.label}</span>
-              </div>
-
-              {/* Barra de progresso */}
-              <div style={{ height: 5, background: 'var(--border)', borderRadius: 3, marginBottom: 8, overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct}%`, background: cfg.cor, borderRadius: 3, transition: 'width 0.4s' }} />
-              </div>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>
-                    {atual !== null ? `${m.unidade} ${Number(atual).toLocaleString('pt-BR')}` : '—'}
-                  </span>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
-                    / {m.unidade} {Number(m.valor_alvo).toLocaleString('pt-BR')}
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    {m.periodo}× {intervaloLabel}
-                  </span>
-                  <button type="button" onClick={() => setLogModal(m)}
-                    title="Registrar leitura"
-                    style={{ background: 'var(--accent-lite)', border: 'none', borderRadius: 6,
-                      color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: '2px 8px',
-                      fontWeight: 700, lineHeight: 1 }}>
-                    +
-                  </button>
-                </div>
-              </div>
-            </div>
-          )
-        })}
+        {metricasModulo.map(m => (
+          <MetricaCard key={m.id} m={m} ultimaLeitura={ultimaLeitura} onLog={setLogModal} />
+        ))}
       </div>
     </>
   )

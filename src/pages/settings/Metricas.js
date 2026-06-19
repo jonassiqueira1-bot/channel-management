@@ -32,12 +32,91 @@ export const TENDENCIAS = [
 
 const CORES = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','var(--accent)','#06B6D4','#EC4899']
 
+// Fontes de cálculo automático — cada entry define como derivar o valor atual dos dados do sistema
+export const FONTES_CALCULO = [
+  {
+    value: 'manual',
+    label: 'Registro manual',
+    desc: 'O valor é informado manualmente em cada período.',
+    modulos: ['pipeline','projetos','cs','contratos','pagamentos','comissoes'],
+  },
+  {
+    value: 'pipeline_opps_fechadas_qtd',
+    label: 'Pipeline — Qtd. oportunidades fechadas (ganho)',
+    desc: 'Conta o número de oportunidades com status "fechado-ganho" no período.',
+    modulos: ['pipeline'],
+    storageKey: 'opportunities',
+    fn: (data) => data.filter(o => o.status === 'fechado-ganho').length,
+  },
+  {
+    value: 'pipeline_opps_fechadas_valor',
+    label: 'Pipeline — Valor total das oportunidades fechadas (ganho)',
+    desc: 'Soma o campo "valor" das oportunidades com status "fechado-ganho".',
+    modulos: ['pipeline'],
+    storageKey: 'opportunities',
+    fn: (data) => data.filter(o => o.status === 'fechado-ganho').reduce((s, o) => s + (Number(o.valor) || 0), 0),
+  },
+  {
+    value: 'pipeline_opps_abertas_qtd',
+    label: 'Pipeline — Qtd. oportunidades em aberto',
+    desc: 'Conta oportunidades que não estão fechadas.',
+    modulos: ['pipeline'],
+    storageKey: 'opportunities',
+    fn: (data) => data.filter(o => o.status !== 'fechado-ganho' && o.status !== 'fechado-perdido').length,
+  },
+  {
+    value: 'pipeline_taxa_conversao',
+    label: 'Pipeline — Taxa de conversão (%)',
+    desc: 'Percentual de oportunidades fechadas com ganho sobre o total.',
+    modulos: ['pipeline'],
+    storageKey: 'opportunities',
+    fn: (data) => {
+      if (!data.length) return 0
+      const ganhas = data.filter(o => o.status === 'fechado-ganho').length
+      return Math.round((ganhas / data.length) * 100)
+    },
+  },
+  {
+    value: 'contratos_ativos_qtd',
+    label: 'Contratos — Qtd. contratos ativos',
+    desc: 'Conta os contratos com situação "ativo".',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (data) => data.filter(c => c.situacao === 'ativo').length,
+  },
+  {
+    value: 'contratos_mrr',
+    label: 'Contratos — MRR total (R$)',
+    desc: 'Soma o MRR de todos os contratos ativos.',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (data) => data.filter(c => c.situacao === 'ativo').reduce((s, c) => s + (Number(c.mrr) || 0), 0),
+  },
+  {
+    value: 'projetos_concluidos_qtd',
+    label: 'Projetos — Qtd. projetos concluídos',
+    desc: 'Conta os projetos com status "concluído".',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (data) => data.filter(p => p.status === 'concluido').length,
+  },
+  {
+    value: 'cs_nps',
+    label: 'Sucesso do Cliente — NPS médio',
+    desc: 'Média dos scores de NPS registrados.',
+    modulos: ['cs'],
+    storageKey: 'cs:nps_v2',
+    fn: (data) => data.length ? Math.round(data.reduce((s, r) => s + (Number(r.score) || 0), 0) / data.length) : 0,
+  },
+]
+
 const EMPTY = {
   nome: '', descricao: '',
   modulos: [],
   valor_alvo: '', unidade: '', tendencia: 'subir',
   periodo: 1, intervalo: 'meses',
   usuario_ids: [], franquia_ids: [], produto_ids: [],
+  fonte_calculo: 'manual',
   cor: '#3B82F6', status: 'ativo',
 }
 
@@ -70,6 +149,7 @@ export default function Metricas() {
   const [metricas, setMetricas] = useLocalState(METRICAS_KEY, [])
   const [usuarios]  = useLocalState('settings:perfis_v2', [])
   const [franquias] = useLocalState('settings:franquias_v2', [])
+  const [produtos]  = useLocalState('produtos:lista_v2', [])
 
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
@@ -96,6 +176,11 @@ export default function Metricas() {
   function toggleFranquia(id) {
     const ids = form.franquia_ids || []
     set('franquia_ids', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
+  }
+
+  function toggleProduto(id) {
+    const ids = form.produto_ids || []
+    set('produto_ids', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
   }
 
   function abrirNovo() { setForm({ ...EMPTY }); setEditando('novo') }
@@ -287,6 +372,59 @@ export default function Metricas() {
             </div>
           </FPESection>
         )}
+
+        {/* Produtos */}
+        {produtos.length > 0 && (
+          <FPESection title="Produtos" description="Restringe esta métrica a produtos específicos. Sem seleção, vale para todos.">
+            <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {produtos.filter(p => p.status === 'ativo').map(p => {
+                const checked = (form.produto_ids || []).includes(String(p.id))
+                return (
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
+                    border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                    background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)',
+                    cursor: 'pointer', transition: 'all 0.12s' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleProduto(String(p.id))}
+                      style={{ accentColor: 'var(--accent)', width: 14, height: 14 }} />
+                    <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)', flex: 1 }}>
+                      {p.codigo ? <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', marginRight: 6 }}>[{p.codigo}]</span> : null}
+                      {p.nome}
+                    </span>
+                    {p.tipo && <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{p.tipo}</span>}
+                  </label>
+                )
+              })}
+            </div>
+          </FPESection>
+        )}
+
+        {/* Cálculo */}
+        <FPESection title="Cálculo" description="Define como o valor atual desta métrica é obtido — manualmente ou extraído automaticamente dos dados do sistema.">
+          <FPEField label="Fonte de cálculo" style={{ gridColumn: '1/-1' }}>
+            <select className="fpe-field" value={form.fonte_calculo || 'manual'}
+              onChange={e => set('fonte_calculo', e.target.value)}>
+              {FONTES_CALCULO
+                .filter(f => !form.modulos?.length || f.modulos.some(m => (form.modulos || []).includes(m)))
+                .map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+            </select>
+          </FPEField>
+          {(() => {
+            const fonte = FONTES_CALCULO.find(f => f.value === (form.fonte_calculo || 'manual'))
+            if (!fonte) return null
+            return (
+              <div style={{ gridColumn: '1/-1', padding: '10px 14px', borderRadius: 8,
+                background: 'var(--surface2)', border: '1px solid var(--border)',
+                fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                {fonte.desc}
+                {fonte.value !== 'manual' && (
+                  <span style={{ display: 'block', marginTop: 6, fontSize: 11, color: 'var(--accent)', fontWeight: 600 }}>
+                    ✓ O valor será calculado automaticamente — sem necessidade de registro manual.
+                  </span>
+                )}
+              </div>
+            )
+          })()}
+        </FPESection>
       </FullPageEdit>
     )
   }
