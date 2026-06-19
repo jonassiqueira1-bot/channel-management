@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
-import { Building2, Plus, Pencil, Trash2, X, Check, MapPin, Star, Upload, ImageOff } from 'lucide-react'
+import { Building2, Plus, Star, Upload, ImageOff } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../../data/mockCompanies'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
@@ -12,14 +12,6 @@ const UNIT_EMPTY = {
     cnpj: '', cnae: '', cep: '', logradouro: '', cidade: '', uf: '',
     email: '', telefone: '', responsavel: '', is_matriz: false,
   },
-}
-
-function Label({ children, required }) {
-  return (
-    <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
-      {children}{required && <span style={{ color:'#ef4444', marginLeft:2 }}>*</span>}
-    </label>
-  )
 }
 
 function LogoUpload({ value, onChange }) {
@@ -64,216 +56,74 @@ function LogoUpload({ value, onChange }) {
   )
 }
 
-function UnitForm({ value, onChange, onSave, onCancel, saving, isFirst }) {
-  const cf = value.custom_fields || {}
-  const set = (k, v) => onChange({ ...value, [k]: v })
-  const setCf = (k, v) => onChange({ ...value, custom_fields: { ...cf, [k]: v } })
-
-  return (
-    <div style={{ padding:'20px', borderTop:'1px solid var(--border)', background:'var(--surface2)', display:'flex', flexDirection:'column', gap:16 }}>
-      {/* Logotipo */}
-      <div>
-        <Label>Logotipo da Unidade</Label>
-        <div style={{ marginTop:8 }}>
-          <LogoUpload value={cf.logo || ''} onChange={v => setCf('logo', v)} />
-        </div>
-      </div>
-
-      {/* Nome e Responsável */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div style={{ gridColumn:'1/-1' }}>
-          <Label required>Nome da Unidade</Label>
-          <input className="fpe-field" style={{ marginTop:4 }} value={value.name || ''}
-            onChange={e => set('name', e.target.value)}
-            placeholder={isFirst ? 'Ex: Matriz — NG Informática SP' : 'Ex: Filial Campinas'} autoFocus />
-        </div>
-        <div>
-          <Label>CNPJ</Label>
-          <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} value={cf.cnpj || ''}
-            onChange={e => setCf('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
-        </div>
-        <div>
-          <Label>CNAE</Label>
-          <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} value={cf.cnae || ''}
-            onChange={e => setCf('cnae', e.target.value)} placeholder="6202-3/00" />
-        </div>
-        <div>
-          <Label>Responsável</Label>
-          <input className="fpe-field" style={{ marginTop:4 }} value={cf.responsavel || ''}
-            onChange={e => setCf('responsavel', e.target.value)} placeholder="Nome do responsável" />
-        </div>
-        <div>
-          <Label>Telefone</Label>
-          <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} value={cf.telefone || ''}
-            onChange={e => setCf('telefone', e.target.value)} placeholder="(11) 0000-0000" />
-        </div>
-        <div style={{ gridColumn:'1/-1' }}>
-          <Label>E-mail</Label>
-          <input className="fpe-field" style={{ marginTop:4 }} type="email" value={cf.email || ''}
-            onChange={e => setCf('email', e.target.value)} placeholder="contato@empresa.com.br" />
-        </div>
-      </div>
-
-      {/* Endereço */}
-      <div>
-        <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:10 }}>
-          <MapPin size={12} style={{ color:'var(--text-muted)' }} />
-          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Endereço</span>
-        </div>
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-          <div>
-            <Label>CEP</Label>
-            <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} value={cf.cep || ''}
-              onChange={e => setCf('cep', e.target.value)} placeholder="00000-000" />
-          </div>
-          <div>
-            <Label>Cidade</Label>
-            <input className="fpe-field" style={{ marginTop:4 }} value={cf.cidade || ''}
-              onChange={e => setCf('cidade', e.target.value)} placeholder="São Paulo" />
-          </div>
-          <div style={{ gridColumn:'1/-1' }}>
-            <Label>Logradouro</Label>
-            <input className="fpe-field" style={{ marginTop:4 }} value={cf.logradouro || ''}
-              onChange={e => setCf('logradouro', e.target.value)} placeholder="Av. Paulista, 1374 — Sala 101" />
-          </div>
-          <div>
-            <Label>UF</Label>
-            <input className="fpe-field" style={{ marginTop:4, fontFamily:'var(--mono)' }} maxLength={2} value={cf.uf || ''}
-              onChange={e => setCf('uf', e.target.value.toUpperCase())} placeholder="SP" />
-          </div>
-        </div>
-      </div>
-
-      {/* É Matriz? */}
-      <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', userSelect:'none', fontSize:13, color:'var(--text)' }}>
-        <input type="checkbox" checked={!!cf.is_matriz} onChange={e => setCf('is_matriz', e.target.checked)}
-          style={{ width:14, height:14, cursor:'pointer', accentColor:'var(--accent)' }} />
-        Esta unidade é a Matriz (branch padrão do sistema)
-      </label>
-
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:8, borderTop:'1px solid var(--border)', paddingTop:12 }}>
-        <button onClick={onCancel} style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5 }}>
-          <X size={13} /> Cancelar
-        </button>
-        <button onClick={onSave} disabled={!value.name?.trim() || saving}
-          style={{ padding:'7px 14px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, opacity:(!value.name?.trim() || saving) ? 0.5 : 1 }}>
-          <Check size={13} /> {saving ? 'Salvando…' : 'Salvar'}
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function UnitRow({ branch, onEdit, onDelete }) {
-  const cf = branch.custom_fields || {}
-  return (
-    <div style={{ display:'flex', alignItems:'center', gap:12, padding:'14px 16px', borderTop:'1px solid var(--border)' }}>
-      <div style={{ width:44, height:44, borderRadius:9, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, position:'relative', overflow:'hidden' }}>
-        {cf.logo
-          ? <img src={cf.logo} alt={branch.name} style={{ width:'100%', height:'100%', objectFit:'contain', padding:4 }} />
-          : <Building2 size={16} strokeWidth={1.75} style={{ color:'var(--accent)' }} />}
-        {cf.is_matriz && (
-          <span title="Matriz" style={{ position:'absolute', top:-4, right:-4, background:'var(--accent)', borderRadius:'50%', width:14, height:14, display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Star size={8} style={{ color:'#fff' }} fill="#fff" />
-          </span>
-        )}
-      </div>
-      <div style={{ flex:1, minWidth:0 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{branch.name}</span>
-          {cf.is_matriz && (
-            <span style={{ fontSize:10, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 7px', textTransform:'uppercase', letterSpacing:'0.04em' }}>Matriz</span>
-          )}
-        </div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, display:'flex', gap:8, flexWrap:'wrap' }}>
-          {cf.cnpj && <span style={{ fontFamily:'var(--mono)' }}>{cf.cnpj}</span>}
-          {cf.cnae && <span>CNAE {cf.cnae}</span>}
-          {(cf.cidade || cf.uf) && <span>{[cf.cidade, cf.uf].filter(Boolean).join('/')}</span>}
-          {cf.responsavel && <span>{cf.responsavel}</span>}
-        </div>
-      </div>
-      <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-        <button onClick={() => onEdit(branch)} title="Editar" style={{ background:'none', border:'none', cursor:'pointer', padding:5, color:'var(--text-muted)', borderRadius:6 }}>
-          <Pencil size={13} />
-        </button>
-        <button onClick={() => onDelete(branch.id)} title="Excluir" style={{ background:'none', border:'none', cursor:'pointer', padding:5, color:'#ef4444', borderRadius:6 }}>
-          <Trash2 size={13} />
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function GerenciarUnidades() {
-  const { branches, loading, saving, error, save, remove } = useBranches()
-  const [editando, setEditando] = useState(null)
-  const [form, setForm] = useState(null)
-
-  function handleNew() { setEditando('novo'); setForm(UNIT_EMPTY) }
-  function handleEdit(b) {
-    setEditando(b.id)
-    setForm({ id: b.id, name: b.name, custom_fields: b.custom_fields || {} })
-  }
-  function handleCancel() { setEditando(null); setForm(null) }
-
-  async function handleSave() {
-    const result = await save(form)
-    if (result?.ok) handleCancel()
-    else if (result?.error) alert('Erro: ' + result.error)
-  }
-
-  async function handleDelete(id) {
-    if (!window.confirm('Remover esta unidade?')) return
-    const result = await remove(id)
-    if (!result?.ok) alert('Erro: ' + result?.error)
-  }
-
-  const isFirst = branches.length === 0
-
+// ─── Tabela de unidades (presentacional) ──────────────────────────────────────
+function TabelaUnidades({ branches, loading, error, onEdit, onNew }) {
   return (
     <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--surface2)' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Unidades cadastradas</span>
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Unidades</span>
           <span style={{ fontSize:11, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:99, padding:'1px 8px' }}>
             {loading ? '…' : branches.length}
           </span>
         </div>
-        {editando !== 'novo' && (
-          <button onClick={handleNew} style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-            <Plus size={12} /> Nova unidade
-          </button>
-        )}
+        <button onClick={onNew}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+          <Plus size={12} /> Nova unidade
+        </button>
       </div>
 
-      {error && (
-        <div style={{ padding:'10px 16px', fontSize:12, color:'#ef4444', borderTop:'1px solid var(--border)' }}>
-          Erro ao carregar: {error}
-        </div>
-      )}
+      {error && <div style={{ padding:'10px 16px', fontSize:12, color:'#ef4444', borderTop:'1px solid var(--border)' }}>Erro: {error}</div>}
 
-      {editando === 'novo' && (
-        <UnitForm value={form} onChange={setForm} onSave={handleSave} onCancel={handleCancel} saving={saving} isFirst={isFirst} />
+      {!loading && branches.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'44px 1fr 140px 120px 100px 24px', padding:'6px 16px', borderTop:'1px solid var(--border)', background:'var(--surface2)' }}>
+          {['', 'Nome', 'CNPJ', 'Cidade/UF', 'Responsável', ''].map((h, i) => (
+            <span key={i} style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{h}</span>
+          ))}
+        </div>
       )}
 
       {loading ? (
-        <div style={{ padding:'20px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>
-          Carregando…
-        </div>
-      ) : branches.length === 0 && editando !== 'novo' ? (
-        <div style={{ padding:'24px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>
-          <Building2 size={24} style={{ color:'var(--border)', marginBottom:8, display:'block', margin:'0 auto 8px' }} />
+        <div style={{ padding:'24px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>Carregando…</div>
+      ) : branches.length === 0 ? (
+        <div style={{ padding:'32px 16px', textAlign:'center', fontSize:12, color:'var(--text-muted)', borderTop:'1px solid var(--border)' }}>
+          <Building2 size={24} style={{ color:'var(--border)', display:'block', margin:'0 auto 8px' }} />
           Nenhuma unidade cadastrada. Cadastre a Matriz primeiro.
         </div>
-      ) : branches.map(b => (
-        <div key={b.id}>
-          {editando === b.id ? (
-            <UnitForm value={form} onChange={setForm} onSave={handleSave} onCancel={handleCancel} saving={saving} />
-          ) : (
-            <UnitRow branch={b} onEdit={handleEdit} onDelete={handleDelete} />
-          )}
-        </div>
-      ))}
+      ) : branches.map((b, i) => {
+        const cf = b.custom_fields || {}
+        return (
+          <div key={b.id} onClick={() => onEdit(b)}
+            style={{ display:'grid', gridTemplateColumns:'44px 1fr 140px 120px 100px 24px', alignItems:'center',
+              padding:'10px 16px', borderTop:'1px solid var(--border)', cursor:'pointer',
+              background: i % 2 === 1 ? 'var(--surface2)' : 'transparent' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'color-mix(in srgb, var(--accent) 6%, transparent)'}
+            onMouseLeave={e => e.currentTarget.style.background = i % 2 === 1 ? 'var(--surface2)' : 'transparent'}
+          >
+            <div style={{ width:32, height:32, borderRadius:7, background:'var(--surface)', border:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', position:'relative' }}>
+              {cf.logo
+                ? <img src={cf.logo} alt="" style={{ width:'100%', height:'100%', objectFit:'contain', padding:3 }} />
+                : <Building2 size={13} style={{ color:'var(--accent)' }} />}
+              {cf.is_matriz && (
+                <span style={{ position:'absolute', top:-3, right:-3, background:'var(--accent)', borderRadius:'50%', width:12, height:12, display:'flex', alignItems:'center', justifyContent:'center' }}>
+                  <Star size={7} fill="#fff" style={{ color:'#fff' }} />
+                </span>
+              )}
+            </div>
+            <div style={{ minWidth:0, paddingRight:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{b.name}</span>
+                {cf.is_matriz && <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px', flexShrink:0, textTransform:'uppercase' }}>Matriz</span>}
+              </div>
+              {cf.cnae && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>CNAE {cf.cnae}</div>}
+            </div>
+            <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cf.cnpj || '—'}</span>
+            <span style={{ fontSize:12, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{[cf.cidade, cf.uf].filter(Boolean).join('/') || '—'}</span>
+            <span style={{ fontSize:12, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{cf.responsavel || '—'}</span>
+            <span style={{ fontSize:14, color:'var(--text-muted)', textAlign:'right' }}>›</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -283,7 +133,10 @@ export default function EmpresaISV() {
   const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
   const isv = useMemo(() => companies.find(c => c.type === 'ISV'), [companies])
   const [form, setForm] = useState(null)
-  const { branches, save: saveBranch } = useBranches()
+  const { branches, loading: loadingBranches, error: errorBranches, save: saveBranch, remove: removeBranch } = useBranches()
+  const [editandoUnidade, setEditandoUnidade] = useState(null) // null | 'novo' | branch object
+  const [formUnidade, setFormUnidade] = useState(null)
+  const [confirmDelUnidade, setConfirmDelUnidade] = useState(false)
 
   const current = form || isv
   const temMatriz = branches.some(b => b.custom_fields?.is_matriz)
@@ -292,30 +145,15 @@ export default function EmpresaISV() {
     <div style={{ padding:32, color:'var(--text-muted)', fontSize:14 }}>Organização não encontrada.</div>
   )
 
+  // ── Org handlers ──
   function set(k, v) { setForm(f => ({ ...(f || isv), [k]: v })) }
 
-  async function handleSave() {
+  async function handleSaveOrg() {
     const updated = { ...(form || isv), updated_at: new Date().toISOString() }
     setCompanies(prev => prev.map(c => c.id === isv.id ? updated : c))
-
-    // Auto-cria Matriz se ainda não existe
     if (!temMatriz && updated.name?.trim()) {
-      await saveBranch({
-        name: updated.name.trim(),
-        custom_fields: {
-          is_matriz: true,
-          cnpj: updated.cnpj || '',
-          responsavel: '',
-          cidade: updated.city || '',
-          uf: updated.state || '',
-          cep: updated.cep || '',
-          logradouro: updated.address || '',
-          email: updated.email || '',
-          telefone: updated.phone || '',
-        },
-      })
+      await saveBranch({ name: updated.name.trim(), custom_fields: { is_matriz: true } })
     }
-
     setForm(null)
   }
 
@@ -323,14 +161,146 @@ export default function EmpresaISV() {
   const razaoOk = current?.corporate_name?.trim().length > 0
   const podeGravar = nomeOk && razaoOk
 
+  // ── Unidade handlers ──
+  function abrirNovaUnidade() {
+    setFormUnidade({ name: '', custom_fields: { cnpj:'', cnae:'', cep:'', logradouro:'', cidade:'', uf:'', email:'', telefone:'', responsavel:'', is_matriz:false } })
+    setEditandoUnidade('novo')
+    setConfirmDelUnidade(false)
+  }
+  function abrirEditarUnidade(b) {
+    setFormUnidade({ id: b.id, name: b.name, custom_fields: b.custom_fields || {} })
+    setEditandoUnidade(b)
+    setConfirmDelUnidade(false)
+  }
+  function fecharUnidade() { setEditandoUnidade(null); setFormUnidade(null); setConfirmDelUnidade(false) }
+
+  async function handleSaveUnidade() {
+    if (!formUnidade?.name?.trim()) return
+    const result = await saveBranch(formUnidade)
+    if (result?.ok !== false) fecharUnidade()
+    else alert('Erro: ' + result?.error)
+  }
+
+  async function handleDeleteUnidade() {
+    if (!editandoUnidade?.id) return
+    const result = await removeBranch(editandoUnidade.id)
+    if (result?.ok !== false) fecharUnidade()
+    else alert('Erro: ' + result?.error)
+  }
+
+  // ── Early return: edição de unidade ──
+  if (editandoUnidade !== null && formUnidade) {
+    const cf = formUnidade.custom_fields || {}
+    const setUf = (k, v) => setFormUnidade(f => ({ ...f, [k]: v }))
+    const setCf = (k, v) => setFormUnidade(f => ({ ...f, custom_fields: { ...f.custom_fields, [k]: v } }))
+
+    return (
+      <FullPageEdit
+        title={editandoUnidade === 'novo' ? 'Nova Unidade' : editandoUnidade.name}
+        subtitle={editandoUnidade === 'novo' ? 'Cadastro de unidade' : (cf.is_matriz ? 'Matriz' : 'Filial')}
+        onSave={formUnidade.name?.trim() ? handleSaveUnidade : undefined}
+        onCancel={fecharUnidade}
+      >
+        <FPESection title="Logotipo">
+          <LogoUpload value={cf.logo || ''} onChange={v => setCf('logo', v)} />
+        </FPESection>
+
+        <FPESection title="Identificação">
+          <FPEGrid>
+            <FPEField label="Nome da Unidade" required style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" value={formUnidade.name || ''}
+                onChange={e => setUf('name', e.target.value)}
+                placeholder={branches.length === 0 ? 'Ex: Matriz — NG Informática SP' : 'Ex: Filial Campinas'} />
+            </FPEField>
+            <FPEField label="CNPJ">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnpj || ''}
+                onChange={e => setCf('cnpj', e.target.value)} placeholder="00.000.000/0001-00" />
+            </FPEField>
+            <FPEField label="CNAE">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cnae || ''}
+                onChange={e => setCf('cnae', e.target.value)} placeholder="6202-3/00" />
+            </FPEField>
+            <FPEField label="Responsável">
+              <input className="fpe-field" value={cf.responsavel || ''}
+                onChange={e => setCf('responsavel', e.target.value)} placeholder="Nome do responsável" />
+            </FPEField>
+            <FPEField label="Telefone">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.telefone || ''}
+                onChange={e => setCf('telefone', e.target.value)} placeholder="(11) 0000-0000" />
+            </FPEField>
+            <FPEField label="E-mail" style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" type="email" value={cf.email || ''}
+                onChange={e => setCf('email', e.target.value)} placeholder="contato@empresa.com.br" />
+            </FPEField>
+          </FPEGrid>
+        </FPESection>
+
+        <FPESection title="Endereço">
+          <FPEGrid>
+            <FPEField label="CEP">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={cf.cep || ''}
+                onChange={e => setCf('cep', e.target.value)} placeholder="00000-000" />
+            </FPEField>
+            <FPEField label="UF">
+              <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} maxLength={2} value={cf.uf || ''}
+                onChange={e => setCf('uf', e.target.value.toUpperCase())} placeholder="SP" />
+            </FPEField>
+            <FPEField label="Logradouro" style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" value={cf.logradouro || ''}
+                onChange={e => setCf('logradouro', e.target.value)} placeholder="Av. Paulista, 1374 — Sala 101" />
+            </FPEField>
+            <FPEField label="Cidade" style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" value={cf.cidade || ''}
+                onChange={e => setCf('cidade', e.target.value)} placeholder="São Paulo" />
+            </FPEField>
+          </FPEGrid>
+        </FPESection>
+
+        <FPESection title="Configuração">
+          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', userSelect:'none' }}>
+            <input type="checkbox" checked={!!cf.is_matriz} onChange={e => setCf('is_matriz', e.target.checked)}
+              style={{ width:14, height:14, accentColor:'var(--accent)', cursor:'pointer' }} />
+            <div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Esta unidade é a Matriz</div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>Branch padrão do sistema para usuários sem filial definida</div>
+            </div>
+          </label>
+        </FPESection>
+
+        {editandoUnidade !== 'novo' && (
+          <FPESection title="Zona de perigo">
+            {!confirmDelUnidade ? (
+              <button onClick={() => setConfirmDelUnidade(true)}
+                style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer' }}>
+                Remover unidade
+              </button>
+            ) : (
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar remoção de <strong>{editandoUnidade.name}</strong>?</span>
+                <button onClick={handleDeleteUnidade}
+                  style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                  Confirmar
+                </button>
+                <button onClick={() => setConfirmDelUnidade(false)}
+                  style={{ padding:'6px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer' }}>
+                  Cancelar
+                </button>
+              </div>
+            )}
+          </FPESection>
+        )}
+      </FullPageEdit>
+    )
+  }
+
+  // ── View principal ──
   return (
     <FullPageEdit
       title="Empresa / ISV"
       subtitle={isv.corporate_name || isv.name}
-      onSave={podeGravar ? handleSave : undefined}
+      onSave={podeGravar ? handleSaveOrg : undefined}
       onCancel={() => setForm(null)}
     >
-      {/* ── Organização: campos obrigatórios ── */}
       <FPESection
         title="Organização"
         description="Campos obrigatórios para ativação da conta. Ao salvar pela primeira vez, a Matriz será criada automaticamente como primeira unidade do sistema."
@@ -338,22 +308,18 @@ export default function EmpresaISV() {
         <FPEGrid>
           <FPEField label="Nome da Organização" required style={{ gridColumn:'1/-1' }}>
             <input className="fpe-field" value={current.name || ''}
-              onChange={e => set('name', e.target.value)}
-              placeholder="Ex: NG Informática" />
+              onChange={e => set('name', e.target.value)} placeholder="Ex: NG Informática" />
           </FPEField>
           <FPEField label="Razão Social" required style={{ gridColumn:'1/-1' }}>
             <input className="fpe-field" value={current.corporate_name || ''}
-              onChange={e => set('corporate_name', e.target.value)}
-              placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
+              onChange={e => set('corporate_name', e.target.value)} placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
           </FPEField>
         </FPEGrid>
-
         {!podeGravar && (
           <div style={{ marginTop:8, padding:'8px 12px', background:'color-mix(in srgb, var(--accent) 8%, transparent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)', borderRadius:8, fontSize:12, color:'var(--accent)' }}>
             Preencha Nome da Organização e Razão Social para habilitar o cadastro.
           </div>
         )}
-
         {!temMatriz && podeGravar && (
           <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', borderRadius:8, fontSize:12, color:'#10B981' }}>
             ★ Ao salvar, a Matriz será criada automaticamente com o nome da organização.
@@ -361,7 +327,6 @@ export default function EmpresaISV() {
         )}
       </FPESection>
 
-      {/* ── Dados complementares ── */}
       <FPESection title="Dados complementares">
         <FPEGrid>
           <FPEField label="CNPJ">
@@ -383,7 +348,6 @@ export default function EmpresaISV() {
         </FPEGrid>
       </FPESection>
 
-      {/* ── White-label ── */}
       <FPESection title="Identidade Visual (White-label)">
         <FPEGrid>
           <FPEField label="Cor primária">
@@ -413,12 +377,17 @@ export default function EmpresaISV() {
         </FPEField>
       </FPESection>
 
-      {/* ── Unidades ── */}
       <FPESection
         title="Unidades"
-        description="Cada unidade é uma branch obrigatória no sistema. Todo dado (oportunidade, contato, empresa) pertence a uma unidade. O campo branch é preenchido automaticamente pelo usuário logado."
+        description="Cada unidade é uma branch obrigatória no sistema. Todo dado pertence a uma unidade e o campo branch é preenchido automaticamente pelo usuário logado."
       >
-        <GerenciarUnidades />
+        <TabelaUnidades
+          branches={branches}
+          loading={loadingBranches}
+          error={errorBranches}
+          onEdit={abrirEditarUnidade}
+          onNew={abrirNovaUnidade}
+        />
       </FPESection>
     </FullPageEdit>
   )
