@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useProducts } from '../../hooks/useProducts'
+import { useFunnels } from '../../hooks/useFunnels'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
@@ -102,6 +103,35 @@ export const FONTES_CALCULO = [
     },
   },
   {
+    value: 'pipeline_opps_por_etapa',
+    label: 'Pipeline — Qtd. oportunidades em etapa(s)',
+    desc: 'Conta oportunidades atualmente em uma ou mais etapas do funil. Selecione as etapas na configuração da métrica.',
+    modulos: ['pipeline'],
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const eids = (metrica?.etapa_ids || []).map(String).filter(Boolean)
+      if (!eids.length) return data.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida').length
+      return data.filter(o => eids.includes(String(o.etapa_id))).length
+    },
+  },
+  {
+    value: 'pipeline_conversao_por_etapa',
+    label: 'Pipeline — Taxa de conversão a partir da etapa (%)',
+    desc: 'Das oportunidades que passaram pela(s) etapa(s) selecionada(s), percentual que foi marcado como ganha.',
+    modulos: ['pipeline'],
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const eids = (metrica?.etapa_ids || []).map(String).filter(Boolean)
+      // Sem etapas configuradas: conversão global
+      const universo = eids.length
+        ? data.filter(o => eids.includes(String(o.etapa_id)) || o.situacao === 'ganha' || o.situacao === 'perdida')
+        : data
+      if (!universo.length) return 0
+      const ganhas = universo.filter(o => o.situacao === 'ganha').length
+      return Math.round((ganhas / universo.length) * 100)
+    },
+  },
+  {
     value: 'contratos_ativos_qtd',
     label: 'Contratos — Qtd. contratos ativos',
     desc: 'Conta os contratos com situação "ativo".',
@@ -141,7 +171,7 @@ const EMPTY = {
   valor_alvo: '', unidade: '', tendencia: 'subir',
   periodo: 1, intervalo: 'meses',
   data_inicio: '', data_fim: '',
-  usuario_ids: [], franquia_ids: [], produto_ids: [],
+  usuario_ids: [], franquia_ids: [], produto_ids: [], etapa_ids: [],
   fonte_calculo: 'manual',
   cor: '#3B82F6', status: 'ativo',
 }
@@ -355,6 +385,7 @@ export default function Metricas() {
   const [usuarios]  = useLocalState('settings:perfis_v2', [])
   const [franquias] = useLocalState('settings:franquias_v2', [])
   const { produtos } = useProducts()
+  const { funis }   = useFunnels()
 
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
@@ -389,6 +420,7 @@ export default function Metricas() {
       ...form,
       valor_alvo: Number(form.valor_alvo),
       produto_ids: (form.produto_ids || []).map(String).filter(Boolean),
+      etapa_ids:   (form.etapa_ids   || []).map(String).filter(Boolean),
     }
     if (editando === 'novo') {
       setMetricas(prev => [...prev, { ...data, id: uid(), criado_em: new Date().toISOString() }])
@@ -604,6 +636,53 @@ export default function Metricas() {
             </div>
           </FPEField>
         </FPESection>
+
+        {/* Etapas do funil — só exibe para fontes por etapa */}
+        {['pipeline_opps_por_etapa', 'pipeline_conversao_por_etapa'].includes(form.fonte_calculo) && (
+          <FPESection title="Etapas do funil" description="Selecione as etapas a considerar no cálculo. Em branco = todas as etapas ativas.">
+            <FPEField label="Etapas" style={{ gridColumn: '1/-1' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {(funis || []).map(funil => {
+                  const etapas = funil.etapas || []
+                  if (!etapas.length) return null
+                  return (
+                    <div key={funil.id}>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                        letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 4 }}>
+                        {funil.nome}
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 3, paddingLeft: 8,
+                        borderLeft: '2px solid var(--border)' }}>
+                        {etapas.map((e, idx) => {
+                          const eid = String(e.id)
+                          const checked = (form.etapa_ids || []).map(String).includes(eid)
+                          return (
+                            <label key={eid} style={{ display: 'flex', alignItems: 'center', gap: 8,
+                              cursor: 'pointer', padding: '4px 8px', borderRadius: 6,
+                              background: checked ? 'var(--accent-lite)' : 'transparent' }}>
+                              <input type="checkbox" checked={checked} onChange={() => {
+                                const ids = (form.etapa_ids || []).map(String)
+                                set('etapa_ids', checked ? ids.filter(x => x !== eid) : [...ids, eid])
+                              }} />
+                              <span style={{ fontSize: 13, color: 'var(--text)' }}>
+                                <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 4,
+                                  fontFamily: 'var(--mono)' }}>{idx + 1}.</span>
+                                {e.nome}
+                              </span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+                {(!funis || funis.length === 0) && (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nenhum funil configurado.</span>
+                )}
+              </div>
+            </FPEField>
+          </FPESection>
+        )}
 
         {/* Cálculo */}
         <FPESection title="Cálculo" description="Define como o valor atual desta métrica é obtido — manualmente ou extraído automaticamente dos dados do sistema.">
