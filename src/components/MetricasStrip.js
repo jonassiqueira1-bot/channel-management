@@ -30,15 +30,7 @@ const PERIODO_LABEL = {
 }
 
 function MetaCard({ meta, indicador, funis, filhos }) {
-  let valorAtual
-  if (filhos && filhos.length > 0) {
-    valorAtual = filhos.reduce((s, f) => {
-      const v = calcValorIndicador(indicador, funis)
-      return s + (v !== null ? v : 0)
-    }, 0)
-  } else {
-    valorAtual = calcValorIndicador(indicador, funis)
-  }
+  const valorAtual = calcValorIndicador(indicador, funis)
 
   const status = calcStatus(meta, indicador, valorAtual)
   const cfg = STATUS_CFG[status]
