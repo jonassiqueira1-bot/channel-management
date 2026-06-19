@@ -148,6 +148,7 @@ export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
   const [franquiasCad] = useLocalState('settings:franquias_v2', [])
   const { branches }   = useBranches()
+  const [usuariosCad]  = useLocalState('settings:perfis_v2', [])
   const [tiposLista]            = useLocalState(TIPOS_KEY, [])
   const tiposMap = useMemo(() => tiposLista.length ? listToMap(tiposLista) : TIPOS_ACAO_DEFAULT, [tiposLista])
   const [editando, setEditando] = useState(null)
@@ -215,7 +216,7 @@ export default function Acoes() {
     if (!editForm.empresa_id)    return alert('Selecione a unidade/franquia')
     if (!editForm.data_inicio)   return alert('Data de início obrigatória')
     const emp  = franquiasOpts.find(f => String(f.id) === String(editForm.empresa_id))
-    const resp = RESPONSAVEIS.find(r => r.id === editForm.responsavel_id)
+    const resp = responsaveisOpts.find(r => r.id === editForm.responsavel_id)
     setSavingAcao(true)
     saveAcao({
       ...editForm,
@@ -238,6 +239,11 @@ export default function Acoes() {
   }
 
   const empresasAtivas = franquiasOpts
+
+  const responsaveisOpts = useMemo(() => {
+    const lista = usuariosCad.length > 0 ? usuariosCad : RESPONSAVEIS
+    return lista.filter(u => u.status !== 'inativo').map(u => ({ id: u.id, nome: u.nome }))
+  }, [usuariosCad])
 
   if (editForm !== null) {
     const isEditing = !!editando?.id
@@ -273,7 +279,7 @@ export default function Acoes() {
           </FPEField>
           <FPEField label="Responsável (ISV)">
             <select className="fpe-field" value={editForm.responsavel_id} onChange={e => setAcaoField('responsavel_id', e.target.value)}>
-              {RESPONSAVEIS.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+              {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
             </select>
           </FPEField>
         </FPESection>
