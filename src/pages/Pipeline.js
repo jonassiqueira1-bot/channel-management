@@ -3365,6 +3365,13 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const itensCount        = form.itens.length
   const { membros: todosMembrosOpp } = useOppMembros()
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
+  const [allDocsOpp]      = useLocalState(DOC_STORAGE_KEY, [])
+  const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, [])
+  const [allSubmissions]  = useLocalState(Q_STORAGE_SUBMISSIONS, [])
+  const oppDocumentosCount   = allDocsOpp.filter(d => d.opp_id === initial?.id).length
+  const oppPropostaCount     = allPropostas.filter(p => p.opp_id === String(initial?.id)).length
+  const oppQuestionariosCount = allSubmissions.filter(s => s.opportunity_id === String(initial?.id)).length
+  const oppPlaybookCount     = form.playbook_id ? 1 : 0
 
   function handleSave() {
     if (!form.titulo.trim()) return alert('Título é obrigatório')
@@ -3541,10 +3548,10 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     { key: 'produtos',      label: 'Produtos',      badge: itensCount || undefined },
     { key: 'tarefas',       label: 'Tarefas',       badge: oppTarefasCount || undefined },
     { key: 'equipe',        label: 'Equipe',        badge: oppEquipeCount || undefined },
-    { key: 'documentos',    label: 'Documentos' },
-    { key: 'proposta',      label: 'Proposta' },
-    { key: 'questionarios', label: 'Questionários' },
-    { key: 'playbook',      label: 'Playbook' },
+    { key: 'documentos',    label: 'Documentos',    badge: oppDocumentosCount || undefined },
+    { key: 'proposta',      label: 'Proposta',      badge: oppPropostaCount || undefined },
+    { key: 'questionarios', label: 'Questionários', badge: oppQuestionariosCount || undefined },
+    { key: 'playbook',      label: 'Playbook',      badge: oppPlaybookCount || undefined },
   ] : undefined
 
   // ── botão de histórico (headerActions) ───────────────────────────────────
