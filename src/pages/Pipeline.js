@@ -4654,7 +4654,24 @@ function OppCard({ opp, cor, onClick, onDragStart, onDragEnd }) {
 }
 
 // ─── Coluna Kanban ────────────────────────────────────────────────────────────
-function KanbanBoard({ etapas, filtered, setModal, moveToStage }) {
+function calcTaxaConversao(etapas, allOpps, etapaId) {
+  const ids = etapas.map(e => String(e.id))
+  const idx = ids.indexOf(String(etapaId))
+  if (idx < 0) return null
+  const posteriores = new Set(ids.slice(idx + 1))
+  const entraram = allOpps.filter(o =>
+    String(o.etapa_id) === String(etapaId) ||
+    posteriores.has(String(o.etapa_id)) ||
+    o.situacao === 'ganha'
+  )
+  if (!entraram.length) return null
+  const passaram = allOpps.filter(o =>
+    posteriores.has(String(o.etapa_id)) || o.situacao === 'ganha'
+  )
+  return Math.round((passaram.length / entraram.length) * 100)
+}
+
+function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
   const draggedId = useRef(null)
   const [overEtapa, setOverEtapa] = useState(null)
 
@@ -4673,6 +4690,7 @@ function KanbanBoard({ etapas, filtered, setModal, moveToStage }) {
           <KanbanColuna
             key={etapa.id}
             etapa={etapa}
+            taxa={calcTaxaConversao(etapas, allOpps || [], etapa.id)}
             opps={filtered.filter(o => String(o.etapa_id) === String(etapa.id))}
             onAddOpp={etapa_id => setModal({ _new:true, etapa_id })}
             onClickOpp={o => setModal(o)}
@@ -4688,9 +4706,10 @@ function KanbanBoard({ etapas, filtered, setModal, moveToStage }) {
   )
 }
 
-function KanbanColuna({ etapa, opps, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
+function KanbanColuna({ etapa, opps, taxa, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
+  const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
   return (
     <div
       style={{ ...k.coluna, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
@@ -4701,7 +4720,15 @@ function KanbanColuna({ etapa, opps, onAddOpp, onClickOpp, onDragOver, onDrop, i
       <div style={{ padding:'11px 13px 9px', borderBottom:`2px solid ${etapa.cor}`, background: isDragOver ? etapa.cor+'11' : 'rgba(255,255,255,0.85)', borderRadius:'14px 14px 0 0', flexShrink:0, transition:'background 0.15s' }}>
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
           <span style={{ fontSize:12, fontWeight:700, color:etapa.cor, fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{etapa.nome}</span>
-          <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)', background:etapa.cor+'22', color:etapa.cor, padding:'1px 7px', borderRadius:10, flexShrink:0 }}>{opps.length}</span>
+          <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
+            {taxa !== null && (
+              <span title="Taxa de conversão desta etapa" style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)',
+                background: taxaCor + '22', color: taxaCor, padding:'1px 6px', borderRadius:8, letterSpacing:'0.03em' }}>
+                {taxa}%
+              </span>
+            )}
+            <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)', background:etapa.cor+'22', color:etapa.cor, padding:'1px 7px', borderRadius:10 }}>{opps.length}</span>
+          </div>
         </div>
         <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
           {opps.length>0 ? fmtMoeda(totalValor) : <span style={{ opacity:0.5 }}>vazio</span>}
@@ -5452,6 +5479,7 @@ export default function Pipeline() {
         <KanbanBoard
           etapas={etapas}
           filtered={filtered}
+          allOpps={opps}
           setModal={setModal}
           moveToStage={moveToStage}
         />
