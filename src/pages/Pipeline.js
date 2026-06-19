@@ -3382,13 +3382,14 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
     const bruto   = (Number(form.valor_cdu)||0) + (Number(form.valor_sms)||0) + (Number(form.valor_servico)||0)
     const desconto = Math.min(Number(form.valor_desconto)||0, bruto)
     const liquido  = Math.max(0, bruto - desconto)
+    const eraGanha = initial?.situacao === 'ganha'
+    const hoje = new Date().toISOString().slice(0, 10)
     const oppSalva = { ...form, valor_desconto: desconto, valor: liquido,
-      funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) }
+      funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||hoje,
+      data_fechamento: form.situacao === 'ganha' && !eraGanha ? hoje : (initial?.data_fechamento || null),
+    }
 
     onSave(oppSalva)
-
-    // Se mudou para ganha (e não era ganha antes), abre modal de pós-fechamento
-    const eraGanha = initial?.situacao === 'ganha'
     if (form.situacao === 'ganha' && !eraGanha) {
       setFechamentoModal(oppSalva)
     } else {

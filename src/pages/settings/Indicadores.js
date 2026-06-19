@@ -164,6 +164,58 @@ export const FONTES_INDICADOR = [
       ? Math.round(dados.reduce((s, r) => s + (Number(r.score) || 0), 0) / dados.length)
       : 0,
   },
+  {
+    value: 'pipeline_ticket_medio',
+    label: 'Pipeline — Ticket médio (ganhas)',
+    tipo: 'amount',
+    modulos: ['pipeline'],
+    storageKey: 'opps_cache_v1',
+    fn: (dados, ind, funis) => {
+      const ganhas = filtrarPorIndicador(dados, ind, funis).filter(o => o.situacao === 'ganha')
+      if (!ganhas.length) return 0
+      return Math.round(ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0) / ganhas.length)
+    },
+  },
+  {
+    value: 'pipeline_ciclo_medio',
+    label: 'Pipeline — Ciclo médio de vendas (dias)',
+    tipo: 'amount',
+    modulos: ['pipeline'],
+    storageKey: 'opps_cache_v1',
+    fn: (dados, ind, funis) => {
+      const ganhas = filtrarPorIndicador(dados, ind, funis).filter(o =>
+        o.situacao === 'ganha' && o.criado && o.data_fechamento
+      )
+      if (!ganhas.length) return 0
+      const dias = ganhas.map(o => {
+        const d1 = new Date(o.criado)
+        const d2 = new Date(o.data_fechamento)
+        return Math.max(0, Math.round((d2 - d1) / 86400000))
+      })
+      return Math.round(dias.reduce((s, d) => s + d, 0) / dias.length)
+    },
+  },
+  {
+    value: 'pipeline_velocity',
+    label: 'Pipeline — Pipeline Velocity (R$/dia)',
+    tipo: 'amount',
+    modulos: ['pipeline'],
+    storageKey: 'opps_cache_v1',
+    fn: (dados, ind, funis) => {
+      const base = filtrarPorIndicador(dados, ind, funis)
+      const abertas = base.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida')
+      const ganhas  = base.filter(o => o.situacao === 'ganha')
+      const total   = base.length
+      if (!total || !ganhas.length) return 0
+      const taxaConversao = ganhas.length / total
+      const ticketMedio   = ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0) / ganhas.length
+      const comDatas      = ganhas.filter(o => o.criado && o.data_fechamento)
+      const ciclo = comDatas.length
+        ? comDatas.reduce((s, o) => s + Math.max(1, Math.round((new Date(o.data_fechamento) - new Date(o.criado)) / 86400000)), 0) / comDatas.length
+        : 30
+      return Math.round((abertas.length * taxaConversao * ticketMedio) / ciclo)
+    },
+  },
 ]
 
 export function calcValorIndicador(indicador, funis) {
