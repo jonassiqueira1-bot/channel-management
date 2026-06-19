@@ -419,74 +419,76 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
 
       {/* Papel */}
       <FPESection title="Papel">
-        <ChoiceList
-          value={form.papel}
-          onChange={v => podeEditar && set('papel', v)}
-          disabled={!podeEditar}
-          options={papeisDisp.map(p => {
-            const cfg = PAPEIS_CONFIG[p.value]
-            return { value: p.value, label: cfg.label, icon: cfg.icon, desc: p.desc }
-          })}
-        />
+        <FPEField label="Papel do usuário" style={{ gridColumn:'1/-1' }}>
+          <select className="fpe-field" value={form.papel} disabled={!podeEditar}
+            onChange={e => set('papel', e.target.value)}>
+            {papeisDisp.map(p => {
+              const cfg = PAPEIS_CONFIG[p.value]
+              return <option key={p.value} value={p.value}>{cfg.icon} {cfg.label}</option>
+            })}
+          </select>
+        </FPEField>
       </FPESection>
 
       {/* Status */}
       <FPESection title="Status">
-        <ChoiceList
-          value={form.status}
-          onChange={v => podeEditar && set('status', v)}
-          disabled={!podeEditar}
-          options={[
-            { value: 'ativo',   label: 'Ativo',   desc: 'Usuário consegue fazer login normalmente' },
-            { value: 'inativo', label: 'Inativo', desc: 'Usuário bloqueado, não consegue fazer login' },
-          ]}
-        />
+        <FPEField label="Status do usuário" style={{ gridColumn:'1/-1' }}>
+          <select className="fpe-field" value={form.status} disabled={!podeEditar}
+            onChange={e => set('status', e.target.value)}>
+            <option value="ativo">Ativo</option>
+            <option value="inativo">Inativo</option>
+          </select>
+        </FPEField>
       </FPESection>
 
       {/* Unidades */}
-      <FPESection title="Unidades com acesso" description="Selecione as unidades (branches) que este usuário pode visualizar e operar.">
+      <FPESection title="Unidades com acesso" description="Segure Ctrl (ou ⌘) para selecionar múltiplas unidades.">
         {branches.length === 0 ? (
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
         ) : (
-          <ChoiceList
-            multi
-            value={form.branch_ids || []}
-            onChange={ids => podeEditar && setForm(f => ({ ...f, branch_ids: ids }))}
-            disabled={!podeEditar}
-            options={branches.map(b => {
-              const cf = b.custom_fields || {}
-              return {
-                value: b.id,
-                label: b.name,
-                desc: [cf.cidade, cf.uf].filter(Boolean).join('/') || undefined,
-                badge: cf.is_matriz ? (
-                  <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px' }}>Matriz</span>
-                ) : null,
-              }
-            })}
-          />
+          <FPEField label="Unidades" style={{ gridColumn:'1/-1' }}>
+            <select multiple disabled={!podeEditar}
+              value={form.branch_ids || []}
+              onChange={e => {
+                const sel = Array.from(e.target.selectedOptions).map(o => o.value)
+                podeEditar && setForm(f => ({ ...f, branch_ids: sel }))
+              }}
+              style={{ height: Math.min(branches.length, 6) * 36 + 2 }}
+              className="fpe-field">
+              {branches.map(b => {
+                const cf = b.custom_fields || {}
+                return (
+                  <option key={b.id} value={b.id}>
+                    {cf.is_matriz ? '★ ' : ''}{b.name}{cf.cidade ? ` — ${cf.cidade}` : ''}
+                  </option>
+                )
+              })}
+            </select>
+          </FPEField>
         )}
       </FPESection>
 
       {/* Perfis de acesso */}
-      <FPESection title="Perfis de acesso" description="Perfis adicionam permissões granulares além do papel base.">
+      <FPESection title="Perfis de acesso" description="Segure Ctrl (ou ⌘) para selecionar múltiplos perfis.">
         {rolesStore.length === 0 ? (
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhum perfil configurado.</div>
         ) : (
-          <ChoiceList
-            multi
-            value={form.perfis_acesso_ids || []}
-            onChange={ids => podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: ids }))}
-            disabled={!podeEditar}
-            options={rolesStore.map(r => ({
-              value: r.id,
-              label: r.nome,
-              desc: r.desc,
-              icon: <span style={{ width:8, height:8, borderRadius:'50%', background:r.cor, display:'inline-block', flexShrink:0 }} />,
-            }))}
-          />
+          <FPEField label="Perfis" style={{ gridColumn:'1/-1' }}>
+            <select multiple disabled={!podeEditar}
+              value={form.perfis_acesso_ids || []}
+              onChange={e => {
+                const sel = Array.from(e.target.selectedOptions).map(o => o.value)
+                podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: sel }))
+              }}
+              style={{ height: Math.min(rolesStore.length, 6) * 36 + 2 }}
+              className="fpe-field">
+              {rolesStore.map(r => (
+                <option key={r.id} value={r.id}>{r.nome}</option>
+              ))}
+            </select>
+          </FPEField>
         )}
       </FPESection>
 
