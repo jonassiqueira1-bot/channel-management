@@ -346,6 +346,7 @@ export default function Perfis() {
   const [perms, setPerms]           = useLocalState('perfis:permissions', buildSeedPerms())
   const [editando, setEditando]     = useState(null)  // perfil obj | 'novo'
   const [formNovo, setFormNovo]     = useState({ nome: '', cor: PALETA[0], desc: '' })
+  const [franquias]                 = useLocalState('settings:franquias_v2', [])
   const [confirmDel, setConfirmDel] = useState(null)
   const [search, setSearch]         = useState('')
   const [grupoAberto, setGrupoAberto] = useState(null)
@@ -381,10 +382,26 @@ export default function Perfis() {
   function handleCriar() {
     if (!formNovo.nome.trim()) return
     const id = `custom_${Date.now()}`
-    const novo = { id, slug: id, nome: formNovo.nome.trim(), nativo: false, cor: formNovo.cor, icon: 'Shield', desc: formNovo.desc.trim() || 'Perfil personalizado' }
+    const novo = { id, slug: id, nome: formNovo.nome.trim(), nativo: false, cor: formNovo.cor, icon: 'Shield', desc: formNovo.desc.trim() || 'Perfil personalizado', franquia_ids: formNovo.franquia_ids || [] }
     setPerfis(prev => [...prev, novo])
     setPerms(prev => ({ ...prev, [id]: emptyPerms() }))
     setEditando(novo)
+  }
+
+  function toggleFranquiaNovo(id) {
+    setFormNovo(f => {
+      const ids = f.franquia_ids || []
+      return { ...f, franquia_ids: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] }
+    })
+  }
+
+  function toggleFranquiaPerfil(fid) {
+    setEditando(prev => {
+      const ids = prev.franquia_ids || []
+      const next = { ...prev, franquia_ids: ids.includes(fid) ? ids.filter(x => x !== fid) : [...ids, fid] }
+      setPerfis(p => p.map(p2 => p2.id === next.id ? next : p2))
+      return next
+    })
   }
 
   function handleDeletar(id) {
@@ -445,6 +462,27 @@ export default function Perfis() {
             </div>
           </FPEField>
         </FPESection>
+
+        {franquias.length > 0 && (
+          <FPESection title="Franquias" description="Restringe este perfil a franquias específicas. Sem seleção, o perfil vale para todo o tenant.">
+            <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
+              {franquias.map(f => {
+                const checked = (formNovo.franquia_ids || []).includes(String(f.id))
+                return (
+                  <label key={f.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor:'pointer', transition:'all 0.12s' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggleFranquiaNovo(String(f.id))}
+                      style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+                    <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
+                      {f.codigo ? <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', marginRight:6 }}>[{f.codigo}]</span> : null}
+                      {f.nome}
+                    </span>
+                    {f.classificacao === 'unidade' && <span style={{ fontSize:10, color:'var(--text-muted)', marginLeft:'auto' }}>Unidade</span>}
+                  </label>
+                )
+              })}
+            </div>
+          </FPESection>
+        )}
       </FullPageEdit>
     )
   }
@@ -486,6 +524,29 @@ export default function Perfis() {
                   ))}
                 </div>
               </FPEField>
+            </FPESection>
+          )}
+
+          {franquias.length > 0 && (
+            <FPESection title="Franquias" description="Restringe este perfil a franquias específicas. Sem seleção, o perfil vale para todo o tenant.">
+              <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
+                {franquias.map(f => {
+                  const checked = (editando.franquia_ids || []).includes(String(f.id))
+                  return (
+                    <label key={f.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor:'pointer', transition:'all 0.12s' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggleFranquiaPerfil(String(f.id))}
+                        style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+                      <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)', flex:1 }}>
+                        {f.codigo ? <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', marginRight:6 }}>[{f.codigo}]</span> : null}
+                        {f.nome}
+                      </span>
+                      {f.classificacao === 'unidade' && (
+                        <span style={{ fontSize:10, color:'var(--text-muted)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px' }}>Unidade</span>
+                      )}
+                    </label>
+                  )
+                })}
+              </div>
             </FPESection>
           )}
 
