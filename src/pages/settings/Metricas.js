@@ -138,18 +138,53 @@ export const FONTES_CALCULO = [
   },
   {
     value: 'pipeline_conversao_por_etapa',
-    label: 'Pipeline — Taxa de conversão a partir da etapa (%)',
-    desc: 'Das oportunidades nas etapas selecionadas, percentual que virou ganha. Filtra por funil e/ou produto se configurados.',
+    label: 'Pipeline — Taxa de conversão da etapa (%)',
+    desc: 'Das oportunidades que chegaram à etapa selecionada, % que avançou para etapas posteriores ou foi ganha. Identifica gargalos no funil.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
     fn: (data, metrica, funis) => {
       const eids = (metrica?.etapa_ids || []).map(String).filter(Boolean)
       const base = filtrarPorFunilEProduto(data, metrica, funis)
-      const universo = eids.length
-        ? base.filter(o => eids.includes(String(o.etapa_id)) || o.situacao === 'ganha' || o.situacao === 'perdida')
-        : base
-      if (!universo.length) return 0
-      return Math.round((universo.filter(o => o.situacao === 'ganha').length / universo.length) * 100)
+
+      // Sem etapa específica: conversão global (ganhas / total)
+      if (!eids.length) {
+        if (!base.length) return 0
+        return Math.round((base.filter(o => o.situacao === 'ganha').length / base.length) * 100)
+      }
+
+      // Encontra o funil que contém a etapa selecionada
+      const funilDaEtapa = (funis || []).find(f =>
+        (f.etapas || []).some(e => eids.includes(String(e.id)))
+      )
+      if (!funilDaEtapa) return 0
+
+      const etapasOrdenadas = (funilDaEtapa.etapas || []).map(e => String(e.id))
+
+      // Usa a etapa selecionada de menor índice como ponto de corte
+      const indiceCorte = Math.min(
+        ...eids
+          .map(eid => etapasOrdenadas.indexOf(eid))
+          .filter(i => i >= 0)
+      )
+      if (indiceCorte < 0) return 0
+
+      const etapasPosteriores = new Set(etapasOrdenadas.slice(indiceCorte + 1))
+
+      // Entraram na etapa = estão nela + avançaram além + ganhas
+      const entraram = base.filter(o =>
+        eids.includes(String(o.etapa_id)) ||
+        etapasPosteriores.has(String(o.etapa_id)) ||
+        o.situacao === 'ganha'
+      )
+
+      // Passaram da etapa = estão em etapa posterior ou foram ganhas
+      const passaram = base.filter(o =>
+        etapasPosteriores.has(String(o.etapa_id)) ||
+        o.situacao === 'ganha'
+      )
+
+      if (!entraram.length) return 0
+      return Math.round((passaram.length / entraram.length) * 100)
     },
   },
   {
