@@ -1,11 +1,29 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
-import SettingsLayout from '../../components/ui/SettingsLayout'
-import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
+import BrowseLayout from '../../components/BrowseLayout'
+import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 
 function uid() { return Date.now() + Math.floor(Math.random() * 999) }
 
-// ─── Badge ────────────────────────────────────────────────────────────────────
+const CLASSIF_CONFIG = {
+  franquia: { label: 'Franquia', color: 'var(--accent)',  bg: 'var(--accent-lite)' },
+  unidade:  { label: 'Unidade',  color: '#10B981',        bg: '#D1FAE5'            },
+}
+
+function ClassifBadge({ value }) {
+  const cfg = CLASSIF_CONFIG[value] || CLASSIF_CONFIG.franquia
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '2px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+      fontFamily: 'var(--mono)', whiteSpace: 'nowrap',
+      background: cfg.bg, color: cfg.color,
+    }}>
+      {cfg.label}
+    </span>
+  )
+}
+
 function SituacaoBadge({ situacao }) {
   const ativo = situacao === 'ativo'
   return (
@@ -22,25 +40,85 @@ function SituacaoBadge({ situacao }) {
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Bulk reclassify modal ────────────────────────────────────────────────────
+function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
+  const [classificacao, setClassificacao] = useState('franquia')
+  const [franquiaId, setFranquiaId] = useState('')
+  const franquiasMae = franquias.filter(f => f.classificacao !== 'unidade')
+  const precisaFranquia = classificacao === 'unidade'
+  const podeConfirmar = !precisaFranquia || franquiaId
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.35)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background:'var(--surface)', borderRadius:14, padding:28, width:420, boxShadow:'0 8px 32px rgba(0,0,0,0.18)' }}>
+        <div style={{ fontWeight:700, fontSize:15, color:'var(--text)', marginBottom:4 }}>Reclassificar em lote</div>
+        <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:20 }}>{ids.length} registro{ids.length > 1 ? 's' : ''} selecionado{ids.length > 1 ? 's' : ''}</div>
+
+        <div style={{ marginBottom:14 }}>
+          <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:6 }}>Classificação</div>
+          <div style={{ display:'flex', gap:8 }}>
+            {Object.entries(CLASSIF_CONFIG).map(([val, cfg]) => (
+              <button key={val} type="button" onClick={() => { setClassificacao(val); setFranquiaId('') }}
+                style={{ flex:1, padding:'10px 0', borderRadius:9, cursor:'pointer', fontWeight:700, fontSize:13,
+                  border: classificacao === val ? `2px solid ${cfg.color}` : '2px solid var(--border)',
+                  background: classificacao === val ? cfg.bg : 'var(--surface)',
+                  color: classificacao === val ? cfg.color : 'var(--text-muted)',
+                  transition:'all 0.12s' }}>
+                {cfg.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {precisaFranquia && (
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:6 }}>Franquia detentora *</div>
+            <select className="fpe-field" value={franquiaId} onChange={e => setFranquiaId(e.target.value)}>
+              <option value="">— Selecione a franquia —</option>
+              {franquiasMae.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          </div>
+        )}
+
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:20 }}>
+          <button type="button" onClick={onClose}
+            style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none', cursor:'pointer', fontSize:13, color:'var(--text-muted)' }}>
+            Cancelar
+          </button>
+          <button type="button" disabled={!podeConfirmar} onClick={() => onConfirmar({ classificacao, franquia_id: franquiaId || null })}
+            style={{ padding:'8px 18px', borderRadius:8, border:'none', background: podeConfirmar ? 'var(--accent)' : 'var(--border)', color:'#fff', cursor: podeConfirmar ? 'pointer' : 'default', fontSize:13, fontWeight:700, transition:'background 0.12s' }}>
+            Aplicar
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Franquias() {
   const [franquias, setFranquias] = useLocalState('settings:franquias_v2', [])
   const [editando, setEditando]   = useState(null)
   const [form, setForm]           = useState(null)
   const [search, setSearch]       = useState('')
+  const [bulkModal, setBulkModal] = useState(null) // ids[]
 
-  const filtered = franquias.filter(f =>
-    f.nome.toLowerCase().includes(search.toLowerCase())
-  )
+  const franquiasMae = useMemo(() => franquias.filter(f => f.classificacao !== 'unidade'), [franquias])
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    return franquias.filter(f => f.nome.toLowerCase().includes(q))
+  }, [franquias, search])
 
   function abrirNovo() {
-    setForm({ nome: '', situacao: 'ativo' })
+    setForm({ nome: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null })
     setEditando('novo')
   }
 
-  function abrirEdicao(franquia) {
-    setForm({ ...franquia })
-    setEditando(franquia)
+  function abrirEdicao(row) {
+    setForm({ ...row })
+    setEditando(row)
   }
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
@@ -49,12 +127,19 @@ export default function Franquias() {
     if (!form?.nome?.trim()) return null
     return franquias.some(
       f => f.id !== editando?.id && f.nome.trim().toLowerCase() === form.nome.trim().toLowerCase()
-    ) ? 'Já existe uma franquia com este nome' : null
+    ) ? 'Já existe um registro com este nome' : null
   }, [form?.nome, franquias, editando])
 
+  const podeGravar = form?.nome?.trim() && !nomeErr &&
+    (form?.classificacao !== 'unidade' || form?.franquia_id)
+
   function handleSave() {
-    if (!form.nome.trim() || nomeErr) return
-    const data = { ...form, nome: form.nome.trim() }
+    if (!podeGravar) return
+    const data = {
+      ...form,
+      nome: form.nome.trim(),
+      franquia_id: form.classificacao === 'unidade' ? form.franquia_id : null,
+    }
     if (editando !== 'novo') {
       setFranquias(prev => prev.map(f => f.id === editando.id ? { ...f, ...data } : f))
     } else {
@@ -68,52 +153,142 @@ export default function Franquias() {
     setEditando(null)
   }
 
+  function handleBulkReclassify(ids) {
+    setBulkModal(ids)
+  }
+
+  function applyBulk({ classificacao, franquia_id }) {
+    const ids = new Set(bulkModal)
+    setFranquias(prev => prev.map(f =>
+      ids.has(f.id)
+        ? { ...f, classificacao, franquia_id: classificacao === 'unidade' ? franquia_id : null }
+        : f
+    ))
+    setBulkModal(null)
+  }
+
+  const columns = [
+    {
+      key: 'nome',
+      label: 'Nome',
+      render: (v, row) => {
+        const franquiaMae = row.franquia_id ? franquias.find(f => f.id === row.franquia_id) : null
+        return (
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{v}</div>
+            {franquiaMae && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                ↳ {franquiaMae.nome}
+              </div>
+            )}
+          </div>
+        )
+      },
+    },
+    {
+      key: 'classificacao',
+      label: 'Classificação',
+      width: 130,
+      render: v => <ClassifBadge value={v || 'franquia'} />,
+    },
+    {
+      key: 'situacao',
+      label: 'Situação',
+      width: 110,
+      render: v => <SituacaoBadge situacao={v} />,
+    },
+  ]
+
+  // ── Form (early return) ───────────────────────────────────────────────────
   if (editando) {
+    const isUnidade = form.classificacao === 'unidade'
     return (
       <FullPageEdit
         breadcrumb={[{ label: 'Franquias', onClick: () => setEditando(null) }]}
-        title={editando === 'novo' ? 'Nova Franquia' : `Editar: ${editando.nome}`}
-        onSave={handleSave}
+        title={editando === 'novo' ? 'Novo registro' : `Editar: ${editando.nome}`}
+        onSave={podeGravar ? handleSave : undefined}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(editando.id) : undefined}
       >
         <FPESection title="Identificação">
-          <FPEField label="Nome da Franquia" required error={nomeErr}>
-            <input className="fpe-field"
-              value={form.nome}
-              onChange={e => set('nome', e.target.value)}
-              placeholder="Ex: Franquia Norte"
-              style={nomeErr ? { borderColor: 'var(--red)' } : {}}
-            />
-          </FPEField>
+          <FPEGrid>
+            {/* Classificação */}
+            <FPEField label="Classificação" required style={{ gridColumn: '1/-1' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {Object.entries(CLASSIF_CONFIG).map(([val, cfg]) => (
+                  <button key={val} type="button"
+                    onClick={() => { set('classificacao', val); set('franquia_id', null) }}
+                    style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      border: form.classificacao === val ? `2px solid ${cfg.color}` : '2px solid var(--border)',
+                      background: form.classificacao === val ? cfg.bg : 'var(--surface)',
+                      transition: 'all 0.15s',
+                    }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: form.classificacao === val ? cfg.color : 'var(--text-muted)' }}>
+                      {cfg.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </FPEField>
 
-          <FPEField label="Situação">
-            <div style={{ display: 'flex', gap: 10 }}>
-              {[
-                { value: 'ativo',   label: 'Ativa',   color: '#10B981', bg: '#ECFDF5' },
-                { value: 'inativo', label: 'Inativa', color: '#9A9590', bg: '#F1F5F9' },
-              ].map(opt => (
-                <button key={opt.value} type="button" onClick={() => set('situacao', opt.value)}
-                  style={{
-                    flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                    border: form.situacao === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
-                    background: form.situacao === opt.value ? opt.bg : 'var(--surface)',
-                    transition: 'all 0.15s',
-                  }}>
-                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color }} />
-                  <span style={{ fontSize: 13, fontWeight: 700, color: form.situacao === opt.value ? opt.color : 'var(--text-muted)' }}>
-                    {opt.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </FPEField>
+            {/* Franquia detentora — só se Unidade */}
+            {isUnidade && (
+              <FPEField label="Franquia detentora" required style={{ gridColumn: '1/-1' }}>
+                <select className="fpe-field" value={form.franquia_id || ''}
+                  onChange={e => set('franquia_id', e.target.value || null)}>
+                  <option value="">— Selecione a franquia —</option>
+                  {franquiasMae.filter(f => f.id !== editando?.id).map(f => (
+                    <option key={f.id} value={f.id}>{f.nome}</option>
+                  ))}
+                </select>
+                {franquiasMae.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 4 }}>
+                    Nenhuma franquia disponível. Cadastre uma franquia antes de criar uma unidade vinculada.
+                  </div>
+                )}
+              </FPEField>
+            )}
+
+            {/* Nome */}
+            <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: '1/-1' }}>
+              <input className="fpe-field"
+                value={form.nome}
+                onChange={e => set('nome', e.target.value)}
+                placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Franquia Norte'}
+                style={nomeErr ? { borderColor: 'var(--red)' } : {}}
+              />
+            </FPEField>
+
+            {/* Situação */}
+            <FPEField label="Situação" style={{ gridColumn: '1/-1' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {[
+                  { value: 'ativo',   label: 'Ativa',   color: '#10B981', bg: '#ECFDF5' },
+                  { value: 'inativo', label: 'Inativa', color: '#9A9590', bg: '#F1F5F9' },
+                ].map(opt => (
+                  <button key={opt.value} type="button" onClick={() => set('situacao', opt.value)}
+                    style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 10, cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      border: form.situacao === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
+                      background: form.situacao === opt.value ? opt.bg : 'var(--surface)',
+                      transition: 'all 0.15s',
+                    }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: opt.color }} />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: form.situacao === opt.value ? opt.color : 'var(--text-muted)' }}>
+                      {opt.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </FPEField>
+          </FPEGrid>
 
           {editando !== 'novo' && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)' }}>
-              franquia_id: <span style={{ color: 'var(--accent)' }}>{editando.id}</span>
-              <span style={{ marginLeft: 12, color: 'var(--text-muted)' }}>— usado como FK em empresas.franquia_id</span>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)', gridColumn: '1/-1' }}>
+              id: <span style={{ color: 'var(--accent)' }}>{editando.id}</span>
             </div>
           )}
         </FPESection>
@@ -122,24 +297,35 @@ export default function Franquias() {
   }
 
   return (
-    <SettingsLayout
-      title="Franquias"
-      description="Gerencie as franquias disponíveis. Cada franquia pode ser vinculada a empresas via franquia_id."
-      columns={[
-        { key: 'nome', label: 'Nome' },
-        { key: 'situacao', label: 'Situação', render: (v) => <SituacaoBadge situacao={v} />, width: 120 },
-      ]}
-      data={filtered}
-      keyField="id"
-      emptyLabel="Nenhuma franquia cadastrada ainda."
-      onNew={abrirNovo}
-      newLabel="+ Nova franquia"
-      rowActions={[
-        { label: 'Editar',  onClick: abrirEdicao },
-        { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
-      ]}
-      search={search}
-      onSearchChange={setSearch}
-    />
+    <>
+      {bulkModal && (
+        <BulkReclassifyModal
+          ids={bulkModal}
+          franquias={franquias}
+          onConfirmar={applyBulk}
+          onClose={() => setBulkModal(null)}
+        />
+      )}
+      <BrowseLayout
+        columns={columns}
+        data={filtered}
+        keyField="id"
+        storageKey="settings_franquias"
+        newLabel="Novo registro"
+        onNew={abrirNovo}
+        onRowClick={abrirEdicao}
+        search={search}
+        onSearchChange={setSearch}
+        bulkActions={[
+          { label: 'Reclassificar', onClick: handleBulkReclassify },
+        ]}
+        emptyState={
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 28, opacity: 0.3 }}>🏢</span>
+            <span style={{ fontSize: 13 }}>Nenhuma franquia ou unidade cadastrada.</span>
+          </div>
+        }
+      />
+    </>
   )
 }
