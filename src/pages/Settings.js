@@ -175,7 +175,7 @@ export function SettingsPage({ title, description }) {
   )
 }
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 const s = {
   aside: {
