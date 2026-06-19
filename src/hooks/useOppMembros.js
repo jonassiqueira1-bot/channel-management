@@ -45,7 +45,8 @@ export function useOppMembros() {
       .then(({ data, error }) => {
         if (error) { console.warn('[useOppMembros] load error:', error.message); return }
         const lista = (data || []).map(rowToMembro)
-        setMembros(lista)
+        // só sobrescreve se o Supabase trouxe dados; caso contrário mantém localStorage
+        if (lista.length > 0) setMembros(lista)
       })
   }, [session])
 
