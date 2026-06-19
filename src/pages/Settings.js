@@ -30,7 +30,8 @@ const SECTIONS = [
       { path: '/settings/funis',        label: 'Funis de Vendas',         Icon: Filter      },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
       { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
-      { path: '/settings/metricas',     label: 'Métricas e KPIs',         Icon: BarChart2   },
+      { path: '/settings/indicadores',   label: 'Indicadores',             Icon: Activity    },
+      { path: '/settings/metas',        label: 'Metas e KPIs',            Icon: BarChart2   },
     ],
   },
   {

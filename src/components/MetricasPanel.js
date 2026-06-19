@@ -10,18 +10,20 @@
  */
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { METRICAS_KEY, LEITURAS_KEY } from '../pages/settings/Metricas'
+import { useFunnels } from '../hooks/useFunnels'
+import { INDICADORES_KEY, calcValorIndicador } from '../pages/settings/Indicadores'
+import { METAS_KEY } from '../pages/settings/Metas'
 
-function calcStatus(metrica, valorAtual) {
+function calcStatus(valorAlvo, tendencia, valorAtual) {
   if (valorAtual === null || valorAtual === undefined) return 'sem_dados'
-  const pct = valorAtual / metrica.valor_alvo
-  if (metrica.tendencia === 'subir') {
-    if (pct >= 1)    return 'atingida'
-    if (pct >= 0.75) return 'atencao'
-    return 'abaixo'
-  } else {
+  const pct = valorAtual / Number(valorAlvo)
+  if (tendencia === 'descer') {
     if (pct <= 1)    return 'atingida'
     if (pct <= 1.25) return 'atencao'
+    return 'abaixo'
+  } else {
+    if (pct >= 1)    return 'atingida'
+    if (pct >= 0.75) return 'atencao'
     return 'abaixo'
   }
 }
@@ -34,29 +36,35 @@ const STATUS_CFG = {
 }
 
 export default function MetricasPanel({ modulo, usuarioId, valorImpacto, unidade = '' }) {
-  const [metricas] = useLocalState(METRICAS_KEY, [])
-  const [leituras] = useLocalState(LEITURAS_KEY, [])
+  const [indicadores] = useLocalState(INDICADORES_KEY, [])
+  const [metas] = useLocalState(METAS_KEY, [])
+  const { funis } = useFunnels()
   const [aberto, setAberto] = useState(false)
 
-  const metricasRel = useMemo(() => {
-    return metricas.filter(m =>
-      m.status === 'ativo' &&
-      (m.modulo === modulo || (m.modulos || []).includes(modulo)) &&
-      (!m.usuario_ids?.length || m.usuario_ids.includes(usuarioId))
-    )
-  }, [metricas, modulo, usuarioId])
+  const hoje = new Date().toISOString().slice(0, 10)
 
-  function ultimaLeitura(metricaId) {
-    const lista = leituras.filter(l => l.metrica_id === metricaId)
-    if (!lista.length) return null
-    return lista.sort((a, b) => new Date(b.data) - new Date(a.data))[0]
+  const metasRel = useMemo(() => {
+    return metas.filter(m => {
+      if (m.status !== 'ativo') return false
+      const ind = indicadores.find(i => i.id === m.indicador_id)
+      if (!ind || ind.modulo !== modulo) return false
+      if (m.data_inicio && hoje < m.data_inicio) return false
+      if (m.data_fim && hoje > m.data_fim) return false
+      return true
+    })
+  }, [metas, indicadores, modulo, hoje])
+
+  if (!metasRel.length) return null
+
+  function getValorAtual(meta) {
+    const ind = indicadores.find(i => i.id === meta.indicador_id)
+    return ind ? calcValorIndicador(ind, funis) : null
   }
 
-  if (!metricasRel.length) return null
-
-  const statusCounts = metricasRel.reduce((acc, m) => {
-    const ul = ultimaLeitura(m.id)
-    const s  = calcStatus(m, ul?.valor ?? null)
+  const statusCounts = metasRel.reduce((acc, m) => {
+    const ind = indicadores.find(i => i.id === m.indicador_id)
+    const val = getValorAtual(m)
+    const s = calcStatus(m.valor_alvo, ind?.tendencia, val)
     acc[s] = (acc[s] || 0) + 1
     return acc
   }, {})
@@ -77,42 +85,42 @@ export default function MetricasPanel({ modulo, usuarioId, valorImpacto, unidade
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {metricasRel.map(m => {
-              const ul      = ultimaLeitura(m.id)
-              const atual   = ul?.valor ?? null
-              const status  = calcStatus(m, atual)
-              const cfg     = STATUS_CFG[status]
+            {metasRel.map(m => {
+              const ind = indicadores.find(i => i.id === m.indicador_id)
+              const atual = getValorAtual(m)
+              const status = calcStatus(m.valor_alvo, ind?.tendencia, atual)
+              const cfg = STATUS_CFG[status]
 
-              // impacto estimado: quanto este registro representa na meta
               const impactoPct = (valorImpacto && m.valor_alvo)
-                ? Math.round((valorImpacto / m.valor_alvo) * 100)
+                ? Math.round((valorImpacto / Number(m.valor_alvo)) * 100)
                 : null
 
-              const pctAtual = atual !== null
-                ? Math.min(Math.round((m.tendencia === 'subir'
-                    ? atual / m.valor_alvo
-                    : m.valor_alvo / atual) * 100), 100)
+              const pctAtual = atual !== null && Number(m.valor_alvo) > 0
+                ? Math.min(Math.round(
+                    (ind?.tendencia === 'descer'
+                      ? Number(m.valor_alvo) / atual
+                      : atual / Number(m.valor_alvo)) * 100
+                  ), 100)
                 : 0
 
               return (
                 <div key={m.id} style={{ padding: '10px 12px', borderRadius: 10,
                   background: 'var(--surface2)', border: '1px solid var(--border)',
-                  borderLeft: `3px solid ${m.cor || cfg.cor}` }}>
+                  borderLeft: `3px solid ${cfg.cor}` }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{m.nome}</span>
                     <span style={{ fontSize: 11, color: cfg.cor, fontWeight: 700 }}>
                       {cfg.emoji} {cfg.label}
                     </span>
                   </div>
-                  {/* Barra progresso */}
                   <div style={{ height: 4, background: 'var(--border)', borderRadius: 2, marginBottom: 6, overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pctAtual}%`, background: cfg.cor, borderRadius: 2 }} />
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                      {atual !== null ? `${m.unidade} ${Number(atual).toLocaleString('pt-BR')}` : '—'}
+                      {atual !== null ? `${ind?.unidade || ''} ${Number(atual).toLocaleString('pt-BR')}`.trim() : '—'}
                       {' / '}
-                      {m.unidade} {Number(m.valor_alvo).toLocaleString('pt-BR')}
+                      {ind?.unidade || ''} {Number(m.valor_alvo).toLocaleString('pt-BR')}
                     </span>
                     {impactoPct !== null && (
                       <span style={{ fontSize: 10, color: 'var(--accent)', background: 'var(--accent-lite)',
@@ -143,7 +151,7 @@ export default function MetricasPanel({ modulo, usuarioId, valorImpacto, unidade
           cursor: 'pointer', color: corGeral, fontSize: 12, fontWeight: 700,
           transition: 'all 0.15s' }}>
         <span style={{ width: 8, height: 8, borderRadius: '50%', background: corGeral, flexShrink: 0 }} />
-        {metricasRel.length} métrica{metricasRel.length > 1 ? 's' : ''}
+        {metasRel.length} meta{metasRel.length > 1 ? 's' : ''}
         {statusCounts.abaixo ? ` · ${statusCounts.abaixo} abaixo` : ''}
         {!statusCounts.abaixo && statusCounts.atencao ? ` · ${statusCounts.atencao} atenção` : ''}
         <span style={{ fontSize: 11, opacity: 0.7 }}>{aberto ? '▼' : '▲'}</span>

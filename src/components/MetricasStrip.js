@@ -1,25 +1,19 @@
-/**
- * MetricasStrip — painel de métricas para o slot `kpis` do BrowseLayout.
- *
- * Props:
- *   modulo   string   — chave do módulo ('pipeline', 'projetos', etc.)
- *   usuarioId string  — id do usuário logado (para filtrar métricas pessoais)
- */
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFunnels } from '../hooks/useFunnels'
-import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS, FONTES_CALCULO, gerarAgenda } from '../pages/settings/Metricas'
+import { INDICADORES_KEY, calcValorIndicador } from '../pages/settings/Indicadores'
+import { METAS_KEY } from '../pages/settings/Metas'
 
-function calcStatus(metrica, valorAtual) {
+function calcStatus(meta, indicador, valorAtual) {
   if (valorAtual === null || valorAtual === undefined) return 'sem_dados'
-  const pct = valorAtual / metrica.valor_alvo
-  if (metrica.tendencia === 'subir') {
-    if (pct >= 1)    return 'atingida'
-    if (pct >= 0.75) return 'atencao'
-    return 'abaixo'
-  } else {
+  const pct = valorAtual / Number(meta.valor_alvo)
+  if (indicador?.tendencia === 'descer') {
     if (pct <= 1)    return 'atingida'
     if (pct <= 1.25) return 'atencao'
+    return 'abaixo'
+  } else {
+    if (pct >= 1)    return 'atingida'
+    if (pct >= 0.75) return 'atencao'
     return 'abaixo'
   }
 }
@@ -31,106 +25,38 @@ const STATUS_CFG = {
   sem_dados: { cor: '#9CA3AF', bg: '#F3F4F6', label: 'Sem dados' },
 }
 
-function foraDoperiodo(metrica) {
-  const hoje = new Date().toISOString().slice(0, 10)
-  if (metrica.data_inicio && hoje < metrica.data_inicio) return `Vigência inicia em ${metrica.data_inicio}`
-  if (metrica.data_fim   && hoje > metrica.data_fim)   return `Vigência encerrou em ${metrica.data_fim}`
-  return null
+const PERIODO_LABEL = {
+  mensal: 'Mensal', trimestral: 'Trimestral', semestral: 'Semestral', anual: 'Anual',
 }
 
-function LogModal({ metrica, onSave, onClose }) {
-  const [valor, setValor] = useState('')
-  const [nota, setNota]   = useState('')
-  const bloqueio = foraDoperiodo(metrica)
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000,
-      display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: 380,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
-        <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>
-          Registrar leitura
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: bloqueio ? 12 : 20 }}>
-          {metrica.nome} · Meta: {metrica.unidade} {Number(metrica.valor_alvo).toLocaleString('pt-BR')}
-        </div>
+function MetaCard({ meta, indicador, funis, filhos }) {
+  let valorAtual
+  if (filhos && filhos.length > 0) {
+    valorAtual = filhos.reduce((s, f) => {
+      const v = calcValorIndicador(indicador, funis)
+      return s + (v !== null ? v : 0)
+    }, 0)
+  } else {
+    valorAtual = calcValorIndicador(indicador, funis)
+  }
 
-        {bloqueio ? (
-          <div style={{ padding: '12px 14px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #F59E0B',
-            fontSize: 13, color: '#92400E', marginBottom: 20 }}>
-            ⚠ {bloqueio}. Medições só são aceitas dentro do período de vigência.
-          </div>
-        ) : (
-          <>
-            <div style={{ marginBottom: 14 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                color: 'var(--text-muted)', marginBottom: 6 }}>
-                Valor atual ({metrica.unidade})
-              </div>
-              <input className="fpe-field" type="number" value={valor} onChange={e => setValor(e.target.value)}
-                placeholder={`Ex: ${Math.round(metrica.valor_alvo * 0.8)}`}
-                style={{ width: '100%', boxSizing: 'border-box' }} autoFocus />
-            </div>
-            <div style={{ marginBottom: 20 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-                color: 'var(--text-muted)', marginBottom: 6 }}>
-                Observação (opcional)
-              </div>
-              <input className="fpe-field" value={nota} onChange={e => setNota(e.target.value)}
-                placeholder="Ex: semana de feriado, ajuste sazonalidade…"
-                style={{ width: '100%', boxSizing: 'border-box' }} />
-            </div>
-          </>
-        )}
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button type="button" onClick={onClose}
-            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)',
-              background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)' }}>
-            {bloqueio ? 'Fechar' : 'Cancelar'}
-          </button>
-          {!bloqueio && (
-            <button type="button" disabled={!valor}
-              onClick={() => onSave({ metrica_id: metrica.id, valor: Number(valor), nota, data: new Date().toISOString() })}
-              style={{ padding: '8px 18px', borderRadius: 8, border: 'none',
-                background: valor ? 'var(--accent)' : 'var(--border)', color: '#fff',
-                cursor: valor ? 'pointer' : 'default', fontSize: 13, fontWeight: 700 }}>
-              Registrar
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// Hook para calcular valor automático de uma métrica a partir do localStorage
-function useAutoCalculo(metrica, funis) {
-  const fonte = FONTES_CALCULO.find(f => f.value === metrica?.fonte_calculo)
-  const [dados] = useLocalState(fonte?.storageKey || '__noop__', [])
-  if (!fonte || fonte.value === 'manual' || !fonte.fn) return null
-  try { return fonte.fn(dados, metrica, funis) } catch { return null }
-}
-
-// Wrapper individual para cada métrica (hooks não podem ser condicionais)
-function MetricaCard({ m, ultimaLeitura, onLog, funis }) {
-  const autoValor = useAutoCalculo(m, funis)
-  const isAuto    = m.fonte_calculo && m.fonte_calculo !== 'manual'
-  const ul        = ultimaLeitura(m.id)
-  const atual     = isAuto ? autoValor : (ul ? ul.valor : null)
-  const status    = calcStatus(m, atual)
-  const cfg       = STATUS_CFG[status]
-  const pct       = atual !== null
-    ? Math.min(Math.round((m.tendencia === 'subir' ? atual / m.valor_alvo : m.valor_alvo / atual) * 100), 100)
+  const status = calcStatus(meta, indicador, valorAtual)
+  const cfg = STATUS_CFG[status]
+  const alvo = Number(meta.valor_alvo)
+  const pct = valorAtual !== null && alvo > 0
+    ? Math.min(Math.round(
+        (indicador?.tendencia === 'descer' ? alvo / valorAtual : valorAtual / alvo) * 100
+      ), 100)
     : 0
-  const intervaloLabel = INTERVALOS.find(i => i.value === m.intervalo)?.label || m.intervalo
 
   return (
-    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)',
+    <div style={{
+      background: 'var(--surface)', border: '1px solid var(--border)',
       borderRadius: 12, padding: '12px 16px', minWidth: 200, maxWidth: 260, flex: '1 1 200px',
-      borderLeft: `4px solid ${m.cor || cfg.cor}` }}>
+      borderLeft: `4px solid ${cfg.cor}`,
+    }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1, marginRight: 8 }}>{m.nome}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1, marginRight: 8 }}>{meta.nome}</span>
         <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: '1px 8px',
           background: cfg.bg, color: cfg.cor, whiteSpace: 'nowrap' }}>{cfg.label}</span>
       </div>
@@ -140,121 +66,69 @@ function MetricaCard({ m, ultimaLeitura, onLog, funis }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>
-            {atual !== null ? `${m.unidade} ${Number(atual).toLocaleString('pt-BR')}` : '—'}
+            {valorAtual !== null ? `${indicador?.unidade || ''} ${Number(valorAtual).toLocaleString('pt-BR')}`.trim() : '—'}
           </span>
           <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 4 }}>
-            / {m.unidade} {Number(m.valor_alvo).toLocaleString('pt-BR')}
+            / {indicador?.unidade || ''} {alvo.toLocaleString('pt-BR')}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-            {m.periodo}× {intervaloLabel}
-          </span>
-          {isAuto
-            ? <span style={{ fontSize: 10, color: '#10B981', background: '#D1FAE5', borderRadius: 4, padding: '1px 6px', fontWeight: 700 }}>auto</span>
-            : <button type="button" onClick={() => onLog(m)} title="Registrar leitura"
-                style={{ background: 'var(--accent-lite)', border: 'none', borderRadius: 6,
-                  color: 'var(--accent)', fontSize: 13, cursor: 'pointer', padding: '2px 8px', fontWeight: 700, lineHeight: 1 }}>
-                +
-              </button>
-          }
-        </div>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+          {PERIODO_LABEL[meta.periodo] || meta.periodo}
+        </span>
       </div>
     </div>
   )
 }
 
 export default function MetricasStrip({ modulo, usuarioId }) {
-  const [metricas]              = useLocalState(METRICAS_KEY, [])
-  const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
-  const [logModal, setLogModal] = useState(null)
-  const { funis }               = useFunnels()
+  const [indicadores] = useLocalState(INDICADORES_KEY, [])
+  const [metas] = useLocalState(METAS_KEY, [])
+  const { funis } = useFunnels()
 
-  // Captura automática: ao montar, registra leituras para datas passadas sem apontamento
-  useEffect(() => {
-    const hoje = new Date().toISOString().slice(0, 10)
-    const novas = []
+  const hoje = new Date().toISOString().slice(0, 10)
 
-    metricas.forEach(metrica => {
-      if (!metrica.fonte_calculo || metrica.fonte_calculo === 'manual') return
-      if (metrica.status !== 'ativo') return
-      const fonte = FONTES_CALCULO.find(f => f.value === metrica.fonte_calculo)
-      if (!fonte?.fn || !fonte?.storageKey) return
-
-      const agenda = gerarAgenda(metrica)
-      const datasPassadas = agenda.filter(d => d <= hoje)
-      if (!datasPassadas.length) return
-
-      const capturadas = new Set(
-        leituras
-          .filter(l => l.metrica_id === metrica.id && l.auto)
-          .map(l => l.data?.slice(0, 10))
-      )
-
-      const faltam = datasPassadas.filter(d => !capturadas.has(d))
-      if (!faltam.length) return
-
-      let dados = []
-      try { const raw = localStorage.getItem(fonte.storageKey); dados = raw ? JSON.parse(raw) : [] } catch {}
-
-      faltam.forEach(data => {
-        try {
-          const valor = fonte.fn(dados, metrica, funis || [])
-          if (valor !== null && valor !== undefined && !isNaN(valor)) {
-            novas.push({
-              id: Date.now() + Math.random(),
-              metrica_id: metrica.id,
-              valor: Number(valor),
-              data: data + 'T12:00:00.000Z',
-              nota: 'Apontamento automático',
-              auto: true,
-            })
-          }
-        } catch {}
-      })
+  const metasAtivas = useMemo(() => {
+    return metas.filter(m => {
+      if (m.status !== 'ativo') return false
+      const ind = indicadores.find(i => i.id === m.indicador_id)
+      if (!ind || ind.modulo !== modulo) return false
+      if (m.data_inicio && hoje < m.data_inicio) return false
+      if (m.data_fim && hoje > m.data_fim) return false
+      return true
     })
+  }, [metas, indicadores, modulo, hoje])
 
-    if (novas.length > 0) {
-      setLeituras(prev => {
-        const existentes = new Set(prev.filter(l => l.auto).map(l => `${l.metrica_id}|${l.data?.slice(0,10)}`))
-        const filtradas  = novas.filter(n => !existentes.has(`${n.metrica_id}|${n.data?.slice(0,10)}`))
-        return filtradas.length ? [...prev, ...filtradas] : prev
-      })
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [metricas, funis])
+  const metasPai = useMemo(
+    () => metasAtivas.filter(m => !m.meta_pai_id),
+    [metasAtivas]
+  )
 
-  const metricasModulo = useMemo(() => {
-    return metricas.filter(m =>
-      m.status === 'ativo' &&
-      (m.modulo === modulo || (m.modulos || []).includes(modulo)) &&
-      (m.usuario_ids?.length === 0 || !m.usuario_ids || m.usuario_ids.includes(usuarioId))
-    )
-  }, [metricas, modulo, usuarioId])
+  const filhosPor = useMemo(() => {
+    const map = {}
+    metasAtivas.forEach(m => {
+      if (m.meta_pai_id) {
+        if (!map[m.meta_pai_id]) map[m.meta_pai_id] = []
+        map[m.meta_pai_id].push(m)
+      }
+    })
+    return map
+  }, [metasAtivas])
 
-  function ultimaLeitura(metricaId) {
-    const lista = leituras.filter(l => l.metrica_id === metricaId)
-    if (!lista.length) return null
-    return lista.sort((a, b) => new Date(b.data) - new Date(a.data))[0]
-  }
+  if (!metasPai.length && !metasAtivas.filter(m => !m.meta_pai_id).length) return null
+  if (!metasAtivas.length) return null
 
-  function registrarLeitura(leitura) {
-    setLeituras(prev => [...prev, { ...leitura, id: Date.now() }])
-    setLogModal(null)
-  }
-
-  if (!metricasModulo.length) return null
+  const metasRaiz = metasAtivas.filter(m => !m.meta_pai_id)
+  if (!metasRaiz.length) return null
 
   return (
-    <>
-      {logModal && (
-        <LogModal metrica={logModal} onSave={registrarLeitura} onClose={() => setLogModal(null)} />
-      )}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
-        {metricasModulo.map(m => (
-          <MetricaCard key={m.id} m={m} ultimaLeitura={ultimaLeitura} onLog={setLogModal} funis={funis} />
-        ))}
-      </div>
-    </>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+      {metasRaiz.map(meta => {
+        const ind = indicadores.find(i => i.id === meta.indicador_id)
+        const filhos = filhosPor[meta.id] || []
+        return (
+          <MetaCard key={meta.id} meta={meta} indicador={ind} funis={funis} filhos={filhos} />
+        )
+      })}
+    </div>
   )
 }
