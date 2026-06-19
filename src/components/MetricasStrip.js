@@ -150,7 +150,7 @@ export default function MetricasStrip({ modulo, usuarioId }) {
   const metricasModulo = useMemo(() => {
     return metricas.filter(m =>
       m.status === 'ativo' &&
-      (m.modulos || []).includes(modulo) &&
+      (m.modulo === modulo || (m.modulos || []).includes(modulo)) &&
       (m.usuario_ids?.length === 0 || !m.usuario_ids || m.usuario_ids.includes(usuarioId))
     )
   }, [metricas, modulo, usuarioId])

@@ -112,10 +112,11 @@ export const FONTES_CALCULO = [
 
 const EMPTY = {
   nome: '', descricao: '',
-  modulos: [],
+  modulo: '',
   valor_alvo: '', unidade: '', tendencia: 'subir',
   periodo: 1, intervalo: 'meses',
-  usuario_ids: [], franquia_ids: [], produto_ids: [],
+  data_inicio: '', data_fim: '',
+  usuario_ids: [], franquia_ids: [], produto_id: '',
   fonte_calculo: 'manual',
   cor: '#3B82F6', status: 'ativo',
 }
@@ -162,12 +163,6 @@ export default function Metricas() {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
-  function toggleModulo(val) {
-    set('modulos', form.modulos.includes(val)
-      ? form.modulos.filter(x => x !== val)
-      : [...form.modulos, val])
-  }
-
   function toggleUsuario(id) {
     const ids = form.usuario_ids || []
     set('usuario_ids', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
@@ -178,15 +173,11 @@ export default function Metricas() {
     set('franquia_ids', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
   }
 
-  function toggleProduto(id) {
-    const ids = form.produto_ids || []
-    set('produto_ids', ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id])
-  }
 
   function abrirNovo() { setForm({ ...EMPTY }); setEditando('novo') }
   function abrirEdicao(row) { setForm({ ...row }); setEditando(row) }
 
-  const podeGravar = form?.nome?.trim() && form?.valor_alvo && form?.unidade && (form?.modulos||[]).length > 0
+  const podeGravar = form?.nome?.trim() && form?.valor_alvo && form?.unidade && form?.modulo
 
   function handleSave() {
     if (!podeGravar) return
@@ -219,7 +210,14 @@ export default function Metricas() {
         </div>
       ),
     },
-    { key: 'modulos',   label: 'Módulos',    render: v => <ModulosBadges values={v} /> },
+    {
+      key: 'modulo', label: 'Módulo', width: 160,
+      render: v => {
+        const m = MODULOS.find(x => x.value === v)
+        if (!m) return <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+        return <span style={{ fontSize: 11, background: 'var(--accent-lite)', color: 'var(--accent)', borderRadius: 4, padding: '1px 7px', fontWeight: 600 }}>{m.label}</span>
+      },
+    },
     {
       key: 'valor_alvo', label: 'Meta',
       render: (v, row) => <span style={{ fontFamily: 'var(--mono)', fontWeight: 700, color: 'var(--accent)' }}>{row.unidade} {Number(v).toLocaleString('pt-BR')}</span>,
@@ -276,23 +274,14 @@ export default function Metricas() {
           </FPEField>
         </FPESection>
 
-        {/* Módulos */}
-        <FPESection title="Módulos" description="Em quais funcionalidades esta métrica é exibida">
-          <div style={{ gridColumn: '1/-1', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {MODULOS.map(m => {
-              const checked = (form.modulos || []).includes(m.value)
-              return (
-                <label key={m.value} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 8,
-                  border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-                  background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)',
-                  cursor: 'pointer', transition: 'all 0.12s' }}>
-                  <input type="checkbox" checked={checked} onChange={() => toggleModulo(m.value)}
-                    style={{ accentColor: 'var(--accent)', width: 14, height: 14 }} />
-                  <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>{m.label}</span>
-                </label>
-              )
-            })}
-          </div>
+        {/* Módulo */}
+        <FPESection title="Módulo" description="Em qual funcionalidade esta métrica é exibida" columns={2}>
+          <FPEField label="Funcionalidade" required style={{ gridColumn: '1/-1' }}>
+            <select className="fpe-field" value={form.modulo || ''} onChange={e => { set('modulo', e.target.value); set('fonte_calculo', 'manual') }}>
+              <option value="">— Selecione —</option>
+              {MODULOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </FPEField>
         </FPESection>
 
         {/* Meta e Tendência */}
@@ -313,10 +302,16 @@ export default function Metricas() {
           <FPEField label="Período (quantidade)" style={{ gridColumn: 'span 1' }}>
             <input className="fpe-field" type="number" min="1" value={form.periodo} onChange={e => set('periodo', e.target.value)} />
           </FPEField>
-          <FPEField label="Intervalo de acompanhamento" style={{ gridColumn: 'span 3' }}>
+          <FPEField label="Intervalo de acompanhamento" style={{ gridColumn: 'span 2' }}>
             <select className="fpe-field" value={form.intervalo} onChange={e => set('intervalo', e.target.value)}>
               {INTERVALOS.map(i => <option key={i.value} value={i.value}>{i.label}</option>)}
             </select>
+          </FPEField>
+          <FPEField label="Data início" style={{ gridColumn: 'span 1' }}>
+            <input className="fpe-field" type="date" value={form.data_inicio || ''} onChange={e => set('data_inicio', e.target.value)} />
+          </FPEField>
+          <FPEField label="Data fim" style={{ gridColumn: 'span 1' }}>
+            <input className="fpe-field" type="date" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
           </FPEField>
         </FPESection>
 
@@ -373,28 +368,19 @@ export default function Metricas() {
           </FPESection>
         )}
 
-        {/* Produtos */}
+        {/* Produto */}
         {produtos.length > 0 && (
-          <FPESection title="Produtos" description="Restringe esta métrica a produtos específicos. Sem seleção, vale para todos.">
-            <div style={{ gridColumn: '1/-1', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              {produtos.filter(p => p.status === 'ativo').map(p => {
-                const checked = (form.produto_ids || []).includes(String(p.id))
-                return (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8,
-                    border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-                    background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)',
-                    cursor: 'pointer', transition: 'all 0.12s' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleProduto(String(p.id))}
-                      style={{ accentColor: 'var(--accent)', width: 14, height: 14 }} />
-                    <span style={{ fontSize: 13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)', flex: 1 }}>
-                      {p.codigo ? <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', marginRight: 6 }}>[{p.codigo}]</span> : null}
-                      {p.nome}
-                    </span>
-                    {p.tipo && <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 6px' }}>{p.tipo}</span>}
-                  </label>
-                )
-              })}
-            </div>
+          <FPESection title="Produto" description="Associa esta métrica a um produto específico (opcional).">
+            <FPEField label="Produto relacionado" style={{ gridColumn: '1/-1' }}>
+              <select className="fpe-field" value={form.produto_id || ''} onChange={e => set('produto_id', e.target.value || '')}>
+                <option value="">— Nenhum —</option>
+                {produtos.filter(p => p.status === 'ativo').map(p => (
+                  <option key={p.id} value={String(p.id)}>
+                    {p.codigo ? `[${p.codigo}] ` : ''}{p.nome}
+                  </option>
+                ))}
+              </select>
+            </FPEField>
           </FPESection>
         )}
 
@@ -404,7 +390,7 @@ export default function Metricas() {
             <select className="fpe-field" value={form.fonte_calculo || 'manual'}
               onChange={e => set('fonte_calculo', e.target.value)}>
               {FONTES_CALCULO
-                .filter(f => !form.modulos?.length || f.modulos.some(m => (form.modulos || []).includes(m)))
+                .filter(f => !form.modulo || f.modulos.includes(form.modulo))
                 .map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
             </select>
           </FPEField>

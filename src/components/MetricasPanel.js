@@ -41,7 +41,7 @@ export default function MetricasPanel({ modulo, usuarioId, valorImpacto, unidade
   const metricasRel = useMemo(() => {
     return metricas.filter(m =>
       m.status === 'ativo' &&
-      (m.modulos || []).includes(modulo) &&
+      (m.modulo === modulo || (m.modulos || []).includes(modulo)) &&
       (!m.usuario_ids?.length || m.usuario_ids.includes(usuarioId))
     )
   }, [metricas, modulo, usuarioId])
