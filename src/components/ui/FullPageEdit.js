@@ -385,6 +385,7 @@ export default function FullPageEdit({
 // FPESection — agrupa campos com título de seção
 // ─────────────────────────────────────────────────────────────────────────────
 export function FPESection({
+  title,
   label,
   description,
   columns = 2,
@@ -392,6 +393,7 @@ export function FPESection({
   style: extra = {},
   noBorder = false,
 }) {
+  const heading = title || label
   const gridCols =
     columns === 'auto' ? 'repeat(auto-fit, minmax(200px, 1fr))' :
     `repeat(${columns}, 1fr)`
@@ -402,15 +404,15 @@ export function FPESection({
       borderTop: noBorder ? 'none' : `1px solid ${Z[100]}`,
       ...extra,
     }}>
-      {(label || description) && (
+      {(heading || description) && (
         <div style={{ marginBottom: 16 }}>
-          {label && (
+          {heading && (
             <p style={{
               margin: 0, fontSize: 11, fontWeight: 700,
               textTransform: 'uppercase', letterSpacing: '0.07em',
               color: Z[400],
             }}>
-              {label}
+              {heading}
             </p>
           )}
           {description && (
