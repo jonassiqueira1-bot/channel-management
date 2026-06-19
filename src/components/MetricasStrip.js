@@ -30,9 +30,17 @@ const STATUS_CFG = {
   sem_dados: { cor: '#9CA3AF', bg: '#F3F4F6', label: 'Sem dados' },
 }
 
+function foraDoperiodo(metrica) {
+  const hoje = new Date().toISOString().slice(0, 10)
+  if (metrica.data_inicio && hoje < metrica.data_inicio) return `Vigência inicia em ${metrica.data_inicio}`
+  if (metrica.data_fim   && hoje > metrica.data_fim)   return `Vigência encerrou em ${metrica.data_fim}`
+  return null
+}
+
 function LogModal({ metrica, onSave, onClose }) {
   const [valor, setValor] = useState('')
   const [nota, setNota]   = useState('')
+  const bloqueio = foraDoperiodo(metrica)
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000,
       display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -42,40 +50,53 @@ function LogModal({ metrica, onSave, onClose }) {
         <div style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)', marginBottom: 4 }}>
           Registrar leitura
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 20 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: bloqueio ? 12 : 20 }}>
           {metrica.nome} · Meta: {metrica.unidade} {Number(metrica.valor_alvo).toLocaleString('pt-BR')}
         </div>
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-            color: 'var(--text-muted)', marginBottom: 6 }}>
-            Valor atual ({metrica.unidade})
+
+        {bloqueio ? (
+          <div style={{ padding: '12px 14px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #F59E0B',
+            fontSize: 13, color: '#92400E', marginBottom: 20 }}>
+            ⚠ {bloqueio}. Medições só são aceitas dentro do período de vigência.
           </div>
-          <input className="fpe-field" type="number" value={valor} onChange={e => setValor(e.target.value)}
-            placeholder={`Ex: ${Math.round(metrica.valor_alvo * 0.8)}`}
-            style={{ width: '100%', boxSizing: 'border-box' }} autoFocus />
-        </div>
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
-            color: 'var(--text-muted)', marginBottom: 6 }}>
-            Observação (opcional)
-          </div>
-          <input className="fpe-field" value={nota} onChange={e => setNota(e.target.value)}
-            placeholder="Ex: semana de feriado, ajuste sazonalidade…"
-            style={{ width: '100%', boxSizing: 'border-box' }} />
-        </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+                color: 'var(--text-muted)', marginBottom: 6 }}>
+                Valor atual ({metrica.unidade})
+              </div>
+              <input className="fpe-field" type="number" value={valor} onChange={e => setValor(e.target.value)}
+                placeholder={`Ex: ${Math.round(metrica.valor_alvo * 0.8)}`}
+                style={{ width: '100%', boxSizing: 'border-box' }} autoFocus />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em',
+                color: 'var(--text-muted)', marginBottom: 6 }}>
+                Observação (opcional)
+              </div>
+              <input className="fpe-field" value={nota} onChange={e => setNota(e.target.value)}
+                placeholder="Ex: semana de feriado, ajuste sazonalidade…"
+                style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          </>
+        )}
+
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
           <button type="button" onClick={onClose}
             style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)',
               background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)' }}>
-            Cancelar
+            {bloqueio ? 'Fechar' : 'Cancelar'}
           </button>
-          <button type="button" disabled={!valor}
-            onClick={() => onSave({ metrica_id: metrica.id, valor: Number(valor), nota, data: new Date().toISOString() })}
-            style={{ padding: '8px 18px', borderRadius: 8, border: 'none',
-              background: valor ? 'var(--accent)' : 'var(--border)', color: '#fff',
-              cursor: valor ? 'pointer' : 'default', fontSize: 13, fontWeight: 700 }}>
-            Registrar
-          </button>
+          {!bloqueio && (
+            <button type="button" disabled={!valor}
+              onClick={() => onSave({ metrica_id: metrica.id, valor: Number(valor), nota, data: new Date().toISOString() })}
+              style={{ padding: '8px 18px', borderRadius: 8, border: 'none',
+                background: valor ? 'var(--accent)' : 'var(--border)', color: '#fff',
+                cursor: valor ? 'pointer' : 'default', fontSize: 13, fontWeight: 700 }}>
+              Registrar
+            </button>
+          )}
         </div>
       </div>
     </div>

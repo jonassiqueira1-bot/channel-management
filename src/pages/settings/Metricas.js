@@ -123,6 +123,185 @@ const EMPTY = {
 
 function uid() { return Date.now() + Math.floor(Math.random() * 999) }
 
+function fmtData(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+function foraDoperiodo(metrica) {
+  const hoje = new Date().toISOString().slice(0, 10)
+  if (metrica.data_inicio && hoje < metrica.data_inicio) return `Vigência inicia em ${fmtData(metrica.data_inicio)}`
+  if (metrica.data_fim   && hoje > metrica.data_fim)    return `Vigência encerrou em ${fmtData(metrica.data_fim)}`
+  return null
+}
+
+function NovaMedicaoModal({ metrica, onSave, onClose }) {
+  const [valor, setValor] = useState('')
+  const [nota, setNota]   = useState('')
+  const bloqueio = foraDoperiodo(metrica)
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1000,
+      display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: 400, boxShadow: '0 8px 32px rgba(0,0,0,0.18)' }}>
+        <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>Nova medição</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: bloqueio ? 12 : 20 }}>
+          {metrica.nome} · Meta: {metrica.unidade} {Number(metrica.valor_alvo).toLocaleString('pt-BR')}
+          {(metrica.data_inicio || metrica.data_fim) && (
+            <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>
+              ({metrica.data_inicio ? fmtData(metrica.data_inicio) : '…'} → {metrica.data_fim ? fmtData(metrica.data_fim) : '…'})
+            </span>
+          )}
+        </div>
+
+        {bloqueio ? (
+          <div style={{ padding: '12px 14px', borderRadius: 8, background: '#FEF3C7', border: '1px solid #F59E0B',
+            fontSize: 13, color: '#92400E', marginBottom: 20 }}>
+            ⚠ {bloqueio}. Medições só são aceitas dentro do período de vigência.
+          </div>
+        ) : (
+          <>
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                Valor medido ({metrica.unidade}) *
+              </label>
+              <input className="fpe-field" type="number" value={valor} onChange={e => setValor(e.target.value)}
+                placeholder={`Ex: ${Math.round(metrica.valor_alvo * 0.8)}`}
+                style={{ width: '100%', boxSizing: 'border-box' }} autoFocus />
+            </div>
+            <div style={{ marginBottom: 20 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+                Observação (opcional)
+              </label>
+              <input className="fpe-field" value={nota} onChange={e => setNota(e.target.value)}
+                placeholder="Ex: semana de feriado, pico sazonal…"
+                style={{ width: '100%', boxSizing: 'border-box' }} />
+            </div>
+          </>
+        )}
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose}
+            style={{ padding: '8px 18px', borderRadius: 8, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--text-muted)' }}>
+            {bloqueio ? 'Fechar' : 'Cancelar'}
+          </button>
+          {!bloqueio && (
+            <button type="button" disabled={!valor}
+              onClick={() => onSave({ metrica_id: metrica.id, valor: Number(valor), nota, data: new Date().toISOString() })}
+              style={{ padding: '8px 18px', borderRadius: 8, border: 'none',
+                background: valor ? 'var(--accent)' : 'var(--border)', color: '#fff',
+                cursor: valor ? 'pointer' : 'default', fontSize: 13, fontWeight: 700 }}>
+              Registrar
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MedicoesTable({ metrica }) {
+  const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
+  const [modal, setModal] = useState(false)
+
+  const minhas = leituras
+    .filter(l => l.metrica_id === metrica.id)
+    .sort((a, b) => new Date(b.data) - new Date(a.data))
+
+  function handleSave(leitura) {
+    setLeituras(prev => [...prev, { ...leitura, id: uid() }])
+    setModal(false)
+  }
+
+  function handleDelete(id) {
+    if (window.confirm('Remover esta medição?')) {
+      setLeituras(prev => prev.filter(l => l.id !== id))
+    }
+  }
+
+  const bloqueio = foraDoperiodo(metrica)
+  const podeRegistrar = !bloqueio && metrica.fonte_calculo === 'manual'
+
+  return (
+    <>
+      {modal && <NovaMedicaoModal metrica={metrica} onSave={handleSave} onClose={() => setModal(false)} />}
+
+      <div style={{ padding: '0 32px 32px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text)' }}>Medições registradas</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+              {minhas.length} registro{minhas.length !== 1 ? 's' : ''}
+              {(metrica.data_inicio || metrica.data_fim) && (
+                <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontSize: 11 }}>
+                  · vigência {metrica.data_inicio ? fmtData(metrica.data_inicio) : '…'} → {metrica.data_fim ? fmtData(metrica.data_fim) : '…'}
+                </span>
+              )}
+            </div>
+          </div>
+          {podeRegistrar && (
+            <button type="button" onClick={() => setModal(true)}
+              style={{ padding: '7px 16px', borderRadius: 8, border: 'none', background: 'var(--accent)',
+                color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              + Nova medição
+            </button>
+          )}
+          {!podeRegistrar && bloqueio && (
+            <span style={{ fontSize: 12, color: '#92400E', background: '#FEF3C7', border: '1px solid #F59E0B',
+              borderRadius: 8, padding: '6px 12px' }}>⚠ {bloqueio}</span>
+          )}
+          {!podeRegistrar && !bloqueio && metrica.fonte_calculo !== 'manual' && (
+            <span style={{ fontSize: 12, color: '#065F46', background: '#D1FAE5', border: '1px solid #10B981',
+              borderRadius: 8, padding: '6px 12px' }}>✓ Cálculo automático</span>
+          )}
+        </div>
+
+        {minhas.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13,
+            border: '1px dashed var(--border)', borderRadius: 10 }}>
+            Nenhuma medição registrada ainda.
+          </div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid var(--border)' }}>
+                {['Data', 'Valor', 'Observação', ''].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '6px 12px', fontSize: 11, fontWeight: 700,
+                    textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {minhas.map((l, i) => (
+                <tr key={l.id} style={{ borderBottom: '1px solid var(--border)',
+                  background: i % 2 === 0 ? 'var(--surface)' : 'var(--surface2)' }}>
+                  <td style={{ padding: '10px 12px', fontFamily: 'var(--mono)', fontSize: 12, whiteSpace: 'nowrap' }}>
+                    {fmtData(l.data)}
+                  </td>
+                  <td style={{ padding: '10px 12px', fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--accent)' }}>
+                    {metrica.unidade} {Number(l.valor).toLocaleString('pt-BR')}
+                  </td>
+                  <td style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>
+                    {l.nota || '—'}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <button type="button" onClick={() => handleDelete(l.id)}
+                      title="Remover"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#EF4444',
+                        fontSize: 14, padding: '2px 6px', borderRadius: 4, lineHeight: 1 }}>
+                      ×
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
+  )
+}
+
 function TendenciaBadge({ value }) {
   const t = TENDENCIAS.find(x => x.value === value) || TENDENCIAS[0]
   return (
@@ -411,6 +590,11 @@ export default function Metricas() {
             )
           })()}
         </FPESection>
+
+        {/* Medições — só exibe ao editar uma métrica existente */}
+        {editando !== 'novo' && (
+          <MedicoesTable metrica={editando} />
+        )}
       </FullPageEdit>
     )
   }
