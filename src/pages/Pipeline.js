@@ -2161,18 +2161,38 @@ function OppDocumentosTab({ oppId }) {
   function handleSave() {
     if (!form.nome.trim()) return alert('Nome obrigatório')
     const ext = fileObj ? fileObj.name.split('.').pop() : ''
-    setAllDocs(prev => [...prev, {
-      id: Date.now() + Math.random(),
-      opp_id: oppId,
-      tipo: form.tipo,
-      nome: form.nome.trim(),
-      descricao: form.descricao.trim(),
-      versao: form.versao || '1.0',
-      file_name: fileObj?.name || '',
-      file_size: fileObj?.size || 0,
-      ext: ext.toLowerCase(),
-      criado_em: new Date().toISOString(),
-    }])
+    if (fileObj) {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        setAllDocs(prev => [...prev, {
+          id: Date.now() + Math.random(),
+          opp_id: oppId,
+          tipo: form.tipo,
+          nome: form.nome.trim(),
+          descricao: form.descricao.trim(),
+          versao: form.versao || '1.0',
+          file_name: fileObj.name,
+          file_size: fileObj.size,
+          file_data: e.target.result,
+          ext: ext.toLowerCase(),
+          criado_em: new Date().toISOString(),
+        }])
+      }
+      reader.readAsDataURL(fileObj)
+    } else {
+      setAllDocs(prev => [...prev, {
+        id: Date.now() + Math.random(),
+        opp_id: oppId,
+        tipo: form.tipo,
+        nome: form.nome.trim(),
+        descricao: form.descricao.trim(),
+        versao: form.versao || '1.0',
+        file_name: '',
+        file_size: 0,
+        ext: ext.toLowerCase(),
+        criado_em: new Date().toISOString(),
+      }])
+    }
     setForm({ tipo: 'proposta', nome: '', descricao: '', versao: '1.0' })
     setFileObj(null)
     setAddOpen(false)
@@ -2325,6 +2345,17 @@ function OppDocumentosTab({ oppId }) {
                     {dataCurta && <span style={{ marginLeft:8 }}>· {dataCurta}</span>}
                   </div>
                 </div>
+
+                {/* Download */}
+                {doc.file_data && (
+                  <a href={doc.file_data} download={doc.file_name || doc.nome}
+                    style={{ background:'none', border:'none', cursor:'pointer',
+                      color:'var(--text-muted)', fontSize:15, padding:'4px 6px', borderRadius:5,
+                      flexShrink:0, lineHeight:1, textDecoration:'none', display:'flex', alignItems:'center' }}
+                    title="Baixar arquivo">
+                    ↓
+                  </a>
+                )}
 
                 {/* Remover */}
                 <button type="button" onClick={() => handleRemove(doc.id)}
