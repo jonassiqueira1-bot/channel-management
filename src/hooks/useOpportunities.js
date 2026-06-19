@@ -59,6 +59,7 @@ function rowToOpp(row) {
       segmento_industria: cf.segmento_industria || '',
       exige_integracao:   cf.exige_integracao || false,
     },
+    itens: Array.isArray(cf.itens) ? cf.itens : [],
   }
 }
 
@@ -96,6 +97,7 @@ function oppToRow(opp, tenantId, branchId) {
       tipo_implantacao:      opp.custom_fields?.tipo_implantacao || '',
       segmento_industria:    opp.custom_fields?.segmento_industria || '',
       exige_integracao:      opp.custom_fields?.exige_integracao || false,
+      itens:                 opp.itens || [],
     },
   }
 }
