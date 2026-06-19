@@ -3397,8 +3397,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const { membros: todosMembrosOpp } = useOppMembros()
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
   const [allDocsOpp]      = useLocalState(DOC_STORAGE_KEY, [])
-  const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, [])
-  const [allSubmissions]  = useLocalState(Q_STORAGE_SUBMISSIONS, [])
+  const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
+  const [allSubmissions]  = useLocalState(Q_STORAGE_SUBMISSIONS, MOCK_Q_SUBMISSIONS)
   const oppDocumentosCount   = allDocsOpp.filter(d => d.opp_id === initial?.id).length
   const oppPropostaCount     = allPropostas.filter(p => p.opp_id === String(initial?.id)).length
   const oppQuestionariosCount = allSubmissions.filter(s => s.opportunity_id === String(initial?.id)).length
