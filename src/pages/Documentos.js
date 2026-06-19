@@ -239,7 +239,7 @@ function DocCard({ doc, onClick }) {
 // ─── Painel lateral de recursos (estilo Canva) ────────────────────────────────
 const MERGE_FIELDS = [
   {
-    group: 'Oportunidade', icon: '💼', color: '#6366F1', bg: '#EEF2FF',
+    group: 'Oportunidade', icon: '💼', color: 'var(--accent)', bg: '#EEF2FF',
     fields: [
       { token: '{{oportunidade.titulo}}',      label: 'Título',         origem: 'Pipeline → campo "Título" da oportunidade',             uso: 'Substituído pelo nome da oportunidade ao gerar o documento.' },
       { token: '{{oportunidade.empresa}}',     label: 'Empresa',        origem: 'Pipeline → empresa vinculada à oportunidade',           uso: 'Substituído pela razão social da empresa cliente.' },
@@ -260,7 +260,7 @@ const MERGE_FIELDS = [
     ],
   },
   {
-    group: 'Contato', icon: '👤', color: '#8B5CF6', bg: '#EDE9FE',
+    group: 'Contato', icon: '👤', color: 'var(--accent)', bg: '#EDE9FE',
     fields: [
       { token: '{{contato.nome}}',     label: 'Nome',     origem: 'Clientes → Contatos → contato principal da oportunidade', uso: 'Nome completo do decisor/contato.' },
       { token: '{{contato.cargo}}',    label: 'Cargo',    origem: 'Clientes → Contatos → campo "Cargo"',                    uso: 'Cargo profissional (ex: Diretor Comercial).' },
@@ -742,7 +742,7 @@ export default function Documentos() {
               <KpiCard label="Documentos"  value={kpis.total}     color="var(--border)" />
               <KpiCard label="Ativos"      value={kpis.ativos}    color="#10B981" />
               <KpiCard label="Rascunhos"   value={kpis.rascunhos} color="#F59E0B" />
-              <KpiCard label="Total de versões" value={kpis.versoes}  color="#6366F1" />
+              <KpiCard label="Total de versões" value={kpis.versoes}  color="var(--accent)" />
             </div>
           </div>
         </div>

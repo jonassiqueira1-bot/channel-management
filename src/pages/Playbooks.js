@@ -479,7 +479,7 @@ function StepModal({ initial, onSave, onClose }) {
 }
 
 // ─── Reference modal ──────────────────────────────────────────────────────────
-const EMPTY_REF = { company_name: '', logo_initials: '', logo_color: '#6366F1', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
+const EMPTY_REF = { company_name: '', logo_initials: '', logo_color: 'var(--accent)', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
 
 function ReferenceModal({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_REF)
@@ -822,7 +822,7 @@ const DETAIL_SECTIONS = [
 ]
 
 const SEGMENT_COLORS = {
-  'SaaS / ISV': { bg: '#EEF2FF', color: '#4338CA' },
+  'SaaS / ISV': { bg: 'var(--accent-lite)', color: 'var(--accent)' },
   'Saúde':      { bg: '#D1FAE5', color: '#065F46' },
   'Indústria':  { bg: '#FEF3C7', color: '#92400E' },
   'Varejo':     { bg: '#DBEAFE', color: '#1E40AF' },

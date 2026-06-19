@@ -329,7 +329,7 @@ function NotionSection({ title, icon, defaultOpen = true, children, badge }) {
 
 // ─── Member avatar ────────────────────────────────────────────────────────────
 const ROLE_COLORS = {
-  'Líder de Projeto': { bg: 'rgba(99,102,241,0.12)', text: '#4338CA' },
+  'Líder de Projeto': { bg: 'color-mix(in srgb, var(--accent) 12%, transparent)', text: 'var(--accent)' },
   'Consultora':       { bg: 'rgba(59,130,246,0.12)', text: '#1D4ED8' },
   'Consultor':        { bg: 'rgba(59,130,246,0.12)', text: '#1D4ED8' },
   'Suporte':          { bg: 'rgba(16,185,129,0.12)', text: '#047857' },
@@ -804,7 +804,7 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
           <div style={{ ...ms.fg, flex: 2 }}>
             <label style={ms.lbl}>Usuário</label>
             <SearchSelect
-              options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: '#6366F1' }))}
+              options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: 'var(--accent)' }))}
               value={form.user_id}
               onChange={(id, nome) => setForm(f => ({ ...f, user_id: id, user_name: nome }))}
               placeholder="Pesquisar usuário…"
@@ -860,7 +860,7 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
                         return (
                           <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
                             {u && (
-                              <span style={{ width:16, height:16, borderRadius:'50%', background:'#EDE9FE', color:'#7C3AED',
+                              <span style={{ width:16, height:16, borderRadius:'50%', background:'#EDE9FE', color:'var(--accent)',
                                 display:'inline-flex', alignItems:'center', justifyContent:'center',
                                 fontSize:8, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0 }}>
                                 {u.avatar}
@@ -1257,11 +1257,11 @@ export default function Projetos() {
         <div style={{ display: 'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr', transition: 'grid-template-rows 0.25s ease', overflow: 'hidden' }}>
           <div style={{ minHeight: 0 }}>
             <div style={pg.kpis}>
-              <KpiCard label="Total projetos"   value={projetos.length}               color="#6366F1" />
+              <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
               <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
               <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
               <KpiCard label="Horas estimadas"  value={`${totalHrsEst}h`}            color="#10B981" />
-              <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="#8B5CF6" />
+              <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
             </div>
           </div>
         </div>

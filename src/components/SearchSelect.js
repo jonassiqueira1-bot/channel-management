@@ -163,7 +163,7 @@ export default function SearchSelect({
                   <div style={{
                     width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
                     background: opt.color ? `${opt.color}20` : '#EDE9FE',
-                    color: opt.color || '#7C3AED',
+                    color: opt.color || 'var(--accent)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 10, fontWeight: 800, fontFamily: 'var(--mono)',
                   }}>

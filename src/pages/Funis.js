@@ -11,7 +11,7 @@ const STATUS_FUNIL = [
 ]
 
 const CORES_ETAPA = [
-  '#6B7280','#3B82F6','#8B5CF6','#EC4899','#F59E0B',
+  '#6B7280','#3B82F6','var(--accent)','#EC4899','#F59E0B',
   '#10B981','#EF4444','#14B8A6','#F97316','#1E3A5F',
 ]
 
@@ -159,7 +159,7 @@ const EMPTY_FUNIL = {
   etapas: [
     { id: novoId(), nome: 'Prospecção',    ordem: 1, cor: '#6B7280', probabilidade: 10 },
     { id: novoId(), nome: 'Qualificação',  ordem: 2, cor: '#3B82F6', probabilidade: 30 },
-    { id: novoId(), nome: 'Proposta',      ordem: 3, cor: '#8B5CF6', probabilidade: 60 },
+    { id: novoId(), nome: 'Proposta',      ordem: 3, cor: 'var(--accent)', probabilidade: 60 },
     { id: novoId(), nome: 'Fechado Ganho', ordem: 4, cor: '#10B981', probabilidade: 100 },
     { id: novoId(), nome: 'Fechado Perdido', ordem: 5, cor: '#EF4444', probabilidade: 0 },
   ],

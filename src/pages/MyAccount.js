@@ -9,7 +9,7 @@ import { useProfile } from '../hooks/useProfile'
 import { COMPANY_TYPE_CFG } from '../data/mockCompanies'
 import { FullPageEdit, FPESection } from '../components/ui'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Toast ────────────────────────────────────────────────────────────────────
 function useToasts() {
@@ -380,7 +380,7 @@ function TabMinhaEmpresa({ company, isAdmin, onSave }) {
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 120px', gap:14, alignItems:'end' }}>
             <Field label="Cor primária">
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <input type="color" value={form.primary_color||'#6366F1'} onChange={e => set('primary_color', e.target.value)} style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
+                <input type="color" value={form.primary_color||'var(--accent)'} onChange={e => set('primary_color', e.target.value)} style={{ width:36, height:36, padding:2, borderRadius:8, border:'1px solid var(--border)', cursor:'pointer', background:'none' }} />
                 <Input value={form.primary_color||''} onChange={e => set('primary_color', e.target.value)} style={{ fontFamily:'var(--mono)', fontSize:12 }} />
               </div>
             </Field>
@@ -393,7 +393,7 @@ function TabMinhaEmpresa({ company, isAdmin, onSave }) {
             <div>
               <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Prévia</div>
               <div style={{ display:'flex', gap:5 }}>
-                <span style={{ width:22, height:22, borderRadius:6, background:form.primary_color||'#6366F1', display:'block', border:'1px solid var(--border)' }} />
+                <span style={{ width:22, height:22, borderRadius:6, background:form.primary_color||'var(--accent)', display:'block', border:'1px solid var(--border)' }} />
                 <span style={{ width:22, height:22, borderRadius:6, background:form.accent_color||'#10B981', display:'block', border:'1px solid var(--border)' }} />
               </div>
             </div>

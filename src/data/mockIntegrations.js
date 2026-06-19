@@ -35,7 +35,7 @@ export const PROVIDERS = [
     name:        'Webhook Genérico',
     description: 'Receba eventos externos em tempo real via HTTP POST para qualquer sistema.',
     category:    'Automação',
-    color:       '#6366F1',
+    color:       'var(--accent)',
     fields: [
       { key: 'signing_secret', label: 'Signing Secret',    type: 'password', placeholder: 'Segredo para validar assinatura HMAC', required: false },
       { key: 'allowed_ips',    label: 'IPs Permitidos',    type: 'text',     placeholder: 'Ex: 192.168.1.0/24 (separado por vírgula)', required: false },

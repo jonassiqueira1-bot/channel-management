@@ -4,7 +4,7 @@ export const STORAGE_KEY_TEMPLATES    = 'questionarios:templates_v2'
 export const STORAGE_KEY_SUBMISSIONS  = 'questionarios:submissions_v2'
 
 export const TIPO_CFG = {
-  pre_venda:       { label: 'Pré-Venda',       icon: '🎯', color: '#6366F1', bg: '#EEF2FF', text: '#3730A3' },
+  pre_venda:       { label: 'Pré-Venda',       icon: '🎯', color: 'var(--accent)', bg: '#EEF2FF', text: '#3730A3' },
   apoio_comercial: { label: 'Apoio Comercial',  icon: '🤝', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
   diagnostico:     { label: 'Diagnóstico',      icon: '🔍', color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
   onboarding:      { label: 'Onboarding',       icon: '🚀', color: '#3B82F6', bg: '#DBEAFE', text: '#1E3A5F' },

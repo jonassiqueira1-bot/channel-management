@@ -4,10 +4,10 @@ export const STORAGE_KEY_DOCS = 'documentos:templates_v1'
 export const STORAGE_KEY_LOGS = 'documentos:logs_v1'
 
 export const CATEGORIA_CFG = {
-  proposta:      { label: 'Proposta Comercial', icon: '📄', color: '#6366F1', bg: '#EEF2FF', text: '#3730A3' },
+  proposta:      { label: 'Proposta Comercial', icon: '📄', color: 'var(--accent)', bg: '#EEF2FF', text: '#3730A3' },
   apresentacao:  { label: 'Apresentação',       icon: '📊', color: '#3B82F6', bg: '#DBEAFE', text: '#1E3A5F' },
   contrato:      { label: 'Contrato',           icon: '📝', color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
-  nda:           { label: 'NDA / Sigilo',       icon: '🔒', color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6' },
+  nda:           { label: 'NDA / Sigilo',       icon: '🔒', color: 'var(--accent)', bg: '#EDE9FE', text: '#5B21B6' },
   onboarding:    { label: 'Onboarding',         icon: '🚀', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
   outro:         { label: 'Outro',              icon: '📌', color: '#6B7280', bg: '#F3F4F6', text: '#374151' },
 }
@@ -21,7 +21,7 @@ export const STATUS_CFG = {
 export const EVENTO_CFG = {
   criado:     { icon: '✦', label: 'Documento criado',   color: '#10B981', bg: '#D1FAE5' },
   editado:    { icon: '✎', label: 'Dados alterados',    color: '#3B82F6', bg: '#DBEAFE' },
-  publicado:  { icon: '◉', label: 'Publicado / Ativo',  color: '#6366F1', bg: '#EEF2FF' },
+  publicado:  { icon: '◉', label: 'Publicado / Ativo',  color: 'var(--accent)', bg: '#EEF2FF' },
   arquivado:  { icon: '⊘', label: 'Arquivado',          color: '#EF4444', bg: '#FEE2E2' },
   restaurado: { icon: '↺', label: 'Restaurado',         color: '#F59E0B', bg: '#FEF3C7' },
 }

@@ -6,9 +6,9 @@ export const PB_REFS_STORAGE_KEY      = 'playbook:references_v2'
 export const PB_RESOURCES_STORAGE_KEY = 'playbook:resources_v2'
 
 export const STAGE_CFG = {
-  prospeccao:   { label: 'Prospecção',   icon: '🔍', color: '#6366F1', bg: '#EEF2FF' },
+  prospeccao:   { label: 'Prospecção',   icon: '🔍', color: 'var(--accent)', bg: '#EEF2FF' },
   qualificacao: { label: 'Qualificação', icon: '✅', color: '#3B82F6', bg: '#DBEAFE' },
-  diagnostico:  { label: 'Diagnóstico',  icon: '🔬', color: '#8B5CF6', bg: '#EDE9FE' },
+  diagnostico:  { label: 'Diagnóstico',  icon: '🔬', color: 'var(--accent)', bg: '#EDE9FE' },
   proposta:     { label: 'Proposta',     icon: '📋', color: '#F59E0B', bg: '#FEF3C7' },
   fechamento:   { label: 'Fechamento',   icon: '🏁', color: '#10B981', bg: '#D1FAE5' },
 }
@@ -17,9 +17,9 @@ export const RESOURCE_CFG = {
   pdf:   { icon: '📄', label: 'PDF',          color: '#EF4444', bg: '#FEE2E2' },
   pptx:  { icon: '📊', label: 'Apresentação', color: '#F59E0B', bg: '#FEF3C7' },
   xls:   { icon: '📈', label: 'Planilha',     color: '#10B981', bg: '#D1FAE5' },
-  video: { icon: '▶',  label: 'Vídeo',        color: '#6366F1', bg: '#EEF2FF' },
+  video: { icon: '▶',  label: 'Vídeo',        color: 'var(--accent)', bg: '#EEF2FF' },
   link:  { icon: '🔗', label: 'Link',         color: '#3B82F6', bg: '#DBEAFE' },
-  doc:   { icon: '📝', label: 'Documento',    color: '#8B5CF6', bg: '#EDE9FE' },
+  doc:   { icon: '📝', label: 'Documento',    color: 'var(--accent)', bg: '#EDE9FE' },
   outro: { icon: '📌', label: 'Outro',        color: '#6B7280', bg: '#F3F4F6' },
 }
 
@@ -411,9 +411,9 @@ O argumento mais forte para indústria: **eficiência operacional**.
 // ─── Clientes de Referência (por Playbook) ────────────────────────────────────
 export const MOCK_REFERENCES = [
   // Playbook 1 — SaaS/ISV
-  { id: 'ref-101', playbook_id: 'pb-1', tenant_id: 't1', company_name: 'FinCorp Sistemas', logo_initials: 'FC', logo_color: '#6366F1', region: 'Sudeste', summary: 'MRR cresceu 38% em 4 meses. 14 parceiros gerenciados na plataforma.', results: [{ label: 'MRR gerado', value: 'R$ 18.400/mês' }, { label: 'Crescimento', value: '+38% em 4 meses' }, { label: 'Parceiros ativos', value: '14' }], is_public: true, created_at: '2026-04-10T10:00:00' },
+  { id: 'ref-101', playbook_id: 'pb-1', tenant_id: 't1', company_name: 'FinCorp Sistemas', logo_initials: 'FC', logo_color: 'var(--accent)', region: 'Sudeste', summary: 'MRR cresceu 38% em 4 meses. 14 parceiros gerenciados na plataforma.', results: [{ label: 'MRR gerado', value: 'R$ 18.400/mês' }, { label: 'Crescimento', value: '+38% em 4 meses' }, { label: 'Parceiros ativos', value: '14' }], is_public: true, created_at: '2026-04-10T10:00:00' },
   { id: 'ref-102', playbook_id: 'pb-1', tenant_id: 't1', company_name: 'Nexus Tech Soluções', logo_initials: 'NT', logo_color: '#F59E0B', region: 'Sul', summary: 'Pipeline cresceu 3x em 60 dias após capacitação via Playbook.', results: [{ label: 'Crescimento pipeline', value: '3x em 60 dias' }, { label: 'Tx. conversão', value: '24% → 41%' }], is_public: true, created_at: '2026-04-12T10:00:00' },
-  { id: 'ref-103', playbook_id: 'pb-1', tenant_id: 't1', company_name: 'Solaris Educação', logo_initials: 'SO', logo_color: '#8B5CF6', region: 'Nordeste', summary: 'Expansão para 4 estados em 6 meses com gestão centralizada.', results: [{ label: 'Estados atendidos', value: '4 (era 1)' }, { label: 'Distribuidores', value: '11' }], is_public: false, created_at: '2026-04-15T10:00:00' },
+  { id: 'ref-103', playbook_id: 'pb-1', tenant_id: 't1', company_name: 'Solaris Educação', logo_initials: 'SO', logo_color: 'var(--accent)', region: 'Nordeste', summary: 'Expansão para 4 estados em 6 meses com gestão centralizada.', results: [{ label: 'Estados atendidos', value: '4 (era 1)' }, { label: 'Distribuidores', value: '11' }], is_public: false, created_at: '2026-04-15T10:00:00' },
 
   // Playbook 2 — Saúde
   { id: 'ref-201', playbook_id: 'pb-2', tenant_id: 't1', company_name: 'MedGroup Saúde Digital', logo_initials: 'MG', logo_color: '#10B981', region: 'Sudeste', summary: '8 franquias regionais centralizadas. Redução de 60% no overhead de relatórios.', results: [{ label: 'Franquias gerenciadas', value: '8' }, { label: 'Redução overhead', value: '60%' }], is_public: true, created_at: '2026-04-20T10:00:00' },

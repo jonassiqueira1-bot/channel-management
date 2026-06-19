@@ -8,7 +8,7 @@ import SlideOver from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtData(d) {
@@ -25,7 +25,7 @@ function initials(nome) {
 }
 
 const AVATAR_PALETTE = [
-  { bg:'#EDE9FE', color:'#7C3AED' },
+  { bg:'#EDE9FE', color:'var(--accent)' },
   { bg:'#DBEAFE', color:'#1D4ED8' },
   { bg:'#D1FAE5', color:'#065F46' },
   { bg:'#FEF3C7', color:'#B45309' },
@@ -258,7 +258,7 @@ export default function Contatos() {
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
         {[
           { label:'Total',       value:kpis.total,      color:'var(--text)' },
-          { label:'Com empresa', value:kpis.comEmpresa, color:'#6366F1'     },
+          { label:'Com empresa', value:kpis.comEmpresa, color:'var(--accent)'     },
           { label:'Sem empresa', value:kpis.semEmpresa, color:'#6B7280'     },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--surface)', borderRadius:10, padding:'16px 18px',

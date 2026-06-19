@@ -749,7 +749,7 @@ export default function Questionarios() {
           <div style={{ minHeight: 0, overflow: 'hidden' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, paddingBottom: 4 }}>
               <KpiCard label="Templates"      value={kpis.total}     color="var(--border)" />
-              <KpiCard label="Ativos"         value={kpis.ativos}    color="#6366F1" />
+              <KpiCard label="Ativos"         value={kpis.ativos}    color="var(--accent)" />
               <KpiCard label="Respostas"      value={kpis.respostas} color="#F59E0B" />
               <KpiCard label="Aprovadas"      value={kpis.aprovados} color="#10B981" />
             </div>

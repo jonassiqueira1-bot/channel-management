@@ -4,20 +4,20 @@ import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 const DEFAULTS = [
-  { id: 1, label: 'Treinamento',  icon: '🎓', color: '#6366F1', bg: '#EDE9FE', text: '#4338CA', slug: 'treinamento' },
+  { id: 1, label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'treinamento' },
   { id: 2, label: 'Evento',       icon: '📅', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', slug: 'evento' },
   { id: 3, label: 'Capacitação',  icon: '🚀', color: '#10B981', bg: '#D1FAE5', text: '#065F46', slug: 'capacitacao' },
   { id: 4, label: 'Outros',       icon: '◎',  color: '#6B7280', bg: '#F3F4F6', text: '#374151', slug: 'outros' },
 ]
 
 const PALETTE = [
-  { color: '#6366F1', bg: '#EDE9FE', text: '#4338CA', label: 'Violeta' },
+  { color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', label: 'Violeta' },
   { color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', label: 'Azul' },
   { color: '#10B981', bg: '#D1FAE5', text: '#065F46', label: 'Verde' },
   { color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', label: 'Âmbar' },
   { color: '#EF4444', bg: '#FEE2E2', text: '#991B1B', label: 'Vermelho' },
   { color: '#EC4899', bg: '#FCE7F3', text: '#9D174D', label: 'Rosa' },
-  { color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6', label: 'Roxo' },
+  { color: 'var(--accent)', bg: 'var(--accent-lite)', text: '#5B21B6', label: 'Roxo' },
   { color: '#6B7280', bg: '#F3F4F6', text: '#374151', label: 'Cinza' },
 ]
 

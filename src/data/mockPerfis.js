@@ -62,7 +62,7 @@
 //     FOR EACH ROW EXECUTE PROCEDURE sync_email_to_perfil();
 
 export const PAPEIS_CONFIG = {
-  admin_isv:       { label: 'Admin ISV',        color: '#6366F1', bg: '#EDE9FE', text: '#4338CA', icon: '★' },
+  admin_isv:       { label: 'Admin ISV',        color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', icon: '★' },
   gestor_canais:   { label: 'Gestor de Canais', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', icon: '◈' },
   admin_franquia:  { label: 'Admin Franquia',   color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '⬡' },
   vendedor:        { label: 'Vendedor',          color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', icon: '◉' },

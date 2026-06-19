@@ -217,7 +217,7 @@ function PeriodPopover({ value, onChange }) {
 }
 
 // ─── EscalaEditor ─────────────────────────────────────────────────────────────
-function EscalaEditor({ rows, onChange, valueKey, valueLabel, accentColor = '#6366F1' }) {
+function EscalaEditor({ rows, onChange, valueKey, valueLabel, accentColor = 'var(--accent)' }) {
   function update(i, field, val) { onChange(rows.map((r, ri) => ri === i ? { ...r, [field]: val } : r)) }
   function addRow()  { onChange([...rows, { label: '', min_pct: 0, max_pct: null, [valueKey]: 0 }]) }
   function remove(i) { onChange(rows.filter((_, ri) => ri !== i)) }
@@ -451,7 +451,7 @@ function RuleModal({ initial, personas, onSave, onClose }) {
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 22px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:32, height:32, borderRadius:8, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Percent size={15} strokeWidth={1.75} style={{ color:'#6366F1' }} />
+              <Percent size={15} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
             </div>
             <div>
               <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{form.id ? 'Editar Regra' : 'Nova Regra de Comissão'}</div>
@@ -501,7 +501,7 @@ function RuleModal({ initial, personas, onSave, onClose }) {
             <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:-6 }}>Selecione um ou ambos os escopos — podem ser aplicados simultaneamente.</div>
             <div style={{ display:'flex', gap:10 }}>
               {[
-                { key:'escopo_interno', label:'Interna', desc:'Vinculada a usuário do sistema', icon: <User size={14} strokeWidth={1.75} />, color:'#6366F1' },
+                { key:'escopo_interno', label:'Interna', desc:'Vinculada a usuário do sistema', icon: <User size={14} strokeWidth={1.75} />, color:'var(--accent)' },
                 { key:'escopo_externo', label:'Externa', desc:'Vinculada a Contato Canal',      icon: <Users size={14} strokeWidth={1.75} />, color:'#10B981' },
               ].map(opt => {
                 const active = !!form[opt.key]
@@ -766,7 +766,7 @@ function RuleModal({ initial, personas, onSave, onClose }) {
         {/* Footer */}
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'14px 22px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={saving} onClick={submit} style={{ background:'#6366F1' }}>
+          <Button loading={saving} onClick={submit} style={{ background:'var(--accent)' }}>
             {form.id ? 'Salvar alterações' : 'Criar regra'}
           </Button>
         </div>
@@ -779,7 +779,7 @@ function RuleModal({ initial, personas, onSave, onClose }) {
 function PersonasEditor({ personas, onChange, onClose }) {
   const [list, setList] = useState(personas.map(p => ({ ...p })))
   const [editing, setEditing] = useState(null) // id sendo editado inline
-  const colors = ['#6366F1','#0EA5E9','#F59E0B','#10B981','#8B5CF6','#EF4444','#EC4899','#14B8A6','#F97316','#84CC16']
+  const colors = ['var(--accent)','#0EA5E9','#F59E0B','#10B981','var(--accent)','#EF4444','#EC4899','#14B8A6','#F97316','#84CC16']
 
   function add() {
     const novo = { id: uid(), slug: `persona_${uid()}`, label: 'Novo Persona', descricao: '', cor: colors[list.length % colors.length], ordem: list.length, ativo: true }
@@ -799,7 +799,7 @@ function PersonasEditor({ personas, onChange, onClose }) {
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'18px 22px', borderBottom:'1px solid var(--border)', flexShrink:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:30, height:30, borderRadius:8, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <Users size={14} strokeWidth={1.75} style={{ color:'#6366F1' }} />
+              <Users size={14} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
             </div>
             <div>
               <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Gerenciar Personas</div>
@@ -837,7 +837,7 @@ function PersonasEditor({ personas, onChange, onClose }) {
                     </div>
                   </div>
                   <div style={{ display:'flex', justifyContent:'flex-end', gap:8 }}>
-                    <button type="button" onClick={() => setEditing(null)} style={{ padding:'6px 14px', borderRadius:7, background:'#6366F1', border:'none', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>Concluído</button>
+                    <button type="button" onClick={() => setEditing(null)} style={{ padding:'6px 14px', borderRadius:7, background:'var(--accent)', border:'none', color:'#fff', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>Concluído</button>
                   </div>
                 </div>
               ) : (
@@ -866,7 +866,7 @@ function PersonasEditor({ personas, onChange, onClose }) {
 
         <div style={{ display:'flex', justifyContent:'flex-end', gap:10, padding:'14px 22px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
           <Button variant="secondary" onClick={onClose}>Descartar</Button>
-          <Button onClick={save} style={{ background:'#6366F1' }}>Salvar personas</Button>
+          <Button onClick={save} style={{ background:'var(--accent)' }}>Salvar personas</Button>
         </div>
       </div>
     </div>
@@ -886,7 +886,7 @@ function SectionTitle({ icon, label }) {
 function Toggle({ value, onChange, label }) {
   return (
     <label style={{ display:'flex', alignItems:'center', gap:9, cursor:'pointer', userSelect:'none' }}>
-      <div onClick={() => onChange(!value)} style={{ width:34, height:19, borderRadius:99, position:'relative', cursor:'pointer', background:value?'#6366F1':'var(--border)', transition:'background 0.2s', flexShrink:0 }}>
+      <div onClick={() => onChange(!value)} style={{ width:34, height:19, borderRadius:99, position:'relative', cursor:'pointer', background:value?'var(--accent)':'var(--border)', transition:'background 0.2s', flexShrink:0 }}>
         <div style={{ position:'absolute', top:2, left:value?17:2, width:15, height:15, borderRadius:'50%', background:'#fff', transition:'left 0.2s', boxShadow:'0 1px 3px rgba(0,0,0,0.2)' }} />
       </div>
       <span style={{ fontSize:13, color:'var(--text-soft)' }}>{label}</span>
@@ -1091,7 +1091,7 @@ function TabRepasses({ payments, setPayments, rules, personas, period, onEdit })
       {/* Métricas */}
       <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
         {[
-          { label:'Total de lançamentos', value:totals.total,    Icon:DollarSign,  color:'#6366F1', bg:'rgba(99,102,241,0.1)',  isCurrency:false },
+          { label:'Total de lançamentos', value:totals.total,    Icon:DollarSign,  color:'var(--accent)', bg:'rgba(99,102,241,0.1)',  isCurrency:false },
           { label:'A pagar (pendente)',   value:totals.pendente, Icon:Clock,        color:'#F59E0B', bg:'rgba(245,158,11,0.1)',  isCurrency:true  },
           { label:'Já pago',              value:totals.pago,     Icon:CheckCircle2, color:'#10B981', bg:'rgba(16,185,129,0.1)', isCurrency:true  },
         ].map(m => (
@@ -1233,7 +1233,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
         <div style={{ textAlign:'center', padding:'60px 20px', color:'var(--text-muted)', fontSize:14 }}>
           <Percent size={36} strokeWidth={1} style={{ marginBottom:14, opacity:0.25, display:'block', margin:'0 auto 14px' }} />
           Nenhuma regra cadastrada.
-          <br /><Button onClick={()=>onEditRule('new')} style={{ marginTop:14, background:'#6366F1' }}>+ Criar primeira regra</Button>
+          <br /><Button onClick={()=>onEditRule('new')} style={{ marginTop:14, background:'var(--accent)' }}>+ Criar primeira regra</Button>
         </div>
       ) : (
         rules.map(rule => {
@@ -1261,7 +1261,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
                       {rule.nome}
                       {tipos.map(t => <TipoBadge key={t} tipoId={t} />)}
                       {rule.escopo_interno && (
-                        <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:'#6366F1', background:'rgba(99,102,241,0.1)' }}>
+                        <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:'var(--accent)', background:'rgba(99,102,241,0.1)' }}>
                           <User size={9} strokeWidth={2.5} />Interna
                         </span>
                       )}
@@ -1275,7 +1275,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
 
                     {/* Beneficiários vinculados */}
                     {rule.escopo_interno && rule.beneficiario_nome && (
-                      <div style={{ fontSize:12, color:'#6366F1', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
+                      <div style={{ fontSize:12, color:'var(--accent)', marginBottom:2, display:'flex', alignItems:'center', gap:5 }}>
                         <User size={11} strokeWidth={2} />
                         {rule.beneficiario_nome}
                       </div>
@@ -1312,7 +1312,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
 
                     {/* Contexto */}
                     {rule.contexto && (
-                      <div style={{ fontSize:11, color:'var(--text-muted)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 10px', marginTop:6, borderLeft:'3px solid #6366F1' }}>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:7, padding:'6px 10px', marginTop:6, borderLeft:'3px solid var(--accent)' }}>
                         {rule.contexto}
                       </div>
                     )}
@@ -1322,7 +1322,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
                       <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:6, display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
                         <Calendar size={11} strokeWidth={2} />
                         Vigência: {rule.vigencia_inicio ? fmtDate(rule.vigencia_inicio) : '—'} → {rule.vigencia_fim ? fmtDate(rule.vigencia_fim) : 'indeterminado'}
-                        {rule.revisao_anual && <span style={{ marginLeft:6, padding:'1px 6px', borderRadius:99, background:'rgba(99,102,241,0.1)', color:'#6366F1', fontSize:10, fontWeight:600, display:'inline-flex', alignItems:'center', gap:3 }}><RotateCcw size={9} strokeWidth={2.5} />Revisão anual</span>}
+                        {rule.revisao_anual && <span style={{ marginLeft:6, padding:'1px 6px', borderRadius:99, background:'rgba(99,102,241,0.1)', color:'var(--accent)', fontSize:10, fontWeight:600, display:'inline-flex', alignItems:'center', gap:3 }}><RotateCcw size={9} strokeWidth={2.5} />Revisão anual</span>}
                       </div>
                     )}
 
@@ -1365,7 +1365,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
                               const val = Number(getPerc(rule.persona_percentuais, pp.persona_id, tipo))
                               return (
                                 <div key={`${pp.persona_id}-${tipo}`} style={{ padding:'10px 12px', textAlign:'center', borderBottom:isLast?'none':'1px solid var(--border)', borderLeft:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                                  <span style={{ fontSize:13, fontWeight:700, fontFamily:'var(--mono)', color:val===0?'var(--text-muted)':val>=10?'#6366F1':'var(--text)', opacity:val===0?0.5:1 }}>
+                                  <span style={{ fontSize:13, fontWeight:700, fontFamily:'var(--mono)', color:val===0?'var(--text-muted)':val>=10?'var(--accent)':'var(--text)', opacity:val===0?0.5:1 }}>
                                     {val===0?'—':fmtPct(val)}
                                   </span>
                                 </div>
@@ -1659,7 +1659,7 @@ export default function Comissoes() {
 
         <FPESection label="Escopo" columns={2}>
           {[
-            { key:'escopo_interno', label:'Interna', desc:'Usuário do sistema', color:'#6366F1' },
+            { key:'escopo_interno', label:'Interna', desc:'Usuário do sistema', color:'var(--accent)' },
             { key:'escopo_externo', label:'Externa', desc:'Contato Canal',      color:'#10B981' },
           ].map(opt => {
             const active = !!form[opt.key]
@@ -1810,7 +1810,7 @@ export default function Comissoes() {
         <div>
           <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <DollarSign size={17} strokeWidth={1.75} style={{ color:'#6366F1' }} />
+              <DollarSign size={17} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
             </div>
             <div>
               <h1 style={{ fontSize:20, fontWeight:800, color:'var(--text)', margin:0, letterSpacing:'-0.3px' }}>Gestão de Comissões</h1>

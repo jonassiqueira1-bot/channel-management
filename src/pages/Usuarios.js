@@ -122,7 +122,7 @@ const MOCK_PROFILES_SEED = [
 
 // ─── Configuração de roles e status ──────────────────────────────────────────
 const ROLES = {
-  master:   { label: 'Master',   color: '#7C3AED', bg: '#F5F3FF', text: '#5B21B6' },
+  master:   { label: 'Master',   color: 'var(--accent)', bg: '#F5F3FF', text: '#5B21B6' },
   gestor:   { label: 'Gestor',   color: '#1E3A5F', bg: '#EFF6FF', text: '#1E40AF' },
   vendedor: { label: 'Vendedor', color: '#059669', bg: '#F0FDF4', text: '#166534' },
   parceiro: { label: 'Parceiro', color: '#D97706', bg: '#FFFBEB', text: '#92400E' },
@@ -155,8 +155,8 @@ function fmtData(iso) {
 // ─── Componentes auxiliares ───────────────────────────────────────────────────
 function Avatar({ nome, size = 36 }) {
   const colors = [
-    ['#6366F1','#EEF2FF'], ['#10B981','#F0FDF4'], ['#F59E0B','#FFFBEB'],
-    ['#3B82F6','#EFF6FF'], ['#EC4899','#FDF2F8'], ['#8B5CF6','#F5F3FF'],
+    ['var(--accent)','#EEF2FF'], ['#10B981','#F0FDF4'], ['#F59E0B','#FFFBEB'],
+    ['#3B82F6','#EFF6FF'], ['#EC4899','#FDF2F8'], ['var(--accent)','#F5F3FF'],
     ['#059669','#ECFDF5'], ['#D97706','#FFFBEB'],
   ]
   const idx  = (nome || '').charCodeAt(0) % colors.length

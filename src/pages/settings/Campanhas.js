@@ -470,7 +470,7 @@ export default function Campanhas() {
 
 /* ─── Styles ─────────────────────────────────────────────── */
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 const pg = {
   header: {

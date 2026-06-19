@@ -40,7 +40,7 @@ const FILTER_PERIODS = [
 ]
 
 // ─── Paleta de cores ──────────────────────────────────────────────────────────
-const PALETTE = ['#6366F1','#0EA5E9','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6']
+const PALETTE = ['var(--accent)','#0EA5E9','#10B981','#F59E0B','#EF4444','var(--accent)','#EC4899','#14B8A6']
 
 // ─── Catálogos de widgets ─────────────────────────────────────────────────────
 const WIDGET_CATALOG_ISV = [
@@ -107,7 +107,7 @@ function genId(prefix) { return `${prefix}-${Date.now().toString(36)}-${Math.ran
 const ALERT_CFG = {
   critical: { border:'#EF4444', bg:'rgba(239,68,68,0.07)', stripe:'repeating-linear-gradient(135deg,rgba(239,68,68,0.04) 0px,rgba(239,68,68,0.04) 4px,transparent 4px,transparent 12px)', text:'#EF4444', label:'Crítico',  Icon:AlertTriangle },
   warning:  { border:'#F59E0B', bg:'rgba(245,158,11,0.07)',  stripe:null, text:'#D97706', label:'Atenção', Icon:AlertTriangle },
-  info:     { border:'#6366F1', bg:'rgba(99,102,241,0.07)',  stripe:null, text:'#6366F1', label:'Info',    Icon:Info },
+  info:     { border:'var(--accent)', bg:'rgba(99,102,241,0.07)',  stripe:null, text:'var(--accent)', label:'Info',    Icon:Info },
 }
 
 function AlertCard({ alert, onDismiss }) {
@@ -203,7 +203,7 @@ function KpiCard({ widget, label, value, unit, defaultColor, isCustomizing, onUp
 function DonutWidget({ widget, data }) {
   const chartType = widget.settings?.chartType || 'donut'
   const segments  = [
-    { label:'CDU',      value: data.cdu_receita,      color:'#6366F1' },
+    { label:'CDU',      value: data.cdu_receita,      color:'var(--accent)' },
     { label:'SMS',      value: data.sms_receita,      color:'#0EA5E9' },
     { label:'Serviços', value: data.servicos_receita, color:'#10B981' },
   ]
@@ -274,7 +274,7 @@ function DonutWidget({ widget, data }) {
 function BarFranquiasWidget({ widget, data }) {
   const chartType = widget.settings?.chartType || 'bar'
   const maxTotal  = Math.max(...data.map(f => f.cdu+f.sms+f.servicos))
-  const COLORS    = ['#6366F1','#0EA5E9','#10B981']
+  const COLORS    = ['var(--accent)','#0EA5E9','#10B981']
   const BAR_H = 34, GAP = 14, LBL_W = 90, BAR_W = 300
   const svgH  = data.length * (BAR_H + GAP) + 32
 
@@ -370,7 +370,7 @@ function PipelineWidget({ widget, data }) {
 
 // ─── Atividades ───────────────────────────────────────────────────────────────
 const ATI_CFG = {
-  oportunidade: { Icon:TrendingUp,    color:'#6366F1' },
+  oportunidade: { Icon:TrendingUp,    color:'var(--accent)' },
   projeto:      { Icon:FolderKanban,  color:'#0EA5E9' },
   questionario: { Icon:MessageSquare, color:'#F59E0B' },
 }
@@ -409,16 +409,16 @@ function ActivityWidget({ widget, data }) {
 // ─── WidgetRenderer ───────────────────────────────────────────────────────────
 function getAnalyticsValue(id, analytics) {
   const map = {
-    isv_cdu:       { value: analytics.cdu_receita,      unit:'R$', color:'#6366F1', Icon:TrendingUp    },
+    isv_cdu:       { value: analytics.cdu_receita,      unit:'R$', color:'var(--accent)', Icon:TrendingUp    },
     isv_sms:       { value: analytics.sms_receita,      unit:'R$', color:'#0EA5E9', Icon:MessageSquare },
     isv_servicos:  { value: analytics.servicos_receita, unit:'R$', color:'#10B981', Icon:FileText      },
     isv_franquias: { value: analytics.franquias_ativas, unit:'',   color:'#F59E0B', Icon:Users         },
-    isv_oport:     { value: analytics.oportunidades,    unit:'',   color:'#8B5CF6', Icon:Target        },
+    isv_oport:     { value: analytics.oportunidades,    unit:'',   color:'var(--accent)', Icon:Target        },
     isv_projetos:  { value: analytics.projetos_ativos,  unit:'',   color:'#EC4899', Icon:FolderKanban  },
     isv_taxa_conv: { value: analytics.taxa_conversao,   unit:'%',  color:'#14B8A6', Icon:Percent       },
     isv_ticket:    { value: analytics.ticket_medio,     unit:'R$', color:'#F59E0B', Icon:Ticket        },
-    isv_contratos: { value: analytics.contratos_ativos, unit:'',   color:'#6366F1', Icon:FileCheck     },
-    fr_oport:      { value: analytics.oportunidades,    unit:'',   color:'#6366F1', Icon:Target        },
+    isv_contratos: { value: analytics.contratos_ativos, unit:'',   color:'var(--accent)', Icon:FileCheck     },
+    fr_oport:      { value: analytics.oportunidades,    unit:'',   color:'var(--accent)', Icon:Target        },
     fr_projetos:   { value: analytics.projetos_ativos,  unit:'',   color:'#0EA5E9', Icon:FolderKanban  },
     fr_quest:      { value: analytics.questionarios,    unit:'',   color:'#F59E0B', Icon:MessageSquare },
     fr_cdu:        { value: analytics.cdu_receita,      unit:'R$', color:'#10B981', Icon:TrendingUp    },
@@ -426,7 +426,7 @@ function getAnalyticsValue(id, analytics) {
     fr_servicos:   { value: analytics.servicos_receita, unit:'R$', color:'#10B981', Icon:FileText      },
     fr_taxa_conv:  { value: analytics.taxa_conversao,   unit:'%',  color:'#14B8A6', Icon:Percent       },
     fr_ticket:     { value: analytics.ticket_medio,     unit:'R$', color:'#F59E0B', Icon:Ticket        },
-    fr_contratos:  { value: analytics.contratos_ativos, unit:'',   color:'#6366F1', Icon:FileCheck     },
+    fr_contratos:  { value: analytics.contratos_ativos, unit:'',   color:'var(--accent)', Icon:FileCheck     },
   }
   return map[id] || null
 }
@@ -461,7 +461,7 @@ function WidgetRenderer({ widget, analytics, isCustomizing, onUpdateMeta, catalo
 
 // ─── Categorias do catálogo ───────────────────────────────────────────────────
 const TYPE_CFG = {
-  kpi:   { label:'KPI',     bg:'rgba(99,102,241,0.12)',  color:'#6366F1' },
+  kpi:   { label:'KPI',     bg:'rgba(99,102,241,0.12)',  color:'var(--accent)' },
   chart: { label:'Gráfico', bg:'rgba(14,165,233,0.12)',  color:'#0EA5E9' },
   list:  { label:'Lista',   bg:'rgba(16,185,129,0.12)',  color:'#10B981' },
 }
@@ -470,15 +470,15 @@ const TYPE_CFG = {
 function WidgetPreview({ entry, analytics }) {
   if (!analytics) return null
   const kpiMap = {
-    isv_cdu:{ value:analytics.cdu_receita, unit:'R$', color:'#6366F1' }, isv_sms:{ value:analytics.sms_receita, unit:'R$', color:'#0EA5E9' },
+    isv_cdu:{ value:analytics.cdu_receita, unit:'R$', color:'var(--accent)' }, isv_sms:{ value:analytics.sms_receita, unit:'R$', color:'#0EA5E9' },
     isv_servicos:{ value:analytics.servicos_receita, unit:'R$', color:'#10B981' }, isv_franquias:{ value:analytics.franquias_ativas, unit:'', color:'#F59E0B' },
-    isv_oport:{ value:analytics.oportunidades, unit:'', color:'#8B5CF6' }, isv_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#EC4899' },
+    isv_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' }, isv_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#EC4899' },
     isv_taxa_conv:{ value:analytics.taxa_conversao, unit:'%', color:'#14B8A6' }, isv_ticket:{ value:analytics.ticket_medio, unit:'R$', color:'#F59E0B' },
-    isv_contratos:{ value:analytics.contratos_ativos, unit:'', color:'#6366F1' }, fr_oport:{ value:analytics.oportunidades, unit:'', color:'#6366F1' },
+    isv_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' }, fr_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' },
     fr_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#0EA5E9' }, fr_quest:{ value:analytics.questionarios, unit:'', color:'#F59E0B' },
     fr_cdu:{ value:analytics.cdu_receita, unit:'R$', color:'#10B981' }, fr_sms:{ value:analytics.sms_receita, unit:'R$', color:'#0EA5E9' },
     fr_servicos:{ value:analytics.servicos_receita, unit:'R$', color:'#10B981' }, fr_taxa_conv:{ value:analytics.taxa_conversao, unit:'%', color:'#14B8A6' },
-    fr_ticket:{ value:analytics.ticket_medio, unit:'R$', color:'#F59E0B' }, fr_contratos:{ value:analytics.contratos_ativos, unit:'', color:'#6366F1' },
+    fr_ticket:{ value:analytics.ticket_medio, unit:'R$', color:'#F59E0B' }, fr_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' },
   }
   const kv = kpiMap[entry.id]
   if (kv) {
@@ -497,7 +497,7 @@ function WidgetPreview({ entry, analytics }) {
     )
   }
   if (entry.type === 'chart') {
-    const colors = ['#6366F1','#0EA5E9','#10B981']
+    const colors = ['var(--accent)','#0EA5E9','#10B981']
     const labels = entry.id.includes('bar') || entry.id.includes('pipeline')
       ? (analytics.por_franquia||analytics.pipeline||[]).slice(0,3).map(x => x.nome||x.etapa||'')
       : ['CDU','SMS','Serviços']

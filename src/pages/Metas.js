@@ -60,7 +60,7 @@ const PRODUTOS = [
 ]
 
 const TIPOS_ALVO = {
-  vendedor:  { label: 'Por Vendedor',             badgeLabel: 'Vendedor',  badgeColor: '#7C3AED', badgeBg: '#F5F3FF', badgeBorder: '#DDD6FE' },
+  vendedor:  { label: 'Por Vendedor',             badgeLabel: 'Vendedor',  badgeColor: 'var(--accent)', badgeBg: '#F5F3FF', badgeBorder: '#DDD6FE' },
   unidade:   { label: 'Por Unidade',              badgeLabel: 'Unidade',   badgeColor: '#1D4ED8', badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE' },
   categoria: { label: 'Por Categoria de Produto', badgeLabel: 'Categoria', badgeColor: '#0891B2', badgeBg: '#ECFEFF', badgeBorder: '#A5F3FC' },
   produto:   { label: 'Por Produto Específico',   badgeLabel: 'Produto',   badgeColor: '#059669', badgeBg: '#F0FDF4', badgeBorder: '#A7F3D0' },
@@ -150,7 +150,7 @@ function iniciais(nome) {
   return p.length === 1 ? p[0][0].toUpperCase() : (p[0][0] + p[p.length-1][0]).toUpperCase()
 }
 function corAvatar(nome) {
-  const cores = ['#6366F1','#10B981','#F59E0B','#3B82F6','#EC4899','#8B5CF6','#059669','#D97706']
+  const cores = ['var(--accent)','#10B981','#F59E0B','#3B82F6','#EC4899','var(--accent)','#059669','#D97706']
   return cores[(nome || '').charCodeAt(0) % cores.length]
 }
 function corBarra(p) {

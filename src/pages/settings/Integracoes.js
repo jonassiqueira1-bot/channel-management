@@ -13,7 +13,7 @@ import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection } from '../../components/ui'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Utilitários ──────────────────────────────────────────────────────────────
 function fmtDate(iso) {

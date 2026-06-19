@@ -42,7 +42,7 @@ export default function DynamicFormLayout({ sections, fieldById, renderField, se
               paddingBottom: 10, borderBottom: '1px solid var(--border)',
               marginBottom: 2,
             }}>
-              <div style={{ width: 3, height: 14, borderRadius: 2, background: '#6366F1', flexShrink: 0 }} />
+              <div style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.1px' }}>
                 {sec.label}
               </span>

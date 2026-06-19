@@ -20,7 +20,7 @@ import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit } from '../../components/ui'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 const SIDEBAR_ID = '__sidebar__'
 
 const ENTIDADES = [
@@ -45,7 +45,7 @@ const TIPOS = [
 
 const TIPO_META = {
   text:     { color: '#2563EB', bg: '#EFF6FF' },
-  textarea: { color: '#7C3AED', bg: '#F5F3FF' },
+  textarea: { color: 'var(--accent)', bg: '#F5F3FF' },
   number:   { color: '#059669', bg: '#ECFDF5' },
   date:     { color: '#C2410C', bg: '#FFF7ED' },
   select:   { color: '#86198F', bg: '#FDF4FF' },

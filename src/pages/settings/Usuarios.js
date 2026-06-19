@@ -8,7 +8,7 @@ import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import { useBranches } from '../../hooks/useBranches'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 function uid() { return 'u_' + Date.now() + Math.floor(Math.random() * 999) }
 

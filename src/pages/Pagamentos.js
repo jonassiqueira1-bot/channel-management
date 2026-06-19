@@ -11,7 +11,7 @@ import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
 import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -530,7 +530,7 @@ function PagamentoDetail({ pagamento, onSave, onClose }) {
         <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:16 }}>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:12 }}>
             {[
-              { k:'amount_cdu',      label:'CDU',      color:'#6366F1' },
+              { k:'amount_cdu',      label:'CDU',      color:'var(--accent)' },
               { k:'amount_sms',      label:'SMS',      color:'#3B82F6' },
               { k:'amount_services', label:'Serviços', color:'#10B981' },
             ].map(({ k, label, color }) => (
@@ -741,7 +741,7 @@ function _PagamentoModalLegacy({ pagamento, onSave, onClose }) {
             borderRadius:12, padding:18, marginBottom:16 }}>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:12, marginBottom:14 }}>
               {[
-                { k:'amount_cdu',      label:'Valor CDU',     color:'#6366F1' },
+                { k:'amount_cdu',      label:'Valor CDU',     color:'var(--accent)' },
                 { k:'amount_sms',      label:'Valor SMS',     color:'#3B82F6' },
                 { k:'amount_services', label:'Valor Serviços',color:'#10B981' },
               ].map(({ k, label, color }) => (
@@ -1002,7 +1002,7 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
             <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:14 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:10, marginBottom:12 }}>
                 {[
-                  { k:'amount_cdu',      label:'CDU',      color:'#6366F1' },
+                  { k:'amount_cdu',      label:'CDU',      color:'var(--accent)' },
                   { k:'amount_sms',      label:'SMS',      color:'#3B82F6' },
                   { k:'amount_services', label:'Serviços', color:'#10B981' },
                   { k:'amount_discount', label:'Desconto', color:'#EF4444' },
@@ -1242,7 +1242,7 @@ export default function Pagamentos() {
             </div>
             <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
               {[
-                { label:'CDU',      val:cdu,      color:'#6366F1' },
+                { label:'CDU',      val:cdu,      color:'var(--accent)' },
                 { label:'SMS',      val:sms,      color:'#3B82F6' },
                 { label:'Serviços', val:services, color:'#10B981' },
                 { label:'Desconto', val:discount, color:'#EF4444' },
@@ -1280,7 +1280,7 @@ export default function Pagamentos() {
         </FPESection>
         <FPESection label="Composição de valores" columns={2}>
           {[
-            { k:'amount_cdu',      label:'CDU',      color:'#6366F1' },
+            { k:'amount_cdu',      label:'CDU',      color:'var(--accent)' },
             { k:'amount_sms',      label:'SMS',      color:'#3B82F6' },
             { k:'amount_services', label:'Serviços', color:'#10B981' },
             { k:'amount_discount', label:'Desconto', color:'#EF4444' },
@@ -1577,7 +1577,7 @@ export default function Pagamentos() {
 
                   <td style={{ ...pg.td, textAlign:'right' }}>
                     {p.amount_cdu>0
-                      ? <span style={{ fontSize:12, fontFamily:'var(--mono)', fontWeight:600, color:'#6366F1' }}>{fmtMoeda(p.amount_cdu)}</span>
+                      ? <span style={{ fontSize:12, fontFamily:'var(--mono)', fontWeight:600, color:'var(--accent)' }}>{fmtMoeda(p.amount_cdu)}</span>
                       : <span style={{ color:'var(--border2)', fontSize:11 }}>—</span>}
                   </td>
                   <td style={{ ...pg.td, textAlign:'right' }}>
@@ -1664,7 +1664,7 @@ export default function Pagamentos() {
                 </td>
                 {/* Num. Documento — vazio no rodapé */}
                 <td/>
-                <td style={{ ...pg.td, textAlign:'right', fontFamily:'var(--mono)', fontWeight:700, fontSize:12, color:'#6366F1' }}>
+                <td style={{ ...pg.td, textAlign:'right', fontFamily:'var(--mono)', fontWeight:700, fontSize:12, color:'var(--accent)' }}>
                   {fmtMoeda(lista.reduce((s,p)=>s+p.amount_cdu,0))}
                 </td>
                 <td style={{ ...pg.td, textAlign:'right', fontFamily:'var(--mono)', fontWeight:700, fontSize:12, color:'#3B82F6' }}>

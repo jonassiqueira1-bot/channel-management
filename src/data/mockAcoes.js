@@ -50,7 +50,7 @@
 //     FOR EACH ROW EXECUTE PROCEDURE moddatetime(atualizado_em);
 
 export const TIPOS_ACAO = {
-  treinamento: { label: 'Treinamento',  icon: '🎓', color: '#6366F1', bg: '#EDE9FE', text: '#4338CA' },
+  treinamento: { label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: '#EDE9FE', text: '#4338CA' },
   evento:      { label: 'Evento',       icon: '📅', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8' },
   capacitacao: { label: 'Capacitação',  icon: '🚀', color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
   outros:      { label: 'Outros',       icon: '◎',  color: '#6B7280', bg: '#F3F4F6', text: '#374151' },

@@ -46,7 +46,7 @@ const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
 const ORIGEM_COLORS = {
   Inbound:    { color:'#10B981', bg:'rgba(16,185,129,0.10)', text:'#059669' },
   Outbound:   { color:'#3B82F6', bg:'rgba(59,130,246,0.10)', text:'#2563EB' },
-  Canal:      { color:'#8B5CF6', bg:'rgba(139,92,246,0.10)', text:'#7C3AED' },
+  Canal:      { color:'var(--accent)', bg:'rgba(139,92,246,0.10)', text:'var(--accent)' },
   Indicação:  { color:'#F59E0B', bg:'rgba(245,158,11,0.10)', text:'#D97706' },
   Evento:     { color:'#EC4899', bg:'rgba(236,72,153,0.10)', text:'#DB2777' },
   Prospecção: { color:'#6B7280', bg:'rgba(107,114,128,0.10)', text:'#4B5563' },
@@ -268,11 +268,11 @@ function ContatoSearch({ value, label, empresaId, allContatos, onChange }) {
               onMouseDown={() => { onChange(c.id, c.nome); setQuery(c.nome); setOpen(false) }}
               style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px',
                 cursor:'pointer', background: value===c.id ? 'var(--surface2)' : 'transparent',
-                borderLeft:`3px solid ${value===c.id ? '#6366F1' : 'transparent'}` }}
+                borderLeft:`3px solid ${value===c.id ? 'var(--accent)' : 'transparent'}` }}
               onMouseEnter={e => { if (value!==c.id) e.currentTarget.style.background='var(--surface2)' }}
               onMouseLeave={e => { if (value!==c.id) e.currentTarget.style.background='transparent' }}>
               <div style={{ width:28, height:28, borderRadius:'50%', background:'#EDE9FE',
-                color:'#7C3AED', display:'flex', alignItems:'center', justifyContent:'center',
+                color:'var(--accent)', display:'flex', alignItems:'center', justifyContent:'center',
                 fontSize:10, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0 }}>
                 {(c.nome||'?').charAt(0).toUpperCase()}
               </div>
@@ -541,7 +541,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
               {totalAnual > 0 && (
                 <div style={{ display:'flex', justifyContent:'space-between', fontSize:12 }}>
                   <span style={{ color:'var(--text-muted)' }}>Anual (÷12 = {fmtBRL(totalAnual/12)}/mês)</span>
-                  <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'#8B5CF6' }}>{fmtBRL(totalAnual)}</span>
+                  <span style={{ fontFamily:'var(--mono)', fontWeight:700, color:'var(--accent)' }}>{fmtBRL(totalAnual)}</span>
                 </div>
               )}
               {totalUnico > 0 && (
@@ -726,7 +726,7 @@ function CampanhaField({ value, onChange }) {
     id: c.id,
     label: c.name + (c.status === 'draft' ? ' (rascunho)' : ''),
     sublabel: c.objetivo || '',
-    color: '#6366F1',
+    color: 'var(--accent)',
   }))
 
   return (
@@ -1093,7 +1093,7 @@ const tb = {
 const EVENTO_CFG = {
   criado:             { icon:'✦', label:'Oportunidade criada',    color:'#10B981', bg:'#D1FAE5' },
   editado:            { icon:'✎', label:'Dados alterados',        color:'#3B82F6', bg:'#DBEAFE' },
-  etapa_alterada:     { icon:'→', label:'Etapa avançada',         color:'#8B5CF6', bg:'#EDE9FE' },
+  etapa_alterada:     { icon:'→', label:'Etapa avançada',         color:'var(--accent)', bg:'#EDE9FE' },
   situacao_alterada:  { icon:'◎', label:'Situação alterada',      color:'#F59E0B', bg:'#FEF3C7' },
   produto_adicionado: { icon:'＋', label:'Produto adicionado',     color:'#06B6D4', bg:'#CFFAFE' },
   produto_removido:   { icon:'−', label:'Produto removido',       color:'#EF4444', bg:'#FEE2E2' },
@@ -1273,7 +1273,7 @@ function NotaCard({ nota }) {
     <div style={{
       marginBottom: 10, background: 'var(--surface)',
       border: '1px solid var(--border)', borderRadius: 10, padding: '11px 13px',
-      borderLeft: '3px solid #8B5CF6',
+      borderLeft: '3px solid var(--accent)',
       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
     }}>
       {/* Conteúdo da nota */}
@@ -1291,7 +1291,7 @@ function NotaCard({ nota }) {
           onClick={() => setExpanded(v => !v)}
           style={{
             background: 'none', border: 'none', padding: '0 0 7px',
-            fontSize: 11, fontWeight: 700, color: '#8B5CF6', cursor: 'pointer',
+            fontSize: 11, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer',
             fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 4,
           }}>
           {expanded ? '− Ler menos' : '+ Ler mais'}
@@ -1303,9 +1303,9 @@ function NotaCard({ nota }) {
         paddingTop: needsTruncate ? 0 : 4, borderTop: needsTruncate ? 'none' : '1px solid var(--border2)' }}>
         <div style={{
           width: 18, height: 18, borderRadius: '50%',
-          background: '#8B5CF622', color: '#8B5CF6',
+          background: 'var(--accent)22', color: 'var(--accent)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: 8, fontWeight: 800, flexShrink: 0, border: '1px solid #8B5CF633',
+          fontSize: 8, fontWeight: 800, flexShrink: 0, border: '1px solid var(--accent)33',
         }}>
           {(nota.usuario || '?').charAt(0).toUpperCase()}
         </div>
@@ -1366,7 +1366,7 @@ function NotasPanel({ oppId, atividades, onAddNota }) {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           padding: '10px 14px 8px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <StickyNote size={13} color="#8B5CF6" />
+            <StickyNote size={13} color="var(--accent)" />
             <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
               textTransform: 'uppercase', letterSpacing: '0.09em', fontFamily: 'var(--mono)' }}>
               Registrar Nota
@@ -1399,7 +1399,7 @@ function NotasPanel({ oppId, atividades, onAddNota }) {
                 boxSizing: 'border-box',
                 paddingBottom: 22, // espaço para o contador
                 transition: 'border-color 0.15s, box-shadow 0.15s',
-                ...(hasText ? { borderColor: '#8B5CF6', boxShadow: '0 0 0 2px #8B5CF618' } : {}),
+                ...(hasText ? { borderColor: 'var(--accent)', boxShadow: '0 0 0 2px var(--accent)18' } : {}),
               }}
               placeholder="Digite uma observação sobre esta oportunidade…&#10;&#10;Dica: Ctrl+Enter para salvar rapidamente."
               value={text}
@@ -1431,9 +1431,9 @@ function NotasPanel({ oppId, atividades, onAddNota }) {
                 padding: '6px 16px', borderRadius: 7, border: 'none', fontSize: 12, fontWeight: 700,
                 fontFamily: 'var(--font)', cursor: hasText ? 'pointer' : 'default',
                 transition: 'all 0.15s',
-                background: hasText ? '#8B5CF6' : 'var(--surface3)',
+                background: hasText ? 'var(--accent)' : 'var(--surface3)',
                 color:       hasText ? '#fff'    : 'var(--text-muted)',
-                boxShadow:   hasText ? '0 2px 8px #8B5CF640' : 'none',
+                boxShadow:   hasText ? '0 2px 8px var(--accent)40' : 'none',
               }}>
               Salvar nota
             </button>
@@ -1697,7 +1697,7 @@ function CustomFieldsSection({ fields, cfActions, values, onChange }) {
 // ─── Aba Equipe do Negócio ────────────────────────────────────────────────────
 const PAPEL_CFG = {
   vendedor:       { label:'Vendedor',              color:'#3B82F6', bg:'#DBEAFE' },
-  pre_vendas:     { label:'Pré-vendas',            color:'#8B5CF6', bg:'#EDE9FE' },
+  pre_vendas:     { label:'Pré-vendas',            color:'var(--accent)', bg:'#EDE9FE' },
   gerente_canais: { label:'Gerente de Canais',     color:'#10B981', bg:'#D1FAE5' },
   engenheiro:     { label:'Engenheiro de Soluções',color:'#F59E0B', bg:'#FEF3C7' },
   supervisor:     { label:'Supervisor',            color:'#EC4899', bg:'#FCE7F3' },
@@ -2038,7 +2038,7 @@ function ValorFinanceiroSection({ form, set }) {
       {/* Grid 3 cols: CDU | SMS | Serviço */}
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10, marginBottom:14 }}>
         {[
-          { field:'valor_cdu',     label:'CDU',     color:'#6366F1' },
+          { field:'valor_cdu',     label:'CDU',     color:'var(--accent)' },
           { field:'valor_sms',     label:'SMS',     color:'#3B82F6' },
           { field:'valor_servico', label:'Serviço', color:'#10B981' },
         ].map(({ field, label, color }) => (
@@ -2178,7 +2178,7 @@ function OppDocumentosTab({ oppId }) {
     setAllDocs(prev => prev.filter(d => d.id !== id))
   }
 
-  const EXT_COLORS = { pdf:'#EF4444', doc:'#3B82F6', docx:'#3B82F6', xls:'#10B981', xlsx:'#10B981', ppt:'#F59E0B', pptx:'#F59E0B', png:'#8B5CF6', jpg:'#8B5CF6', jpeg:'#8B5CF6' }
+  const EXT_COLORS = { pdf:'#EF4444', doc:'#3B82F6', docx:'#3B82F6', xls:'#10B981', xlsx:'#10B981', ppt:'#F59E0B', pptx:'#F59E0B', png:'var(--accent)', jpg:'var(--accent)', jpeg:'var(--accent)' }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, paddingTop:8 }}>
@@ -3512,7 +3512,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
         {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
         {nItens > 0 && liq > 0 && dot}
-        {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, '#6366F1')}
+        {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, 'var(--accent)')}
         {form.valor_sms > 0 && chip(`SMS ${fmtMoeda(form.valor_sms)}`, '#3B82F6')}
         {form.valor_servico > 0 && chip(`Serv. ${fmtMoeda(form.valor_servico)}`, '#10B981')}
         {liq > 0 && (
@@ -3899,7 +3899,7 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
         Playbook <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, fontSize:10 }}>(opcional)</span>
       </label>
       <SearchSelect
-        options={playbooks.map(pb => ({ id: pb.id, label: pb.title, sublabel: pb.description || pb.segment || '', color: '#6366F1' }))}
+        options={playbooks.map(pb => ({ id: pb.id, label: pb.title, sublabel: pb.description || pb.segment || '', color: 'var(--accent)' }))}
         value={activeId || null}
         onChange={(id) => onChangePlaybook && onChangePlaybook(id)}
         placeholder="Pesquisar playbook…"
@@ -4587,7 +4587,7 @@ function OppCard({ opp, cor, onClick, onDragStart, onDragEnd }) {
           {(opp.valor_cdu > 0 || opp.valor_sms > 0 || opp.valor_desconto > 0) && (
             <div style={{ display:'flex', gap:5, marginTop:3, flexWrap:'wrap' }}>
               {opp.valor_cdu > 0 && (
-                <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'#6366F1',
+                <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'var(--accent)',
                   background:'rgba(99,102,241,0.08)', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>
                   CDU {fmtMoeda(opp.valor_cdu)}
                 </span>

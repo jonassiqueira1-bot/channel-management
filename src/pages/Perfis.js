@@ -127,7 +127,7 @@ const MODULOS = [
 
 // ─── Paleta de cores para perfis customizados ─────────────────────────────────
 const PALETA = [
-  '#6366F1','#EC4899','#14B8A6','#F59E0B','#8B5CF6',
+  'var(--accent)','#EC4899','#14B8A6','#F59E0B','var(--accent)',
   '#10B981','#3B82F6','#EF4444','#84CC16','#06B6D4',
 ]
 
@@ -146,7 +146,7 @@ export const PERFIS_NATIVOS_SEED = [
     slug: 'master',
     nome: 'Master',
     nativo: true,
-    cor: '#7C3AED',
+    cor: 'var(--accent)',
     icon: 'ShieldCheck',
     desc: 'Acesso total. Gerencia usuários, perfis e integrações.',
   },
@@ -557,7 +557,7 @@ export default function Perfis() {
             )
           }},
           { key: 'nativo', label: 'Tipo', width: 120, render: (v) => (
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: v ? '#F5F3FF' : 'var(--surface2)', color: v ? '#7C3AED' : 'var(--text-muted)', border: `1px solid ${v ? '#DDD6FE' : 'var(--border)'}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: v ? '#F5F3FF' : 'var(--surface2)', color: v ? 'var(--accent)' : 'var(--text-muted)', border: `1px solid ${v ? '#DDD6FE' : 'var(--border)'}` }}>
               {v ? 'Nativo' : 'Custom'}
             </span>
           )},

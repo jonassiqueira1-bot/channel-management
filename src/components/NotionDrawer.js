@@ -407,7 +407,7 @@ export function InlineSearchSelect({ value, onChange, options, placeholder = 'â€
                 onMouseEnter={e => { if (String(opt.value)!==String(value)) e.currentTarget.style.background='var(--surface2)' }}
                 onMouseLeave={e => { if (String(opt.value)!==String(value)) e.currentTarget.style.background='transparent' }}>
                 {opt.avatar && (
-                  <div style={{ width:22, height:22, borderRadius:'50%', background:'#EDE9FE', color:'#7C3AED',
+                  <div style={{ width:22, height:22, borderRadius:'50%', background:'#EDE9FE', color:'var(--accent)',
                     display:'flex', alignItems:'center', justifyContent:'center',
                     fontSize:9, fontWeight:800, flexShrink:0, fontFamily:'var(--mono)' }}>
                     {opt.avatar}

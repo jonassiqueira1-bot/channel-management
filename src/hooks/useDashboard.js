@@ -90,7 +90,7 @@ async function fetchAnalytics(period) {
     revenueByCompany[cid].sms      += p.custom_fields?.amount_sms      || 0
     revenueByCompany[cid].servicos += p.custom_fields?.amount_services || 0
   })
-  const COLORS = ['#6366F1','#0EA5E9','#10B981','#F59E0B','#EF4444','#8B5CF6']
+  const COLORS = ['var(--accent)','#0EA5E9','#10B981','#F59E0B','#EF4444','var(--accent)']
   const por_franquia = Object.values(revenueByCompany)
     .sort((a, b) => (b.cdu + b.sms + b.servicos) - (a.cdu + a.sms + a.servicos))
     .slice(0, 6)

@@ -2,14 +2,14 @@
 // Em produção: tabela `partner_health` no Supabase com RLS por tenant_id
 
 export const LAER_STAGES = [
-  { value: 'Land',   label: 'Land',   color: '#6366F1', bg: '#EDE9FE' },
+  { value: 'Land',   label: 'Land',   color: 'var(--accent)', bg: '#EDE9FE' },
   { value: 'Adopt',  label: 'Adopt',  color: '#3B82F6', bg: '#DBEAFE' },
   { value: 'Expand', label: 'Expand', color: '#10B981', bg: '#D1FAE5' },
   { value: 'Renew',  label: 'Renew',  color: '#F59E0B', bg: '#FEF3C7' },
 ]
 
 export const TOUCH_MODELS = [
-  { value: 'Tech-Touch', label: 'Tech-Touch', color: '#8B5CF6' },
+  { value: 'Tech-Touch', label: 'Tech-Touch', color: 'var(--accent)' },
   { value: 'Mid-Touch',  label: 'Mid-Touch',  color: '#3B82F6' },
   { value: 'High-Touch', label: 'High-Touch', color: '#10B981' },
 ]

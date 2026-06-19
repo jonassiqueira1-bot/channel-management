@@ -11,7 +11,7 @@ const TIPOS_PRODUTO = [
   { value: 'licenca',     label: 'Licença',     color: 'var(--purple)', bg: 'var(--purple-bg)', text: 'var(--purple-text)' },
   { value: 'servico',     label: 'Serviço',     color: 'var(--green)',  bg: 'var(--green-bg)',  text: 'var(--green-text)' },
   { value: 'hardware',    label: 'Hardware',    color: 'var(--yellow)', bg: 'var(--yellow-bg)', text: 'var(--yellow-text)' },
-  { value: 'consultoria', label: 'Consultoria', color: '#7C3AED',       bg: 'var(--purple-bg)', text: 'var(--purple-text)' },
+  { value: 'consultoria', label: 'Consultoria', color: 'var(--accent)',       bg: 'var(--purple-bg)', text: 'var(--purple-text)' },
   { value: 'treinamento', label: 'Treinamento', color: '#0891B2',       bg: '#ECFEFF',          text: '#0E7490' },
 ]
 

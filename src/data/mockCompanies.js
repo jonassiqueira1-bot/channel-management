@@ -4,7 +4,7 @@
 export const COMPANIES_STORAGE_KEY = 'companies:v1'
 
 export const COMPANY_TYPE_CFG = {
-  ISV:      { label: 'ISV',      desc: 'Empresa principal / tenant root', color: '#6366F1', bg: 'rgba(99,102,241,0.1)'  },
+  ISV:      { label: 'ISV',      desc: 'Empresa principal / tenant root', color: 'var(--accent)', bg: 'rgba(99,102,241,0.1)'  },
   FRANCHISE:{ label: 'Franquia', desc: 'Canal / revendedor',              color: '#0EA5E9', bg: 'rgba(14,165,233,0.1)'  },
   CUSTOMER: { label: 'Cliente',  desc: 'Cliente final',                   color: '#10B981', bg: 'rgba(16,185,129,0.1)'  },
 }
@@ -36,7 +36,7 @@ export const MOCK_COMPANIES = [
     state: 'SP',
     country: 'BR',
     logo_url: null,
-    primary_color: '#6366F1',
+    primary_color: 'var(--accent)',
     accent_color: '#10B981',
     notes: '',
     created_at: '2023-01-10T10:00:00Z',

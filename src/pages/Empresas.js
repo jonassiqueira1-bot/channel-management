@@ -66,7 +66,7 @@ function cnaeToSegmento(cnae) {
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TIPOS = [
   { value: 'rascunho',      label: 'Rascunho',         color: '#94A3B8', bg: '#F8FAFC', text: '#64748B', draft: true },
-  { value: 'franquia',      label: 'Franquia',         color: '#7C3AED', bg: '#F5F3FF', text: '#6D28D9' },
+  { value: 'franquia',      label: 'Franquia',         color: 'var(--accent)', bg: '#F5F3FF', text: '#6D28D9' },
   { value: 'unidade',       label: 'Unidade',          color: '#1D4ED8', bg: '#EFF6FF', text: '#1E40AF' },
   { value: 'cliente_final', label: 'Cliente Final',    color: '#0891B2', bg: '#ECFEFF', text: '#0E7490' },
   { value: 'parceiro',      label: 'Parceiro',         color: '#059669', bg: '#F0FDF4', text: '#065F46' },
@@ -204,7 +204,7 @@ const ar = {
 }
 
 // ─── Modal de cadastro ────────────────────────────────────────────────────────
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados' }) {
   const isNew = !item?.id

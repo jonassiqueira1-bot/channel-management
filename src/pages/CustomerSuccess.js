@@ -14,7 +14,7 @@ import {
   Download, Upload, X, SlidersHorizontal, MoreHorizontal,
 } from 'lucide-react'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return 'ph_' + Date.now() + Math.floor(Math.random() * 9999) }
@@ -363,7 +363,7 @@ function CheckinBlock({ checkins, onChange }) {
       <div style={{ position: 'relative' }}>
         {checkins.map((ci, i) => {
           const TYPE_COLOR = {
-            'Reunião': '#6366F1', 'Ligação': '#10B981', 'E-mail': '#3B82F6',
+            'Reunião': 'var(--accent)', 'Ligação': '#10B981', 'E-mail': '#3B82F6',
             'Visita': '#F59E0B', 'QBR': '#EC4899',
           }
           const dotColor = TYPE_COLOR[ci.type] || '#6B7280'

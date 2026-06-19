@@ -17,7 +17,7 @@ const ENTITIES = [
   { key: 'sellers',       label: 'Vendedores' },
 ]
 
-const CHIP_ON  = { display: 'inline-flex', alignItems: 'center', padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', fontFamily: 'var(--font)', background: '#6366F120', color: '#6366F1' }
+const CHIP_ON  = { display: 'inline-flex', alignItems: 'center', padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', fontFamily: 'var(--font)', background: 'var(--accent)20', color: 'var(--accent)' }
 const CHIP_OFF = { display: 'inline-flex', alignItems: 'center', padding: '4px 12px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: 'none', fontFamily: 'var(--font)', background: 'var(--surface2)', color: 'var(--text-muted)' }
 
 const EMPTY = { srcBranch: '', tgtBranch: '', entities: [], canEdit: false }

@@ -161,7 +161,7 @@ export const MOCK_ANALYTICS = {
 
     // Receita por franquia (para gráfico de barras / pizza)
     por_franquia: [
-      { nome: 'Nexus Tech',  cdu: 310000, sms: 118000, servicos: 82000,  color: '#6366F1' },
+      { nome: 'Nexus Tech',  cdu: 310000, sms: 118000, servicos: 82000,  color: 'var(--accent)' },
       { nome: 'Alpha Dist.', cdu: 242000, sms:  89000, servicos: 54000,  color: '#0EA5E9' },
       { nome: 'FinCorp',     cdu: 160400, sms:  80300, servicos: 48600,  color: '#10B981' },
     ],

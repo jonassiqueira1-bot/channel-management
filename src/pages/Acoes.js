@@ -8,7 +8,7 @@ import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import Button from '../components/Button'
 import { FullPageEdit, FPESection, FPEField } from '../components/ui'
 
-const ACCENT = '#6366F1'
+const ACCENT = 'var(--accent)'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtData(d) {

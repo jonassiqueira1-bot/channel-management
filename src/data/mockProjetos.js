@@ -6,9 +6,9 @@ export const PHASES_STORAGE_KEY    = 'projects:phases_v1'
 export const MEMBERS_STORAGE_KEY   = 'projects:members_v1'
 
 export const FASES_MIT = [
-  { value: 'iniciacao',    label: 'Iniciação',    color: '#6366F1', bg: 'rgba(99,102,241,0.10)',  text: '#4338CA', order: 1 },
+  { value: 'iniciacao',    label: 'Iniciação',    color: 'var(--accent)', bg: 'rgba(99,102,241,0.10)',  text: '#4338CA', order: 1 },
   { value: 'modelagem',    label: 'Modelagem',    color: '#3B82F6', bg: 'rgba(59,130,246,0.10)',  text: '#1D4ED8', order: 2 },
-  { value: 'implantacao',  label: 'Implantação',  color: '#8B5CF6', bg: 'rgba(139,92,246,0.10)',  text: '#6D28D9', order: 3 },
+  { value: 'implantacao',  label: 'Implantação',  color: 'var(--accent)', bg: 'rgba(139,92,246,0.10)',  text: '#6D28D9', order: 3 },
   { value: 'treinamento',  label: 'Treinamento',  color: '#F59E0B', bg: 'rgba(245,158,11,0.10)',  text: '#B45309', order: 4 },
   { value: 'go_live',      label: 'Go-Live',      color: '#10B981', bg: 'rgba(16,185,129,0.10)',  text: '#047857', order: 5 },
   { value: 'encerramento', label: 'Encerramento', color: '#6B7280', bg: 'rgba(107,114,128,0.10)', text: '#374151', order: 6 },

@@ -82,7 +82,7 @@ function paymentToRow(p, tenantId, branchId) {
 }
 
 function rowToPersona(row) {
-  return { id: row.id, slug: row.slug, label: row.label, descricao: row.descricao || '', cor: row.cor || '#6366F1', ordem: row.ordem || 0, ativo: row.ativo }
+  return { id: row.id, slug: row.slug, label: row.label, descricao: row.descricao || '', cor: row.cor || 'var(--accent)', ordem: row.ordem || 0, ativo: row.ativo }
 }
 
 export function useCommissions() {

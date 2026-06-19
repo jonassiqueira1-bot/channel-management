@@ -8,11 +8,11 @@ export const PERSONAS_STORAGE_KEY = 'comissoes:personas_v1'
 
 // ─── Personas editáveis ───────────────────────────────────────────────────────
 export const MOCK_PERSONAS = [
-  { id: 'interno',          slug: 'interno',          label: 'Interno',           descricao: 'Equipe ISV',                     cor: '#6366F1', ordem: 0, ativo: true },
+  { id: 'interno',          slug: 'interno',          label: 'Interno',           descricao: 'Equipe ISV',                     cor: 'var(--accent)', ordem: 0, ativo: true },
   { id: 'externo',          slug: 'externo',          label: 'Externo',           descricao: 'Franquia / Revendedor',          cor: '#0EA5E9', ordem: 1, ativo: true },
   { id: 'finder',           slug: 'finder',           label: 'Finder',            descricao: 'Indicador externo',              cor: '#F59E0B', ordem: 2, ativo: true },
   { id: 'parceiro',         slug: 'parceiro',         label: 'Parceiro',          descricao: 'ISV parceiro / integrador',      cor: '#10B981', ordem: 3, ativo: true },
-  { id: 'inside_sales_sr',  slug: 'inside_sales_sr',  label: 'Inside Sales Sênior', descricao: 'Vendedor interno experiente',  cor: '#8B5CF6', ordem: 4, ativo: true },
+  { id: 'inside_sales_sr',  slug: 'inside_sales_sr',  label: 'Inside Sales Sênior', descricao: 'Vendedor interno experiente',  cor: 'var(--accent)', ordem: 4, ativo: true },
 ]
 
 // ─── Tipos de receita ─────────────────────────────────────────────────────────
@@ -30,7 +30,7 @@ export const TIPO_CALCULO_CFG = {
   percentual_fixo: {
     label: 'Percentual Fixo por Persona',
     desc:  'Grade de percentuais fixa por persona × tipo de receita',
-    color: '#6366F1', bg: 'rgba(99,102,241,0.1)',
+    color: 'var(--accent)', bg: 'rgba(99,102,241,0.1)',
   },
   cadeia_repasse: {
     label: 'Cadeia de Repasse',
