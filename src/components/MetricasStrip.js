@@ -7,6 +7,7 @@
  */
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useFunnels } from '../hooks/useFunnels'
 import { METRICAS_KEY, LEITURAS_KEY, INTERVALOS, FONTES_CALCULO } from '../pages/settings/Metricas'
 
 function calcStatus(metrica, valorAtual) {
@@ -104,16 +105,16 @@ function LogModal({ metrica, onSave, onClose }) {
 }
 
 // Hook para calcular valor automático de uma métrica a partir do localStorage
-function useAutoCalculo(metrica) {
+function useAutoCalculo(metrica, funis) {
   const fonte = FONTES_CALCULO.find(f => f.value === metrica?.fonte_calculo)
   const [dados] = useLocalState(fonte?.storageKey || '__noop__', [])
   if (!fonte || fonte.value === 'manual' || !fonte.fn) return null
-  try { return fonte.fn(dados, metrica) } catch { return null }
+  try { return fonte.fn(dados, metrica, funis) } catch { return null }
 }
 
 // Wrapper individual para cada métrica (hooks não podem ser condicionais)
-function MetricaCard({ m, ultimaLeitura, onLog }) {
-  const autoValor = useAutoCalculo(m)
+function MetricaCard({ m, ultimaLeitura, onLog, funis }) {
+  const autoValor = useAutoCalculo(m, funis)
   const isAuto    = m.fonte_calculo && m.fonte_calculo !== 'manual'
   const ul        = ultimaLeitura(m.id)
   const atual     = isAuto ? autoValor : (ul ? ul.valor : null)
@@ -164,9 +165,10 @@ function MetricaCard({ m, ultimaLeitura, onLog }) {
 }
 
 export default function MetricasStrip({ modulo, usuarioId }) {
-  const [metricas]          = useLocalState(METRICAS_KEY, [])
+  const [metricas]              = useLocalState(METRICAS_KEY, [])
   const [leituras, setLeituras] = useLocalState(LEITURAS_KEY, [])
   const [logModal, setLogModal] = useState(null)
+  const { funis }               = useFunnels()
 
   const metricasModulo = useMemo(() => {
     return metricas.filter(m =>
@@ -196,7 +198,7 @@ export default function MetricasStrip({ modulo, usuarioId }) {
       )}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         {metricasModulo.map(m => (
-          <MetricaCard key={m.id} m={m} ultimaLeitura={ultimaLeitura} onLog={setLogModal} />
+          <MetricaCard key={m.id} m={m} ultimaLeitura={ultimaLeitura} onLog={setLogModal} funis={funis} />
         ))}
       </div>
     </>

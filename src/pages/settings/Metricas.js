@@ -34,6 +34,35 @@ export const TENDENCIAS = [
 
 const CORES = ['#3B82F6','#10B981','#F59E0B','#EF4444','#8B5CF6','var(--accent)','#06B6D4','#EC4899']
 
+// Retorna etapa_ids de todos os funis selecionados (funil_ids), ou todos se vazio
+function etapasDosFunis(funis, funil_ids) {
+  const fids = (funil_ids || []).map(String).filter(Boolean)
+  const lista = fids.length ? (funis || []).filter(f => fids.includes(String(f.id))) : (funis || [])
+  return new Set(lista.flatMap(f => (f.etapas || []).map(e => String(e.id))))
+}
+
+// Filtro base: restringe pelo(s) funil(is) e produto(s) configurados na métrica
+function filtrarPorFunilEProduto(data, metrica, funis) {
+  const fids  = (metrica?.funil_ids  || []).map(String).filter(Boolean)
+  const pids  = (metrica?.produto_ids || []).map(String).filter(Boolean)
+  let base = data
+
+  if (fids.length) {
+    const eids = etapasDosFunis(funis, fids)
+    // inclui opps cujo etapa_id pertence ao funil OU que já saíram (ganha/perdida) mas tinham etapa do funil
+    base = base.filter(o =>
+      eids.has(String(o.etapa_id)) ||
+      ((o.situacao === 'ganha' || o.situacao === 'perdida') && eids.has(String(o.etapa_id_origem || o.etapa_id)))
+    )
+  }
+
+  if (pids.length) {
+    base = base.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id))))
+  }
+
+  return base
+}
+
 // Fontes de cálculo automático — cada entry define como derivar o valor atual dos dados do sistema
 export const FONTES_CALCULO = [
   {
@@ -45,27 +74,25 @@ export const FONTES_CALCULO = [
   {
     value: 'pipeline_opps_fechadas_qtd',
     label: 'Pipeline — Qtd. oportunidades ganhas',
-    desc: 'Conta oportunidades com situação "ganha". Se a métrica tiver produto vinculado, filtra apenas oportunidades que contenham esse produto.',
+    desc: 'Conta oportunidades ganhas. Filtra por funil e/ou produto se configurados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
-      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
-      const ganhas = data.filter(o => o.situacao === 'ganha')
-      if (!pids.length) return ganhas.length
-      return ganhas.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id)))).length
+    fn: (data, metrica, funis) => {
+      const base = filtrarPorFunilEProduto(data, metrica, funis)
+      return base.filter(o => o.situacao === 'ganha').length
     },
   },
   {
     value: 'pipeline_opps_fechadas_valor',
     label: 'Pipeline — Valor total das oportunidades ganhas (R$)',
-    desc: 'Soma o campo "valor" das oportunidades ganhas. Se a métrica tiver produtos vinculados, soma apenas os subtotais desses produtos nos itens.',
+    desc: 'Soma o valor das oportunidades ganhas. Com produtos vinculados, soma apenas os subtotais desses itens.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
+    fn: (data, metrica, funis) => {
       const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
-      const ganhas = data.filter(o => o.situacao === 'ganha')
-      if (!pids.length) return ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0)
-      return ganhas.reduce((s, o) => {
+      const base = filtrarPorFunilEProduto(data, metrica, funis).filter(o => o.situacao === 'ganha')
+      if (!pids.length) return base.reduce((s, o) => s + (Number(o.valor) || 0), 0)
+      return base.reduce((s, o) => {
         const subtotal = (o.itens || [])
           .filter(i => pids.includes(String(i.produto_id)))
           .reduce((si, i) => si + (Number(i.subtotal) || 0), 0)
@@ -76,59 +103,53 @@ export const FONTES_CALCULO = [
   {
     value: 'pipeline_opps_abertas_qtd',
     label: 'Pipeline — Qtd. oportunidades em aberto',
-    desc: 'Conta oportunidades que não estão ganhas nem perdidas. Filtra por produtos se vinculados.',
+    desc: 'Conta oportunidades que não estão ganhas nem perdidas. Filtra por funil e/ou produto se configurados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
-      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
-      const abertas = data.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida')
-      if (!pids.length) return abertas.length
-      return abertas.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id)))).length
+    fn: (data, metrica, funis) => {
+      const base = filtrarPorFunilEProduto(data, metrica, funis)
+      return base.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida').length
     },
   },
   {
     value: 'pipeline_taxa_conversao',
     label: 'Pipeline — Taxa de conversão (%)',
-    desc: 'Percentual de oportunidades ganhas sobre o total. Filtra por produtos se vinculados.',
+    desc: 'Percentual de oportunidades ganhas sobre o total. Filtra por funil e/ou produto se configurados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
-      const pids = (metrica?.produto_ids || []).map(String).filter(Boolean)
-      const base = pids.length
-        ? data.filter(o => (o.itens || []).some(i => pids.includes(String(i.produto_id))))
-        : data
+    fn: (data, metrica, funis) => {
+      const base = filtrarPorFunilEProduto(data, metrica, funis)
       if (!base.length) return 0
-      const ganhas = base.filter(o => o.situacao === 'ganha').length
-      return Math.round((ganhas / base.length) * 100)
+      return Math.round((base.filter(o => o.situacao === 'ganha').length / base.length) * 100)
     },
   },
   {
     value: 'pipeline_opps_por_etapa',
     label: 'Pipeline — Qtd. oportunidades em etapa(s)',
-    desc: 'Conta oportunidades atualmente em uma ou mais etapas do funil. Selecione as etapas na configuração da métrica.',
+    desc: 'Conta oportunidades nas etapas selecionadas. Filtra por funil e/ou produto se configurados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
+    fn: (data, metrica, funis) => {
       const eids = (metrica?.etapa_ids || []).map(String).filter(Boolean)
-      if (!eids.length) return data.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida').length
-      return data.filter(o => eids.includes(String(o.etapa_id))).length
+      const base = filtrarPorFunilEProduto(data, metrica, funis)
+      if (!eids.length) return base.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida').length
+      return base.filter(o => eids.includes(String(o.etapa_id))).length
     },
   },
   {
     value: 'pipeline_conversao_por_etapa',
     label: 'Pipeline — Taxa de conversão a partir da etapa (%)',
-    desc: 'Das oportunidades que passaram pela(s) etapa(s) selecionada(s), percentual que foi marcado como ganha.',
+    desc: 'Das oportunidades nas etapas selecionadas, percentual que virou ganha. Filtra por funil e/ou produto se configurados.',
     modulos: ['pipeline'],
     storageKey: 'opps_cache_v1',
-    fn: (data, metrica) => {
+    fn: (data, metrica, funis) => {
       const eids = (metrica?.etapa_ids || []).map(String).filter(Boolean)
-      // Sem etapas configuradas: conversão global
+      const base = filtrarPorFunilEProduto(data, metrica, funis)
       const universo = eids.length
-        ? data.filter(o => eids.includes(String(o.etapa_id)) || o.situacao === 'ganha' || o.situacao === 'perdida')
-        : data
+        ? base.filter(o => eids.includes(String(o.etapa_id)) || o.situacao === 'ganha' || o.situacao === 'perdida')
+        : base
       if (!universo.length) return 0
-      const ganhas = universo.filter(o => o.situacao === 'ganha').length
-      return Math.round((ganhas / universo.length) * 100)
+      return Math.round((universo.filter(o => o.situacao === 'ganha').length / universo.length) * 100)
     },
   },
   {
@@ -171,7 +192,7 @@ const EMPTY = {
   valor_alvo: '', unidade: '', tendencia: 'subir',
   periodo: 1, intervalo: 'meses',
   data_inicio: '', data_fim: '',
-  usuario_ids: [], franquia_ids: [], produto_ids: [], etapa_ids: [],
+  usuario_ids: [], franquia_ids: [], produto_ids: [], funil_ids: [], etapa_ids: [],
   fonte_calculo: 'manual',
   cor: '#3B82F6', status: 'ativo',
 }
@@ -420,6 +441,7 @@ export default function Metricas() {
       ...form,
       valor_alvo: Number(form.valor_alvo),
       produto_ids: (form.produto_ids || []).map(String).filter(Boolean),
+      funil_ids:   (form.funil_ids   || []).map(String).filter(Boolean),
       etapa_ids:   (form.etapa_ids   || []).map(String).filter(Boolean),
     }
     if (editando === 'novo') {
@@ -636,6 +658,34 @@ export default function Metricas() {
             </div>
           </FPEField>
         </FPESection>
+
+        {/* Funis — visível para qualquer fonte de pipeline */}
+        {form.modulo === 'pipeline' && (funis || []).length > 1 && (
+          <FPESection title="Funil(is)" description="Restringe o cálculo a um ou mais funis específicos. Em branco = considera todos os funis.">
+            <FPEField label="Funis" style={{ gridColumn: '1/-1' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {(funis || []).map(funil => {
+                  const fid     = String(funil.id)
+                  const checked = (form.funil_ids || []).map(String).includes(fid)
+                  return (
+                    <label key={fid} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer',
+                      padding: '5px 8px', borderRadius: 6,
+                      background: checked ? 'var(--accent-lite)' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => {
+                        const ids = (form.funil_ids || []).map(String)
+                        set('funil_ids', checked ? ids.filter(x => x !== fid) : [...ids, fid])
+                      }} />
+                      <span style={{ fontSize: 13, color: 'var(--text)' }}>{funil.nome}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        ({(funil.etapas || []).length} etapas)
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            </FPEField>
+          </FPESection>
+        )}
 
         {/* Etapas do funil — só exibe para fontes por etapa */}
         {['pipeline_opps_por_etapa', 'pipeline_conversao_por_etapa'].includes(form.fonte_calculo) && (
