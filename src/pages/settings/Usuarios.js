@@ -368,7 +368,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
 
   const papeisDisp  = papeisCadastravelPor(sessao)
   const podeEditar  = sessao.papel === 'admin_isv' || (sessao.papel === 'admin_franquia' && perfil.empresa_id === sessao.empresa_id)
-  const podeExcluir = sessao.papel === 'admin_isv' && perfil.id !== sessao.id
+  const podeExcluir = sessao.papel === 'admin_isv' && perfil.id !== sessao.id && !perfil.is_owner
   const papelSel    = PAPEIS_OPTIONS.find(p => p.value === form.papel)
 
   function handleSave() {
@@ -392,6 +392,9 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     <FullPageEdit
       title={perfil.nome}
       subtitle={perfil.email}
+      badge={perfil.is_owner ? (
+        <span style={{ fontSize:10, fontWeight:700, color:'#fff', background:'var(--accent)', borderRadius:99, padding:'2px 8px', textTransform:'uppercase', letterSpacing:'0.05em' }}>Owner</span>
+      ) : undefined}
       onSave={podeEditar ? handleSave : undefined}
       onCancel={onClose}
     >

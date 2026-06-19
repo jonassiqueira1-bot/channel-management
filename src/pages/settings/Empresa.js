@@ -115,7 +115,9 @@ export default function EmpresaISV() {
   const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
   const isv = useMemo(() => companies.find(c => c.type === 'ISV'), [companies])
   const [form, setForm] = useState(null)
+  const [owner, setOwner] = useState({ nome: '', email: '' })
   const { branches, loading: loadingBranches, error: errorBranches, save: saveBranch, remove: removeBranch } = useBranches()
+  const jaTemOwner = branches.length > 0 // se já tem unidades, conta já foi criada
   const [editandoUnidade, setEditandoUnidade] = useState(null) // null | 'novo' | branch object
   const [formUnidade, setFormUnidade] = useState(null)
   const [confirmDelUnidade, setConfirmDelUnidade] = useState(false)
@@ -139,9 +141,11 @@ export default function EmpresaISV() {
     setForm(null)
   }
 
-  const nomeOk = current?.name?.trim().length > 0
-  const razaoOk = current?.corporate_name?.trim().length > 0
-  const podeGravar = nomeOk && razaoOk
+  const nomeOk    = current?.name?.trim().length > 0
+  const razaoOk   = current?.corporate_name?.trim().length > 0
+  const ownerNomeOk  = jaTemOwner || owner.nome.trim().length > 0
+  const ownerEmailOk = jaTemOwner || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner.email.trim())
+  const podeGravar = nomeOk && razaoOk && ownerNomeOk && ownerEmailOk
 
   // ── Unidade handlers ──
   function abrirNovaUnidade() {
@@ -337,17 +341,42 @@ export default function EmpresaISV() {
               onChange={e => set('corporate_name', e.target.value)} placeholder="Ex: NG Informática Tecnologia da Informação Ltda" />
           </FPEField>
         </FPEGrid>
-        {!podeGravar && (
+        {!(nomeOk && razaoOk) && (
           <div style={{ marginTop:8, padding:'8px 12px', background:'color-mix(in srgb, var(--accent) 8%, transparent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)', borderRadius:8, fontSize:12, color:'var(--accent)' }}>
             Preencha Nome da Organização e Razão Social para habilitar o cadastro.
           </div>
         )}
-        {!temMatriz && podeGravar && (
+        {!temMatriz && nomeOk && razaoOk && (
           <div style={{ marginTop:8, padding:'8px 12px', background:'rgba(16,185,129,0.08)', border:'1px solid rgba(16,185,129,0.25)', borderRadius:8, fontSize:12, color:'#10B981' }}>
             ★ Ao salvar, a Matriz será criada automaticamente com o nome da organização.
           </div>
         )}
       </FPESection>
+
+      {!jaTemOwner && (
+        <FPESection
+          title="Usuário responsável (Owner)"
+          description="O primeiro usuário da conta é obrigatório, terá papel de administrador e não poderá ser removido."
+        >
+          <FPEGrid>
+            <FPEField label="Nome completo" required style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" value={owner.nome}
+                onChange={e => setOwner(o => ({ ...o, nome: e.target.value }))}
+                placeholder="Ex: Jonas Siqueira" />
+            </FPEField>
+            <FPEField label="E-mail" required style={{ gridColumn:'1/-1' }}>
+              <input className="fpe-field" type="email" value={owner.email}
+                onChange={e => setOwner(o => ({ ...o, email: e.target.value }))}
+                placeholder="Ex: jonas@empresa.com.br" />
+            </FPEField>
+          </FPEGrid>
+          {(!ownerNomeOk || !ownerEmailOk) && (nomeOk && razaoOk) && (
+            <div style={{ marginTop:8, padding:'8px 12px', background:'color-mix(in srgb, var(--accent) 8%, transparent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)', borderRadius:8, fontSize:12, color:'var(--accent)' }}>
+              Informe nome e e-mail válido do responsável pela conta.
+            </div>
+          )}
+        </FPESection>
+      )}
 
       <FPESection
         title="Unidades"
