@@ -388,7 +388,8 @@ export default function SettingsIndicadores() {
       titulo="Indicadores"
       subtitulo="Defina o que medir e como calcular automaticamente"
       colunas={COLUNAS}
-      acoes={<button className="btn-primary" onClick={() => setEditando({ ...EMPTY })}>Novo indicador</button>}
+      onNew={() => setEditando({ ...EMPTY })}
+      newLabel="+ Novo indicador"
       busca={busca}
       onBusca={setBusca}
     >

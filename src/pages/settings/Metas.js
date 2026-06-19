@@ -217,7 +217,8 @@ export default function SettingsMetas() {
       titulo="Metas e KPIs"
       subtitulo="Instâncias com responsável, valor-alvo e período"
       colunas={COLUNAS}
-      acoes={<button className="btn-primary" onClick={() => setEditando({ ...EMPTY })}>Nova meta</button>}
+      onNew={() => setEditando({ ...EMPTY })}
+      newLabel="+ Nova meta"
       busca={busca}
       onBusca={setBusca}
     >
