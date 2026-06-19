@@ -445,45 +445,63 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       </FPESection>
 
       {/* Unidades */}
-      <FPESection title="Unidades com acesso">
+      <FPESection title="Unidades com acesso" description="O usuário terá acesso aos dados de todas as unidades marcadas.">
         {branches.length === 0 ? (
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
         ) : (
-          <FPEField label="Unidade" style={{ gridColumn:'1/-1' }}>
-            <select className="fpe-field" disabled={!podeEditar}
-              value={(form.branch_ids || [])[0] || ''}
-              onChange={e => podeEditar && setForm(f => ({ ...f, branch_ids: e.target.value ? [e.target.value] : [] }))}>
-              <option value="">— Selecione a unidade —</option>
-              {branches.map(b => {
-                const cf = b.custom_fields || {}
-                return (
-                  <option key={b.id} value={b.id}>
+          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
+            {branches.map(b => {
+              const cf = b.custom_fields || {}
+              const checked = (form.branch_ids || []).includes(b.id)
+              return (
+                <label key={b.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
+                  <input type="checkbox" disabled={!podeEditar} checked={checked}
+                    onChange={() => {
+                      if (!podeEditar) return
+                      setForm(f => {
+                        const ids = f.branch_ids || []
+                        return { ...f, branch_ids: ids.includes(b.id) ? ids.filter(x => x !== b.id) : [...ids, b.id] }
+                      })
+                    }}
+                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+                  <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
                     {cf.is_matriz ? '★ ' : ''}{b.name}{cf.cidade ? ` — ${cf.cidade}` : ''}
-                  </option>
-                )
-              })}
-            </select>
-          </FPEField>
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         )}
       </FPESection>
 
       {/* Perfis de acesso */}
-      <FPESection title="Perfis de acesso">
+      <FPESection title="Perfis de acesso" description="Define as permissões do usuário no sistema. Pode ter mais de um perfil.">
         {rolesStore.length === 0 ? (
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhum perfil configurado.</div>
         ) : (
-          <FPEField label="Perfil" style={{ gridColumn:'1/-1' }}>
-            <select className="fpe-field" disabled={!podeEditar}
-              value={(form.perfis_acesso_ids || [])[0] || ''}
-              onChange={e => podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: e.target.value ? [e.target.value] : [] }))}>
-              <option value="">— Selecione o perfil —</option>
-              {rolesStore.map(r => (
-                <option key={r.id} value={r.id}>{r.nome}</option>
-              ))}
-            </select>
-          </FPEField>
+          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
+            {rolesStore.map(r => {
+              const checked = (form.perfis_acesso_ids || []).includes(r.id)
+              return (
+                <label key={r.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
+                  <input type="checkbox" disabled={!podeEditar} checked={checked}
+                    onChange={() => {
+                      if (!podeEditar) return
+                      setForm(f => {
+                        const ids = f.perfis_acesso_ids || []
+                        return { ...f, perfis_acesso_ids: ids.includes(r.id) ? ids.filter(x => x !== r.id) : [...ids, r.id] }
+                      })
+                    }}
+                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+                  <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
+                    {r.nome}
+                  </span>
+                </label>
+              )
+            })}
+          </div>
         )}
       </FPESection>
 
