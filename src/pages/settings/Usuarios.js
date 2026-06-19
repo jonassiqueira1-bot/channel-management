@@ -347,10 +347,24 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     status:             perfil.status,
     perfis_acesso_ids:  perfil.perfis_acesso_ids || [],
     branch_ids:         perfil.branch_ids || [],
+    franquia_id:        perfil.franquia_id || null,
   })
   const [confirmDel, setConfirmDel] = useState(false)
-  const [rolesStore] = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const { branches } = useBranches()
+  const [rolesStore]  = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
+  const [franquias]   = useLocalState('settings:franquias_v2', [])
+  const { branches }  = useBranches()
+
+  const isAdminFranquia = form.papel === 'admin_franquia'
+
+  // Para não-admin: resolve a franquia a partir das unidades selecionadas
+  const franquiasDerived = isAdminFranquia ? [] : (() => {
+    const ids = new Set(
+      (form.branch_ids || [])
+        .map(bid => { const b = branches.find(x => x.id === bid); return b?.custom_fields?.franquia_id })
+        .filter(Boolean)
+    )
+    return franquias.filter(f => ids.has(String(f.id)))
+  })()
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })) }
   function toggleBranch(id) {
@@ -380,6 +394,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       status:            form.status,
       perfis_acesso_ids: form.perfis_acesso_ids,
       branch_ids:        form.branch_ids,
+      franquia_id:       isAdminFranquia ? form.franquia_id : null,
     })
     onClose()
   }
@@ -443,6 +458,31 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
           </select>
         </FPEField>
       </FPESection>
+
+      {/* Franquia — direto para admin_franquia, derivado para os demais */}
+      {isAdminFranquia ? (
+        <FPESection title="Franquia" description="Informe a franquia à qual este administrador está vinculado.">
+          <FPEField label="Franquia" style={{ gridColumn:'1/-1' }}>
+            <select className="fpe-field" disabled={!podeEditar} value={form.franquia_id || ''}
+              onChange={e => set('franquia_id', e.target.value || null)}>
+              <option value="">— Nenhuma —</option>
+              {franquias.filter(f => f.classificacao !== 'unidade').map(f => (
+                <option key={f.id} value={String(f.id)}>{f.codigo ? `[${f.codigo}] ` : ''}{f.nome}</option>
+              ))}
+            </select>
+          </FPEField>
+        </FPESection>
+      ) : franquiasDerived.length > 0 && (
+        <FPESection title="Franquia" description="Derivada automaticamente das unidades selecionadas.">
+          <div style={{ gridColumn:'1/-1', display:'flex', flexWrap:'wrap', gap:6 }}>
+            {franquiasDerived.map(f => (
+              <span key={f.id} style={{ fontSize:12, fontWeight:600, padding:'4px 12px', borderRadius:20, background:'var(--accent-lite)', color:'var(--accent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)' }}>
+                {f.codigo ? `[${f.codigo}] ` : ''}{f.nome}
+              </span>
+            ))}
+          </div>
+        </FPESection>
+      )}
 
       {/* Unidades */}
       <FPESection title="Unidades com acesso" description="O usuário terá acesso aos dados de todas as unidades marcadas.">

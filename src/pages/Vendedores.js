@@ -322,12 +322,8 @@ function ImportModal({ onClose, onDownloadTemplate, existingFunc, onImport }) {
 }
 
 // ─── Contato Canal modal (criar / editar) ─────────────────────────────────────
-function FuncionarioModal({ onClose, onSave, onDelete, initial, companies }) {
-  const franchiseOptions = useMemo(() =>
-    companies
-      .filter(c => c.type === 'FRANCHISE')
-      .map(c => ({ id: c.id, label: c.name, sublabel: c.type }))
-  , [companies])
+function FuncionarioModal({ onClose, onSave, onDelete, initial, companies, franquiasOpts = [] }) {
+  const franchiseOptions = franquiasOpts
 
   const [form, setForm] = useState(() => {
     if (!initial) return { ...EMPTY_FORM }
@@ -384,14 +380,16 @@ function FuncionarioModal({ onClose, onSave, onDelete, initial, companies }) {
         )
       case 'equipe':
         return (
-          <SearchSelect
-            options={franchiseOptions}
-            value={form.franquia_id}
-            onChange={(id, nome) => setForm(f => ({ ...f, franquia_id: id, franquia_nome: nome || '' }))}
-            placeholder="Pesquisar franquia…"
-            allowClear
-            inputStyle={m.input}
-          />
+          <select style={m.input} value={form.franquia_id || ''}
+            onChange={e => {
+              const opt = franchiseOptions.find(o => String(o.id) === e.target.value)
+              setForm(f => ({ ...f, franquia_id: e.target.value || null, franquia_nome: opt?.label || '' }))
+            }}>
+            <option value="">— Nenhuma —</option>
+            {franchiseOptions.map(o => (
+              <option key={o.id} value={o.id}>{o.sublabel ? `[${o.sublabel}] ` : ''}{o.label}</option>
+            ))}
+          </select>
         )
       case 'data_admissao': return null
       case 'meta_mensal':
@@ -570,7 +568,16 @@ function CardsView({ funcionarios, onEdit, selected, onToggleOne, companies }) {
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Vendedores() {
   const [companies]                     = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
+  const [franquiasCad]                  = useLocalState('settings:franquias_v2', [])
   const { sellers: funcionarios, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany, setFuncionarios } = useSellers()
+
+  // Franquias para seleção: usa o cadastro de Franquias (settings), fallback para companies legado
+  const franquiasOpts = useMemo(() =>
+    franquiasCad.length > 0
+      ? franquiasCad.filter(f => f.classificacao !== 'unidade' && f.situacao !== 'inativo')
+          .map(f => ({ id: String(f.id), label: f.nome, sublabel: f.codigo || '' }))
+      : companies.filter(c => c.type === 'FRANCHISE').map(c => ({ id: String(c.id), label: c.name, sublabel: '' }))
+  , [franquiasCad, companies])
 
   const [search, setSearch]             = useLocalState('func:search', '')
   const [filterType, setFilterType]     = useLocalState('func:filterType', '')
@@ -703,11 +710,7 @@ export default function Vendedores() {
     })
   }
 
-  const franchiseOptions = useMemo(() =>
-    companies
-      .filter(c => c.type === 'FRANCHISE')
-      .map(c => ({ id: c.id, label: c.name, sublabel: c.type }))
-  , [companies])
+  const franchiseOptions = franquiasOpts
 
   function setField(key, val) { setEditForm(f => ({ ...f, [key]: val })) }
 
@@ -767,15 +770,17 @@ export default function Vendedores() {
           </FPEField>
         </FPESection>
         <FPESection label="Equipe e empresa">
-          <FPEField label="Franquia / Equipe" span={2}>
-            <SearchSelect
-              options={franchiseOptions}
-              value={editForm.franquia_id}
-              onChange={(id, nome) => setEditForm(f => ({ ...f, franquia_id: id, franquia_nome: nome || '' }))}
-              placeholder="Pesquisar franquia…"
-              allowClear
-              inputStyle={{ padding: '0 10px', height: 36, border: '1px solid #D4D4D8', borderRadius: 6, fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box', outline: 'none', background: '#fff', color: '#18181B' }}
-            />
+          <FPEField label="Franquia" span={2}>
+            <select className="fpe-field" value={editForm.franquia_id || ''}
+              onChange={e => {
+                const opt = franchiseOptions.find(o => String(o.id) === e.target.value)
+                setEditForm(f => ({ ...f, franquia_id: e.target.value || null, franquia_nome: opt?.label || '' }))
+              }}>
+              <option value="">— Nenhuma —</option>
+              {franchiseOptions.map(o => (
+                <option key={o.id} value={o.id}>{o.sublabel ? `[${o.sublabel}] ` : ''}{o.label}</option>
+              ))}
+            </select>
           </FPEField>
         </FPESection>
         <FPESection label="Observações">

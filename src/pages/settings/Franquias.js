@@ -86,7 +86,7 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
             style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none', cursor:'pointer', fontSize:13, color:'var(--text-muted)' }}>
             Cancelar
           </button>
-          <button type="button" disabled={!podeConfirmar} onClick={() => onConfirmar({ classificacao, franquia_id: franquiaId || null })}
+          <button type="button" disabled={!podeConfirmar} onClick={() => onConfirm({ classificacao, franquia_id: franquiaId || null })}
             style={{ padding:'8px 18px', borderRadius:8, border:'none', background: podeConfirmar ? 'var(--accent)' : 'var(--border)', color:'#fff', cursor: podeConfirmar ? 'pointer' : 'default', fontSize:13, fontWeight:700, transition:'background 0.12s' }}>
             Aplicar
           </button>
@@ -270,7 +270,7 @@ export default function Franquias() {
         <BulkReclassifyModal
           ids={bulkModal}
           franquias={franquias}
-          onConfirmar={applyBulk}
+          onConfirm={applyBulk}
           onClose={() => setBulkModal(null)}
         />
       )}
