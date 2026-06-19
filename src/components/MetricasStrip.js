@@ -108,7 +108,7 @@ function useAutoCalculo(metrica) {
   const fonte = FONTES_CALCULO.find(f => f.value === metrica?.fonte_calculo)
   const [dados] = useLocalState(fonte?.storageKey || '__noop__', [])
   if (!fonte || fonte.value === 'manual' || !fonte.fn) return null
-  try { return fonte.fn(dados) } catch { return null }
+  try { return fonte.fn(dados, metrica) } catch { return null }
 }
 
 // Wrapper individual para cada métrica (hooks não podem ser condicionais)

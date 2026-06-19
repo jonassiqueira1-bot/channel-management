@@ -42,38 +42,56 @@ export const FONTES_CALCULO = [
   },
   {
     value: 'pipeline_opps_fechadas_qtd',
-    label: 'Pipeline — Qtd. oportunidades fechadas (ganho)',
-    desc: 'Conta o número de oportunidades com status "fechado-ganho" no período.',
+    label: 'Pipeline — Qtd. oportunidades ganhas',
+    desc: 'Conta oportunidades com situação "ganha". Se a métrica tiver produto vinculado, filtra apenas oportunidades que contenham esse produto.',
     modulos: ['pipeline'],
-    storageKey: 'opportunities',
-    fn: (data) => data.filter(o => o.status === 'fechado-ganho').length,
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const ganhas = data.filter(o => o.situacao === 'ganha')
+      if (!metrica?.produto_id) return ganhas.length
+      return ganhas.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id))).length
+    },
   },
   {
     value: 'pipeline_opps_fechadas_valor',
-    label: 'Pipeline — Valor total das oportunidades fechadas (ganho)',
-    desc: 'Soma o campo "valor" das oportunidades com status "fechado-ganho".',
+    label: 'Pipeline — Valor total das oportunidades ganhas (R$)',
+    desc: 'Soma o campo "valor" das oportunidades ganhas. Se a métrica tiver produto vinculado, soma apenas o subtotal desse produto nos itens.',
     modulos: ['pipeline'],
-    storageKey: 'opportunities',
-    fn: (data) => data.filter(o => o.status === 'fechado-ganho').reduce((s, o) => s + (Number(o.valor) || 0), 0),
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const ganhas = data.filter(o => o.situacao === 'ganha')
+      if (!metrica?.produto_id) return ganhas.reduce((s, o) => s + (Number(o.valor) || 0), 0)
+      return ganhas.reduce((s, o) => {
+        const item = (o.itens || []).find(i => String(i.produto_id) === String(metrica.produto_id))
+        return s + (item ? (Number(item.subtotal) || 0) : 0)
+      }, 0)
+    },
   },
   {
     value: 'pipeline_opps_abertas_qtd',
     label: 'Pipeline — Qtd. oportunidades em aberto',
-    desc: 'Conta oportunidades que não estão fechadas.',
+    desc: 'Conta oportunidades que não estão ganhas nem perdidas. Filtra por produto se a métrica tiver um vinculado.',
     modulos: ['pipeline'],
-    storageKey: 'opportunities',
-    fn: (data) => data.filter(o => o.status !== 'fechado-ganho' && o.status !== 'fechado-perdido').length,
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const abertas = data.filter(o => o.situacao !== 'ganha' && o.situacao !== 'perdida')
+      if (!metrica?.produto_id) return abertas.length
+      return abertas.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id))).length
+    },
   },
   {
     value: 'pipeline_taxa_conversao',
     label: 'Pipeline — Taxa de conversão (%)',
-    desc: 'Percentual de oportunidades fechadas com ganho sobre o total.',
+    desc: 'Percentual de oportunidades ganhas sobre o total. Filtra por produto se a métrica tiver um vinculado.',
     modulos: ['pipeline'],
-    storageKey: 'opportunities',
-    fn: (data) => {
-      if (!data.length) return 0
-      const ganhas = data.filter(o => o.status === 'fechado-ganho').length
-      return Math.round((ganhas / data.length) * 100)
+    storageKey: 'opps_cache_v1',
+    fn: (data, metrica) => {
+      const base = metrica?.produto_id
+        ? data.filter(o => (o.itens || []).some(i => String(i.produto_id) === String(metrica.produto_id)))
+        : data
+      if (!base.length) return 0
+      const ganhas = base.filter(o => o.situacao === 'ganha').length
+      return Math.round((ganhas / base.length) * 100)
     },
   },
   {
