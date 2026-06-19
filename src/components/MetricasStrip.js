@@ -96,16 +96,14 @@ function MetaChip({ meta, indicador, funis }) {
                   {fmtVal(alvo, indicador?.unidade)}
                 </div>
               </div>
-              {gap !== null && (
-                <div style={{ gridColumn: '1/-1' }}>
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
-                    {pct >= 100 ? 'Superado em' : 'Faltam'}
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: cfg.cor, fontFamily: 'var(--mono)' }}>
-                    {fmtVal(gap, indicador?.unidade)}
-                  </div>
+              <div style={{ gridColumn: '1/-1', marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>
+                  {pct >= 100 ? 'Superado em' : 'Faltam'}
                 </div>
-              )}
+                <div style={{ fontSize: 13, fontWeight: 700, color: cfg.cor, fontFamily: 'var(--mono)' }}>
+                  {gap !== null ? fmtVal(gap, indicador?.unidade) : '—'}
+                </div>
+              </div>
             </div>
           </div>
         </>
