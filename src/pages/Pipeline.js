@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useTasks } from '../hooks/useTasks'
+import { useOppMembros } from '../hooks/useOppMembros'
 import MetricasStrip from '../components/MetricasStrip'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
@@ -1748,7 +1749,7 @@ function UserAvatar({ usuario, size = 32 }) {
 // Carrega estado de localStorage (chave "opp_membros_v1") inicializado com os seeds.
 // Em produção, substituir por SELECT/INSERT/DELETE em oportunidade_membros via Supabase.
 function OppEquipeTab({ oppId }) {
-  const [membros, setMembros] = useLocalState('opp_membros_v1', MOCK_MEMBROS_OPP)
+  const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
   const { sellers }           = useSellers()
   const { contacts }          = useContacts()
 
@@ -1799,7 +1800,7 @@ function OppEquipeTab({ oppId }) {
       papel,
       tenant_id:       't1',
     }
-    setMembros(prev => [...prev, novoMembro])
+    addMembro(novoMembro)
     setSelUser(null)
     setQuery('')
     setPapel('vendedor')
@@ -1807,7 +1808,7 @@ function OppEquipeTab({ oppId }) {
   }
 
   function handleRemove(membroId) {
-    setMembros(prev => prev.filter(m => m.id !== membroId))
+    removeMembro(membroId)
   }
 
   const internos  = equipe.filter(m => m.tipo_membro === 'interno')
