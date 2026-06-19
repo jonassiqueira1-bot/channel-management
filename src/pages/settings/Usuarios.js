@@ -455,12 +455,12 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
                 const sel = Array.from(e.target.selectedOptions).map(o => o.value)
                 podeEditar && setForm(f => ({ ...f, branch_ids: sel }))
               }}
-              style={{ height: Math.min(branches.length, 6) * 36 + 2 }}
-              className="fpe-field">
+              className="fpe-field"
+              style={{ height:'auto', minHeight:80, backgroundImage:'none', padding:'4px 0' }}>
               {branches.map(b => {
                 const cf = b.custom_fields || {}
                 return (
-                  <option key={b.id} value={b.id}>
+                  <option key={b.id} value={b.id} style={{ padding:'7px 10px' }}>
                     {cf.is_matriz ? '★ ' : ''}{b.name}{cf.cidade ? ` — ${cf.cidade}` : ''}
                   </option>
                 )
@@ -482,10 +482,10 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
                 const sel = Array.from(e.target.selectedOptions).map(o => o.value)
                 podeEditar && setForm(f => ({ ...f, perfis_acesso_ids: sel }))
               }}
-              style={{ height: Math.min(rolesStore.length, 6) * 36 + 2 }}
-              className="fpe-field">
+              className="fpe-field"
+              style={{ height:'auto', minHeight:80, backgroundImage:'none', padding:'4px 0' }}>
               {rolesStore.map(r => (
-                <option key={r.id} value={r.id}>{r.nome}</option>
+                <option key={r.id} value={r.id} style={{ padding:'7px 10px' }}>{r.nome}</option>
               ))}
             </select>
           </FPEField>
