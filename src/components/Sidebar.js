@@ -27,7 +27,7 @@ const INITIAL_GROUPS = [
       { path: '/pipeline',         label: 'Pipeline',           iconKey: 'TrendingUp'      },
       { path: '/tarefas',          label: 'Tarefas',            iconKey: 'CheckSquare'     },
       { path: '/playbooks',        label: 'Playbooks',          iconKey: 'BookOpen'        },
-      { path: '/vendedores',       label: 'Vendedores',         iconKey: 'Users'           },
+      { path: '/vendedores',       label: 'Contatos Canais',    iconKey: 'Users'           },
       { path: '/acoes',            label: 'Ações',              iconKey: 'Zap'             },
       { path: '/empresas',         label: 'Empresas',           iconKey: 'Building2'       },
       { path: '/contatos',         label: 'Contatos',           iconKey: 'UserCircle'      },
