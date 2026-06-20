@@ -54,19 +54,21 @@ serve(async (req) => {
     if (!token) return json({ ok: false, error: 'Token RD Station não configurado para este tenant' }, 400)
 
     // Parâmetros da requisição
-    const url = new URL(req.url)
-    const page = url.searchParams.get('page') || '1'
-    const pageSince = integracao?.last_sync_at
-      ? `&created_at[from]=${integracao.last_sync_at}`
-      : ''
+    const reqUrl = new URL(req.url)
+    const page = reqUrl.searchParams.get('page') || '1'
 
-    // Chama API do RD Station Marketing
-    const rdUrl = `${RD_BASE}/platform/leads?page=${page}&page_size=50${pageSince}`
-    const rdResp = await fetch(rdUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
+    // RD Station Marketing API — token privado vai como query param
+    // Endpoint: GET /platform/conversions lista eventos de conversão
+    const rdUrl = new URL(`${RD_BASE}/platform/conversions`)
+    rdUrl.searchParams.set('auth_token', token)
+    rdUrl.searchParams.set('page', page)
+    rdUrl.searchParams.set('page_size', '50')
+    if (integracao?.last_sync_at) {
+      rdUrl.searchParams.set('created_at[from]', integracao.last_sync_at)
+    }
+
+    const rdResp = await fetch(rdUrl.toString(), {
+      headers: { 'Content-Type': 'application/json' },
     })
 
     if (!rdResp.ok) {
@@ -75,27 +77,34 @@ serve(async (req) => {
     }
 
     const rdData = await rdResp.json()
-    const leads: Record<string, unknown>[] = rdData.leads || rdData || []
+    // /platform/conversions retorna { conversions: [...], total: N }
+    // cada conversão tem { conversion_identifier, created_at, lead: { name, email, ... } }
+    const conversions: Record<string, unknown>[] = rdData.conversions || rdData.leads || (Array.isArray(rdData) ? rdData : [])
 
-    // Mapeia leads para formato de oportunidade
-    const oportunidades = leads.map((lead) => ({
-      titulo:       lead.name        || lead.email || 'Lead RD Station',
-      empresa_nome: lead.company_name || '',
-      contato_nome: lead.name         || '',
-      contato_email:lead.email        || '',
-      contato_fone: lead.mobile_phone || lead.phone || '',
-      origem:       'RD Station Marketing',
-      situacao:     'em_negociacao',
-      valor:        0,
-      descricao:    [
-        lead.city    ? `Cidade: ${lead.city}`    : '',
-        lead.state   ? `Estado: ${lead.state}`   : '',
-        lead.tags    ? `Tags: ${(lead.tags as string[]).join(', ')}` : '',
-        lead.personal_phone ? `Tel: ${lead.personal_phone}` : '',
-      ].filter(Boolean).join('\n'),
-      fonte:        'rd_station',
-      rd_lead_id:   lead.uuid || lead.id,
-    }))
+    const oportunidades = conversions.map((conv) => {
+      // suporte a conversão com lead aninhado ou lead direto
+      const lead = (conv.lead as Record<string, unknown>) || conv
+      return {
+        titulo:        (lead.name as string)         || (lead.email as string) || 'Lead RD Station',
+        empresa_nome:  (lead.company_name as string) || '',
+        contato_nome:  (lead.name as string)         || '',
+        contato_email: (lead.email as string)        || '',
+        contato_fone:  (lead.mobile_phone as string) || (lead.phone as string) || '',
+        origem:        'RD Station Marketing',
+        fonte_conversao: (conv.conversion_identifier as string) || '',
+        situacao:      'em_negociacao',
+        valor:         0,
+        descricao:     [
+          lead.city          ? `Cidade: ${lead.city}`           : '',
+          lead.state         ? `Estado: ${lead.state}`          : '',
+          lead.personal_phone? `Tel: ${lead.personal_phone}`    : '',
+          conv.conversion_identifier ? `Conversão: ${conv.conversion_identifier}` : '',
+          lead.tags          ? `Tags: ${(lead.tags as string[]).join(', ')}` : '',
+        ].filter(Boolean).join('\n'),
+        fonte:        'rd_station',
+        rd_lead_id:   (lead.uuid as string) || (lead.id as string) || (conv.id as string),
+      }
+    })
 
     // Atualiza last_sync_at e status
     await supabase
