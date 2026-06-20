@@ -1,10 +1,15 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import {
   X, Check, AlertCircle, Clock,
   Copy, CheckCheck, ExternalLink, RefreshCw,
   ToggleLeft, ToggleRight, Play, ArrowRight, Info,
+  Download, Loader,
 } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useAuth } from '../../contexts/AuthContext'
+import { useProfile } from '../../hooks/useProfile'
+import { useFunnels } from '../../hooks/useFunnels'
+import { supabase } from '../../lib/supabase'
 import {
   PROVIDERS, DEFAULT_SETTINGS, MOCK_LOGS,
   INTEGRATIONS_STORAGE_KEY,
@@ -12,6 +17,8 @@ import {
 import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection } from '../../components/ui'
+
+const SUPABASE_URL = 'https://kkvnvlfyswevlpnchilu.supabase.co'
 
 const ACCENT = 'var(--accent)'
 
@@ -401,6 +408,253 @@ function LogsTab({ providerId }) {
   )
 }
 
+// ─── RD Station: tab completa ─────────────────────────────────────────────────
+function RdStationTab({ toast }) {
+  const { session } = useAuth()
+  const { profile } = useProfile()
+  const { funis } = useFunnels()
+  const [allOpps, setAllOpps] = useLocalState('opps_cache_v1', [])
+
+  const [token, setToken]         = useState('')
+  const [funilId, setFunilId]     = useState('')
+  const [salvando, setSalvando]   = useState(false)
+  const [salvado, setSalvado]     = useState(false)
+  const [syncing, setSyncing]     = useState(false)
+  const [leads, setLeads]         = useState(null)   // resultado da sync
+  const [selecionados, setSelecionados] = useState(new Set())
+  const [lastSync, setLastSync]   = useState(null)
+  const [intStatus, setIntStatus] = useState('inactive')
+
+  // Carrega config salva do Supabase
+  useEffect(() => {
+    if (!profile?.tenant_id) return
+    supabase.from('integracoes')
+      .select('credentials, config, status, last_sync_at')
+      .eq('tenant_id', profile.tenant_id)
+      .eq('provider', 'rd_station')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setToken(data.credentials?.token_privado || '')
+        setFunilId(data.config?.funil_id || '')
+        setIntStatus(data.status || 'inactive')
+        setLastSync(data.last_sync_at)
+      })
+  }, [profile?.tenant_id])
+
+  async function salvarConfig() {
+    if (!token.trim()) { toast.show('Informe o token privado', 'error'); return }
+    if (!profile?.tenant_id) { toast.show('Tenant não identificado', 'error'); return }
+    setSalvando(true)
+    const payload = {
+      tenant_id:   profile.tenant_id,
+      provider:    'rd_station',
+      credentials: { token_privado: token.trim() },
+      config:      { funil_id: funilId },
+      status:      'active',
+      updated_at:  new Date().toISOString(),
+    }
+    const { error } = await supabase.from('integracoes').upsert(payload, { onConflict: 'tenant_id,provider' })
+    setSalvando(false)
+    if (error) { toast.show('Erro ao salvar: ' + error.message, 'error'); return }
+    setSalvado(true)
+    setIntStatus('active')
+    setTimeout(() => setSalvado(false), 3000)
+    toast.show('Configuração salva!')
+  }
+
+  async function sincronizar() {
+    if (!session?.access_token) { toast.show('Faça login para sincronizar', 'error'); return }
+    setSyncing(true)
+    setLeads(null)
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/functions/v1/rd-station-sync`, {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      const data = await resp.json()
+      if (!data.ok) throw new Error(data.error || 'Erro desconhecido')
+      setLeads(data.oportunidades || [])
+      setSelecionados(new Set((data.oportunidades || []).map((_, i) => i)))
+      setLastSync(new Date().toISOString())
+      toast.show(`${data.oportunidades?.length || 0} leads encontrados`)
+    } catch (err) {
+      toast.show('Erro na sincronização: ' + err.message, 'error')
+    }
+    setSyncing(false)
+  }
+
+  function toggleLead(i) {
+    setSelecionados(prev => {
+      const s = new Set(prev)
+      s.has(i) ? s.delete(i) : s.add(i)
+      return s
+    })
+  }
+
+  function importarSelecionados() {
+    if (!leads || !selecionados.size) return
+    const funil = funis.find(f => String(f.id) === String(funilId)) || funis[0]
+    const primeiraEtapa = funil?.etapas?.[0]
+    const novas = [...selecionados].map(i => {
+      const l = leads[i]
+      return {
+        id:           `rd_${Date.now()}_${i}`,
+        titulo:        l.titulo,
+        empresa_nome:  l.empresa_nome,
+        contato_nome:  l.contato_nome,
+        contato_email: l.contato_email,
+        contato_fone:  l.contato_fone,
+        descricao:     l.descricao,
+        origem:        'RD Station Marketing',
+        situacao:      'em_negociacao',
+        valor:         0,
+        funil_id:      funil?.id || '',
+        etapa_id:      primeiraEtapa?.id || '',
+        rd_lead_id:    l.rd_lead_id,
+        criado:        new Date().toISOString().slice(0, 10),
+      }
+    })
+    // Evita duplicatas por rd_lead_id
+    const existentes = new Set(allOpps.map(o => o.rd_lead_id).filter(Boolean))
+    const novasFiltradas = novas.filter(o => !existentes.has(o.rd_lead_id))
+    setAllOpps(prev => [...prev, ...novasFiltradas])
+    toast.show(`${novasFiltradas.length} oportunidade(s) criada(s) no Pipeline!`)
+    setLeads(null)
+  }
+
+  const funiAtivo = funis.find(f => String(f.id) === String(funilId)) || funis[0]
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+        {/* Status */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 10,
+          background: intStatus === 'active' ? '#F0FDF4' : 'var(--surface2)',
+          border: `1px solid ${intStatus === 'active' ? '#BBF7D0' : 'var(--border)'}` }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: intStatus === 'active' ? '#10B981' : '#94A3B8', flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 600, color: intStatus === 'active' ? '#065F46' : 'var(--text-muted)' }}>
+            {intStatus === 'active' ? 'Conectado' : 'Não configurado'}
+          </span>
+          {lastSync && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
+              Última sync: {new Date(lastSync).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+            </span>
+          )}
+        </div>
+
+        {/* Token */}
+        <div style={s.fieldGroup}>
+          <label style={s.label}>Token Privado <span style={{ color: 'var(--red)' }}>*</span></label>
+          <input
+            type="password"
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="Token privado do RD Station Marketing"
+            style={s.input}
+            autoComplete="off"
+          />
+          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            Encontre em: RD Station → Conta → Configurações → Token Privado
+          </span>
+        </div>
+
+        {/* Funil destino */}
+        <div style={s.fieldGroup}>
+          <label style={s.label}>Funil de destino dos leads</label>
+          <select style={{ ...s.input, cursor: 'pointer' }} value={funilId} onChange={e => setFunilId(e.target.value)}>
+            <option value="">— Funil padrão —</option>
+            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+          {funiAtivo && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Leads entram na etapa: <strong>{funiAtivo.etapas?.[0]?.nome || '—'}</strong>
+            </span>
+          )}
+        </div>
+
+        {/* Resultado da sync */}
+        {leads !== null && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+            <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                {leads.length} lead{leads.length !== 1 ? 's' : ''} encontrado{leads.length !== 1 ? 's' : ''}
+              </span>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => setSelecionados(new Set(leads.map((_, i) => i)))}
+                  style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Todos
+                </button>
+                <button onClick={() => setSelecionados(new Set())}
+                  style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                  Nenhum
+                </button>
+              </div>
+            </div>
+            {leads.length === 0 ? (
+              <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                Nenhum lead novo encontrado.
+              </div>
+            ) : (
+              <div style={{ maxHeight: 300, overflowY: 'auto' }}>
+                {leads.map((lead, i) => (
+                  <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px',
+                    borderBottom: i < leads.length - 1 ? '1px solid var(--border2)' : 'none',
+                    background: selecionados.has(i) ? 'var(--accent-glow)' : 'transparent', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selecionados.has(i)} onChange={() => toggleLead(i)} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{lead.titulo}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {[lead.empresa_nome, lead.contato_email].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+      </div>
+
+      {/* Footer */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', flexShrink: 0, gap: 10 }}>
+        <button onClick={sincronizar} disabled={syncing || !token}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8,
+            border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)',
+            fontSize: 13, fontWeight: 600, cursor: syncing || !token ? 'not-allowed' : 'pointer',
+            opacity: syncing || !token ? 0.5 : 1, fontFamily: 'var(--font)' }}>
+          {syncing ? <><Loader size={13} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} /> Sincronizando…</>
+                   : <><RefreshCw size={13} strokeWidth={2} /> Sincronizar agora</>}
+        </button>
+
+        <div style={{ display: 'flex', gap: 8 }}>
+          {leads !== null && selecionados.size > 0 && (
+            <button onClick={importarSelecionados}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8,
+                background: '#10B981', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
+                cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <Download size={13} strokeWidth={2.5} />
+              Importar {selecionados.size} lead{selecionados.size !== 1 ? 's' : ''}
+            </button>
+          )}
+          <button onClick={salvarConfig} disabled={salvando}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 20px', borderRadius: 8,
+              background: ACCENT, color: '#fff', border: 'none', fontSize: 13, fontWeight: 700,
+              cursor: salvando ? 'wait' : 'pointer', opacity: salvando ? 0.7 : 1, fontFamily: 'var(--font)' }}>
+            {salvando ? <><RefreshCw size={13} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} /> Salvando…</>
+                      : salvado ? <><Check size={13} strokeWidth={2.5} /> Salvo!</>
+                      : <><Check size={13} strokeWidth={2.5} /> Salvar configuração</>}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Aba: Configuração ────────────────────────────────────────────────────────
 function ConfigTab({ provider, setting, onSave, onDisconnect, toast }) {
   const [form, setForm] = useState(() => ({ ...setting.credentials }))
@@ -571,7 +825,10 @@ export default function Integracoes() {
           </div>
 
           <FPESection title="Configuração">
-            <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
+            {provider.supabase
+              ? <RdStationTab toast={toast} />
+              : <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
+            }
           </FPESection>
 
           {isWebhook && (

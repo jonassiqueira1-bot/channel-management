@@ -6,16 +6,13 @@ export const INTEGRATIONS_STORAGE_KEY = 'integrations:settings_v1'
 export const PROVIDERS = [
   {
     id:          'rd_station',
-    name:        'RD Station CRM',
-    description: 'Captura automática de oportunidades e sincronização de leads do CRM.',
+    name:        'RD Station Marketing',
+    description: 'Importa leads e conversões do RD Station Marketing como oportunidades no Pipeline.',
     category:    'CRM',
     color:       '#00C4A7',
+    supabase:    true,
     fields: [
-      { key: 'api_token', label: 'Token de API', type: 'password', placeholder: 'Insira o token da sua conta RD Station', required: true },
-      { key: 'webhook_secret', label: 'Webhook Secret', type: 'password', placeholder: 'Chave de verificação do webhook', required: false },
-      { key: 'map_cdu',  label: 'Campo → Receita CDU',      type: 'text', placeholder: 'Ex: cf_receita_cdu',     required: false },
-      { key: 'map_sms',  label: 'Campo → Receita SMS',      type: 'text', placeholder: 'Ex: cf_receita_sms',     required: false },
-      { key: 'map_serv', label: 'Campo → Receita Serviços', type: 'text', placeholder: 'Ex: cf_receita_servicos', required: false },
+      { key: 'token_privado', label: 'Token Privado', type: 'password', placeholder: 'Token privado da conta RD Station', required: true },
     ],
   },
   {
