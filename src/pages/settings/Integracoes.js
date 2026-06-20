@@ -869,22 +869,39 @@ export default function Integracoes() {
             </div>
           </div>
 
-          <FPESection title="Configuração">
-            {provider.supabase
-              ? <RdStationTab toast={toast} />
-              : <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
-            }
-          </FPESection>
+          {provider.supabase ? (
+            /* Layout lado a lado: config + logs ocupando todo o espaço */
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, alignItems:'stretch', marginTop:8 }}>
+              <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+                <p style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', margin:'0 0 12px' }}>Configuração</p>
+                <RdStationTab toast={toast} />
+              </div>
+              <div style={{ display:'flex', flexDirection:'column' }}>
+                <p style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', margin:'0 0 12px' }}>
+                  {`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}
+                </p>
+                <div style={{ flex:1, border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+                  <LogsTab providerId={provider.id}/>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <FPESection title="Configuração">
+                <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
+              </FPESection>
 
-          {isWebhook && (
-            <FPESection title="Mapeamento para Pipeline">
-              <WebhookMapeamentoTab toast={toast}/>
-            </FPESection>
+              {isWebhook && (
+                <FPESection title="Mapeamento para Pipeline">
+                  <WebhookMapeamentoTab toast={toast}/>
+                </FPESection>
+              )}
+
+              <FPESection title={`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}>
+                <LogsTab providerId={provider.id}/>
+              </FPESection>
+            </>
           )}
-
-          <FPESection title={`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}>
-            <LogsTab providerId={provider.id}/>
-          </FPESection>
         </FullPageEdit>
         <Toasts items={toast.toasts}/>
       </>
