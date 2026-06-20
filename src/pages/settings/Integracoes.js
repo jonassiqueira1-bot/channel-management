@@ -408,6 +408,11 @@ function LogsTab({ providerId }) {
   )
 }
 
+function gerarWebhookToken() {
+  return Array.from(crypto.getRandomValues(new Uint8Array(18)))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+}
+
 // ─── RD Station: tab completa ─────────────────────────────────────────────────
 function RdStationTab({ toast }) {
   const { session } = useAuth()
@@ -415,42 +420,44 @@ function RdStationTab({ toast }) {
   const { funis } = useFunnels()
   const [allOpps, setAllOpps] = useLocalState('opps_cache_v1', [])
 
-  const [token, setToken]         = useState('')
-  const [funilId, setFunilId]     = useState('')
-  const [salvando, setSalvando]   = useState(false)
-  const [salvado, setSalvado]     = useState(false)
-  const [syncing, setSyncing]     = useState(false)
-  const [leads, setLeads]         = useState(null)   // resultado da sync
+  const [funilId, setFunilId]       = useState('')
+  const [webhookToken, setWebhookToken] = useState('')
+  const [salvando, setSalvando]     = useState(false)
+  const [salvado, setSalvado]       = useState(false)
+  const [leads, setLeads]           = useState(null)
+  const [loadingLeads, setLoadingLeads] = useState(false)
   const [selecionados, setSelecionados] = useState(new Set())
-  const [lastSync, setLastSync]   = useState(null)
-  const [intStatus, setIntStatus] = useState('inactive')
+  const [lastSync, setLastSync]     = useState(null)
+  const [intStatus, setIntStatus]   = useState('inactive')
+  const [copiedUrl, setCopiedUrl]   = useState(false)
 
   // Carrega config salva do Supabase
   useEffect(() => {
     if (!profile?.tenant_id) return
     supabase.from('integracoes')
-      .select('credentials, config, status, last_sync_at')
+      .select('config, status, last_sync_at')
       .eq('tenant_id', profile.tenant_id)
       .eq('provider', 'rd_station')
       .maybeSingle()
       .then(({ data }) => {
         if (!data) return
-        setToken(data.credentials?.token_privado || '')
         setFunilId(data.config?.funil_id || '')
+        setWebhookToken(data.config?.webhook_token || '')
         setIntStatus(data.status || 'inactive')
         setLastSync(data.last_sync_at)
       })
   }, [profile?.tenant_id])
 
   async function salvarConfig() {
-    if (!token.trim()) { toast.show('Informe o token privado', 'error'); return }
     if (!profile?.tenant_id) { toast.show('Tenant não identificado', 'error'); return }
     setSalvando(true)
+    const wToken = webhookToken || gerarWebhookToken()
+    if (!webhookToken) setWebhookToken(wToken)
     const payload = {
       tenant_id:   profile.tenant_id,
       provider:    'rd_station',
-      credentials: { token_privado: token.trim() },
-      config:      { funil_id: funilId },
+      credentials: {},
+      config:      { funil_id: funilId, webhook_token: wToken },
       status:      'active',
       updated_at:  new Date().toISOString(),
     }
@@ -460,30 +467,52 @@ function RdStationTab({ toast }) {
     setSalvado(true)
     setIntStatus('active')
     setTimeout(() => setSalvado(false), 3000)
-    toast.show('Configuração salva!')
+    toast.show('Configuração salva! Cole a URL do webhook no RD Station.')
   }
 
-  async function sincronizar() {
-    if (!session?.access_token) { toast.show('Faça login para sincronizar', 'error'); return }
-    setSyncing(true)
-    setLeads(null)
-    try {
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/rd-station-sync`, {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      const data = await resp.json()
-      if (!data.ok) throw new Error(data.error || 'Erro desconhecido')
-      setLeads(data.oportunidades || [])
-      setSelecionados(new Set((data.oportunidades || []).map((_, i) => i)))
-      setLastSync(new Date().toISOString())
-      toast.show(`${data.oportunidades?.length || 0} leads encontrados`)
-    } catch (err) {
-      toast.show('Erro na sincronização: ' + err.message, 'error')
-    }
-    setSyncing(false)
+  async function buscarLeadsPendentes() {
+    if (!profile?.tenant_id) return
+    setLoadingLeads(true)
+    const { data, error } = await supabase
+      .from('rd_leads_queue')
+      .select('id, payload, created_at')
+      .eq('tenant_id', profile.tenant_id)
+      .eq('processed', false)
+      .order('created_at', { ascending: false })
+    setLoadingLeads(false)
+    if (error) { toast.show('Erro ao buscar leads: ' + error.message, 'error'); return }
+    const mapeados = (data || []).map((row, i) => {
+      const p = row.payload
+      const lead = p.leads?.[0] || p.lead || p
+      return {
+        _queueId:      row.id,
+        titulo:        lead.name || lead.email || 'Lead RD Station',
+        empresa_nome:  lead.company_name || '',
+        contato_nome:  lead.name || '',
+        contato_email: lead.email || '',
+        contato_fone:  lead.mobile_phone || lead.phone || '',
+        descricao:     [
+          lead.city  ? `Cidade: ${lead.city}` : '',
+          lead.state ? `Estado: ${lead.state}` : '',
+          p.conversion_identifier ? `Conversão: ${p.conversion_identifier}` : '',
+        ].filter(Boolean).join('\n'),
+        rd_lead_id:    lead.uuid || lead.id || row.id,
+        fonte:         'rd_station',
+        criado_em:     row.created_at,
+      }
+    })
+    setLeads(mapeados)
+    setSelecionados(new Set(mapeados.map((_, i) => i)))
+    if (!mapeados.length) toast.show('Nenhum lead pendente no momento.')
+    else toast.show(`${mapeados.length} lead(s) aguardando importação`)
+  }
+
+  function copyWebhookUrl() {
+    const url = `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(true)
+      setTimeout(() => setCopiedUrl(false), 2500)
+    })
   }
 
   function toggleLead(i) {
@@ -494,14 +523,16 @@ function RdStationTab({ toast }) {
     })
   }
 
-  function importarSelecionados() {
+  async function importarSelecionados() {
     if (!leads || !selecionados.size) return
     const funil = funis.find(f => String(f.id) === String(funilId)) || funis[0]
     const primeiraEtapa = funil?.etapas?.[0]
-    const novas = [...selecionados].map(i => {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const selecionadosArr = [...selecionados]
+    const novas = selecionadosArr.map((i, idx) => {
       const l = leads[i]
       return {
-        id:           `rd_${Date.now()}_${i}`,
+        id:           `rd_${Date.now()}_${idx}`,
         titulo:        l.titulo,
         empresa_nome:  l.empresa_nome,
         contato_nome:  l.contato_nome,
@@ -514,18 +545,29 @@ function RdStationTab({ toast }) {
         funil_id:      funil?.id || '',
         etapa_id:      primeiraEtapa?.id || '',
         rd_lead_id:    l.rd_lead_id,
-        criado:        new Date().toISOString().slice(0, 10),
+        criado:        hoje,
       }
     })
-    // Evita duplicatas por rd_lead_id
     const existentes = new Set(allOpps.map(o => o.rd_lead_id).filter(Boolean))
     const novasFiltradas = novas.filter(o => !existentes.has(o.rd_lead_id))
     setAllOpps(prev => [...prev, ...novasFiltradas])
+
+    // Marca como processado no Supabase
+    const queueIds = selecionadosArr.map(i => leads[i]._queueId).filter(Boolean)
+    if (queueIds.length > 0) {
+      await supabase.from('rd_leads_queue')
+        .update({ processed: true, opp_id: novasFiltradas[0]?.id || null })
+        .in('id', queueIds)
+    }
+
     toast.show(`${novasFiltradas.length} oportunidade(s) criada(s) no Pipeline!`)
     setLeads(null)
   }
 
   const funiAtivo = funis.find(f => String(f.id) === String(funilId)) || funis[0]
+  const webhookUrl = webhookToken
+    ? `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    : ''
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
@@ -537,30 +579,37 @@ function RdStationTab({ toast }) {
           border: `1px solid ${intStatus === 'active' ? '#BBF7D0' : 'var(--border)'}` }}>
           <span style={{ width: 8, height: 8, borderRadius: '50%', background: intStatus === 'active' ? '#10B981' : '#94A3B8', flexShrink: 0 }} />
           <span style={{ fontSize: 13, fontWeight: 600, color: intStatus === 'active' ? '#065F46' : 'var(--text-muted)' }}>
-            {intStatus === 'active' ? 'Conectado' : 'Não configurado'}
+            {intStatus === 'active' ? 'Webhook ativo' : 'Não configurado — salve para gerar a URL'}
           </span>
           {lastSync && (
             <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>
-              Última sync: {new Date(lastSync).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+              Último lead: {new Date(lastSync).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
 
-        {/* Token */}
-        <div style={s.fieldGroup}>
-          <label style={s.label}>Token Privado <span style={{ color: 'var(--red)' }}>*</span></label>
-          <input
-            type="password"
-            value={token}
-            onChange={e => setToken(e.target.value)}
-            placeholder="Token privado do RD Station Marketing"
-            style={s.input}
-            autoComplete="off"
-          />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Encontre em: RD Station → Conta → Configurações → Token Privado
-          </span>
-        </div>
+        {/* URL do Webhook */}
+        {webhookUrl ? (
+          <div style={s.fieldGroup}>
+            <label style={s.label}>URL do Webhook</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input readOnly value={webhookUrl} style={{ ...s.input, flex: 1, fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface2)' }} />
+              <button onClick={copyWebhookUrl}
+                style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: copiedUrl ? '#F0FDF4' : 'var(--surface)', color: copiedUrl ? '#10B981' : 'var(--text)',
+                  fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font)' }}>
+                {copiedUrl ? 'Copiado!' : 'Copiar'}
+              </button>
+            </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Cole esta URL no RD Station: Configurações → Automações → Webhooks → Nova URL. Quando um lead é criado, ele chega aqui automaticamente.
+            </span>
+          </div>
+        ) : (
+          <div style={{ padding: '12px 16px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+            Salve a configuração para gerar a URL do webhook que deve ser cadastrada no RD Station.
+          </div>
+        )}
 
         {/* Funil destino */}
         <div style={s.fieldGroup}>
@@ -576,27 +625,23 @@ function RdStationTab({ toast }) {
           )}
         </div>
 
-        {/* Resultado da sync */}
+        {/* Lista de leads pendentes */}
         {leads !== null && (
           <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-                {leads.length} lead{leads.length !== 1 ? 's' : ''} encontrado{leads.length !== 1 ? 's' : ''}
+                {leads.length} lead{leads.length !== 1 ? 's' : ''} pendente{leads.length !== 1 ? 's' : ''}
               </span>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setSelecionados(new Set(leads.map((_, i) => i)))}
-                  style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  Todos
-                </button>
+                  style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Todos</button>
                 <button onClick={() => setSelecionados(new Set())}
-                  style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  Nenhum
-                </button>
+                  style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Nenhum</button>
               </div>
             </div>
             {leads.length === 0 ? (
               <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                Nenhum lead novo encontrado.
+                Nenhum lead pendente no momento.
               </div>
             ) : (
               <div style={{ maxHeight: 300, overflowY: 'auto' }}>
@@ -608,7 +653,7 @@ function RdStationTab({ toast }) {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{lead.titulo}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                        {[lead.empresa_nome, lead.contato_email].filter(Boolean).join(' · ')}
+                        {[lead.empresa_nome, lead.contato_email, lead.criado_em ? new Date(lead.criado_em).toLocaleDateString('pt-BR') : ''].filter(Boolean).join(' · ')}
                       </div>
                     </div>
                   </label>
@@ -622,13 +667,13 @@ function RdStationTab({ toast }) {
 
       {/* Footer */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 24px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', flexShrink: 0, gap: 10 }}>
-        <button onClick={sincronizar} disabled={syncing || !token}
+        <button onClick={buscarLeadsPendentes} disabled={loadingLeads || !webhookToken}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8,
             border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)',
-            fontSize: 13, fontWeight: 600, cursor: syncing || !token ? 'not-allowed' : 'pointer',
-            opacity: syncing || !token ? 0.5 : 1, fontFamily: 'var(--font)' }}>
-          {syncing ? <><Loader size={13} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} /> Sincronizando…</>
-                   : <><RefreshCw size={13} strokeWidth={2} /> Sincronizar agora</>}
+            fontSize: 13, fontWeight: 600, cursor: loadingLeads || !webhookToken ? 'not-allowed' : 'pointer',
+            opacity: loadingLeads || !webhookToken ? 0.5 : 1, fontFamily: 'var(--font)' }}>
+          {loadingLeads ? <><Loader size={13} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} /> Buscando…</>
+                        : <><RefreshCw size={13} strokeWidth={2} /> Ver leads pendentes</>}
         </button>
 
         <div style={{ display: 'flex', gap: 8 }}>
