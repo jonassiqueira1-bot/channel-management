@@ -1034,57 +1034,6 @@ function RdStationTab({ toast }) {
           )}
         </div>
 
-        {/* ── Mapeamento de campos ── */}
-        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos</span>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>campo do sistema externo → nosso campo</span>
-          </div>
-          <div style={{ background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  <th style={{ padding: '8px 12px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', background: 'var(--surface2)' }}>Nosso campo</th>
-                  <th style={{ padding: '8px 12px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', background: 'var(--surface2)' }}>Campo do sistema externo (ex: lead.name)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                  <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
-                    <td style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>{campo.label}</td>
-                    <td style={{ padding: '4px 8px' }}>
-                      <input
-                        value={mapeamento[campo.key] || ''}
-                        onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
-                        placeholder={`ex: ${campo.key === 'titulo' ? 'lead.name' : campo.key === 'contato_email' ? 'email' : campo.key}`}
-                        style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
-            Use notação de ponto para campos aninhados: <code style={{ background: 'var(--surface2)', padding: '1px 4px', borderRadius: 3 }}>lead.name</code>, <code style={{ background: 'var(--surface2)', padding: '1px 4px', borderRadius: 3 }}>deal.value</code>. Deixe em branco para usar o padrão.
-          </span>
-        </div>
-
-        {/* ── Campanha associada ── */}
-        {campanhas.length > 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Campanha associada</label>
-            <select value={campanhaId} onChange={e => setCampanhaId(e.target.value)}
-              style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
-              <option value="">— Nenhuma campanha —</option>
-              {campanhas.map(c => <option key={c.id} value={c.id}>{c.nome || c.name}</option>)}
-            </select>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Leads importados desta integração serão automaticamente vinculados a esta campanha.
-            </span>
-          </div>
-        )}
-
         {/* Lista de leads pendentes */}
         {leads !== null && (
           <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
