@@ -723,6 +723,55 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                   {funiAtivo && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads entram em: <strong>{funiAtivo.etapas?.[0]?.nome || '—'}</strong></span>}
                 </div>
 
+                {/* ── Mapeamento de campos ── */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>campo externo → nosso campo</span>
+                  </div>
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
+                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', width: '40%' }}>{campo.label}</td>
+                            <td style={{ padding: '3px 6px' }}>
+                              <input
+                                value={mapeamento[campo.key] || ''}
+                                onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
+                                placeholder={campo.key === 'titulo' ? 'lead.name' : campo.key === 'contato_email' ? 'email' : campo.key}
+                                style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    Use ponto para aninhados: <code style={{ background: 'var(--surface2)', padding: '1px 3px', borderRadius: 3 }}>lead.name</code>. Vazio = valor padrão.
+                  </span>
+                </div>
+
+                {/* ── Campanha associada ── */}
+                {campanhas.length > 0 && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Campanha associada</label>
+                    <select value={campanhaId} onChange={e => setCampanhaId(e.target.value)}
+                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                      <option value="">— Nenhuma campanha —</option>
+                      {campanhas.map(c => <option key={c.id} value={c.id}>{c.nome || c.name}</option>)}
+                    </select>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads importados entram vinculados a esta campanha.</span>
+                  </div>
+                )}
+
                 {/* Leads pendentes */}
                 {leads !== null && leads.length > 0 && (
                   <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
