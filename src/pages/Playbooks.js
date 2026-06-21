@@ -5,7 +5,7 @@ import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import Button from '../components/Button'
-import { FullPageEdit, FPESection, FPEField } from '../components/ui'
+import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
@@ -110,33 +110,6 @@ function MarkdownRenderer({ content }) {
   )
 }
 
-// ─── Modals ───────────────────────────────────────────────────────────────────
-function Modal({ title, onClose, onSave, saveLabel = 'Salvar', valid = true, children }) {
-  return (
-    <div style={m.overlay} onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={m.box}>
-        <div style={m.header}>
-          <span style={m.title}>{title}</span>
-          <button onClick={onClose} style={m.close}>✕</button>
-        </div>
-        <div style={m.body}>{children}</div>
-        <div style={m.footer}>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button onClick={onSave} disabled={!valid}>{saveLabel}</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, children }) {
-  return (
-    <div>
-      <div style={m.lbl}>{label}</div>
-      {children}
-    </div>
-  )
-}
 
 // ─── Objeções — config ────────────────────────────────────────────────────────
 const OBJ_CATS = {
@@ -345,14 +318,20 @@ function ObjecoesTab({ objecoes = [], onChange }) {
   )
 }
 
-// ─── New / Edit Playbook FullPage ────────────────────────────────────────────
+// ─── New / Edit Playbook SlideOver ───────────────────────────────────────────
 const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [] }
 
-function PlaybookFullPage({ initial, onSave, onClose, onDelete }) {
+function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete }) {
   const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
-  const [tab, setTab] = useState('info')
+  const [tab, setTab]   = useState('info')
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  // Sync form when initial changes (open different playbook)
+  useMemo(() => {
+    setForm(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
+    setTab('info')
+  }, [initial])
 
   function handleSave() {
     if (!form.title.trim()) { setTab('info'); return }
@@ -362,77 +341,82 @@ function PlaybookFullPage({ initial, onSave, onClose, onDelete }) {
   }
 
   const TABS = [
-    { key: 'info',      label: 'Identificação' },
-    { key: 'objecoes',  label: `Objeções${form.objecoes?.length ? ` (${form.objecoes.length})` : ''}` },
+    { key: 'info',     label: 'Identificação' },
+    { key: 'objecoes', label: 'Objeções', badge: form.objecoes?.length || undefined },
   ]
 
+  const tabStyle = { flex: 1, overflowY: 'auto', padding: '20px' }
+
   return (
-    <FullPageEdit
-      breadcrumb={[{ label: 'Playbooks', onClick: onClose }]}
-      title={initial?.id ? initial.title || 'Playbook' : 'Novo Playbook'}
-      subtitle={initial?.id ? 'Editar dados do playbook' : 'Configure o novo playbook'}
+    <SlideOver
+      open={open}
+      onClose={onClose}
       onSave={handleSave}
-      onCancel={onClose}
-      onDelete={initial?.id && onDelete ? () => onDelete(initial.id) : undefined}
+      title={initial?.id ? (initial.title || 'Playbook') : 'Novo Playbook'}
+      subtitle={initial?.id ? 'Editar dados do playbook' : 'Configure o novo playbook'}
+      tabs={TABS}
+      activeTab={tab}
+      onTabChange={setTab}
       saving={saving}
       saveLabel={initial?.id ? 'Salvar alterações' : 'Criar Playbook'}
+      headerActions={initial?.id && onDelete && (
+        <button type="button" onClick={() => onDelete(initial.id)}
+          style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: '1px solid var(--red)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)', opacity: 0.8 }}>
+          Excluir
+        </button>
+      )}
     >
-      {/* tab bar */}
-      <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--border)', marginBottom: 4, gridColumn: '1 / -1' }}>
-        {TABS.map(t => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)} style={{
-            padding: '8px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontFamily: 'var(--font)', fontSize: 13, fontWeight: tab === t.key ? 700 : 500,
-            color: tab === t.key ? 'var(--accent)' : 'var(--text-muted)',
-            borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
-            marginBottom: -1,
-          }}>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'info' && <>
-        <FPESection label="Identificação" noBorder>
-          <FPEField label="Título" required span={2}>
-            <input className="fpe-field" value={form.title} onChange={e => set('title', e.target.value)}
-              placeholder="Ex: Canal NG Pro — Vendas para SaaS/ISV" />
-          </FPEField>
-          <FPEField label="Segmento">
-            <select className="fpe-field" value={form.segment} onChange={e => set('segment', e.target.value)}>
-              {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </FPEField>
-          <FPEField label="Funil (opcional)">
-            <select className="fpe-field" value={form.funil_id} onChange={e => set('funil_id', e.target.value)}>
-              <option value="">— Nenhum —</option>
-              {MOCK_FUNIS.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
-            </select>
-          </FPEField>
-          <FPEField label="Produto (opcional)">
-            <select className="fpe-field" value={form.produto_id} onChange={e => set('produto_id', e.target.value)}>
-              <option value="">— Nenhum —</option>
-              {MOCK_PRODUTOS.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
-            </select>
-          </FPEField>
-        </FPESection>
-        <FPESection label="Descrição">
-          <FPEField label="Descrição" span={2}>
-            <textarea className="fpe-field" value={form.description} onChange={e => set('description', e.target.value)}
-              rows={4} placeholder="Descreva o objetivo e público-alvo deste playbook…" />
-          </FPEField>
-        </FPESection>
-      </>}
+      {tab === 'info' && (
+        <div style={tabStyle}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <FormGrid cols={2}>
+              <FormField label="Título" required span={2}>
+                <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
+                  placeholder="Ex: Canal NG Pro — Vendas para SaaS/ISV" />
+              </FormField>
+              <FormField label="Segmento">
+                <select className="so-field" value={form.segment} onChange={e => set('segment', e.target.value)}>
+                  {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Funil (opcional)">
+                <select className="so-field" value={form.funil_id} onChange={e => set('funil_id', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  {MOCK_FUNIS.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Produto (opcional)" span={2}>
+                <select className="so-field" value={form.produto_id} onChange={e => set('produto_id', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  {MOCK_PRODUTOS.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Descrição" span={2}>
+                <textarea className="so-field" value={form.description} onChange={e => set('description', e.target.value)}
+                  rows={4} placeholder="Descreva o objetivo e público-alvo deste playbook…" />
+              </FormField>
+            </FormGrid>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave} loading={saving}>{initial?.id ? 'Salvar alterações' : 'Criar Playbook'}</Button>
+          </div>
+        </div>
+      )}
 
       {tab === 'objecoes' && (
-        <div style={{ gridColumn: '1 / -1', paddingTop: 8 }}>
+        <div style={tabStyle}>
           <ObjecoesTab
             objecoes={form.objecoes || []}
             onChange={v => set('objecoes', v)}
           />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave} loading={saving}>{initial?.id ? 'Salvar alterações' : 'Criar Playbook'}</Button>
+          </div>
         </div>
       )}
-    </FullPageEdit>
+    </SlideOver>
   )
 }
 
@@ -448,94 +432,102 @@ const oe = {
   iconBtn:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: 14, padding: '2px 4px', lineHeight: 1 },
 }
 
-// ─── Step modal ───────────────────────────────────────────────────────────────
+// ─── Step SlideOver ───────────────────────────────────────────────────────────
 const EMPTY_STEP = { stage: 'prospeccao', title: '', content: '' }
 
-function StepModal({ initial, onSave, onClose }) {
+function StepSlideOver({ open, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_STEP)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  useMemo(() => { setForm(initial || EMPTY_STEP) }, [initial])
   return (
-    <Modal title={initial?.id ? 'Editar etapa' : 'Adicionar etapa'} onClose={onClose}
-      onSave={() => onSave(form)} valid={form.title.trim().length > 0}>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <Field label="Etapa">
-          <select value={form.stage} onChange={e => set('stage', e.target.value)} style={m.inp}>
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      onSave={() => onSave(form)}
+      title={initial?.id ? 'Editar etapa' : 'Adicionar etapa'}
+      columns={1}
+      saveLabel="Salvar etapa"
+    >
+      <FormGrid cols={2}>
+        <FormField label="Etapa">
+          <select className="so-field" value={form.stage} onChange={e => set('stage', e.target.value)}>
             {Object.entries(STAGE_CFG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
           </select>
-        </Field>
-        <div style={{ flex: 1 }}>
-          <Field label="Título">
-            <input value={form.title} onChange={e => set('title', e.target.value)} style={m.inp} placeholder="Ex: Identificando o Parceiro Ideal" />
-          </Field>
-        </div>
-      </div>
-      <Field label="Conteúdo (Markdown)">
-        <textarea value={form.content} onChange={e => set('content', e.target.value)}
-          rows={12} style={{ ...m.inp, fontFamily: 'var(--mono)', fontSize: 12, resize: 'vertical', lineHeight: 1.6 }}
+        </FormField>
+        <FormField label="Título" required>
+          <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
+            placeholder="Ex: Identificando o Parceiro Ideal" />
+        </FormField>
+      </FormGrid>
+      <FormField label="Conteúdo (Markdown)" span={2}>
+        <textarea className="so-field" value={form.content} onChange={e => set('content', e.target.value)}
+          rows={16} style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.6 }}
           placeholder={'## Título da seção\n\nConteúdo em Markdown...'} />
-      </Field>
-    </Modal>
+      </FormField>
+    </SlideOver>
   )
 }
 
-// ─── Reference modal ──────────────────────────────────────────────────────────
+// ─── Reference SlideOver ──────────────────────────────────────────────────────
 const EMPTY_REF = { company_name: '', logo_initials: '', logo_color: 'var(--accent)', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
 
-function ReferenceModal({ initial, onSave, onClose }) {
+function ReferenceSlideOver({ open, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_REF)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setResult = (i, k, v) => setForm(f => { const r = [...f.results]; r[i] = { ...r[i], [k]: v }; return { ...f, results: r } })
+  useMemo(() => { setForm(initial || EMPTY_REF) }, [initial])
   return (
-    <Modal title={initial?.id ? 'Editar cliente de referência' : 'Novo cliente de referência'} onClose={onClose}
-      onSave={() => onSave(form)} valid={form.company_name.trim().length > 0}>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <Field label="Empresa"><input value={form.company_name} onChange={e => set('company_name', e.target.value)} style={m.inp} placeholder="Ex: FinCorp Sistemas" /></Field>
-        </div>
-        <div style={{ width: 90 }}>
-          <Field label="Sigla"><input value={form.logo_initials} onChange={e => set('logo_initials', e.target.value)} style={m.inp} maxLength={3} placeholder="FC" /></Field>
-        </div>
-      </div>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <Field label="Região">
-            <select value={form.region} onChange={e => set('region', e.target.value)} style={m.inp}>
-              {REGION_OPTIONS.map(r => <option key={r}>{r}</option>)}
-            </select>
-          </Field>
-        </div>
-        <div style={{ flex: 2 }}>
-          <Field label="Resumo (1 linha)"><input value={form.summary} onChange={e => set('summary', e.target.value)} style={m.inp} placeholder="Ex: MRR cresceu 38% em 4 meses." /></Field>
-        </div>
-      </div>
-      <div>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-          <span style={m.lbl}>Resultados</span>
-          <button onClick={() => setForm(f => ({ ...f, results: [...f.results, { label: '', value: '' }] }))}
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      onSave={() => onSave(form)}
+      title={initial?.id ? 'Editar cliente de referência' : 'Novo cliente de referência'}
+      columns={2}
+      saveLabel="Salvar"
+    >
+      <FormField label="Empresa" required>
+        <input className="so-field" value={form.company_name} onChange={e => set('company_name', e.target.value)} placeholder="Ex: FinCorp Sistemas" />
+      </FormField>
+      <FormField label="Sigla">
+        <input className="so-field" value={form.logo_initials} onChange={e => set('logo_initials', e.target.value)} maxLength={3} placeholder="FC" />
+      </FormField>
+      <FormField label="Região">
+        <select className="so-field" value={form.region} onChange={e => set('region', e.target.value)}>
+          {REGION_OPTIONS.map(r => <option key={r}>{r}</option>)}
+        </select>
+      </FormField>
+      <FormField label="Resumo (1 linha)">
+        <input className="so-field" value={form.summary} onChange={e => set('summary', e.target.value)} placeholder="Ex: MRR cresceu 38% em 4 meses." />
+      </FormField>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>Resultados</span>
+          <button type="button" onClick={() => setForm(f => ({ ...f, results: [...f.results, { label: '', value: '' }] }))}
             style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Adicionar</button>
         </div>
         {form.results.map((r, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
-            <input value={r.label} onChange={e => setResult(i, 'label', e.target.value)} style={{ ...m.inp, flex: 1 }} placeholder="Rótulo" />
-            <input value={r.value} onChange={e => setResult(i, 'value', e.target.value)} style={{ ...m.inp, flex: 1 }} placeholder="Valor" />
+            <input className="so-field" value={r.label} onChange={e => setResult(i, 'label', e.target.value)} placeholder="Rótulo" />
+            <input className="so-field" value={r.value} onChange={e => setResult(i, 'value', e.target.value)} placeholder="Valor" />
           </div>
         ))}
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', gridColumn: '1 / -1' }}>
         <input type="checkbox" checked={form.is_public} onChange={e => set('is_public', e.target.checked)} />
         <span style={{ fontSize: 13, color: 'var(--text-soft)' }}>Visível para franquias</span>
       </label>
-    </Modal>
+    </SlideOver>
   )
 }
 
-// ─── Resource modal ───────────────────────────────────────────────────────────
+// ─── Resource SlideOver ───────────────────────────────────────────────────────
 const EMPTY_RES = { title: '', description: '', type: 'link', url: '', file_size: '', tags: [] }
 
-function ResourceModal({ initial, onSave, onClose }) {
+function ResourceSlideOver({ open, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_RES)
   const [tagInput, setTagInput] = useState('')
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  useMemo(() => { setForm(initial || EMPTY_RES); setTagInput('') }, [initial])
   function addTag(e) {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
@@ -544,28 +536,35 @@ function ResourceModal({ initial, onSave, onClose }) {
     }
   }
   return (
-    <Modal title={initial?.id ? 'Editar material' : 'Novo material'} onClose={onClose}
-      onSave={() => onSave(form)} valid={form.title.trim().length > 0 && form.url.trim().length > 0}>
-      <Field label="Título"><input value={form.title} onChange={e => set('title', e.target.value)} style={m.inp} placeholder="Ex: Deck Institucional 2026" /></Field>
-      <Field label="Descrição"><input value={form.description} onChange={e => set('description', e.target.value)} style={m.inp} placeholder="Breve descrição do material" /></Field>
-      <div style={{ display: 'flex', gap: 12 }}>
-        <div style={{ width: 140 }}>
-          <Field label="Tipo">
-            <select value={form.type} onChange={e => set('type', e.target.value)} style={m.inp}>
-              {Object.entries(RESOURCE_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </Field>
-        </div>
-        <div style={{ flex: 1 }}>
-          <Field label="URL / Link"><input value={form.url} onChange={e => set('url', e.target.value)} style={m.inp} placeholder="https://..." /></Field>
-        </div>
-      </div>
-      <Field label={`Tags (Enter para adicionar)`}>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface2)', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      onSave={() => onSave(form)}
+      title={initial?.id ? 'Editar material' : 'Novo material'}
+      columns={2}
+      saveLabel="Salvar material"
+    >
+      <FormField label="Título" required span={2}>
+        <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ex: Deck Institucional 2026" />
+      </FormField>
+      <FormField label="Tipo">
+        <select className="so-field" value={form.type} onChange={e => set('type', e.target.value)}>
+          {Object.entries(RESOURCE_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+        </select>
+      </FormField>
+      <FormField label="URL / Link" required>
+        <input className="so-field" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
+      </FormField>
+      <FormField label="Descrição" span={2}>
+        <input className="so-field" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Breve descrição do material" />
+      </FormField>
+      <div style={{ gridColumn: '1 / -1' }}>
+        <label className="so-label">Tags <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Enter para adicionar)</span></label>
+        <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, background: '#fff', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
           {form.tags.map((t, i) => (
             <span key={i} style={{ background: 'var(--accent-glow)', color: 'var(--accent)', borderRadius: 10, padding: '1px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
               {t}
-              <button onClick={() => setForm(f => ({ ...f, tags: f.tags.filter((_, j) => j !== i) }))}
+              <button type="button" onClick={() => setForm(f => ({ ...f, tags: f.tags.filter((_, j) => j !== i) }))}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
             </span>
           ))}
@@ -573,8 +572,8 @@ function ResourceModal({ initial, onSave, onClose }) {
             placeholder={form.tags.length === 0 ? 'ex: institucional, proposta' : ''}
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: 'var(--font)', color: 'var(--text)', minWidth: 80, flex: 1 }} />
         </div>
-      </Field>
-    </Modal>
+      </div>
+    </SlideOver>
   )
 }
 
@@ -1067,17 +1066,6 @@ export default function Playbooks() {
     if (window.confirm('Remover este material?')) setResources(prev => prev.filter(r => r.id !== id))
   }
 
-  if (modal?.type === 'playbook') {
-    return (
-      <PlaybookFullPage
-        initial={modal.data}
-        onSave={savePlaybook}
-        onClose={() => setModal(null)}
-        onDelete={modal.data?.id ? (id) => { deletePb(id); setSelectedPb(null); setModal(null) } : undefined}
-      />
-    )
-  }
-
   return (
     <>
       {selectedPb ? (
@@ -1112,18 +1100,31 @@ export default function Playbooks() {
         />
       )}
 
-      {/* Modais */}
-      {modal?.type === 'step' && (
-        <StepModal
-          initial={modal.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal.data?.stage || 'prospeccao' }}
-          onSave={saveStep} onClose={() => setModal(null)} />
-      )}
-      {modal?.type === 'ref' && (
-        <ReferenceModal initial={modal.data} onSave={saveRef} onClose={() => setModal(null)} />
-      )}
-      {modal?.type === 'resource' && (
-        <ResourceModal initial={modal.data} onSave={saveResource} onClose={() => setModal(null)} />
-      )}
+      <PlaybookSlideOver
+        open={modal?.type === 'playbook'}
+        initial={modal?.data}
+        onSave={savePlaybook}
+        onClose={() => setModal(null)}
+        onDelete={modal?.data?.id ? (id) => { deletePb(id); setSelectedPb(null); setModal(null) } : undefined}
+      />
+      <StepSlideOver
+        open={modal?.type === 'step'}
+        initial={modal?.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal?.data?.stage || 'prospeccao' }}
+        onSave={saveStep}
+        onClose={() => setModal(null)}
+      />
+      <ReferenceSlideOver
+        open={modal?.type === 'ref'}
+        initial={modal?.data}
+        onSave={saveRef}
+        onClose={() => setModal(null)}
+      />
+      <ResourceSlideOver
+        open={modal?.type === 'resource'}
+        initial={modal?.data}
+        onSave={saveResource}
+        onClose={() => setModal(null)}
+      />
     </>
   )
 }
@@ -1194,20 +1195,6 @@ const dp = {
   tag:         { padding: '1px 7px', borderRadius: 10, fontSize: 10, fontWeight: 500, background: 'var(--surface2)', color: 'var(--text-muted)', border: '1px solid var(--border)' },
 }
 
-// Modal
-const m = {
-  overlay:   { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 700, backdropFilter: 'blur(2px)' },
-  box:       { background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 620, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', overflow: 'hidden' },
-  header:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 22px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 },
-  title:     { fontSize: 16, fontWeight: 700, color: 'var(--text)' },
-  close:     { background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', lineHeight: 1, padding: 4 },
-  body:      { padding: '18px 22px', display: 'flex', flexDirection: 'column', gap: 14, overflowY: 'auto', flex: 1 },
-  footer:    { display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'var(--surface2)', flexShrink: 0 },
-  lbl:       { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: 5 },
-  inp:       { width: '100%', padding: '9px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' },
-  cancelBtn: { padding: '7px 16px', background: 'none', border: '1px solid var(--border)', borderRadius: 7, fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' },
-  saveBtn:   { padding: '7px 20px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
-}
 
 const md = {
   root:  { fontSize: 14, color: 'var(--text)', lineHeight: 1.7, fontFamily: 'var(--font)' },
