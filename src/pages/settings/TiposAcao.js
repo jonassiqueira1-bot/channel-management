@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
@@ -23,6 +23,37 @@ const PALETTE = [
 
 const ICONS = ['🎓','📅','🚀','◎','⭐','🔔','📋','💡','🎯','🏆','🤝','📊','🛠️','🧩','📌','✅']
 
+const IMPORT_COLS = ['label', 'icon', 'cor']
+
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n')
+  const sep = lines[0].includes(';') ? ';' : ','
+  function parseLine(line) {
+    const fields = []; let cur = ''; let inQ = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === sep && !inQ) { fields.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    fields.push(cur.trim()); return fields
+  }
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+  const rows = lines.slice(1).filter(l => l.trim()).map(l => {
+    const vals = parseLine(l); const obj = {}
+    headers.forEach((h, i) => { obj[h] = vals[i] || '' })
+    return obj
+  })
+  return { rows }
+}
+
+function downloadText(content, filename, mime) {
+  const blob = new Blob(['﻿' + content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 function uid() { return Date.now() + Math.floor(Math.random() * 9999) }
 
 function slugify(str) {
@@ -43,6 +74,141 @@ function TipoBadge({ label, icon, bg, text, color }) {
   )
 }
 
+function ImportModal({ onClose, onImport, existingLabels }) {
+  const [step, setStep]     = useState('upload')
+  const [rows, setRows]     = useState([])
+  const [errors, setErrors] = useState({})
+  const [dragging, setDragging] = useState(false)
+  const fileRef = useRef(null)
+
+  const VALID_CORES = PALETTE.map(p => p.label)
+
+  function handleFile(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = e => {
+      const { rows: parsed } = parseCSV(e.target.result)
+      const errs = {}
+      parsed.forEach((row, i) => {
+        const rowErrs = []
+        if (!row.label?.trim()) rowErrs.push('Nome obrigatório')
+        else if (existingLabels.includes(row.label.trim().toLowerCase())) rowErrs.push('Nome já existe')
+        else if (parsed.slice(0, i).some(r => r.label?.trim().toLowerCase() === row.label?.trim().toLowerCase())) rowErrs.push('Nome duplicado no arquivo')
+        if (row.cor && !VALID_CORES.includes(row.cor)) rowErrs.push(`Cor inválida (${VALID_CORES.join(', ')})`)
+        if (rowErrs.length) errs[i] = rowErrs
+      })
+      setRows(parsed); setErrors(errs); setStep('preview')
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  function downloadTemplate() {
+    const header  = IMPORT_COLS.join(';')
+    const example = `Workshop;🎓;Azul\nWebinar;💡;Verde\nVisita;🤝;Âmbar`
+    downloadText(`${header}\n${example}`, 'template_tipos_acao.csv', 'text/csv')
+  }
+
+  function resolvePaleta(corLabel) {
+    return PALETTE.find(p => p.label === corLabel) || PALETTE[0]
+  }
+
+  const okRows  = rows.filter((_, i) => !errors[i])
+  const errRows = rows.filter((_, i) =>  errors[i])
+
+  function doImport() {
+    onImport(okRows.map(r => {
+      const p = resolvePaleta(r.cor)
+      return { id: uid(), label: r.label.trim(), icon: r.icon || '◎', slug: slugify(r.label.trim()), color: p.color, bg: p.bg, text: p.text }
+    }))
+    onClose()
+  }
+
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, backdropFilter:'blur(2px)' }
+  const modal   = { background:'var(--surface)', borderRadius:14, width:620, maxHeight:'84vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={modal}>
+        <div style={{ padding:'20px 24px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Tipos de Ações</div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{step === 'upload' ? 'Importar dados' : `${rows.length} linha${rows.length !== 1 ? 's' : ''} encontrada${rows.length !== 1 ? 's' : ''}`}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:'var(--text-muted)', lineHeight:1 }}>×</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+          {step === 'upload' ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
+                onClick={() => fileRef.current?.click()}
+                style={{ border:`2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, padding:'32px 20px', textAlign:'center', cursor:'pointer', background: dragging ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}>
+                <div style={{ fontSize:28, marginBottom:8 }}>📄</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>Solte o arquivo aqui ou clique para selecionar</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>CSV (separado por ; ou ,) — UTF-8</div>
+                <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display:'none' }} onChange={e => handleFile(e.target.files[0])} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>Colunas: <code style={{ fontSize:11, background:'var(--surface2)', padding:'1px 4px', borderRadius:3 }}>{IMPORT_COLS.join(', ')}</code></span>
+                <button onClick={downloadTemplate} style={{ fontSize:12, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>⬇ Baixar template</button>
+              </div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', background:'var(--surface2)', borderRadius:8, padding:'10px 14px', lineHeight:1.6 }}>
+                <strong>icon:</strong> qualquer emoji &nbsp;·&nbsp;
+                <strong>cor:</strong> {VALID_CORES.join(', ')}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ display:'flex', gap:10 }}>
+                <div style={{ flex:1, padding:'10px 14px', borderRadius:8, background:'var(--green-bg)', color:'var(--green-text)', fontSize:12, fontWeight:600 }}>✓ {okRows.length} tipo{okRows.length !== 1 ? 's' : ''} válido{okRows.length !== 1 ? 's' : ''}</div>
+                {errRows.length > 0 && <div style={{ flex:1, padding:'10px 14px', borderRadius:8, background:'var(--red-bg)', color:'var(--red-text)', fontSize:12, fontWeight:600 }}>✕ {errRows.length} com erro (serão ignorados)</div>}
+              </div>
+              <div style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                  <thead>
+                    <tr style={{ background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>#</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Nome</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Ícone</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Cor</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom:'1px solid var(--border2)', background: errors[i] ? 'var(--red-bg)' : 'transparent' }}>
+                        <td style={{ padding:'6px 10px', color:'var(--text-muted)' }}>{i+1}</td>
+                        <td style={{ padding:'6px 10px', fontWeight:600 }}>{row.label || '—'}</td>
+                        <td style={{ padding:'6px 10px', fontSize:16 }}>{row.icon || '—'}</td>
+                        <td style={{ padding:'6px 10px', color:'var(--text-soft)' }}>{row.cor || '—'}</td>
+                        <td style={{ padding:'6px 10px' }}>
+                          {errors[i] ? <span style={{ color:'var(--red)', fontSize:11 }}>{errors[i].join('; ')}</span> : <span style={{ color:'var(--green)', fontWeight:600 }}>✓</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {step === 'preview' && (
+          <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)', display:'flex', gap:10, justifyContent:'flex-end', flexShrink:0 }}>
+            <button onClick={() => { setStep('upload'); setRows([]); setErrors({}) }} style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none', cursor:'pointer', fontSize:13, color:'var(--text-muted)' }}>← Voltar</button>
+            <button onClick={doImport} disabled={okRows.length === 0} style={{ padding:'8px 18px', borderRadius:8, border:'none', background: okRows.length ? 'var(--accent)' : 'var(--border)', color:'#fff', cursor: okRows.length ? 'pointer' : 'default', fontSize:13, fontWeight:700 }}>
+              Importar {okRows.length} tipo{okRows.length !== 1 ? 's' : ''}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export const STORAGE_KEY = 'settings:tipos_acao_v1'
 
 export default function SettingsTiposAcao() {
@@ -50,6 +216,29 @@ export default function SettingsTiposAcao() {
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
   const [busca, setBusca] = useState('')
+  const [importModal, setImportModal] = useState(false)
+
+  const filtered = tipos.filter(t => !busca || t.label.toLowerCase().includes(busca.toLowerCase()))
+
+  function handleImport(rows) { setTipos(prev => [...prev, ...rows]) }
+
+  function exportCSV() {
+    const header = IMPORT_COLS.join(';')
+    const body   = filtered.map(t => {
+      const palLabel = PALETTE.find(p => p.color === t.color)?.label || 'Cinza'
+      return [t.label, t.icon, palLabel].join(';')
+    }).join('\n')
+    downloadText(`${header}\n${body}`, 'tipos_acao.csv', 'text/csv')
+  }
+
+  function exportExcel() {
+    const header = IMPORT_COLS.join('\t')
+    const body   = filtered.map(t => {
+      const palLabel = PALETTE.find(p => p.color === t.color)?.label || 'Cinza'
+      return [t.label, t.icon, palLabel].join('\t')
+    }).join('\n')
+    downloadText(`${header}\n${body}`, 'tipos_acao.xls', 'application/vnd.ms-excel')
+  }
 
   function abrirNovo() {
     const p = PALETTE[0]
@@ -137,24 +326,36 @@ export default function SettingsTiposAcao() {
   }
 
   return (
-    <SettingsLayout
-      title="Tipos de Ações"
-      description="Categorias usadas no cadastro de ações comerciais do canal."
-      columns={[
-        { key: 'label', label: 'Tipo', render: (v, row) => <TipoBadge label={row.label} icon={row.icon} bg={row.bg} text={row.text} color={row.color} /> },
-        { key: 'slug',  label: 'Slug', muted: true, priority: 2 },
-      ]}
-      data={tipos.filter(t => !busca || t.label.toLowerCase().includes(busca.toLowerCase()))}
-      keyField="id"
-      emptyLabel="Nenhum tipo cadastrado."
-      onNew={abrirNovo}
-      newLabel="+ Novo tipo"
-      rowActions={[
-        { label: 'Editar',  onClick: abrirEdicao },
-        { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
-      ]}
-      search={busca}
-      onSearchChange={setBusca}
-    />
+    <>
+      {importModal && (
+        <ImportModal
+          onClose={() => setImportModal(false)}
+          onImport={handleImport}
+          existingLabels={tipos.map(t => t.label.toLowerCase())}
+        />
+      )}
+      <SettingsLayout
+        title="Tipos de Ações"
+        description="Categorias usadas no cadastro de ações comerciais do canal."
+        columns={[
+          { key: 'label', label: 'Tipo', render: (v, row) => <TipoBadge label={row.label} icon={row.icon} bg={row.bg} text={row.text} color={row.color} /> },
+          { key: 'slug',  label: 'Slug', muted: true, priority: 2 },
+        ]}
+        data={filtered}
+        keyField="id"
+        emptyLabel="Nenhum tipo cadastrado."
+        onNew={abrirNovo}
+        newLabel="+ Novo tipo"
+        rowActions={[
+          { label: 'Editar',  onClick: abrirEdicao },
+          { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
+        ]}
+        search={busca}
+        onSearchChange={setBusca}
+        onImport={() => setImportModal(true)}
+        onExportCsv={exportCSV}
+        onExportExcel={exportExcel}
+      />
+    </>
   )
 }
