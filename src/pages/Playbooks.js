@@ -1,9 +1,9 @@
 import { useState, useMemo } from 'react'
 import { STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS } from '../data/mockPlaybooks'
-import { MOCK_FUNIS } from '../data/mockFunis'
-import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import { useFunnels } from '../hooks/useFunnels'
+import { useProducts } from '../hooks/useProducts'
 import Button from '../components/Button'
 import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
@@ -321,7 +321,7 @@ function ObjecoesTab({ objecoes = [], onChange }) {
 // ─── New / Edit Playbook SlideOver ───────────────────────────────────────────
 const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [] }
 
-function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete }) {
+function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [], produtos = [] }) {
   const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
   const [tab, setTab]   = useState('info')
   const [saving, setSaving] = useState(false)
@@ -382,13 +382,13 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete }) {
               <FormField label="Funil (opcional)">
                 <select className="so-field" value={form.funil_id} onChange={e => set('funil_id', e.target.value)}>
                   <option value="">— Nenhum —</option>
-                  {MOCK_FUNIS.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
+                  {funis.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
                 </select>
               </FormField>
               <FormField label="Produto (opcional)" span={2}>
                 <select className="so-field" value={form.produto_id} onChange={e => set('produto_id', e.target.value)}>
                   <option value="">— Nenhum —</option>
-                  {MOCK_PRODUTOS.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
+                  {produtos.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
                 </select>
               </FormField>
               <FormField label="Descrição" span={2}>
@@ -995,6 +995,8 @@ export default function Playbooks() {
   const isISV = USE_PROFILE === 'isv'
 
   const { playbooks, steps, refs, resources, save: savePb, remove: deletePb, setPlaybooks, setSteps, setRefs, setResources } = usePlaybooks()
+  const { funis }    = useFunnels()
+  const { produtos } = useProducts()
 
   const [selectedPb, setSelectedPb] = useState(null)
   const [modal, setModal] = useState(null) // null | { type, data? }
@@ -1105,6 +1107,8 @@ export default function Playbooks() {
         initial={modal?.data}
         onSave={savePlaybook}
         onClose={() => setModal(null)}
+        funis={funis || []}
+        produtos={produtos || []}
         onDelete={modal?.data?.id ? (id) => {
           if (!window.confirm('Excluir este playbook? Esta ação não pode ser desfeita.')) return
           deletePb(id); setSelectedPb(null); setModal(null)
