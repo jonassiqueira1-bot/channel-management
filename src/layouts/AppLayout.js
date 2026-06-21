@@ -160,6 +160,7 @@ const s = {
     flex: 1,
     backgroundColor: 'var(--bg)',
     overflowY: 'auto',
+    overflowX: 'hidden',
     padding: 28,
     minWidth: 0,
     display: 'flex',

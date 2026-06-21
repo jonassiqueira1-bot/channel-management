@@ -61,8 +61,10 @@ function goalToRow(g, tenantId, branchId) {
     valor_sufixo:        g.valor_sufixo || null,
     periodo_mes:         Number(g.periodo_mes),
     periodo_ano:         Number(g.periodo_ano),
-    valor_planejado:     g.valor_planejado ? Number(g.valor_planejado) : null,
-    valor_atual:         g.valor_atual ? Number(g.valor_atual) : 0,
+    valor_planejado:     g.valor_planejado != null ? Number(g.valor_planejado)
+                       : g.valor_alvo    != null ? Number(g.valor_alvo)
+                       : null,
+    valor_atual:         g.valor_atual != null ? Number(g.valor_atual) : 0,
     status:              g.status || 'ativa',
     custom_fields: {
       id_vendedor:  g.id_vendedor,
@@ -71,6 +73,20 @@ function goalToRow(g, tenantId, branchId) {
       product_id:   g.product_id,
     },
   }
+}
+
+const MOCK_STORAGE_KEY = 'goals:mock_v1'
+
+function loadMockFromStorage() {
+  try {
+    const raw = localStorage.getItem(MOCK_STORAGE_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+function saveMockToStorage(goals) {
+  try { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(goals)) } catch {}
 }
 
 export function useGoals() {
@@ -86,7 +102,13 @@ export function useGoals() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setGoals(MOCK_GOALS_SEED); setLoading(false); return }
+    if (!session?.user) {
+      isMockMode.current = true
+      const stored = loadMockFromStorage()
+      setGoals(stored ?? MOCK_GOALS_SEED)
+      setLoading(false)
+      return
+    }
     const { data, error } = await supabase
       .from('goals')
       .select('*')
@@ -110,11 +132,14 @@ export function useGoals() {
           if (idx >= 0) next[idx] = g
           else next.push({ ...g, id: g.id || `g${Date.now()}${Math.random()}` })
         })
+        saveMockToStorage(next)
         return next
       })
       return { ok: true }
     }
-    const rows = arr.map(g => goalToRow(g, tenantId, branchId))
+    // Goals com UUID do Supabase (contêm '-') → update direto.
+    // Novos goals → deletar registros existentes do mesmo período/entidade antes de inserir,
+    // evitando falha de unique constraint em saves repetidos.
     const toUpdate = arr.filter(g => typeof g.id === 'string' && g.id.includes('-'))
     const toInsert = arr.filter(g => !toUpdate.includes(g))
 
@@ -122,21 +147,40 @@ export function useGoals() {
       await supabase.from('goals').update(goalToRow(g, tenantId, branchId)).eq('id', g.id)
     }
     if (toInsert.length > 0) {
-      const { data, error } = await supabase.from('goals').insert(toInsert.map(g => goalToRow(g, tenantId, branchId))).select()
+      const rows = toInsert.map(g => goalToRow(g, tenantId, branchId))
+      // Remove conflitos antes de inserir: mesma entidade, mesmo ano e meses do batch
+      const sample = rows[0]
+      const meses = rows.map(r => r.periodo_mes)
+      let delQ = supabase.from('goals')
+        .delete()
+        .eq('tenant_id', tenantId)
+        .eq('tipo_alvo', sample.tipo_alvo)
+        .eq('periodo_ano', sample.periodo_ano)
+        .eq('tipo_meta', sample.tipo_meta)
+        .in('periodo_mes', meses)
+      if (sample.alvo_id) delQ = delQ.eq('alvo_id', sample.alvo_id)
+      else delQ = delQ.is('alvo_id', null)
+      await delQ
+
+      const { data, error } = await supabase.from('goals').insert(rows).select()
       if (error) return { ok: false, message: error.message }
       setGoals(prev => {
-        let next = [...prev]
+        const insertedIds = new Set((data || []).map(r => r.id))
+        const next = prev.filter(g => !insertedIds.has(g.id))
         toUpdate.forEach(g => { const idx = next.findIndex(x => x.id === g.id); if (idx >= 0) next[idx] = g })
         return [...next, ...(data || []).map(rowToGoal)]
       })
     } else {
-      setGoals(prev => { let next = [...prev]; toUpdate.forEach(g => { const idx = next.findIndex(x => x.id === g.id); if (idx >= 0) next[idx] = g }); return next })
+      setGoals(prev => { const next = [...prev]; toUpdate.forEach(g => { const idx = next.findIndex(x => x.id === g.id); if (idx >= 0) next[idx] = g }); return next })
     }
     return { ok: true }
   }, [tenantId, branchId])
 
   const remove = useCallback(async (id) => {
-    if (isMockMode.current) { setGoals(prev => prev.filter(g => g.id !== id)); return { ok: true } }
+    if (isMockMode.current) {
+      setGoals(prev => { const next = prev.filter(g => g.id !== id); saveMockToStorage(next); return next })
+      return { ok: true }
+    }
     const { error } = await supabase.from('goals').delete().eq('id', id)
     if (error) return { ok: false, message: error.message }
     setGoals(prev => prev.filter(g => g.id !== id))

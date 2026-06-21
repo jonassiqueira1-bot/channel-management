@@ -164,7 +164,7 @@ export function useProfile() {
     if (upErr) return { ok: false, message: upErr.message }
 
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
-    await supabase.from('perfis').update({ avatar_url: publicUrl }).eq('id', profile.id)
+    await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id)
     setProfile(p => ({ ...p, avatar_url: publicUrl }))
     return { ok: true, url: publicUrl }
   }, [profile])

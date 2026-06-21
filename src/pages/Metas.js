@@ -18,6 +18,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useGoals } from '../hooks/useGoals'
 import { useProducts } from '../hooks/useProducts'
+import { useContracts } from '../hooks/useContracts'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -134,6 +135,52 @@ function fmtCompact(v, tipo, goal) {
   else if (n >= 1000) num = (n/1000).toFixed(0) + 'k'
   else num = n.toLocaleString('pt-BR')
   return (isCurrency ? 'R$ ' : '') + num + (sfx ? ' ' + sfx : '')
+}
+
+// ─── Realizado automático a partir de contratos ativos ───────────────────────
+function calcRealizado(goal, contratosAtivos, produtos, equipes, vendedores) {
+  // Filtra contratos cujo início de vigência cai no mês/ano da meta
+  const noPeriodo = contratosAtivos.filter(c => {
+    if (!c.vigencia_inicio) return false
+    const [y, m] = c.vigencia_inicio.split('-').map(Number)
+    return y === goal.periodo_ano && m === goal.periodo_mes
+  })
+
+  let filtrados = noPeriodo
+  if (goal.tipo_alvo === 'vendedor') {
+    const v = vendedores.find(x => x.id === goal.id_vendedor)
+    if (v) filtrados = filtrados.filter(c => c.responsavel === v.nome)
+    else return 0
+  } else if (goal.tipo_alvo === 'unidade') {
+    filtrados = filtrados.filter(c => String(c.branch_id) === String(goal.id_unidade))
+  } else if (goal.tipo_alvo === 'categoria') {
+    const catProdIds = new Set(produtos.filter(p => p.categoria === goal.category_id).map(p => String(p.id)))
+    filtrados = filtrados.filter(c =>
+      catProdIds.has(String(c.produto_adesao_id)) ||
+      catProdIds.has(String(c.produto_mrr_id)) ||
+      catProdIds.has(String(c.produto_servico_id))
+    )
+  } else if (goal.tipo_alvo === 'produto') {
+    filtrados = filtrados.filter(c =>
+      String(c.produto_adesao_id) === String(goal.product_id) ||
+      String(c.produto_mrr_id)    === String(goal.product_id) ||
+      String(c.produto_servico_id) === String(goal.product_id)
+    )
+  } else if (goal.tipo_alvo === 'equipe') {
+    const eq = equipes.find(e => e.id === goal.equipe_id)
+    const memNomes = eq
+      ? (eq.membro_ids || []).map(mid => vendedores.find(v => v.id === mid)?.nome).filter(Boolean)
+      : []
+    filtrados = filtrados.filter(c => memNomes.includes(c.responsavel))
+  }
+
+  if (goal.tipo_meta === 'atividade') return filtrados.length
+  if (goal.tipo_meta === 'valor') {
+    return filtrados.reduce((s, c) =>
+      s + (Number(c.valor_adesao) || 0) + (Number(c.valor_mrr) || 0) + (Number(c.valor_servico) || 0), 0)
+  }
+  // operacional: sem cálculo automático — mantém valor_atual salvo
+  return goal.valor_atual ?? 0
 }
 
 // ─── Avatar simples ───────────────────────────────────────────────────────────
@@ -393,14 +440,14 @@ const pop = {
               cursor: 'pointer', fontFamily: 'var(--font)' },
 }
 
-// ─── Célula da matriz (ultra-compacta) ───────────────────────────────────────
+// ─── Célula da matriz (compacta) ─────────────────────────────────────────────
 function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit }) {
   const [hover, setHover] = useState(false)
 
   if (!goal) {
     return (
       <td style={mx.td}>
-        <div style={{ textAlign: 'center', color: 'var(--border)', fontSize: 13, lineHeight: '38px' }}>—</div>
+        <div style={{ textAlign: 'center', color: 'var(--border)', fontSize: 13, lineHeight: '30px' }}>—</div>
       </td>
     )
   }
@@ -412,6 +459,7 @@ function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit
   const goalSufixo  = goal.valor_sufixo || valor_sufixo
   const alvoFmt     = fmtCompact(goal.valor_alvo, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
   const realFmt     = fmtCompact(goal.valor_atual, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
+  const pPct        = Math.min(p, 100)
 
   return (
     <td style={mx.td}>
@@ -420,25 +468,24 @@ function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit
         onMouseEnter={() => setHover(true)}
         onMouseLeave={() => setHover(false)}
         style={{
-          borderRadius: 6, cursor: 'pointer',
-          borderLeft: `2px solid ${cor}`,
+          borderRadius: 5, cursor: 'pointer',
+          borderLeft: `2.5px solid ${cor}`,
           background: hover ? cor + '18' : cor + '09',
-          padding: '4px 7px',
+          padding: '4px 7px 5px',
           transition: 'background 0.1s',
         }}>
-        {/* Linha 1: Previsto */}
-        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
-          whiteSpace: 'nowrap', lineHeight: 1.5 }}>
-          <span style={{ fontWeight: 600, marginRight: 3 }}>P</span>{alvoFmt}
-        </div>
-        {/* Linha 2: Realizado com ponto de status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, lineHeight: 1.5 }}>
-          <span style={{ width: 5, height: 5, borderRadius: '50%', background: cor,
-            flexShrink: 0, display: 'inline-block' }} />
-          <span style={{ fontSize: 11, fontWeight: 800, color: cor,
-            fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+        {/* Linha: resultado / meta */}
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3, justifyContent: 'space-between', whiteSpace: 'nowrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 500, color: cor, fontFamily: 'var(--mono)' }}>
             {realFmt}
           </span>
+          <span style={{ fontSize: 10, color: 'var(--text-soft)', fontFamily: 'var(--mono)' }}>
+            /{alvoFmt}
+          </span>
+        </div>
+        {/* Barra de progresso */}
+        <div style={{ height: 3, background: cor + '22', borderRadius: 2, marginTop: 4 }}>
+          <div style={{ height: '100%', width: `${pPct}%`, background: cor, borderRadius: 2, transition: 'width 0.3s' }} />
         </div>
       </div>
     </td>
@@ -681,7 +728,18 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
 
   const [form, setForm] = useState(() => {
     if (!initial) return { ...EMPTY_FORM }
-    const mv = { ...EMPTY_MESES_VALORES, [initial.periodo_mes]: fmtInput(String(initial.valor_alvo)) }
+    // Preenche todos os meses a partir de row.goals (todos os meses salvos para essa entidade)
+    const mv = { ...EMPTY_MESES_VALORES }
+    if (row?.goals) {
+      Object.values(row.goals).forEach(g => {
+        if (String(g.periodo_ano) === String(initial.periodo_ano)) {
+          const v = g.valor_alvo ?? g.valor_planejado ?? 0
+          if (v > 0) mv[g.periodo_mes] = fmtInput(String(v))
+        }
+      })
+    } else {
+      mv[initial.periodo_mes] = fmtInput(String(initial.valor_alvo ?? 0))
+    }
     return {
       tipo_alvo: initial.tipo_alvo, id_vendedor: initial.id_vendedor || '',
       id_unidade: initial.id_unidade || '', category_id: initial.category_id || '',
@@ -733,6 +791,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
       category_id: form.tipo_alvo==='categoria' ? form.category_id  : null,
       product_id:  form.tipo_alvo==='produto'   ? form.product_id   : null,
       equipe_id:   form.tipo_alvo==='equipe'    ? form.equipe_id    : null,
+      alvo_nome: nome_ref, alvo_contexto: sub_ref,
       nome_ref, sub_ref,
       tipo_meta: form.tipo_meta,
       subtipo_operacional: form.tipo_meta==='operacional' ? form.subtipo_operacional : null,
@@ -1011,9 +1070,25 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
 // ─── Página principal ─────────────────────────────────────────────────────────
 const FUNC_STORAGE_KEY = 'funcionarios:data_v2'
 
+// ─── KPI card (padrão Pipeline) ──────────────────────────────────────────────
+function KpiCard({ label, value, accent, sub, mono }) {
+  return (
+    <div style={{ background:'var(--surface)', borderRadius:10, padding:'16px 18px',
+      display:'flex', flexDirection:'column', gap:4,
+      border:'1px solid var(--border2)', boxShadow:'var(--shadow)',
+      borderTop:`3px solid ${accent ? 'var(--accent)' : 'var(--border)'}` }}>
+      <span style={{ fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.5px', lineHeight:1,
+        fontFamily: mono ? 'var(--mono)' : 'var(--font)' }}>{value}</span>
+      <span style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{label}</span>
+      {sub && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{sub}</span>}
+    </div>
+  )
+}
+
 export default function Metas() {
   const { goals, save: saveGoals, remove: deleteGoal } = useGoals()
   const { produtos: produtosStore } = useProducts()
+  const { contratos: todosContratos } = useContracts()
 
   // ── Dados reais de referência ─────────────────────────────────────────────
   const [funcionarios]  = useLocalState(FUNC_STORAGE_KEY, [])
@@ -1036,6 +1111,7 @@ export default function Metas() {
   // Filtros
   const [filterTipos,    setFilterTipos]    = useLocalState('metas:filterTipos',    [])
   const [filterVendedor, setFilterVendedor] = useLocalState('metas:filterVendedor', '')
+  const [showKpis,       setShowKpis]       = useLocalState('metas:showKpis',       true)
 
   // Popovers
   const [atribuicaoOpen,  setAtribuicaoOpen]  = useState(false)
@@ -1087,12 +1163,32 @@ export default function Metas() {
 
     // Agrupar por entidade
     // Suporte a ambos os formatos de campo (hook novo: alvo_nome/alvo_contexto, legado: nome_ref/sub_ref)
+    // Fallback: resolve nome a partir dos dados de referência quando alvo_nome está vazio (goals antigos no Supabase)
+    function resolveNome(g) {
+      const raw = g.alvo_nome || g.nome_ref || ''
+      if (raw) return raw
+      if (g.tipo_alvo === 'vendedor')  { const v = vendedores.find(x => x.id === g.id_vendedor);  return v?.nome || '' }
+      if (g.tipo_alvo === 'unidade')   { const u = unidades.find(x => x.id === g.id_unidade);     return u?.nome || '' }
+      if (g.tipo_alvo === 'categoria') { return g.category_id || '' }
+      if (g.tipo_alvo === 'produto')   { const p = produtos.find(x => String(x.id) === String(g.product_id)); return p?.nome || '' }
+      if (g.tipo_alvo === 'equipe')    { const e = equipes.find(x => x.id === g.equipe_id);       return e?.nome || '' }
+      return ''
+    }
+    function resolveContexto(g) {
+      const raw = g.alvo_contexto || g.sub_ref || ''
+      if (raw) return raw
+      if (g.tipo_alvo === 'vendedor')  { const v = vendedores.find(x => x.id === g.id_vendedor);  return v?.unidade || '' }
+      if (g.tipo_alvo === 'categoria') return 'Categoria de produto'
+      if (g.tipo_alvo === 'produto')   { const p = produtos.find(x => String(x.id) === String(g.product_id)); return p?.categoria || '' }
+      if (g.tipo_alvo === 'equipe')    return 'Equipe'
+      return ''
+    }
     const entityMap = {}
     byResp.forEach(g => {
-      const idRef  = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || 'global'
+      const idRef  = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || g.equipe_id || 'global'
       const key    = `${g.tipo_alvo}|${idRef}|${g.tipo_meta}`
-      const nomeRef = g.alvo_nome    || g.nome_ref || ''
-      const subRef  = g.alvo_contexto || g.sub_ref  || ''
+      const nomeRef = resolveNome(g)
+      const subRef  = resolveContexto(g)
       if (!entityMap[key]) {
         entityMap[key] = {
           key, tipo_alvo: g.tipo_alvo, tipo_meta: g.tipo_meta,
@@ -1114,7 +1210,41 @@ export default function Metas() {
       if (ORDER[a.tipo_alvo] !== ORDER[b.tipo_alvo]) return ORDER[a.tipo_alvo] - ORDER[b.tipo_alvo]
       return a.nome_ref.localeCompare(b.nome_ref, 'pt-BR')
     })
-  }, [goals, deMes, deAno, ateMes, ateAno, filterTipos, filterVendedor])
+  }, [goals, deMes, deAno, ateMes, ateAno, filterTipos, filterVendedor, vendedores, unidades, categorias, produtos, equipes])
+
+  // ── KPIs de resumo ──────────────────────────────────────────────────────
+  const kpis = useMemo(() => {
+    const deDate  = Number(deAno)  * 12 + Number(deMes)
+    const ateDate = Number(ateAno) * 12 + Number(ateMes)
+
+    // Contratos do período atual
+    const contratosAtivos = (todosContratos || []).filter(c => {
+      if (!c.vigencia_inicio) return false
+      const [y, m] = c.vigencia_inicio.split('-').map(Number)
+      const d = y * 12 + m
+      return d >= deDate && d <= ateDate
+    })
+    // Contratos do mesmo período do ano anterior (YoY)
+    const contratosYoY = (todosContratos || []).filter(c => {
+      if (!c.vigencia_inicio) return false
+      const [y, m] = c.vigencia_inicio.split('-').map(Number)
+      const d = (y + 1) * 12 + m  // compara com o ano seguinte = mesmo período do ano passado
+      return d >= deDate && d <= ateDate
+    })
+
+    const somaValor = (arr) => arr.reduce((s, c) =>
+      s + (Number(c.valor_adesao)||0) + (Number(c.valor_mrr)||0) + (Number(c.valor_servico)||0), 0)
+
+    const realizado   = somaValor(contratosAtivos)
+    const realizadoYY = somaValor(contratosYoY)
+    const qtd         = contratosAtivos.length
+    const ticket      = qtd > 0 ? realizado / qtd : 0
+    const yoyDelta    = realizadoYY > 0
+      ? ((realizado - realizadoYY) / realizadoYY * 100).toFixed(1)
+      : null
+
+    return { realizado, realizadoYY, qtd, ticket, yoyDelta }
+  }, [todosContratos, deMes, deAno, ateMes, ateAno])
 
   // ── Rótulo do filtro de período ────────────────────────────────────────
   const periodoLabel = (() => {
@@ -1144,12 +1274,23 @@ export default function Metas() {
 
       {/* ── Top bar ── */}
       <div style={s.topBar}>
-        {/* Esquerda: título */}
+        {/* Esquerda: título + toggle KPIs */}
         <div>
           <div style={s.breadcrumb}>
             Comercial <span style={{ margin:'0 5px', opacity:.4 }}>›</span> Metas
           </div>
-          <h1 style={s.title}>Metas Comerciais</h1>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <h1 style={s.title}>Metas Comerciais</h1>
+            <button
+              onClick={() => setShowKpis(v => !v)}
+              title={showKpis ? 'Ocultar indicadores' : 'Exibir indicadores'}
+              style={{ display:'flex', alignItems:'center', justifyContent:'center',
+                width:28, height:28, borderRadius:7, border:'1px solid var(--border)',
+                background:'var(--surface)', color:'var(--text-muted)',
+                cursor:'pointer', flexShrink:0, marginTop:2 }}>
+              {showKpis ? <ChevronDown size={14} /> : <ChevronDown size={14} style={{ transform:'rotate(-90deg)' }} />}
+            </button>
+          </div>
         </div>
 
         {/* Direita: filtros + CTA */}
@@ -1228,6 +1369,35 @@ export default function Metas() {
         </div>
       </div>
 
+      {/* ── KPI cards retráteis ── */}
+      <div style={{ display:'grid', gridTemplateRows: showKpis ? '1fr' : '0fr',
+        transition:'grid-template-rows 0.25s ease', overflow:'hidden' }}>
+        <div style={{ minHeight:0 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12,
+            paddingBottom: showKpis ? 0 : 0 }}>
+            <KpiCard
+              label="Realizado (período)"
+              value={`R$ ${kpis.realizado.toLocaleString('pt-BR', { maximumFractionDigits:0 })}`}
+              accent mono
+            />
+            <KpiCard
+              label="YoY — mesmo período ano anterior"
+              value={`R$ ${kpis.realizadoYY.toLocaleString('pt-BR', { maximumFractionDigits:0 })}`}
+              sub={kpis.yoyDelta !== null
+                ? `${Number(kpis.yoyDelta) > 0 ? '+' : ''}${kpis.yoyDelta}% vs ano ant.`
+                : 'sem dados do ano anterior'}
+              mono
+            />
+            <KpiCard
+              label="Ticket Médio"
+              value={`R$ ${kpis.ticket.toLocaleString('pt-BR', { maximumFractionDigits:0 })}`}
+              mono
+            />
+            <KpiCard label="Qtd. de Vendas" value={kpis.qtd} />
+          </div>
+        </div>
+      </div>
+
       {/* ── Grid matriz ── */}
       <div style={s.tableWrap}>
         <MatrixGrid
@@ -1266,14 +1436,15 @@ export default function Metas() {
 
 // ─── Estilos globais ──────────────────────────────────────────────────────────
 const s = {
-  page:        { maxWidth: 1400, margin: '0 auto' },
+  page:        { minWidth: 0 },
   topBar:      { display:'flex', alignItems:'flex-start', justifyContent:'space-between',
                  marginBottom:20, gap:16, flexWrap:'wrap' },
   breadcrumb:  { fontSize:11, color:'var(--text-muted)', fontWeight:600,
                  textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 },
   title:       { margin:0, fontSize:22, fontWeight:800, color:'var(--text)', letterSpacing:'-0.4px' },
   tableWrap:   { background:'var(--surface)', borderRadius:12,
-                 border:'1px solid var(--border)', overflow:'hidden', boxShadow:'var(--shadow)' },
+                 border:'1px solid var(--border)', overflowX:'auto', overflowY:'hidden',
+                 boxShadow:'var(--shadow)' },
   btnPrimary:  { display:'inline-flex', alignItems:'center',
                  padding:'9px 20px', borderRadius:9, border:'none', background:'var(--accent)',
                  color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' },
