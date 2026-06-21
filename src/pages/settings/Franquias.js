@@ -428,8 +428,19 @@ export default function Franquias() {
               placeholder="Ex: FRQ-001" />
           </FPEField>
 
+          {/* Estado */}
+          <FPEField label="Estado" style={{ gridColumn: 'span 1' }}>
+            <select className="fpe-field" value={form.estado || ''}
+              onChange={e => set('estado', e.target.value)}>
+              <option value="">— UF —</option>
+              {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf => (
+                <option key={uf} value={uf}>{uf}</option>
+              ))}
+            </select>
+          </FPEField>
+
           {/* Nome */}
-          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: 'span 3' }}>
+          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: 'span 2' }}>
             <input className="fpe-field" value={form.nome}
               onChange={e => set('nome', e.target.value)}
               placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Franquia Norte'}
