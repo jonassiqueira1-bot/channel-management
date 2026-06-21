@@ -499,7 +499,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   }
 
   function copyWebhookUrl() {
-    const url = `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    const url = `${SUPABASE_URL}/functions/v1/integration-webhook?token=${webhookToken}`
     navigator.clipboard.writeText(url).then(() => { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2500) })
   }
 
@@ -554,7 +554,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
     reader.readAsDataURL(file)
   }
 
-  const webhookUrl = webhookToken ? `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}` : ''
+  const webhookUrl = webhookToken ? `${SUPABASE_URL}/functions/v1/integration-webhook?token=${webhookToken}` : ''
   const funiAtivo = funis.find(f => String(f.id) === String(funilId)) || funis[0]
 
   const bloco = { borderBottom: '1px solid var(--border)', padding: '28px 36px' }
@@ -868,7 +868,7 @@ function RdStationTab({ toast }) {
   }
 
   function copyWebhookUrl() {
-    const url = `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    const url = `${SUPABASE_URL}/functions/v1/integration-webhook?token=${webhookToken}`
     navigator.clipboard.writeText(url).then(() => {
       setCopiedUrl(true)
       setTimeout(() => setCopiedUrl(false), 2500)
@@ -926,7 +926,7 @@ function RdStationTab({ toast }) {
 
   const funiAtivo = funis.find(f => String(f.id) === String(funilId)) || funis[0]
   const webhookUrl = webhookToken
-    ? `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    ? `${SUPABASE_URL}/functions/v1/integration-webhook?token=${webhookToken}`
     : ''
 
   return (
