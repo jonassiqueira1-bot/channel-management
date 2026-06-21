@@ -146,7 +146,7 @@ function PreviewField({ field }) {
 function PreviewPanel({ sections, fieldById, entityLabel }) {
   return (
     <div style={{
-      width: 340, flexShrink: 0, borderLeft: '1px solid var(--border)',
+      width: 260, flexShrink: 0, borderLeft: '1px solid var(--border)',
       background: 'var(--surface)', overflowY: 'auto', display: 'flex', flexDirection: 'column',
     }}>
       {/* Header preview */}
@@ -214,18 +214,18 @@ function SidebarFieldCard({ field, isDragOverlay }) {
   return (
     <div ref={setNodeRef} {...attributes} {...listeners}
       style={{
-        padding: '8px 10px', borderRadius: 8, cursor: 'grab', userSelect: 'none',
+        padding: '5px 8px', borderRadius: 6, cursor: 'grab', userSelect: 'none',
         border: `1px solid ${isDragOverlay ? ACCENT : 'var(--border)'}`,
         background: isDragOverlay ? 'var(--surface)' : 'var(--surface2)',
         opacity: isDragging && !isDragOverlay ? 0.3 : 1,
-        display: 'flex', alignItems: 'center', gap: 8,
+        display: 'flex', alignItems: 'center', gap: 6,
         boxShadow: isDragOverlay ? '0 8px 24px rgba(99,102,241,0.15)' : 'none',
         transition: 'opacity 0.12s',
       }}>
-      <GripVertical size={12} color="var(--border2)" strokeWidth={1.75} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <GripVertical size={11} color="var(--border2)" strokeWidth={1.75} style={{ flexShrink: 0 }} />
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
           {field.label}
         </div>
         <TipoBadge tipo={field.field_type} />
@@ -245,13 +245,13 @@ function AvailableFieldsPanel({ sidebarFields, onNewField, onEditField, onDelete
 
   return (
     <div ref={setNodeRef} style={{
-      width: 240, flexShrink: 0, borderRight: '1px solid var(--border)',
+      width: 200, flexShrink: 0, borderRight: '1px solid var(--border)',
       background: isOver ? `${ACCENT}06` : 'var(--surface)',
       display: 'flex', flexDirection: 'column', transition: 'background 0.15s',
     }}>
       {/* Header */}
-      <div style={{ padding: '14px 14px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }}>
           Campos disponíveis
         </div>
         {/* Search */}
@@ -277,7 +277,7 @@ function AvailableFieldsPanel({ sidebarFields, onNewField, onEditField, onDelete
       )}
 
       {/* Lista */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '10px 10px 12px', display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', gap: 3 }}>
         {filtered.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--border2)', fontStyle: 'italic', textAlign: 'center', marginTop: 16 }}>
             {search ? 'Nenhum resultado' : 'Todos os campos estão no formulário'}
@@ -337,8 +337,8 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
         opacity: isDragging && !isDragOverlay ? 0.2 : 1,
         background: isDragOverlay ? 'var(--surface)' : hovered ? 'var(--surface)' : '#F8FAFC',
         border: `1.5px solid ${isDragOverlay ? ACCENT : hovered ? ACCENT : 'var(--border)'}`,
-        borderRadius: 12, padding: '14px 16px',
-        display: 'flex', alignItems: 'center', gap: 9,
+        borderRadius: 8, padding: '7px 10px',
+        display: 'flex', alignItems: 'center', gap: 7,
         boxShadow: isDragOverlay ? `0 8px 24px rgba(99,102,241,0.18)` : hovered ? `0 0 0 3px ${ACCENT}18` : 'none',
         cursor: isDragging ? 'grabbing' : 'grab',
         minWidth: 0, transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
@@ -354,21 +354,19 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)',
-            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)',
+            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex: 1 }}>
             {field.label}
           </span>
           {field.is_required && (
             <span style={{ color: 'var(--red)', fontSize: 11, fontWeight: 900, lineHeight: 1, flexShrink:0 }}>*</span>
           )}
-        </div>
-        <div style={{ display: 'flex', gap: 5, marginTop: 2, alignItems: 'center' }}>
           <TipoBadge tipo={field.field_type} />
           {field.is_system && (
-            <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4,
+            <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3,
               background: '#FEF3C7', color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Sistema
+              Sys
             </span>
           )}
         </div>
@@ -401,12 +399,12 @@ function DropSlot({ slotId, field, onRemove, onEdit, onAdd }) {
   return (
     <div ref={setNodeRef} style={{
       flex: 1, minWidth: 0,
-      border: `2px dashed ${isOver ? ACCENT : isEmpty && hov ? ACCENT : isEmpty ? 'var(--border2)' : 'transparent'}`,
-      borderRadius: 10,
+      border: `1.5px dashed ${isOver ? ACCENT : isEmpty && hov ? ACCENT : isEmpty ? 'var(--border2)' : 'transparent'}`,
+      borderRadius: 7,
       transition: 'border-color 0.15s, background 0.15s, box-shadow 0.15s',
       background: isOver ? `${ACCENT}08` : isEmpty && hov ? `${ACCENT}05` : 'transparent',
-      boxShadow: isOver ? `0 0 0 4px ${ACCENT}14` : 'none',
-      minHeight: 80,
+      boxShadow: isOver ? `0 0 0 3px ${ACCENT}14` : 'none',
+      minHeight: 48,
     }}>
       {isEmpty ? (
         <button
@@ -414,24 +412,16 @@ function DropSlot({ slotId, field, onRemove, onEdit, onAdd }) {
           onMouseEnter={() => setHov(true)}
           onMouseLeave={() => setHov(false)}
           style={{
-            width: '100%', height: '100%', minHeight: 80, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 6,
+            width: '100%', height: '100%', minHeight: 48, display: 'flex', flexDirection: 'row',
+            alignItems: 'center', justifyContent: 'center', gap: 4,
             background: 'none', border: 'none', cursor: 'pointer',
             color: isOver || hov ? ACCENT : 'var(--border2)',
-            userSelect: 'none', padding: '12px 16px',
+            userSelect: 'none', padding: '6px 10px',
             transition: 'color 0.15s',
           }}>
-          <div style={{
-            width: 26, height: 26, borderRadius: 8,
-            border: `1.5px dashed ${isOver || hov ? ACCENT : 'var(--border2)'}`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'border-color 0.15s, background 0.15s',
-            background: isOver || hov ? `${ACCENT}10` : 'transparent',
-          }}>
-            <Plus size={13} color={isOver || hov ? ACCENT : 'var(--border2)'} strokeWidth={2} />
-          </div>
-          <span style={{ fontSize: 11, fontWeight: isOver || hov ? 700 : 400 }}>
-            {isOver ? 'Soltar aqui' : 'Adicionar campo'}
+          <Plus size={11} color={isOver || hov ? ACCENT : 'var(--border2)'} strokeWidth={2} />
+          <span style={{ fontSize: 10, fontWeight: isOver || hov ? 700 : 400 }}>
+            {isOver ? 'Soltar aqui' : 'Campo'}
           </span>
         </button>
       ) : (
@@ -841,21 +831,21 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
           />
 
           {/* ═══ Coluna 2: Editor ═══ */}
-          <div style={{ flex:1, overflowY:'auto', padding:'28px 32px 72px', display:'flex', flexDirection:'column', gap:32, background:'var(--surface2)' }}>
+          <div style={{ flex:1, overflowY:'auto', padding:'16px 20px 48px', display:'flex', flexDirection:'column', gap:14, background:'var(--surface2)' }}>
 
             {sections.map((sec, secIdx) => (
               <div key={sec.id} style={{
                 background:'var(--surface)', border:'1px solid var(--border)',
-                borderRadius:14, overflow:'hidden',
-                boxShadow:'0 2px 12px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04)',
+                borderRadius:10, overflow:'hidden',
+                boxShadow:'0 1px 4px rgba(0,0,0,0.05)',
               }}>
                 {/* Cabeçalho da seção */}
                 <div style={{
-                  display:'flex', alignItems:'center', gap:8, padding:'12px 18px',
+                  display:'flex', alignItems:'center', gap:6, padding:'8px 12px',
                   background:'var(--surface2)', borderBottom:'1px solid var(--border)',
                 }}>
-                  <div style={{ width:3, height:14, borderRadius:2, background:ACCENT, flexShrink:0 }} />
-                  <span style={{ flex:1, fontSize:13, fontWeight:700, color:'var(--text)', letterSpacing:'-0.1px' }}>
+                  <div style={{ width:3, height:12, borderRadius:2, background:ACCENT, flexShrink:0 }} />
+                  <span style={{ flex:1, fontSize:12, fontWeight:700, color:'var(--text)', letterSpacing:'-0.1px' }}>
                     {sec.label}
                   </span>
                   <button onClick={() => setSecModal({ secId: sec.id, current: sec.label })}
@@ -881,9 +871,9 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
                 </div>
 
                 {/* Grid de slots */}
-                <div style={{ padding:'18px 22px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+                <div style={{ padding:'10px 12px 12px', display:'flex', flexDirection:'column', gap:6 }}>
                   {sec.rows.map((row, rowIdx) => (
-                    <div key={rowIdx} style={{ display:'flex', gap:14, alignItems:'stretch' }}>
+                    <div key={rowIdx} style={{ display:'flex', gap:6, alignItems:'stretch' }}>
                       <DropSlot
                         slotId={`${sec.id}:${rowIdx}:0`}
                         field={fieldById[row[0]] || null}
@@ -918,13 +908,13 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
             ))}
 
             <button onClick={addSection} style={{
-              width:'100%', padding:'12px', borderRadius:10, cursor:'pointer',
-              border:`2px dashed ${ACCENT}`, background:'var(--accent-glow)',
-              color:ACCENT, fontSize:13, fontWeight:700, fontFamily:'var(--font)',
-              display:'flex', alignItems:'center', justifyContent:'center', gap:6,
+              width:'100%', padding:'9px', borderRadius:8, cursor:'pointer',
+              border:`1.5px dashed ${ACCENT}`, background:'var(--accent-glow)',
+              color:ACCENT, fontSize:12, fontWeight:700, fontFamily:'var(--font)',
+              display:'flex', alignItems:'center', justifyContent:'center', gap:5,
               transition:'all 0.15s',
             }}>
-              <Plus size={14} strokeWidth={2}/> Adicionar seção
+              <Plus size={13} strokeWidth={2}/> Adicionar seção
             </button>
           </div>
 
