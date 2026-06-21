@@ -223,9 +223,8 @@ function SidebarFieldCard({ field, isDragOverlay }) {
         transition: 'opacity 0.12s',
       }}>
       <GripVertical size={11} color="var(--border2)" strokeWidth={1.75} style={{ flexShrink: 0 }} />
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text)', wordBreak: 'break-word', flex: 1 }}>
           {field.label}
         </div>
         <TipoBadge tipo={field.field_type} />
@@ -354,9 +353,8 @@ function PlacedFieldCard({ field, slotId, onRemove, onEdit, isDragOverlay }) {
       </div>
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)',
-            overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', wordBreak: 'break-word' }}>
             {field.label}
           </span>
           {field.is_required && (
