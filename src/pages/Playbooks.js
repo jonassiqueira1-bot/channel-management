@@ -435,7 +435,7 @@ const oe = {
 // ─── Step SlideOver ───────────────────────────────────────────────────────────
 const EMPTY_STEP = { stage: 'prospeccao', title: '', content: '' }
 
-function StepSlideOver({ open, initial, onSave, onClose }) {
+function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG }) {
   const [form, setForm] = useState(initial || EMPTY_STEP)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   useMemo(() => { setForm(initial || EMPTY_STEP) }, [initial])
@@ -451,7 +451,7 @@ function StepSlideOver({ open, initial, onSave, onClose }) {
       <FormGrid cols={2}>
         <FormField label="Etapa">
           <select className="so-field" value={form.stage} onChange={e => set('stage', e.target.value)}>
-            {Object.entries(STAGE_CFG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
+            {Object.entries(stageCfg).map(([k, v]) => <option key={k} value={k}>{v.icon ? `${v.icon} ` : ''}{v.label}</option>)}
           </select>
         </FormField>
         <FormField label="Título" required>
@@ -578,15 +578,16 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
 }
 
 // ─── Detail: Funnel Steps Panel ───────────────────────────────────────────────
-function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep }) {
-  const [open, setOpen] = useState(new Set(['prospeccao']))
+function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, stageCfg = STAGE_CFG }) {
+  const firstKey = Object.keys(stageCfg)[0] || 'prospeccao'
+  const [open, setOpen] = useState(new Set([firstKey]))
   const toggle = k => setOpen(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   const byStage = useMemo(() => {
     const map = {}
-    Object.keys(STAGE_CFG).forEach(k => { map[k] = steps.filter(s => s.stage === k) })
+    Object.keys(stageCfg).forEach(k => { map[k] = steps.filter(s => String(s.stage) === String(k)) })
     return map
-  }, [steps])
+  }, [steps, stageCfg])
 
   return (
     <div style={dp.panel}>
@@ -595,7 +596,7 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep })
         <p style={dp.panelSub}>Roteiros, scripts e critérios estruturados por fase do funil.</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {Object.entries(STAGE_CFG).map(([key, cfg]) => {
+        {Object.entries(stageCfg).map(([key, cfg]) => {
           const stageSteps = byStage[key] || []
           const isOpen = open.has(key)
           return (
@@ -624,7 +625,7 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep })
                       <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.4 }}>{cfg.icon}</div>
                       <div style={{ fontSize: 13, marginBottom: 12 }}>Nenhuma atividade definida para {cfg.label}</div>
                       {isISV && (
-                        <button onClick={() => onAddStep(key)} style={dp.addBtn}>+ Adicionar conteúdo</button>
+                        <button onClick={() => onAddStep(key, stageCfg)} style={dp.addBtn}>+ Adicionar conteúdo</button>
                       )}
                     </div>
                   ) : (
@@ -634,7 +635,7 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep })
                           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>{step.title}</h3>
                           {isISV && (
                             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                              <button onClick={() => onEditStep(step)} style={dp.editBtn}>✎ Editar</button>
+                              <button onClick={() => onEditStep(step, stageCfg)} style={dp.editBtn}>✎ Editar</button>
                               <button onClick={() => onDeleteStep(step.id)} style={dp.deleteBtn}>✕</button>
                             </div>
                           )}
@@ -645,7 +646,7 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep })
                   )}
                   {stageSteps.length > 0 && isISV && (
                     <div style={{ padding: '10px 20px' }}>
-                      <button onClick={() => onAddStep(key)} style={dp.ghostAddBtn}>+ Adicionar outra atividade</button>
+                      <button onClick={() => onAddStep(key, stageCfg)} style={dp.ghostAddBtn}>+ Adicionar outra atividade</button>
                     </div>
                   )}
                 </div>
@@ -831,11 +832,22 @@ const SEGMENT_COLORS = {
   'Outro':      { bg: '#F3F4F6', color: '#374151' },
 }
 
-function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEditPlaybook,
+function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], onBack, onEditPlaybook,
   onAddStep, onEditStep, onDeleteStep, onAddRef, onEditRef, onDeleteRef,
   onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes }) {
   const [section, setSection] = useState('funnel')
   const segColor = SEGMENT_COLORS[playbook.segment] || SEGMENT_COLORS['Outro']
+
+  const stageCfg = useMemo(() => {
+    if (!playbook.funil_id) return STAGE_CFG
+    const funil = funis.find(f => String(f.id) === String(playbook.funil_id))
+    if (!funil?.etapas?.length) return STAGE_CFG
+    return Object.fromEntries(
+      [...funil.etapas]
+        .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+        .map(e => [String(e.id), { label: e.nome, icon: '', color: e.cor || 'var(--accent)', bg: (e.cor || '#6366F1') + '22' }])
+    )
+  }, [playbook.funil_id, funis])
   const stepsCount    = steps.length
   const refsCount     = refs.length
   const resourceCount = resources.length
@@ -883,7 +895,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, onBack, onEdi
         {/* Content area */}
         <main style={dv.content}>
           {section === 'funnel' && (
-            <FunnelStepsPanel steps={steps} isISV={isISV} onAddStep={onAddStep} onEditStep={onEditStep} onDeleteStep={onDeleteStep} />
+            <FunnelStepsPanel steps={steps} isISV={isISV} onAddStep={onAddStep} onEditStep={onEditStep} onDeleteStep={onDeleteStep} stageCfg={stageCfg} />
           )}
           {section === 'refs' && (
             <ReferencesPanel refs={refs} isISV={isISV} onAdd={onAddRef} onEdit={onEditRef} onDelete={onDeleteRef} />
@@ -1077,10 +1089,11 @@ export default function Playbooks() {
           refs={pbRefs}
           resources={pbResources}
           isISV={isISV}
+          funis={funis || []}
           onBack={() => setSelectedPb(null)}
           onEditPlaybook={() => setModal({ type: 'playbook', data: selectedPb })}
-          onAddStep={stage => setModal({ type: 'step', data: { stage } })}
-          onEditStep={step => setModal({ type: 'step', data: step })}
+          onAddStep={(stage, stageCfg) => setModal({ type: 'step', data: { stage }, stageCfg })}
+          onEditStep={(step, stageCfg) => setModal({ type: 'step', data: step, stageCfg })}
           onDeleteStep={deleteStep}
           onAddRef={() => setModal({ type: 'ref' })}
           onEditRef={ref => setModal({ type: 'ref', data: ref })}
@@ -1116,9 +1129,10 @@ export default function Playbooks() {
       />
       <StepSlideOver
         open={modal?.type === 'step'}
-        initial={modal?.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal?.data?.stage || 'prospeccao' }}
+        initial={modal?.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal?.data?.stage || Object.keys(modal?.stageCfg || STAGE_CFG)[0] || 'prospeccao' }}
         onSave={saveStep}
         onClose={() => setModal(null)}
+        stageCfg={modal?.stageCfg || STAGE_CFG}
       />
       <ReferenceSlideOver
         open={modal?.type === 'ref'}
