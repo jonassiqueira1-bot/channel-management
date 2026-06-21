@@ -118,42 +118,42 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
     >
       <FormGrid cols={2}>
         <FormField label="Nome" required style={{ gridColumn: 'span 2' }}>
-          <input className="so-input" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo" />
+          <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo" />
         </FormField>
 
         <FormField label="E-mail">
-          <input className="so-input" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
+          <input className="so-field" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
         </FormField>
 
         <FormField label="Telefone">
-          <input className="so-input" value={form.telefone} onChange={e => set('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
+          <input className="so-field" value={form.telefone} onChange={e => set('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
         </FormField>
 
         <FormField label="CPF">
-          <input className="so-input" value={form.cpf} onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00" />
+          <input className="so-field" value={form.cpf} onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00" />
         </FormField>
 
         <FormField label="Cargo / Papel">
-          <select className="so-input" value={form.role} onChange={e => set('role', e.target.value)}>
+          <select className="so-field" value={form.role} onChange={e => set('role', e.target.value)}>
             {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </FormField>
 
         <FormField label="Status">
-          <select className="so-input" value={form.status} onChange={e => set('status', e.target.value)}>
+          <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
             {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </FormField>
 
         <FormField label="Região">
-          <select className="so-input" value={form.regiao} onChange={e => set('regiao', e.target.value)}>
+          <select className="so-field" value={form.regiao} onChange={e => set('regiao', e.target.value)}>
             <option value="">Selecionar…</option>
             {REGIOES.map(r => <option key={r} value={r}>{r}</option>)}
           </select>
         </FormField>
 
         <FormField label="Franquia / Equipe" style={{ gridColumn: 'span 2' }}>
-          <select className="so-input" value={form.franquia_id || ''}
+          <select className="so-field" value={form.franquia_id || ''}
             onChange={e => {
               const opt = franquiasOpts.find(o => String(o.id) === e.target.value)
               setForm(f => ({ ...f, franquia_id: e.target.value || null, franquia_nome: opt?.label || '' }))
@@ -166,11 +166,11 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
         </FormField>
 
         <FormField label="Meta mensal (R$)">
-          <input className="so-input" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
+          <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
         </FormField>
 
         <FormField label="Observações internas" style={{ gridColumn: 'span 2' }}>
-          <textarea className="so-input" rows={3} style={{ resize:'vertical' }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
+          <textarea className="so-field" rows={3} style={{ resize:'vertical' }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
         </FormField>
       </FormGrid>
     </SlideOver>

@@ -8,6 +8,7 @@ import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useContacts } from '../hooks/useContacts'
+import { STORAGE_KEY as TIPOS_ATIVIDADE_KEY } from './settings/TiposAcao'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
 const MOCK_OPPS = [
@@ -30,8 +31,23 @@ const MOCK_CONTRATOS = [
 ]
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
-const TIPOS_TAREFA = ['ligação','email','reunião','visita','proposta','follow-up','outro']
-const TIPO_ICONS   = { 'ligação':'📞', 'email':'✉', 'reunião':'🗓', 'visita':'🚗', 'proposta':'📄', 'follow-up':'🔁', 'outro':'☑' }
+// Fallback para quando não há tipos cadastrados nas Configurações
+const TIPOS_TAREFA_DEFAULT = [
+  { slug:'ligacao',   label:'Ligação',  icon:'📞' },
+  { slug:'email',     label:'E-mail',   icon:'📧' },
+  { slug:'reuniao',   label:'Reunião',  icon:'🤝' },
+  { slug:'visita',    label:'Visita',   icon:'📍' },
+  { slug:'proposta',  label:'Proposta', icon:'📋' },
+  { slug:'follow_up', label:'Follow-up',icon:'🔔' },
+]
+
+// Ícone por slug ou label (cobre dados antigos com tipo em texto livre)
+const ICON_FALLBACK = { ligacao:'📞', email:'📧', reuniao:'🤝', visita:'📍', proposta:'📋', follow_up:'🔔',
+  'ligação':'📞', 'reunião':'🤝', 'follow-up':'🔔' }
+function tipoIcon(tipo, tiposList = TIPOS_TAREFA_DEFAULT) {
+  const found = tiposList.find(t => t.slug === tipo || t.label?.toLowerCase() === tipo?.toLowerCase())
+  return found?.icon || ICON_FALLBACK[tipo] || '☑'
+}
 
 const STATUS_CFG = {
   pendente:    { label:'Pendente',    color:'#F59E0B', bg:'#FEF3C7', text:'#92400E', dot:'#F59E0B' },
@@ -224,7 +240,7 @@ function ContatoSearch({ value, label, onChange }) {
 }
 
 // ─── Formulário de Tarefa (usado dentro do SlideOver) ────────────────────────
-function TarefaForm({ form, onChange }) {
+function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT }) {
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
   return (
@@ -236,21 +252,15 @@ function TarefaForm({ form, onChange }) {
             placeholder="Título da tarefa…" />
         </FormField>
 
-        <div style={{ gridColumn: '1 / -1' }}>
-          <label className="so-label">Tipo</label>
-          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:4 }}>
-            {TIPOS_TAREFA.map(t => (
-              <button key={t} type="button" onClick={() => set('tipo', t)}
-                style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight:600,
-                  border: `1.5px solid ${form.tipo === t ? 'var(--accent)' : 'var(--border)'}`,
-                  background: form.tipo === t ? 'var(--accent-glow)' : 'transparent',
-                  color: form.tipo === t ? 'var(--accent)' : 'var(--text-muted)',
-                  cursor:'pointer', fontFamily:'var(--font)', transition:'all 0.12s' }}>
-                {TIPO_ICONS[t]} {t.charAt(0).toUpperCase() + t.slice(1)}
-              </button>
-            ))}
-          </div>
-        </div>
+        <FormField label="Tipo">
+          <select className="so-field" value={form.tipo || ''} onChange={e => set('tipo', e.target.value)}>
+            <option value="">— Selecione —</option>
+            {tiposTarefa.map(t => {
+              const key = t.slug || t.key || t.id
+              return <option key={key} value={key}>{t.icon} {t.label}</option>
+            })}
+          </select>
+        </FormField>
 
         <FormField label="Descrição" span={2}>
           <textarea className="so-field" rows={3} value={form.descricao || ''}
@@ -373,7 +383,7 @@ function parseCSV(text) {
 function validateImportRow(row) {
   const errors = []
   if (!row.titulo?.trim()) errors.push('Título é obrigatório')
-  if (row.tipo && !TIPOS_TAREFA.includes(row.tipo)) errors.push(`Tipo inválido. Use: ${TIPOS_TAREFA.join(', ')}`)
+  // validação de tipo relaxada — aceita qualquer slug cadastrado
   if (row.status && !Object.keys(STATUS_CFG).includes(row.status)) errors.push(`Status inválido. Use: ${Object.keys(STATUS_CFG).join(', ')}`)
   if (row.prioridade && !Object.keys(PRIORIDADE_CFG).includes(row.prioridade)) errors.push(`Prioridade inválida`)
   if (row.prazo && !/^\d{4}-\d{2}-\d{2}$/.test(row.prazo)) errors.push('Prazo inválido (use AAAA-MM-DD)')
@@ -523,7 +533,7 @@ function TarefaCard({ tarefa, onClick }) {
     <div style={{ ...k.card, opacity:tarefa.status==='concluida'||tarefa.status==='cancelada'?0.7:1 }} onClick={onClick}>
       <div style={{ height:3, background:cfg.color, borderRadius:'6px 6px 0 0', margin:'-12px -12px 10px' }} />
       <div style={{ display:'flex', alignItems:'flex-start', gap:7, marginBottom:6 }}>
-        <span style={{ fontSize:15, flexShrink:0, marginTop:1 }}>{TIPO_ICONS[tarefa.tipo]||'☑'}</span>
+        <span style={{ fontSize:15, flexShrink:0, marginTop:1 }}>{tipoIcon(tarefa.tipo)}</span>
         <div style={{ fontWeight:600, fontSize:13, color:'var(--text)', lineHeight:1.3 }}>{tarefa.titulo}</div>
       </div>
       {tarefa.entidade_nome && (
@@ -593,6 +603,14 @@ const k = {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Tarefas() {
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
+  const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
+  const tiposTarefa = useMemo(
+    () => {
+      const lista = tiposAtividade.filter(t => t.uso === 'tarefa' || t.uso === 'ambos')
+      return lista.length ? lista : TIPOS_TAREFA_DEFAULT
+    },
+    [tiposAtividade]
+  )
 
   // ── SlideOver state ───────────────────────────────────────────────────────
   const [editItem, setEditItem]   = useState(null)   // tarefa obj | { _new:true, status? } | null
@@ -654,7 +672,7 @@ export default function Tarefas() {
       key: 'titulo', label: 'Tarefa',
       render: (v, row) => (
         <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
-          <span style={{ fontSize:16, marginTop:1, flexShrink:0 }}>{TIPO_ICONS[row.tipo]||'☑'}</span>
+          <span style={{ fontSize:16, marginTop:1, flexShrink:0 }}>{tipoIcon(row.tipo)}</span>
           <div>
             <div style={{ fontWeight:600, color:'var(--text)', fontSize:13, textDecoration:row.status==='concluida'?'line-through':undefined }}>{v}</div>
             {row.descricao && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', maxWidth:240 }}>{row.descricao}</div>}
@@ -684,15 +702,11 @@ export default function Tarefas() {
         </div>
       )
     }},
-    { key: '_edit', label: '', sortable: false, width: 70, render: (_, row) => (
-      <button style={{ padding:'4px 10px', border:'1px solid var(--border)', borderRadius:5, background:'none', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}
-        onClick={() => openEdit(row)}>Editar</button>
-    )},
   ]
 
   const filterDefs = [
     { key: 'status',        label: 'Status',    options: Object.entries(STATUS_CFG).map(([k,cfg]) => ({ value:k, label:cfg.label })) },
-    { key: 'tipo',          label: 'Tipo',       options: TIPOS_TAREFA.map(t => ({ value:t, label:`${TIPO_ICONS[t]} ${t.charAt(0).toUpperCase()+t.slice(1)}` })) },
+    { key: 'tipo',          label: 'Tipo',       options: tiposTarefa.map(t => ({ value: t.slug || t.key || t.id, label:`${t.icon} ${t.label}` })) },
     { key: 'prioridade',    label: 'Prioridade', options: Object.entries(PRIORIDADE_CFG).map(([k,cfg]) => ({ value:k, label:cfg.label })) },
     { key: 'entidade_tipo', label: 'Vínculo',    options: ENTIDADE_TIPOS.map(t => ({ value:t.value, label:t.label })) },
   ]
@@ -742,7 +756,7 @@ export default function Tarefas() {
       onClose={closeSlideOver}
       onSave={handleSave}
       title={isNew ? 'Nova tarefa' : (form?.titulo || 'Editar tarefa')}
-      subtitle={isNew ? 'Preencha os dados da tarefa' : `${TIPO_ICONS[form?.tipo] || '☑'} ${STATUS_CFG[form?.status]?.label || ''}`}
+      subtitle={isNew ? 'Preencha os dados da tarefa' : `${tipoIcon(form?.tipo)} ${STATUS_CFG[form?.status]?.label || ''}`}
       saveLabel={isNew ? 'Criar tarefa' : 'Salvar alterações'}
       columns={2}
       extra={!isNew && (
@@ -754,7 +768,7 @@ export default function Tarefas() {
         </button>
       )}
     >
-      {form && <TarefaForm form={form} onChange={setForm} />}
+      {form && <TarefaForm form={form} onChange={setForm} tiposTarefa={tiposTarefa} />}
     </SlideOver>
   )
 
@@ -804,6 +818,7 @@ export default function Tarefas() {
         onSearchChange={setSearch}
         bulkActions={bulkActions}
         renderCard={row => <TarefaCard tarefa={row} onClick={() => openEdit(row)} />}
+        onRowClick={row => openEdit(row)}
         onNew={() => openNew()}
         newLabel="+ Nova tarefa"
         onImport={() => setImportModal(true)}

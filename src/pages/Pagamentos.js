@@ -14,6 +14,18 @@ import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
 
+// Distribui o valor do produto no bucket correto baseado no tipo
+function valorPorTipo(prod, valor) {
+  if (!prod || !valor) return {}
+  const v = parseFloat(valor) || 0
+  if (v <= 0) return {}
+  const t = (prod.tipo || '').toLowerCase()
+  if (t === 'saas')   return { amount_sms: v, amount_cdu: 0, amount_services: 0 }
+  if (t === 'licenca') return { amount_cdu: v, amount_sms: 0, amount_services: 0 }
+  // servico, consultoria, treinamento → Serviços
+  return { amount_services: v, amount_cdu: 0, amount_sms: 0 }
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMoeda(v) {
   if (!v && v !== 0) return '—'
@@ -621,8 +633,19 @@ function PagamentoDetail({ pagamento, onSave, onClose }) {
       <MetaRow label="Produto">
         <InlineSelect value={form.produto_id ? String(form.produto_id) : ''} onChange={v => {
           const prod = MOCK_PRODUTOS.find(p => String(p.id) === v)
-          setForm(f => ({ ...f, produto_id: v, produto_nome: prod?.nome||'' }))
-          patch('produto_id', v)
+          const buckets = valorPorTipo(prod, prod?.preco)
+          setForm(f => {
+            const n = { ...f, produto_id: v, produto_nome: prod?.nome||'', ...buckets }
+            onSave({ ...pagamento, ...n,
+              amount_total_net: Math.max(0,
+                (Number(n.amount_cdu)||0)+(Number(n.amount_sms)||0)+(Number(n.amount_services)||0)-(Number(n.amount_discount)||0)
+              ),
+              valor_recebido: n.valor_recebido!==''?Number(n.valor_recebido)||0:null,
+              produto_id: n.produto_id?Number(n.produto_id):null,
+              processed: true,
+            })
+            return n
+          })
         }} options={produtoOptions} />
       </MetaRow>
       <MetaRow label="Nº Documento">
@@ -711,8 +734,8 @@ function _PagamentoModalLegacy({ pagamento, onSave, onClose }) {
               <select style={inp} value={form.produto_id}
                 onChange={e => {
                   const prod = MOCK_PRODUTOS.find(p=>String(p.id)===e.target.value)
-                  set('produto_id', e.target.value)
-                  set('produto_nome', prod?.nome||'')
+                  const buckets = valorPorTipo(prod, prod?.preco)
+                  setForm(f => ({ ...f, produto_id: e.target.value, produto_nome: prod?.nome||'', ...buckets }))
                 }}>
                 <option value="">Selecione o produto…</option>
                 {MOCK_PRODUTOS.filter(p=>p.status==='ativo').map(p=>(

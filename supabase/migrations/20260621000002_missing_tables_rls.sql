@@ -19,8 +19,10 @@ CREATE INDEX IF NOT EXISTS idx_integracoes_tenant ON public.integracoes(tenant_i
 
 ALTER TABLE public.integracoes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "integracoes: view"   ON public.integracoes FOR SELECT USING (tenant_id = public.my_tenant_id());
-CREATE POLICY IF NOT EXISTS "integracoes: manage" ON public.integracoes FOR ALL    USING (tenant_id = public.my_tenant_id());
+DROP POLICY IF EXISTS "integracoes: view"   ON public.integracoes;
+DROP POLICY IF EXISTS "integracoes: manage" ON public.integracoes;
+CREATE POLICY "integracoes: view"   ON public.integracoes FOR SELECT USING (tenant_id = public.my_tenant_id());
+CREATE POLICY "integracoes: manage" ON public.integracoes FOR ALL    USING (tenant_id = public.my_tenant_id());
 
 -- ─── oportunidade_membros ──────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.oportunidade_membros (
@@ -39,8 +41,10 @@ CREATE INDEX IF NOT EXISTS idx_opp_membros_opportunity ON public.oportunidade_me
 
 ALTER TABLE public.oportunidade_membros ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "oportunidade_membros: view"   ON public.oportunidade_membros FOR SELECT USING (tenant_id = public.my_tenant_id());
-CREATE POLICY IF NOT EXISTS "oportunidade_membros: manage" ON public.oportunidade_membros FOR ALL    USING (tenant_id = public.my_tenant_id());
+DROP POLICY IF EXISTS "oportunidade_membros: view"   ON public.oportunidade_membros;
+DROP POLICY IF EXISTS "oportunidade_membros: manage" ON public.oportunidade_membros;
+CREATE POLICY "oportunidade_membros: view"   ON public.oportunidade_membros FOR SELECT USING (tenant_id = public.my_tenant_id());
+CREATE POLICY "oportunidade_membros: manage" ON public.oportunidade_membros FOR ALL    USING (tenant_id = public.my_tenant_id());
 
 -- ─── rd_leads_queue ───────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.rd_leads_queue (
@@ -57,5 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_rd_leads_queue_processed ON public.rd_leads_queue
 
 ALTER TABLE public.rd_leads_queue ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "rd_leads_queue: view"   ON public.rd_leads_queue FOR SELECT USING (tenant_id = public.my_tenant_id());
-CREATE POLICY IF NOT EXISTS "rd_leads_queue: manage" ON public.rd_leads_queue FOR ALL    USING (tenant_id = public.my_tenant_id());
+DROP POLICY IF EXISTS "rd_leads_queue: view"   ON public.rd_leads_queue;
+DROP POLICY IF EXISTS "rd_leads_queue: manage" ON public.rd_leads_queue;
+CREATE POLICY "rd_leads_queue: view"   ON public.rd_leads_queue FOR SELECT USING (tenant_id = public.my_tenant_id());
+CREATE POLICY "rd_leads_queue: manage" ON public.rd_leads_queue FOR ALL    USING (tenant_id = public.my_tenant_id());

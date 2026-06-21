@@ -395,6 +395,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
       produto_id:    p.id,
       produto_nome:  p.nome,
       produto_codigo:p.codigo,
+      tipo:          p.tipo,
       cobranca:      p.cobranca,
       desconto_max:  p.desconto_max || 0,
       quantidade:    1,
@@ -565,7 +566,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
               )}
             </div>
 
-            <button type="button" onClick={() => onSyncValor(totalRecorr)}
+            <button type="button" onClick={() => onSyncValor(itens)}
               title="Sobrescrever o campo Valor MRR da oportunidade com o total calculado"
               style={{ padding:'7px 14px', background:'var(--accent)', color:'#fff',
                 border:'none', borderRadius:6, fontSize:12, fontWeight:600,
@@ -3671,7 +3672,15 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
             <OppProdutosTab
               itens={form.itens}
               onChange={itens => set('itens', itens)}
-              onSyncValor={mrr => { set('valor_servico', Math.round(mrr)); setTab('dados') }}
+              onSyncValor={itens => {
+                const sms     = itens.filter(i => (i.tipo||'').toLowerCase() === 'saas').reduce((s,i) => s+i.subtotal, 0)
+                const cdu     = itens.filter(i => (i.tipo||'').toLowerCase() === 'licenca').reduce((s,i) => s+i.subtotal, 0)
+                const servico = itens.filter(i => !['saas','licenca'].includes((i.tipo||'').toLowerCase())).reduce((s,i) => s+i.subtotal, 0)
+                if (sms     > 0) set('valor_sms',     Math.round(sms))
+                if (cdu     > 0) set('valor_cdu',     Math.round(cdu))
+                if (servico > 0) set('valor_servico', Math.round(servico))
+                setTab('dados')
+              }}
             />
             <ValorFinanceiroSection form={form} set={set} />
           </div>

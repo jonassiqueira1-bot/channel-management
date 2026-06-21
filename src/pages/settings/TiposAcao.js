@@ -4,11 +4,33 @@ import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 const DEFAULTS = [
-  { id: 1, label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'treinamento' },
-  { id: 2, label: 'Evento',       icon: '📅', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', slug: 'evento' },
-  { id: 3, label: 'Capacitação',  icon: '🚀', color: '#10B981', bg: '#D1FAE5', text: '#065F46', slug: 'capacitacao' },
-  { id: 4, label: 'Outros',       icon: '◎',  color: '#6B7280', bg: '#F3F4F6', text: '#374151', slug: 'outros' },
+  { id: 1, label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'treinamento', uso: 'acao' },
+  { id: 2, label: 'Evento',       icon: '📅', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', slug: 'evento', uso: 'acao' },
+  { id: 3, label: 'Capacitação',  icon: '🚀', color: '#10B981', bg: '#D1FAE5', text: '#065F46', slug: 'capacitacao', uso: 'acao' },
+  { id: 4, label: 'Outros',       icon: '◎',  color: '#6B7280', bg: '#F3F4F6', text: '#374151', slug: 'outros', uso: 'acao' },
+  { id: 5, label: 'Ligação',      icon: '📞', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', slug: 'ligacao', uso: 'tarefa' },
+  { id: 6, label: 'E-mail',       icon: '📧', color: '#10B981', bg: '#D1FAE5', text: '#065F46', slug: 'email', uso: 'tarefa' },
+  { id: 7, label: 'Reunião',      icon: '🤝', color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', slug: 'reuniao', uso: 'tarefa' },
+  { id: 8, label: 'Visita',       icon: '📍', color: '#EC4899', bg: '#FCE7F3', text: '#9D174D', slug: 'visita', uso: 'tarefa' },
+  { id: 9, label: 'Proposta',     icon: '📋', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'proposta', uso: 'tarefa' },
+  { id:10, label: 'Follow-up',    icon: '🔔', color: '#EF4444', bg: '#FEE2E2', text: '#991B1B', slug: 'follow_up', uso: 'tarefa' },
 ]
+
+const USO_CFG = {
+  acao:   { label: 'Ações',   color: '#6366F1', bg: '#EDE9FE', text: '#5B21B6' },
+  tarefa: { label: 'Tarefas', color: '#F59E0B', bg: '#FEF3C7', text: '#B45309' },
+  ambos:  { label: 'Ambos',   color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+}
+
+function UsoBadge({ uso }) {
+  const cfg = USO_CFG[uso] || USO_CFG.ambos
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', padding:'2px 8px', borderRadius:20,
+      fontSize:11, fontWeight:600, background:cfg.bg, color:cfg.text, border:`1px solid ${cfg.color}33` }}>
+      {cfg.label}
+    </span>
+  )
+}
 
 const PALETTE = [
   { color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', label: 'Violeta' },
@@ -242,7 +264,7 @@ export default function SettingsTiposAcao() {
 
   function abrirNovo() {
     const p = PALETTE[0]
-    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text })
+    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text, uso: 'acao' })
     setEditando('novo')
   }
 
@@ -288,6 +310,23 @@ export default function SettingsTiposAcao() {
             <input className="fpe-field" value={form.label} maxLength={40}
               placeholder="Ex: Workshop, Webinar…"
               onChange={e => set('label', e.target.value)} />
+          </FPEField>
+          <FPEField label="Usado em" required>
+            <div style={{ display:'flex', gap:8 }}>
+              {Object.entries(USO_CFG).map(([k, cfg]) => {
+                const ativo = (form.uso || 'acao') === k
+                return (
+                  <button key={k} type="button" onClick={() => set('uso', k)}
+                    style={{ padding:'7px 16px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
+                      fontSize:12, fontWeight: ativo ? 700 : 500,
+                      border:`1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
+                      background: ativo ? cfg.bg : 'var(--surface2)',
+                      color: ativo ? cfg.text : 'var(--text-muted)', transition:'all 0.15s' }}>
+                    {cfg.label}
+                  </button>
+                )
+              })}
+            </div>
           </FPEField>
         </FPESection>
 
@@ -335,10 +374,11 @@ export default function SettingsTiposAcao() {
         />
       )}
       <SettingsLayout
-        title="Tipos de Ações"
-        description="Categorias usadas no cadastro de ações comerciais do canal."
+        title="Tipos de Atividades"
+        description="Categorias usadas no cadastro de Ações e Tarefas do canal."
         columns={[
           { key: 'label', label: 'Tipo', render: (v, row) => <TipoBadge label={row.label} icon={row.icon} bg={row.bg} text={row.text} color={row.color} /> },
+          { key: 'uso',   label: 'Usado em', render: val => <UsoBadge uso={val || 'acao'} /> },
           { key: 'slug',  label: 'Slug', muted: true, priority: 2 },
         ]}
         data={filtered}
