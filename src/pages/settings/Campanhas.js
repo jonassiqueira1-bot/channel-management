@@ -1,8 +1,189 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 
 /* ─── Constants ─────────────────────────────────────────── */
+
+const IMPORT_COLS = ['name', 'objective', 'description', 'start_date', 'end_date', 'status', 'pontua_metas']
+
+/* ─── CSV helpers ────────────────────────────────────────── */
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n')
+  const sep = lines[0].includes(';') ? ';' : ','
+  function parseLine(line) {
+    const fields = []; let cur = ''; let inQ = false
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i]
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === sep && !inQ) { fields.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    fields.push(cur.trim()); return fields
+  }
+  const headers = parseLine(lines[0]).map(h => h.toLowerCase().replace(/[^a-z0-9_]/g, '_'))
+  const rows = lines.slice(1).filter(l => l.trim()).map(l => {
+    const vals = parseLine(l); const obj = {}
+    headers.forEach((h, i) => { obj[h] = vals[i] || '' })
+    return obj
+  })
+  return { rows }
+}
+
+function downloadText(content, filename, mime) {
+  const blob = new Blob(['﻿' + content], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
+function toCSVValue(v, sep = ';') {
+  const s = String(v ?? '')
+  return s.includes(sep) || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+/* ─── ImportModal ────────────────────────────────────────── */
+function ImportModal({ onClose, onImport, existingNames }) {
+  const [step, setStep]     = useState('upload')
+  const [rows, setRows]     = useState([])
+  const [errors, setErrors] = useState({})
+  const [dragging, setDragging] = useState(false)
+  const fileRef = useRef(null)
+
+  const VALID_STATUS  = ['draft', 'active', 'paused']
+  const VALID_OBJ = ['Atração de Leads','Upgrade de Módulo','Sazonal','Fidelização','Lançamento de Produto','Reativação']
+
+  function handleFile(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = e => {
+      const { rows: parsed } = parseCSV(e.target.result)
+      const errs = {}
+      parsed.forEach((row, i) => {
+        const rowErrs = []
+        if (!row.name?.trim()) rowErrs.push('Nome obrigatório')
+        else if (existingNames.includes(row.name.trim().toLowerCase())) rowErrs.push('Nome já existe')
+        else if (parsed.slice(0, i).some(r => r.name?.trim().toLowerCase() === row.name?.trim().toLowerCase())) rowErrs.push('Nome duplicado no arquivo')
+        if (row.status && !VALID_STATUS.includes(row.status)) rowErrs.push(`Status inválido (${VALID_STATUS.join(', ')})`)
+        if (row.objective && !VALID_OBJ.includes(row.objective)) rowErrs.push('Objetivo inválido')
+        if (rowErrs.length) errs[i] = rowErrs
+      })
+      setRows(parsed); setErrors(errs); setStep('preview')
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  function downloadTemplate() {
+    const header  = IMPORT_COLS.join(';')
+    const example = 'Campanha Verão;Sazonal;Descrição aqui;2026-01-01;2026-03-31;draft;false'
+    downloadText(`${header}\n${example}`, 'template_campanhas.csv', 'text/csv')
+  }
+
+  const okRows  = rows.filter((_, i) => !errors[i])
+  const errRows = rows.filter((_, i) =>  errors[i])
+
+  function doImport() {
+    onImport(okRows.map(r => ({
+      id: Math.random().toString(36).slice(2),
+      name: r.name.trim(),
+      objective: r.objective || '',
+      description: r.description || '',
+      start_date: r.start_date || '',
+      end_date: r.end_date || '',
+      status: VALID_STATUS.includes(r.status) ? r.status : 'draft',
+      pontua_metas: r.pontua_metas === 'true' || r.pontua_metas === '1',
+      materials: [''],
+    })))
+    onClose()
+  }
+
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, backdropFilter:'blur(2px)' }
+  const modal   = { background:'var(--surface)', borderRadius:14, width:680, maxHeight:'84vh', display:'flex', flexDirection:'column', boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }
+
+  return (
+    <div style={overlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={modal}>
+        <div style={{ padding:'20px 24px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Campanhas de Incentivo</div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{step === 'upload' ? 'Importar dados' : `${rows.length} linha${rows.length !== 1 ? 's' : ''} encontrada${rows.length !== 1 ? 's' : ''}`}</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:'var(--text-muted)', lineHeight:1 }}>×</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
+          {step === 'upload' ? (
+            <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+              <div
+                onDragOver={e => { e.preventDefault(); setDragging(true) }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={e => { e.preventDefault(); setDragging(false); handleFile(e.dataTransfer.files[0]) }}
+                onClick={() => fileRef.current?.click()}
+                style={{ border:`2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`, borderRadius:10, padding:'32px 20px', textAlign:'center', cursor:'pointer', background: dragging ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}>
+                <div style={{ fontSize:28, marginBottom:8 }}>📄</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>Solte o arquivo aqui ou clique para selecionar</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>CSV (separado por ; ou ,) — UTF-8</div>
+                <input ref={fileRef} type="file" accept=".csv,.txt" style={{ display:'none' }} onChange={e => handleFile(e.target.files[0])} />
+              </div>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>Colunas: <code style={{ fontSize:11, background:'var(--surface2)', padding:'1px 4px', borderRadius:3 }}>{IMPORT_COLS.join(', ')}</code></span>
+                <button onClick={downloadTemplate} style={{ fontSize:12, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600 }}>⬇ Baixar template</button>
+              </div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', background:'var(--surface2)', borderRadius:8, padding:'10px 14px', lineHeight:1.6 }}>
+                <strong>status:</strong> draft, active, paused &nbsp;·&nbsp;
+                <strong>pontua_metas:</strong> true / false &nbsp;·&nbsp;
+                <strong>datas:</strong> AAAA-MM-DD
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+              <div style={{ display:'flex', gap:10 }}>
+                <div style={{ flex:1, padding:'10px 14px', borderRadius:8, background:'var(--green-bg)', color:'var(--green-text)', fontSize:12, fontWeight:600 }}>✓ {okRows.length} campanha{okRows.length !== 1 ? 's' : ''} válida{okRows.length !== 1 ? 's' : ''}</div>
+                {errRows.length > 0 && <div style={{ flex:1, padding:'10px 14px', borderRadius:8, background:'var(--red-bg)', color:'var(--red-text)', fontSize:12, fontWeight:600 }}>✕ {errRows.length} com erro (serão ignoradas)</div>}
+              </div>
+              <div style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+                  <thead>
+                    <tr style={{ background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>#</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Nome</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Objetivo</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Status</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Período</th>
+                      <th style={{ padding:'6px 10px', textAlign:'left', fontWeight:700, color:'var(--text-muted)' }}>Resultado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((row, i) => (
+                      <tr key={i} style={{ borderBottom:'1px solid var(--border2)', background: errors[i] ? 'var(--red-bg)' : 'transparent' }}>
+                        <td style={{ padding:'6px 10px', color:'var(--text-muted)' }}>{i+1}</td>
+                        <td style={{ padding:'6px 10px', fontWeight:600 }}>{row.name || '—'}</td>
+                        <td style={{ padding:'6px 10px', color:'var(--text-soft)' }}>{row.objective || '—'}</td>
+                        <td style={{ padding:'6px 10px', color:'var(--text-soft)' }}>{row.status || '—'}</td>
+                        <td style={{ padding:'6px 10px', color:'var(--text-soft)', whiteSpace:'nowrap' }}>{row.start_date || '—'}{row.end_date ? ` → ${row.end_date}` : ''}</td>
+                        <td style={{ padding:'6px 10px' }}>
+                          {errors[i] ? <span style={{ color:'var(--red)', fontSize:11 }}>{errors[i].join('; ')}</span> : <span style={{ color:'var(--green)', fontWeight:600 }}>✓</span>}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {step === 'preview' && (
+          <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)', display:'flex', gap:10, justifyContent:'flex-end', flexShrink:0 }}>
+            <button onClick={() => { setStep('upload'); setRows([]); setErrors({}) }} style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none', cursor:'pointer', fontSize:13, color:'var(--text-muted)' }}>← Voltar</button>
+            <button onClick={doImport} disabled={okRows.length === 0} style={{ padding:'8px 18px', borderRadius:8, border:'none', background: okRows.length ? 'var(--accent)' : 'var(--border)', color:'#fff', cursor: okRows.length ? 'pointer' : 'default', fontSize:13, fontWeight:700 }}>
+              Importar {okRows.length} campanha{okRows.length !== 1 ? 's' : ''}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 const OBJETIVOS = [
   'Atração de Leads',
@@ -382,8 +563,9 @@ const SEEDS = [
 
 export default function Campanhas() {
   const [campanhas, setCampanhas] = useLocalState('settings:campanhas_v1', SEEDS)
-  const [wizard, setWizard]       = useState(null) // null | 'new' | campaign obj
+  const [wizard, setWizard]       = useState(null)
   const [search, setSearch]       = useState('')
+  const [importModal, setImportModal] = useState(false)
 
   function handleSave(c) {
     setCampanhas(prev => {
@@ -395,6 +577,26 @@ export default function Campanhas() {
 
   function handleDelete(id) {
     setCampanhas(prev => prev.filter(c => c.id !== id))
+  }
+
+  function handleImport(rows) {
+    setCampanhas(prev => [...prev, ...rows])
+  }
+
+  function exportCSV() {
+    const header = IMPORT_COLS.join(';')
+    const body   = filtered.map(c =>
+      IMPORT_COLS.map(col => toCSVValue(col === 'pontua_metas' ? String(c[col] ?? false) : (c[col] ?? ''))).join(';')
+    ).join('\n')
+    downloadText(`${header}\n${body}`, 'campanhas.csv', 'text/csv')
+  }
+
+  function exportExcel() {
+    const header = IMPORT_COLS.join('\t')
+    const body   = filtered.map(c =>
+      IMPORT_COLS.map(col => String(col === 'pontua_metas' ? (c[col] ?? false) : (c[col] ?? ''))).join('\t')
+    ).join('\n')
+    downloadText(`${header}\n${body}`, 'campanhas.xls', 'application/vnd.ms-excel')
   }
 
   const filtered = campanhas.filter(c =>
@@ -455,7 +657,18 @@ export default function Campanhas() {
         emptyLabel="Nenhuma campanha cadastrada ainda."
         search={search}
         onSearchChange={setSearch}
+        onImport={() => setImportModal(true)}
+        onExportCsv={exportCSV}
+        onExportExcel={exportExcel}
       />
+
+      {importModal && (
+        <ImportModal
+          onClose={() => setImportModal(false)}
+          onImport={handleImport}
+          existingNames={campanhas.map(c => c.name.toLowerCase())}
+        />
+      )}
 
       {wizard && (
         <CampanhaWizard
