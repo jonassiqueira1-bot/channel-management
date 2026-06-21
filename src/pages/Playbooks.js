@@ -129,7 +129,7 @@ const EMPTY_OBJECAO = {
 function uid() { return `obj-${Date.now()}-${Math.floor(Math.random()*999)}` }
 
 // ─── Inline editor de uma objeção ─────────────────────────────────────────────
-function ObjecaoEditor({ value, onChange, onCancel, onConfirm }) {
+function ObjecaoEditor({ value, onChange, onCancel, onConfirm, stageCfg = STAGE_CFG }) {
   const set = (k, v) => onChange({ ...value, [k]: v })
   const cat = OBJ_CATS[value.categoria]
   return (
@@ -148,8 +148,8 @@ function ObjecaoEditor({ value, onChange, onCancel, onConfirm }) {
           <label style={oe.lbl}>Etapa do funil</label>
           <select className="fpe-field" value={value.etapa} onChange={e => set('etapa', e.target.value)}>
             <option value="">— Qualquer etapa —</option>
-            {Object.entries(STAGE_CFG).map(([k, v]) => (
-              <option key={k} value={k}>{v.icon} {v.label}</option>
+            {Object.entries(stageCfg).map(([k, v]) => (
+              <option key={k} value={k}>{v.icon ? `${v.icon} ` : ''}{v.label}</option>
             ))}
           </select>
         </div>
@@ -231,7 +231,7 @@ function ObjecaoCard({ obj, onEdit, onDelete }) {
 }
 
 // ─── Aba de Objeções ───────────────────────────────────────────────────────────
-function ObjecoesTab({ objecoes = [], onChange }) {
+function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
   const [editingId, setEditingId] = useState(null) // uid | 'new' | null
   const [draft, setDraft] = useState(null)
 
@@ -277,7 +277,7 @@ function ObjecoesTab({ objecoes = [], onChange }) {
 
       {/* editor inline (nova) */}
       {editingId === 'new' && (
-        <ObjecaoEditor value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} />
+        <ObjecaoEditor value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} stageCfg={stageCfg} />
       )}
 
       {/* lista agrupada por categoria */}
@@ -304,7 +304,7 @@ function ObjecoesTab({ objecoes = [], onChange }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {items.map(obj =>
                   editingId === obj.id ? (
-                    <ObjecaoEditor key={obj.id} value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} />
+                    <ObjecaoEditor key={obj.id} value={draft} onChange={setDraft} onCancel={cancel} onConfirm={confirm} stageCfg={stageCfg} />
                   ) : (
                     <ObjecaoCard key={obj.id} obj={obj} onEdit={() => startEdit(obj)} onDelete={() => remove(obj.id)} />
                   )
@@ -326,6 +326,17 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
   const [tab, setTab]   = useState('info')
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const slideStageCfg = useMemo(() => {
+    if (!form.funil_id) return STAGE_CFG
+    const funil = funis.find(f => String(f.id) === String(form.funil_id))
+    if (!funil?.etapas?.length) return STAGE_CFG
+    return Object.fromEntries(
+      [...funil.etapas]
+        .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
+        .map(e => [String(e.id), { label: e.nome, icon: '', color: e.cor || 'var(--accent)', bg: (e.cor || '#6366F1') + '22' }])
+    )
+  }, [form.funil_id, funis])
 
   // Sync form when initial changes (open different playbook)
   useMemo(() => {
@@ -409,6 +420,7 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
           <ObjecoesTab
             objecoes={form.objecoes || []}
             onChange={v => set('objecoes', v)}
+            stageCfg={slideStageCfg}
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
@@ -912,6 +924,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
               <ObjecoesTab
                 objecoes={playbook.objecoes || []}
                 onChange={onUpdateObjecoes}
+                stageCfg={stageCfg}
               />
             </div>
           )}
