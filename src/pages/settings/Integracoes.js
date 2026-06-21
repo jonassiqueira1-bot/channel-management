@@ -413,6 +413,366 @@ function gerarWebhookToken() {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// ─── Métodos de conexão disponíveis ──────────────────────────────────────────
+const METODOS_CONEXAO = [
+  { id: 'webhook', label: 'Webhook', desc: 'Receba eventos em tempo real via HTTP POST', tag: 'Ativo' },
+  { id: 'api_polling', label: 'API Polling', desc: 'Consulta periódica à API do sistema', tag: 'Em breve', disabled: true },
+  { id: 'oauth2', label: 'OAuth 2.0', desc: 'Autenticação segura com fluxo de autorização', tag: 'Em breve', disabled: true },
+]
+
+function exportarLogsCSV(logs, nomeIntegracao) {
+  const header = 'Data/Hora,Evento,Status,Payload'
+  const rows = logs.map(l =>
+    `"${new Date(l.created_at).toLocaleString('pt-BR')}","${l.event_type}","${l.status}","${JSON.stringify(l.payload || {}).replace(/"/g, '""')}"`
+  )
+  const csv = [header, ...rows].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `logs-${nomeIntegracao.replace(/\s+/g,'-').toLowerCase()}-${new Date().toISOString().slice(0,10)}.csv`
+  a.click(); URL.revokeObjectURL(url)
+}
+
+// ─── RD Station: tela completa (3 blocos) ────────────────────────────────────
+function RdStationFullEdit({ provider, onClose, toast }) {
+  const { profile } = useProfile()
+  const { funis } = useFunnels()
+  const [allOpps, setAllOpps] = useLocalState('opps_cache_v1', [])
+
+  // Bloco 1 — Identidade
+  const [nomeIntegracao, setNomeIntegracao] = useState(provider.name)
+  const [logoData, setLogoData]             = useState(null) // base64
+
+  // Bloco 2 — Método
+  const [metodo, setMetodo]               = useState('webhook')
+  const [funilId, setFunilId]             = useState('')
+  const [webhookToken, setWebhookToken]   = useState('')
+  const [copiedUrl, setCopiedUrl]         = useState(false)
+  const [leads, setLeads]                 = useState(null)
+  const [loadingLeads, setLoadingLeads]   = useState(false)
+  const [selecionados, setSelecionados]   = useState(new Set())
+  const [intStatus, setIntStatus]         = useState('inactive')
+  const [lastSync, setLastSync]           = useState(null)
+  const [salvando, setSalvando]           = useState(false)
+  const [salvado, setSalvado]             = useState(false)
+
+  // Bloco 3 — Logs
+  const [payloadLog, setPayloadLog] = useState(null)
+  const logs90 = MOCK_LOGS[provider.id] || []
+
+  useEffect(() => {
+    if (!profile?.tenant_id) return
+    supabase.from('integracoes')
+      .select('config, status, last_sync_at')
+      .eq('tenant_id', profile.tenant_id)
+      .eq('provider', 'rd_station')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setFunilId(data.config?.funil_id || '')
+        setWebhookToken(data.config?.webhook_token || '')
+        setNomeIntegracao(data.config?.nome_integracao || provider.name)
+        setLogoData(data.config?.logo_data || null)
+        setIntStatus(data.status || 'inactive')
+        setLastSync(data.last_sync_at)
+      })
+  }, [profile?.tenant_id])
+
+  async function salvar() {
+    if (!profile?.tenant_id) { toast.show('Tenant não identificado', 'error'); return }
+    setSalvando(true)
+    const wToken = webhookToken || gerarWebhookToken()
+    if (!webhookToken) setWebhookToken(wToken)
+    const { error } = await supabase.from('integracoes').upsert({
+      tenant_id:   profile.tenant_id,
+      provider:    'rd_station',
+      credentials: {},
+      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData },
+      status:      'active',
+      updated_at:  new Date().toISOString(),
+    }, { onConflict: 'tenant_id,provider' })
+    setSalvando(false)
+    if (error) { toast.show('Erro ao salvar: ' + error.message, 'error'); return }
+    setSalvado(true); setIntStatus('active')
+    setTimeout(() => setSalvado(false), 3000)
+    toast.show('Configuração salva!')
+  }
+
+  function copyWebhookUrl() {
+    const url = `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}`
+    navigator.clipboard.writeText(url).then(() => { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2500) })
+  }
+
+  async function buscarLeadsPendentes() {
+    if (!profile?.tenant_id) return
+    setLoadingLeads(true)
+    const { data } = await supabase.from('rd_leads_queue')
+      .select('id, payload, created_at')
+      .eq('tenant_id', profile.tenant_id)
+      .eq('processed', false)
+      .order('created_at', { ascending: false })
+    setLoadingLeads(false)
+    const mapeados = (data || []).map((row) => {
+      const p = row.payload; const lead = p.leads?.[0] || p.lead || p
+      return { _queueId: row.id, titulo: lead.name || lead.email || 'Lead RD Station',
+        empresa_nome: lead.company_name || '', contato_nome: lead.name || '',
+        contato_email: lead.email || '', contato_fone: lead.mobile_phone || lead.phone || '',
+        descricao: [lead.city ? `Cidade: ${lead.city}` : '', p.conversion_identifier ? `Conversão: ${p.conversion_identifier}` : ''].filter(Boolean).join('\n'),
+        rd_lead_id: lead.uuid || lead.id || row.id, criado_em: row.created_at }
+    })
+    setLeads(mapeados); setSelecionados(new Set(mapeados.map((_, i) => i)))
+    if (!mapeados.length) toast.show('Nenhum lead pendente.')
+    else toast.show(`${mapeados.length} lead(s) aguardando importação`)
+  }
+
+  async function importarSelecionados() {
+    if (!leads || !selecionados.size) return
+    const funil = funis.find(f => String(f.id) === String(funilId)) || funis[0]
+    const primeiraEtapa = funil?.etapas?.[0]
+    const hoje = new Date().toISOString().slice(0, 10)
+    const sArr = [...selecionados]
+    const novas = sArr.map((i, idx) => {
+      const l = leads[i]
+      return { id: `rd_${Date.now()}_${idx}`, titulo: l.titulo, empresa_nome: l.empresa_nome,
+        contato_nome: l.contato_nome, contato_email: l.contato_email, contato_fone: l.contato_fone,
+        descricao: l.descricao, origem: 'RD Station Marketing', situacao: 'em_negociacao', valor: 0,
+        funil_id: funil?.id || '', etapa_id: primeiraEtapa?.id || '', rd_lead_id: l.rd_lead_id, criado: hoje }
+    })
+    const existentes = new Set(allOpps.map(o => o.rd_lead_id).filter(Boolean))
+    const novasFiltradas = novas.filter(o => !existentes.has(o.rd_lead_id))
+    setAllOpps(prev => [...prev, ...novasFiltradas])
+    const queueIds = sArr.map(i => leads[i]._queueId).filter(Boolean)
+    if (queueIds.length) await supabase.from('rd_leads_queue').update({ processed: true }).in('id', queueIds)
+    toast.show(`${novasFiltradas.length} oportunidade(s) criada(s) no Pipeline!`)
+    setLeads(null)
+  }
+
+  function handleLogoUpload(e) {
+    const file = e.target.files?.[0]; if (!file) return
+    const reader = new FileReader()
+    reader.onload = ev => setLogoData(ev.target.result)
+    reader.readAsDataURL(file)
+  }
+
+  const webhookUrl = webhookToken ? `${SUPABASE_URL}/functions/v1/rd-station-webhook?token=${webhookToken}` : ''
+  const funiAtivo = funis.find(f => String(f.id) === String(funilId)) || funis[0]
+
+  const bloco = { borderBottom: '1px solid var(--border)', padding: '28px 36px' }
+  const secLabel = { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 18, display: 'block' }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)', overflowY: 'auto' }}>
+      {/* Top bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 36px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', position: 'sticky', top: 0, zIndex: 20, flexShrink: 0 }}>
+        <button onClick={onClose} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', padding: 0 }}>
+          <ArrowRight size={13} style={{ transform: 'rotate(180deg)' }} strokeWidth={2}/>
+          Integrações e APIs
+        </button>
+        <span style={{ color: 'var(--border)', fontSize: 12 }}>/</span>
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{nomeIntegracao}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {intStatus === 'active' && (
+            <span style={{ fontSize: 11, color: '#10B981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#10B981' }}/> Ativo
+            </span>
+          )}
+          <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} style={{ padding: '7px 18px', borderRadius: 7, border: 'none', background: ACCENT, color: '#fff', fontSize: 13, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            {salvando ? <><Loader size={12} strokeWidth={2} style={{ animation: 'spin .8s linear infinite' }}/> Salvando…</> : salvado ? <><Check size={12} strokeWidth={2.5}/> Salvo!</> : <><Check size={12} strokeWidth={2.5}/> Salvar</>}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Bloco 1: Identidade ─────────────────────────────────────────────── */}
+      <div style={bloco}>
+        <span style={secLabel}>Identidade</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+          {/* Logo */}
+          <div style={{ position: 'relative', flexShrink: 0 }}>
+            {logoData
+              ? <img src={logoData} alt="logo" style={{ width: 64, height: 64, borderRadius: 14, objectFit: 'contain', border: '1px solid var(--border)', background: '#fff' }}/>
+              : <ProviderIcon provider={{ ...provider, name: nomeIntegracao }} size={64}/>
+            }
+            <label htmlFor="logo-upload" style={{ position: 'absolute', bottom: -6, right: -6, width: 22, height: 22, borderRadius: '50%', background: 'var(--surface)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <Download size={11} strokeWidth={2.5}/>
+              <input id="logo-upload" type="file" accept="image/*" onChange={handleLogoUpload} style={{ display: 'none' }}/>
+            </label>
+          </div>
+          {/* Nome editável */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, maxWidth: 480 }}>
+            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Nome da integração</label>
+            <input
+              value={nomeIntegracao}
+              onChange={e => setNomeIntegracao(e.target.value)}
+              placeholder={provider.name}
+              style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', background: 'transparent', border: 'none', borderBottom: '2px solid var(--border)', padding: '6px 0', outline: 'none', fontFamily: 'var(--font)', width: '100%' }}
+              onFocus={e => e.target.style.borderBottomColor = ACCENT}
+              onBlur={e => e.target.style.borderBottomColor = 'var(--border)'}
+            />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{provider.description}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bloco 2: Método e configuração ─────────────────────────────────── */}
+      <div style={bloco}>
+        <span style={secLabel}>Método de conexão</span>
+        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
+          {/* Lista de métodos */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {METODOS_CONEXAO.map(m => (
+              <button key={m.id} onClick={() => !m.disabled && setMetodo(m.id)} disabled={m.disabled}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10,
+                  border: `1.5px solid ${metodo === m.id ? ACCENT : 'var(--border)'}`,
+                  background: metodo === m.id ? 'var(--accent-glow)' : 'var(--surface)',
+                  cursor: m.disabled ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: m.disabled ? 0.5 : 1,
+                  fontFamily: 'var(--font)', transition: 'all 0.15s' }}>
+                <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${metodo === m.id ? ACCENT : 'var(--border)'}`, background: metodo === m.id ? ACCENT : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {metodo === m.id && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }}/>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    {m.label}
+                    {m.tag && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: metodo === m.id ? ACCENT : 'var(--surface2)', color: metodo === m.id ? '#fff' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.tag}</span>}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+
+          {/* Configuração do método selecionado */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {metodo === 'webhook' && (
+              <>
+                {/* URL do Webhook */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>URL do Webhook</label>
+                  {webhookUrl ? (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input readOnly value={webhookUrl} style={{ flex: 1, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', fontSize: 11, fontFamily: 'var(--mono)', outline: 'none' }}/>
+                      <button onClick={copyWebhookUrl} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--border)', background: copiedUrl ? '#F0FDF4' : 'var(--surface)', color: copiedUrl ? '#10B981' : 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+                        {copiedUrl ? <><CheckCheck size={13}/> Copiado!</> : <><Copy size={13}/> Copiar URL</>}
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--surface2)', fontSize: 12, color: 'var(--text-muted)' }}>
+                      Salve a configuração para gerar a URL. Cole-a depois em: <strong>RD Station → Configurações → Automações → Webhooks</strong>
+                    </div>
+                  )}
+                  {lastSync && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Último evento recebido: {new Date(lastSync).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
+                </div>
+
+                {/* Funil de destino */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)' }}>Funil de destino dos leads</label>
+                  <select value={funilId} onChange={e => setFunilId(e.target.value)}
+                    style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                    <option value="">— Funil padrão —</option>
+                    {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                  </select>
+                  {funiAtivo && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads entram em: <strong>{funiAtivo.etapas?.[0]?.nome || '—'}</strong></span>}
+                </div>
+
+                {/* Leads pendentes */}
+                {leads !== null && leads.length > 0 && (
+                  <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                    <div style={{ padding: '8px 14px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{leads.length} lead{leads.length !== 1 ? 's' : ''} pendente{leads.length !== 1 ? 's' : ''}</span>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button onClick={() => setSelecionados(new Set(leads.map((_, i) => i)))} style={{ fontSize: 11, color: ACCENT, background: 'none', border: 'none', cursor: 'pointer' }}>Todos</button>
+                        <button onClick={() => setSelecionados(new Set())} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Nenhum</button>
+                      </div>
+                    </div>
+                    <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+                      {leads.map((lead, i) => (
+                        <label key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px', borderBottom: i < leads.length - 1 ? '1px solid var(--border2)' : 'none', background: selecionados.has(i) ? 'var(--accent-glow)' : 'transparent', cursor: 'pointer' }}>
+                          <input type="checkbox" checked={selecionados.has(i)} onChange={() => setSelecionados(prev => { const s = new Set(prev); s.has(i) ? s.delete(i) : s.add(i); return s })}/>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{lead.titulo}</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{[lead.empresa_nome, lead.contato_email].filter(Boolean).join(' · ')}</div>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {leads !== null && leads.length === 0 && (
+                  <div style={{ padding: '12px 14px', borderRadius: 8, background: 'var(--surface2)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Nenhum lead pendente no momento.</div>
+                )}
+
+                {/* Ações */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <button onClick={buscarLeadsPendentes} disabled={loadingLeads || !webhookToken}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: loadingLeads || !webhookToken ? 'not-allowed' : 'pointer', opacity: !webhookToken ? 0.5 : 1, fontFamily: 'var(--font)' }}>
+                    {loadingLeads ? <><Loader size={12} style={{ animation: 'spin .8s linear infinite' }}/> Buscando…</> : <><RefreshCw size={12}/> Ver leads pendentes</>}
+                  </button>
+                  {leads !== null && selecionados.size > 0 && (
+                    <button onClick={importarSelecionados}
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#10B981', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      <Download size={12}/> Importar {selecionados.size} lead{selecionados.size !== 1 ? 's' : ''}
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Bloco 3: Logs ───────────────────────────────────────────────────── */}
+      <div style={{ ...bloco, flex: 1, borderBottom: 'none' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <span style={secLabel}>Logs dos últimos 90 dias ({logs90.length})</span>
+          {logs90.length > 0 && (
+            <button onClick={() => exportarLogsCSV(logs90, nomeIntegracao)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <Download size={12} strokeWidth={2}/> Exportar CSV
+            </button>
+          )}
+        </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+          {logs90.length === 0 ? (
+            <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+              <Clock size={32} strokeWidth={1} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }}/>
+              Nenhum evento registrado ainda.
+            </div>
+          ) : (
+            <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead style={{ position: 'sticky', top: 0 }}>
+                  <tr>
+                    {['Data / Hora', 'Evento', 'Status', 'Payload'].map(h => (
+                      <th key={h} style={{ padding: '10px 16px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', whiteSpace: 'nowrap' }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {logs90.map((log, i) => (
+                    <tr key={log.id} style={{ borderBottom: i < logs90.length - 1 ? '1px solid var(--border2)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+                      <td style={{ padding: '11px 16px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{fmtDate(log.created_at)}</td>
+                      <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{log.event_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td>
+                      <td style={{ padding: '11px 16px' }}><LogBadge status={log.status}/></td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right' }}>
+                        <button onClick={() => setPayloadLog(log)}
+                          style={{ fontSize: 12, fontWeight: 600, color: ACCENT, background: 'none', border: `1px solid ${ACCENT}30`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <ExternalLink size={11} strokeWidth={2}/> Ver payload
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {payloadLog && <PayloadModal log={payloadLog} onClose={() => setPayloadLog(null)}/>}
+    </div>
+  )
+}
+
 // ─── RD Station: tab completa ─────────────────────────────────────────────────
 function RdStationTab({ toast }) {
   const { session } = useAuth()
@@ -849,6 +1209,16 @@ export default function Integracoes() {
     const isWebhook = provider.id === 'webhook'
     const logCount  = (MOCK_LOGS[provider.id] || []).length
 
+    if (provider.supabase) {
+      return (
+        <>
+          <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+          <RdStationFullEdit provider={provider} onClose={() => setEditando(null)} toast={toast}/>
+          <Toasts items={toast.toasts}/>
+        </>
+      )
+    }
+
     return (
       <>
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}`}</style>
@@ -869,39 +1239,19 @@ export default function Integracoes() {
             </div>
           </div>
 
-          {provider.supabase ? (
-            /* Layout lado a lado: config + logs ocupando todo o espaço */
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:24, alignItems:'stretch', marginTop:8 }}>
-              <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
-                <p style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', margin:'0 0 12px' }}>Configuração</p>
-                <RdStationTab toast={toast} />
-              </div>
-              <div style={{ display:'flex', flexDirection:'column' }}>
-                <p style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', margin:'0 0 12px' }}>
-                  {`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}
-                </p>
-                <div style={{ flex:1, border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-                  <LogsTab providerId={provider.id}/>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <>
-              <FPESection title="Configuração">
-                <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
-              </FPESection>
+          <FPESection title="Configuração">
+            <ConfigTab provider={provider} setting={setting} onSave={handleSave} onDisconnect={handleDisconnect} toast={toast}/>
+          </FPESection>
 
-              {isWebhook && (
-                <FPESection title="Mapeamento para Pipeline">
-                  <WebhookMapeamentoTab toast={toast}/>
-                </FPESection>
-              )}
-
-              <FPESection title={`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}>
-                <LogsTab providerId={provider.id}/>
-              </FPESection>
-            </>
+          {isWebhook && (
+            <FPESection title="Mapeamento para Pipeline">
+              <WebhookMapeamentoTab toast={toast}/>
+            </FPESection>
           )}
+
+          <FPESection title={`Logs de Eventos${logCount ? ` (${logCount})` : ''}`}>
+            <LogsTab providerId={provider.id}/>
+          </FPESection>
         </FullPageEdit>
         <Toasts items={toast.toasts}/>
       </>
