@@ -7,6 +7,8 @@ import { useBranches } from '../hooks/useBranches'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import Button from '../components/Button'
 import { FullPageEdit, FPESection, FPEField } from '../components/ui'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 const ACCENT = 'var(--accent)'
 
@@ -146,6 +148,7 @@ function AcoesDropdown({ onImport, onExport, onClose, anchorRef }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
+  const { sections: acSections, fieldById: acFieldById } = useFormLayout('actions')
   const [franquiasCad] = useLocalState('settings:franquias_v2', [])
   const { branches }   = useBranches()
   const [usuariosCad]  = useLocalState('settings:perfis_v2', [])
@@ -321,6 +324,11 @@ export default function Acoes() {
             <textarea className="fpe-field" value={editForm.descricao || ''} onChange={e => setAcaoField('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" rows={4} />
           </FPEField>
         </FPESection>
+        <DynamicFormLayout
+          sections={acSections}
+          fieldById={acFieldById}
+          renderField={(_key, field) => field.is_system ? null : undefined}
+        />
       </FullPageEdit>
     )
   }

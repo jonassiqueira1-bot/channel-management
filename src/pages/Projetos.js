@@ -345,6 +345,7 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const [showOppPicker, setShowOppPicker] = useState(false)
   const [memberName, setMemberName] = useState('')
   const [memberRole, setMemberRole] = useState('Consultor')
+  const { sections: prSections, fieldById: prFieldById } = useFormLayout('projects')
   const oppPickerRef = useRef(null)
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -445,6 +446,13 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
           </div>
         </div>
       </NotionSection>
+
+      <DynamicFormLayout
+        sections={prSections}
+        fieldById={prFieldById}
+        renderField={(_key, field) => field.is_system ? null : undefined}
+        sectionStyle={{ margin: '0 0 0 0', borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}
+      />
 
       {/* ── Comercial (Pipeline) ── */}
       <NotionSection title="Histórico Comercial" icon="💼" defaultOpen={true} badge={linkedOpp ? '1 vínculo' : undefined}>

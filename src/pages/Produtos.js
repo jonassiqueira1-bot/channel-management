@@ -4,6 +4,8 @@ import { useProducts } from '../hooks/useProducts'
 import Button from '../components/Button'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
+import { useFormLayout } from '../hooks/useFormLayout'
+import DynamicFormLayout from '../components/DynamicFormLayout'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TIPOS_PRODUTO = [
@@ -310,6 +312,7 @@ export default function Produtos() {
   const [search, setSearch] = useLocalState('produtos:search', '')
   const [categorias, setCategorias] = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
   const { produtos, save: saveProduto, remove: deleteProduto, importMany: importProdutos } = useProducts()
+  const { sections: pdSections, fieldById: pdFieldById } = useFormLayout('products')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
   const [importModal, setImportModal] = useState(false)
@@ -447,6 +450,11 @@ export default function Produtos() {
                 placeholder="Notas, restrições…" />
             </FPEField>
           </FPESection>
+          <DynamicFormLayout
+            sections={pdSections}
+            fieldById={pdFieldById}
+            renderField={(_key, field) => field.is_system ? null : undefined}
+          />
         </FullPageEdit>
 
         {importModal && (

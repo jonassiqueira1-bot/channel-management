@@ -599,6 +599,7 @@ function AcoesDropdown({ onExport, onClose, anchorRef }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Contratos() {
   const { contratos, setContratos }   = useContracts(MOCK_CONTRATOS)
+  const { sections: ctSections, fieldById: ctFieldById } = useFormLayout('contracts')
   const [search, setSearch]           = useLocalState('contratos:search', '')
   const [filterStatus, setFilterStatus] = useLocalState('contratos:filterStatus', '')
   const [sortBy, setSortBy]           = useLocalState('contratos:sortBy', 'numero')
@@ -840,6 +841,11 @@ export default function Contratos() {
             <textarea className="fpe-field" value={form.observacoes || ''} onChange={e => set('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" />
           </FPEField>
         </FPESection>
+        <DynamicFormLayout
+          sections={ctSections}
+          fieldById={ctFieldById}
+          renderField={(_key, field) => field.is_system ? null : undefined}
+        />
       </FullPageEdit>
     )
   }
