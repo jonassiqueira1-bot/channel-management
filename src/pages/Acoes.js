@@ -216,7 +216,7 @@ export default function Acoes() {
   const [tiposLista]   = useLocalState(TIPOS_KEY, [])
   const tiposMap = useMemo(() => {
     const base = tiposLista.length ? tiposLista : Object.entries(TIPOS_ACAO_DEFAULT).map(([k, v]) => ({ ...v, slug: k, uso: 'acao' }))
-    const filtrados = base.filter(t => t.uso === 'acao' || t.uso === 'ambos')
+    const filtrados = base.filter(t => !t.uso || t.uso === 'acao' || t.uso === 'ambos')
     return filtrados.length ? listToMap(filtrados) : TIPOS_ACAO_DEFAULT
   }, [tiposLista])
 
