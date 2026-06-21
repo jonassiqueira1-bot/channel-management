@@ -3,6 +3,7 @@ import { useLocalState } from '../../hooks/useLocalState'
 import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
+import { MOCK_RULES, RULES_STORAGE_KEY } from '../../data/mockComissoes'
 import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
@@ -342,16 +343,18 @@ function ChoiceList({ options, value, onChange, multi = false, disabled = false 
 // ─── Editar usuário (página inteira) ─────────────────────────────────────────
 function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const [form, setForm] = useState({
-    nome:               perfil.nome,
-    papel:              perfil.papel,
-    status:             perfil.status,
-    perfis_acesso_ids:  perfil.perfis_acesso_ids || [],
-    branch_ids:         perfil.branch_ids || [],
-    franquia_id:        perfil.franquia_id || null,
+    nome:                perfil.nome,
+    papel:               perfil.papel,
+    status:              perfil.status,
+    perfis_acesso_ids:   perfil.perfis_acesso_ids || [],
+    branch_ids:          perfil.branch_ids || [],
+    franquia_id:         perfil.franquia_id || null,
+    regras_comissao_ids: perfil.regras_comissao_ids || [],
   })
   const [confirmDel, setConfirmDel] = useState(false)
-  const [rolesStore]  = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [franquias]   = useLocalState('settings:franquias_v2', [])
+  const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
+  const [regrasComiss] = useLocalState(RULES_STORAGE_KEY, MOCK_RULES)
+  const [franquias]    = useLocalState('settings:franquias_v2', [])
   const { branches }  = useBranches()
 
   const isAdminFranquia = form.papel === 'admin_franquia'
@@ -388,13 +391,14 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   function handleSave() {
     onSave({
       ...perfil,
-      nome:              form.nome.trim(),
-      papel:             form.papel,
-      tipo_usuario:      papelSel?.tipo || perfil.tipo_usuario,
-      status:            form.status,
-      perfis_acesso_ids: form.perfis_acesso_ids,
-      branch_ids:        form.branch_ids,
-      franquia_id:       isAdminFranquia ? form.franquia_id : null,
+      nome:                form.nome.trim(),
+      papel:               form.papel,
+      tipo_usuario:        papelSel?.tipo || perfil.tipo_usuario,
+      status:              form.status,
+      perfis_acesso_ids:   form.perfis_acesso_ids,
+      branch_ids:          form.branch_ids,
+      franquia_id:         isAdminFranquia ? form.franquia_id : null,
+      regras_comissao_ids: form.regras_comissao_ids,
     })
     onClose()
   }
@@ -538,6 +542,45 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
                   <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
                     {r.nome}
                   </span>
+                </label>
+              )
+            })}
+          </div>
+        )}
+      </FPESection>
+
+      {/* Regras de comissão */}
+      <FPESection title="Regras de comissão" description="Defina quais regras de comissão se aplicam a este usuário.">
+        {regrasComiss.length === 0 ? (
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhuma regra de comissão cadastrada.</div>
+        ) : (
+          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
+            {regrasComiss.map(r => {
+              const checked = (form.regras_comissao_ids || []).includes(r.id)
+              return (
+                <label key={r.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
+                  <input type="checkbox" disabled={!podeEditar} checked={checked}
+                    onChange={() => {
+                      if (!podeEditar) return
+                      setForm(f => {
+                        const ids = f.regras_comissao_ids || []
+                        return { ...f, regras_comissao_ids: ids.includes(r.id) ? ids.filter(x => x !== r.id) : [...ids, r.id] }
+                      })
+                    }}
+                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
+                      {r.nome}
+                    </div>
+                    {r.descricao && (
+                      <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{r.descricao}</div>
+                    )}
+                  </div>
+                  {r.tipos_calculo_arr?.length > 0 && (
+                    <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:4, background:'var(--surface2)', color:'var(--text-muted)', whiteSpace:'nowrap', flexShrink:0 }}>
+                      {r.tipos_calculo_arr.join(' · ')}
+                    </span>
+                  )}
                 </label>
               )
             })}
