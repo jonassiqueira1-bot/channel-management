@@ -8,6 +8,7 @@ import Button from '../components/Button'
 import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
 import EmpresaSearch from '../components/EmpresaSearch'
+import { useCompanies } from '../hooks/useCompanies'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -482,9 +483,10 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG })
 }
 
 // ─── Reference SlideOver ──────────────────────────────────────────────────────
-const EMPTY_REF = { company_id: null, company_name: '', logo_initials: '', logo_color: 'var(--accent)', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
+const EMPTY_REF = { company_id: null, company_name: '', logo_initials: '', logo_color: 'var(--accent)', estado: '', summary: '', is_public: true, results: [{ label: '', value: '' }] }
 
 function ReferenceSlideOver({ open, initial, onSave, onClose }) {
+  const { companies } = useCompanies()
   const [form, setForm] = useState(initial || EMPTY_REF)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setResult = (i, k, v) => setForm(f => { const r = [...f.results]; r[i] = { ...r[i], [k]: v }; return { ...f, results: r } })
@@ -502,22 +504,24 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
         <EmpresaSearch
           value={form.company_id || null}
           label={form.company_name || ''}
-          onChange={(id, nome) => setForm(f => ({
-            ...f,
-            company_id: id,
-            company_name: nome,
-            logo_initials: f.logo_initials || nome.slice(0, 2).toUpperCase(),
-          }))}
+          onChange={(id, nome) => {
+            const empresa = companies.find(c => c.id === id)
+            setForm(f => ({
+              ...f,
+              company_id: id,
+              company_name: nome,
+              logo_initials: f.logo_initials || nome.slice(0, 2).toUpperCase(),
+              estado: empresa?.state || f.estado || '',
+            }))
+          }}
           placeholder="Buscar empresa…"
         />
       </FormField>
       <FormField label="Sigla">
         <input className="so-field" value={form.logo_initials} onChange={e => set('logo_initials', e.target.value)} maxLength={3} placeholder="FC" />
       </FormField>
-      <FormField label="Região">
-        <select className="so-field" value={form.region} onChange={e => set('region', e.target.value)}>
-          {REGION_OPTIONS.map(r => <option key={r}>{r}</option>)}
-        </select>
+      <FormField label="Estado (UF)">
+        <input className="so-field" value={form.estado} onChange={e => set('estado', e.target.value)} maxLength={2} placeholder="SP" style={{ textTransform:'uppercase' }} />
       </FormField>
       <FormField label="Resumo (1 linha)">
         <input className="so-field" value={form.summary} onChange={e => set('summary', e.target.value)} placeholder="Ex: MRR cresceu 38% em 4 meses." />
