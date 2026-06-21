@@ -1168,11 +1168,78 @@ function ConfigTab({ provider, setting, onSave, onDisconnect, toast }) {
   )
 }
 
+const CUSTOM_PROVIDERS_KEY = 'integrations:custom_providers_v1'
+const HIDDEN_PROVIDERS_KEY = 'integrations:hidden_providers_v1'
+const CATEGORIAS = ['CRM', 'Automação', 'Notificações', 'ERP', 'E-commerce', 'Suporte', 'Marketing', 'Outro']
+const CORES_PADRAO = ['#6366F1','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899','#14B8A6','#F97316']
+
+function NovaIntegracaoModal({ onConfirm, onClose }) {
+  const [nome, setNome]           = useState('')
+  const [descricao, setDescricao] = useState('')
+  const [categoria, setCategoria] = useState('Automação')
+  const [cor, setCor]             = useState(CORES_PADRAO[0])
+
+  function confirmar() {
+    if (!nome.trim()) return
+    const id = `custom_${Date.now()}`
+    onConfirm({ id, name: nome.trim(), description: descricao.trim(), category: categoria, color: cor, custom: true, supabase: true, fields: [] })
+  }
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, backdropFilter:'blur(3px)' }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background:'var(--surface)', borderRadius:14, width:440, boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }}>
+        <div style={{ padding:'20px 22px 16px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>Nova integração</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>Preencha os dados básicos e configure depois</div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', padding:4, borderRadius:6, display:'flex' }}><X size={16}/></button>
+        </div>
+        <div style={{ padding:'20px 22px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)' }}>Nome <span style={{ color:'var(--red)' }}>*</span></label>
+            <input autoFocus value={nome} onChange={e => setNome(e.target.value)} placeholder="Ex: Microsoft Forms, Typeform..." style={{ padding:'9px 12px', fontSize:13, borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontFamily:'var(--font)', outline:'none' }}
+              onKeyDown={e => e.key === 'Enter' && confirmar()}/>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+            <label style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)' }}>Descrição</label>
+            <input value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="O que essa integração faz?" style={{ padding:'9px 12px', fontSize:13, borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontFamily:'var(--font)', outline:'none' }}/>
+          </div>
+          <div style={{ display:'flex', gap:12 }}>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)' }}>Categoria</label>
+              <select value={categoria} onChange={e => setCategoria(e.target.value)} style={{ padding:'9px 12px', fontSize:13, borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontFamily:'var(--font)', outline:'none', cursor:'pointer' }}>
+                {CATEGORIAS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
+              <label style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)' }}>Cor</label>
+              <div style={{ display:'flex', gap:5, flexWrap:'wrap', paddingTop:2 }}>
+                {CORES_PADRAO.map(c => (
+                  <button key={c} onClick={() => setCor(c)} style={{ width:24, height:24, borderRadius:'50%', background:c, border:`2.5px solid ${cor === c ? 'var(--text)' : 'transparent'}`, cursor:'pointer', flexShrink:0 }}/>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style={{ padding:'14px 22px', borderTop:'1px solid var(--border)', display:'flex', gap:8, justifyContent:'flex-end' }}>
+          <button onClick={onClose} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'none', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+          <button onClick={confirmar} disabled={!nome.trim()} style={{ padding:'8px 18px', borderRadius:8, border:'none', background:ACCENT, color:'#fff', fontSize:13, fontWeight:700, cursor:nome.trim() ? 'pointer' : 'not-allowed', opacity:nome.trim() ? 1 : 0.5, fontFamily:'var(--font)' }}>Criar e configurar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Integracoes() {
-  const [settings, setSettings] = useLocalState(INTEGRATIONS_STORAGE_KEY, DEFAULT_SETTINGS)
-  const [search,  setSearch]    = useState('')
-  const [editando, setEditando] = useState(null)
+  const [settings, setSettings]           = useLocalState(INTEGRATIONS_STORAGE_KEY, DEFAULT_SETTINGS)
+  const [customProviders, setCustomProviders] = useLocalState(CUSTOM_PROVIDERS_KEY, [])
+  const [hiddenIds, setHiddenIds]         = useLocalState(HIDDEN_PROVIDERS_KEY, [])
+  const [search, setSearch]               = useState('')
+  const [editando, setEditando]           = useState(null)
+  const [addModal, setAddModal]           = useState(false)
+  const [confirmExcluir, setConfirmExcluir] = useState(null) // provider a excluir
   const toast = useToast()
 
   function getSetting(providerId) {
@@ -1191,16 +1258,41 @@ export default function Integracoes() {
     setSettings(prev => prev.map(s => s.id === settingId ? { ...s, status:'inactive', credentials:{}, updated_at: new Date().toISOString() } : s))
   }
 
-  const allProviders = useMemo(() => PROVIDERS.map(p => ({
+  function handleNovaIntegracao(provider) {
+    setCustomProviders(prev => [...prev, provider])
+    setAddModal(false)
+    setEditando(provider)
+  }
+
+  function handleExcluir(provider) {
+    setConfirmExcluir(provider)
+  }
+
+  function confirmarExclusao() {
+    if (!confirmExcluir) return
+    if (confirmExcluir.custom) {
+      setCustomProviders(prev => prev.filter(p => p.id !== confirmExcluir.id))
+    } else {
+      setHiddenIds(prev => [...prev.filter(id => id !== confirmExcluir.id), confirmExcluir.id])
+    }
+    setSettings(prev => prev.filter(s => s.provider_name !== confirmExcluir.id))
+    toast.show(`Integração "${confirmExcluir.name}" removida.`, 'warning')
+    setConfirmExcluir(null)
+    if (editando?.id === confirmExcluir.id) setEditando(null)
+  }
+
+  const allBuiltin = useMemo(() => PROVIDERS.filter(p => !hiddenIds.includes(p.id)), [hiddenIds])
+
+  const allProviders = useMemo(() => [...allBuiltin, ...customProviders].map(p => ({
     ...p,
     setting: getSetting(p.id),
     status: getSetting(p.id).status,
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  })), [settings])
+  })), [settings, allBuiltin, customProviders])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return allProviders.filter(p => !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
+    return allProviders.filter(p => !q || p.name.toLowerCase().includes(q) || p.description.toLowerCase().includes(q) || (p.category||'').toLowerCase().includes(q))
   }, [search, allProviders])
 
   if (editando) {
@@ -1263,12 +1355,20 @@ export default function Integracoes() {
       <SettingsLayout
         title="Integrações e APIs"
         description="Conecte o canal a ferramentas externas e monitore os eventos em tempo real."
+        onNew={() => setAddModal(true)}
+        newLabel="+ Nova integração"
         columns={[
           { key: 'name', label: 'Integração', render: (v, row) => (
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-              <ProviderIcon provider={row} size={36}/>
+              {row.logo_data
+                ? <img src={row.logo_data} alt="logo" style={{ width:36, height:36, borderRadius:8, objectFit:'contain', border:'1px solid var(--border)', background:'#fff' }}/>
+                : <ProviderIcon provider={row} size={36}/>
+              }
               <div>
-                <div style={{ fontWeight:700, fontSize:13, color:'var(--text)' }}>{v}</div>
+                <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', display:'flex', alignItems:'center', gap:6 }}>
+                  {v}
+                  {row.custom && <span style={{ fontSize:9, fontWeight:700, padding:'1px 5px', borderRadius:4, background:'var(--accent-glow)', color:'var(--accent)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Custom</span>}
+                </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)' }}>{row.description}</div>
               </div>
             </div>
@@ -1282,11 +1382,34 @@ export default function Integracoes() {
         keyField="id"
         emptyLabel="Nenhuma integração encontrada."
         rowActions={[
-          { label: 'Configurar', onClick: row => setEditando(PROVIDERS.find(p => p.id === row.id)) },
+          { label: 'Configurar', onClick: row => setEditando(allProviders.find(p => p.id === row.id)) },
+          { label: 'Excluir', danger: true, onClick: row => handleExcluir(allProviders.find(p => p.id === row.id)) },
         ]}
         search={search}
         onSearchChange={setSearch}
       />
+
+      {/* Modal: nova integração */}
+      {addModal && <NovaIntegracaoModal onConfirm={handleNovaIntegracao} onClose={() => setAddModal(false)}/>}
+
+      {/* Modal: confirmar exclusão */}
+      {confirmExcluir && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:700, backdropFilter:'blur(3px)' }}>
+          <div style={{ background:'var(--surface)', borderRadius:14, width:400, boxShadow:'0 24px 64px rgba(0,0,0,0.22)', overflow:'hidden' }}>
+            <div style={{ padding:'20px 22px' }}>
+              <div style={{ fontSize:15, fontWeight:800, color:'var(--text)', marginBottom:8 }}>Excluir integração?</div>
+              <div style={{ fontSize:13, color:'var(--text-muted)', lineHeight:1.6 }}>
+                A integração <strong>{confirmExcluir.name}</strong> será removida da lista. Esta ação não pode ser desfeita.
+              </div>
+            </div>
+            <div style={{ padding:'14px 22px', borderTop:'1px solid var(--border)', display:'flex', gap:8, justifyContent:'flex-end' }}>
+              <button onClick={() => setConfirmExcluir(null)} style={{ padding:'8px 16px', borderRadius:8, border:'1px solid var(--border)', background:'none', color:'var(--text)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+              <button onClick={confirmarExclusao} style={{ padding:'8px 18px', borderRadius:8, border:'none', background:'#EF4444', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>Excluir</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toasts items={toast.toasts}/>
     </>
   )
