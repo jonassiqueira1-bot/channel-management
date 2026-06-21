@@ -7,6 +7,7 @@ import { useProducts } from '../hooks/useProducts'
 import Button from '../components/Button'
 import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
+import EmpresaSearch from '../components/EmpresaSearch'
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -481,7 +482,7 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG })
 }
 
 // ─── Reference SlideOver ──────────────────────────────────────────────────────
-const EMPTY_REF = { company_name: '', logo_initials: '', logo_color: 'var(--accent)', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
+const EMPTY_REF = { company_id: null, company_name: '', logo_initials: '', logo_color: 'var(--accent)', region: 'Sudeste', summary: '', is_public: true, results: [{ label: '', value: '' }] }
 
 function ReferenceSlideOver({ open, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_REF)
@@ -498,7 +499,17 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
       saveLabel="Salvar"
     >
       <FormField label="Empresa" required>
-        <input className="so-field" value={form.company_name} onChange={e => set('company_name', e.target.value)} placeholder="Ex: FinCorp Sistemas" />
+        <EmpresaSearch
+          value={form.company_id || null}
+          label={form.company_name || ''}
+          onChange={(id, nome) => setForm(f => ({
+            ...f,
+            company_id: id,
+            company_name: nome,
+            logo_initials: f.logo_initials || nome.slice(0, 2).toUpperCase(),
+          }))}
+          placeholder="Buscar empresa…"
+        />
       </FormField>
       <FormField label="Sigla">
         <input className="so-field" value={form.logo_initials} onChange={e => set('logo_initials', e.target.value)} maxLength={3} placeholder="FC" />
