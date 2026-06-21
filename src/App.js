@@ -39,6 +39,7 @@ import Produtos from './pages/Produtos'
 import Questionarios from './pages/Questionarios'
 import Documentos from './pages/Documentos'
 import BranchSharing from './pages/settings/BranchSharing'
+import SettingsEquipes from './pages/settings/Equipes'
 import Funis from './pages/Funis'
 
 export default function App() {
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="indicadores"  element={<SettingsIndicadores />} />
               <Route path="metas"        element={<SettingsMetas />} />
               <Route path="compartilhamento" element={<BranchSharing />} />
+              <Route path="equipes"          element={<SettingsEquipes />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
