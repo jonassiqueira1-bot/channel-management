@@ -440,7 +440,7 @@ export default function Franquias() {
           </FPEField>
 
           {/* Nome */}
-          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: 'span 2' }}>
+          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: '1/-1' }}>
             <input className="fpe-field" value={form.nome}
               onChange={e => set('nome', e.target.value)}
               placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Franquia Norte'}
