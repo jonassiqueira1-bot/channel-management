@@ -152,6 +152,7 @@ export default function FullPageEdit({
   children,
   aside,
   loading       = false,
+  contentMaxWidth = 1120,
 }) {
   // Escape → cancelar
   useEffect(() => {
@@ -319,7 +320,7 @@ export default function FullPageEdit({
           gridTemplateColumns: hasAside ? '1fr 300px' : '1fr',
           gap: 24,
           alignItems: 'start',
-          maxWidth: 1120,
+          maxWidth: contentMaxWidth,
         }}>
 
           {/* Formulário principal */}

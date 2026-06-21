@@ -76,8 +76,8 @@ function EtapasEditor({ etapas, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 80px 100px 32px', gap:8, alignItems:'center',
-        padding:'0 6px 6px', borderBottom:'1px solid var(--border2)', marginBottom:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12, alignItems:'center',
+        padding:'0 8px 8px', borderBottom:'1px solid var(--border2)', marginBottom:8 }}>
         <div />
         <div style={ed.colLabel}>Nome da etapa</div>
         <div style={ed.colLabel}>Prob. (%)</div>
@@ -92,8 +92,8 @@ function EtapasEditor({ etapas, onChange }) {
       )}
 
       {etapas.map((e, i) => (
-        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 80px 100px 32px', gap:8,
-          alignItems:'center', padding:'5px 6px', borderRadius:7, background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12,
+          alignItems:'center', padding:'6px 8px', borderRadius:7, background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
             <button type="button" style={ed.arrowBtn} onClick={() => mover(e.id, -1)} disabled={i === 0}>▲</button>
@@ -118,16 +118,16 @@ function EtapasEditor({ etapas, onChange }) {
             <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', fontSize:11, color:'var(--text-muted)', pointerEvents:'none' }}>%</span>
           </div>
 
-          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <label style={{ cursor:'pointer', position:'relative' }}>
-              <div style={{ width:28, height:28, borderRadius:6, background:e.cor, border:'2px solid rgba(0,0,0,0.12)', flexShrink:0 }} />
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <label style={{ cursor:'pointer', position:'relative', flexShrink:0 }}>
+              <div style={{ width:32, height:32, borderRadius:7, background:e.cor, border:'2px solid rgba(0,0,0,0.15)', flexShrink:0 }} />
               <input type="color" value={e.cor} onChange={ev => updateEtapa(e.id, 'cor', ev.target.value)}
                 style={{ position:'absolute', opacity:0, width:0, height:0 }} />
             </label>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:3, maxWidth:66 }}>
+            <div style={{ display:'flex', flexWrap:'nowrap', gap:5, alignItems:'center' }}>
               {CORES_ETAPA.map(c => (
                 <button key={c} type="button"
-                  style={{ width:14, height:14, borderRadius:3, background:c, border:`2px solid ${e.cor===c ? 'var(--text)' : 'transparent'}`, cursor:'pointer', padding:0, flexShrink:0 }}
+                  style={{ width:20, height:20, borderRadius:5, background:c, border:`2.5px solid ${e.cor===c ? 'var(--text)' : 'transparent'}`, cursor:'pointer', padding:0, flexShrink:0, outline: e.cor===c ? `2px solid ${c}` : 'none', outlineOffset:1 }}
                   onClick={() => updateEtapa(e.id, 'cor', c)}
                 />
               ))}
@@ -210,6 +210,7 @@ export default function Funis() {
         onSave={handleSave}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(editando.id) : undefined}
+        contentMaxWidth={Infinity}
       >
         <FPESection title="Identificação">
           <FPEGrid>
