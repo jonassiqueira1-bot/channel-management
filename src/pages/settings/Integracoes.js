@@ -413,6 +413,18 @@ function gerarWebhookToken() {
     .map(b => b.toString(16).padStart(2, '0')).join('')
 }
 
+// ─── Campos de oportunidade mapeáveis ────────────────────────────────────────
+const OPP_CAMPOS_MAPEAVEIS = [
+  { key: 'titulo',        label: 'Título da oportunidade' },
+  { key: 'empresa_nome',  label: 'Empresa' },
+  { key: 'contato_nome',  label: 'Nome do contato' },
+  { key: 'contato_email', label: 'E-mail do contato' },
+  { key: 'contato_fone',  label: 'Telefone' },
+  { key: 'valor',         label: 'Valor (R$)' },
+  { key: 'descricao',     label: 'Descrição / Observações' },
+  { key: 'origem',        label: 'Origem' },
+]
+
 // ─── Métodos de conexão disponíveis ──────────────────────────────────────────
 const METODOS_CONEXAO = [
   { id: 'webhook', label: 'Webhook', desc: 'Receba eventos em tempo real via HTTP POST', tag: 'Ativo' },
@@ -456,6 +468,12 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   const [salvando, setSalvando]           = useState(false)
   const [salvado, setSalvado]             = useState(false)
 
+  // Mapeamento de campos e campanha
+  const defaultMap = Object.fromEntries(OPP_CAMPOS_MAPEAVEIS.map(f => [f.key, '']))
+  const [mapeamento, setMapeamento]   = useState(defaultMap)
+  const [campanhaId, setCampanhaId]   = useState('')
+  const [campanhas]                   = useLocalState('settings:campanhas_v1', [])
+
   // Bloco 3 — Logs
   const [payloadLog, setPayloadLog] = useState(null)
   const logs90 = MOCK_LOGS[provider.id] || []
@@ -465,7 +483,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
     supabase.from('integracoes')
       .select('config, status, last_sync_at')
       .eq('tenant_id', profile.tenant_id)
-      .eq('provider', 'rd_station')
+      .eq('provider', provider.id)
       .maybeSingle()
       .then(({ data }) => {
         if (!data) return
@@ -475,8 +493,10 @@ function RdStationFullEdit({ provider, onClose, toast }) {
         setLogoData(data.config?.logo_data || null)
         setIntStatus(data.status || 'inactive')
         setLastSync(data.last_sync_at)
+        setMapeamento({ ...defaultMap, ...(data.config?.mapeamento || {}) })
+        setCampanhaId(data.config?.campanha_id || '')
       })
-  }, [profile?.tenant_id])
+  }, [profile?.tenant_id]) // eslint-disable-line
 
   async function salvar() {
     if (!profile?.tenant_id) { toast.show('Tenant não identificado', 'error'); return }
@@ -485,9 +505,9 @@ function RdStationFullEdit({ provider, onClose, toast }) {
     if (!webhookToken) setWebhookToken(wToken)
     const { error } = await supabase.from('integracoes').upsert({
       tenant_id:   profile.tenant_id,
-      provider:    'rd_station',
+      provider:    provider.id,
       credentials: {},
-      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData },
+      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData, mapeamento, campanha_id: campanhaId },
       status:      'active',
       updated_at:  new Date().toISOString(),
     }, { onConflict: 'tenant_id,provider' })
@@ -503,6 +523,37 @@ function RdStationFullEdit({ provider, onClose, toast }) {
     navigator.clipboard.writeText(url).then(() => { setCopiedUrl(true); setTimeout(() => setCopiedUrl(false), 2500) })
   }
 
+  function aplicarMapeamento(payload) {
+    // Resolve um caminho dot-notation no payload: "lead.name" → payload.lead.name
+    function get(obj, path) {
+      if (!path) return undefined
+      return path.split('.').reduce((acc, k) => acc?.[k], obj)
+    }
+    const lead = payload.leads?.[0] || payload.lead || payload
+    const flat = { ...payload, ...lead } // achata para facilitar acesso simples
+
+    const resultado = {}
+    OPP_CAMPOS_MAPEAVEIS.forEach(({ key }) => {
+      const path = mapeamento[key]
+      if (path) resultado[key] = get(flat, path) ?? get(flat, path.replace('lead.', '')) ?? ''
+    })
+
+    // Fallbacks para campos não mapeados
+    return {
+      titulo:        resultado.titulo        || lead.name || lead.email || 'Lead sem título',
+      empresa_nome:  resultado.empresa_nome  || lead.company_name || '',
+      contato_nome:  resultado.contato_nome  || lead.name || '',
+      contato_email: resultado.contato_email || lead.email || '',
+      contato_fone:  resultado.contato_fone  || lead.mobile_phone || lead.phone || '',
+      valor:         Number(resultado.valor) || 0,
+      descricao:     resultado.descricao     || [
+        lead.city ? `Cidade: ${lead.city}` : '',
+        payload.conversion_identifier ? `Conversão: ${payload.conversion_identifier}` : '',
+      ].filter(Boolean).join('\n'),
+      origem:        resultado.origem        || nomeIntegracao,
+    }
+  }
+
   async function buscarLeadsPendentes() {
     if (!profile?.tenant_id) return
     setLoadingLeads(true)
@@ -513,12 +564,9 @@ function RdStationFullEdit({ provider, onClose, toast }) {
       .order('created_at', { ascending: false })
     setLoadingLeads(false)
     const mapeados = (data || []).map((row) => {
-      const p = row.payload; const lead = p.leads?.[0] || p.lead || p
-      return { _queueId: row.id, titulo: lead.name || lead.email || 'Lead RD Station',
-        empresa_nome: lead.company_name || '', contato_nome: lead.name || '',
-        contato_email: lead.email || '', contato_fone: lead.mobile_phone || lead.phone || '',
-        descricao: [lead.city ? `Cidade: ${lead.city}` : '', p.conversion_identifier ? `Conversão: ${p.conversion_identifier}` : ''].filter(Boolean).join('\n'),
-        rd_lead_id: lead.uuid || lead.id || row.id, criado_em: row.created_at }
+      const campos = aplicarMapeamento(row.payload)
+      const lead = row.payload.leads?.[0] || row.payload.lead || row.payload
+      return { _queueId: row.id, ...campos, rd_lead_id: lead.uuid || lead.id || row.id, criado_em: row.created_at }
     })
     setLeads(mapeados); setSelecionados(new Set(mapeados.map((_, i) => i)))
     if (!mapeados.length) toast.show('Nenhum lead pendente.')
@@ -535,7 +583,8 @@ function RdStationFullEdit({ provider, onClose, toast }) {
       const l = leads[i]
       return { id: `rd_${Date.now()}_${idx}`, titulo: l.titulo, empresa_nome: l.empresa_nome,
         contato_nome: l.contato_nome, contato_email: l.contato_email, contato_fone: l.contato_fone,
-        descricao: l.descricao, origem: 'RD Station Marketing', situacao: 'em_negociacao', valor: 0,
+        descricao: l.descricao, origem: l.origem || nomeIntegracao, situacao: 'em_negociacao',
+        valor: l.valor || 0, campanha_id: campanhaId || null,
         funil_id: funil?.id || '', etapa_id: primeiraEtapa?.id || '', rd_lead_id: l.rd_lead_id, criado: hoje }
     })
     const existentes = new Set(allOpps.map(o => o.rd_lead_id).filter(Boolean))
@@ -984,6 +1033,57 @@ function RdStationTab({ toast }) {
             </span>
           )}
         </div>
+
+        {/* ── Mapeamento de campos ── */}
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos</span>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>campo do sistema externo → nosso campo</span>
+          </div>
+          <div style={{ background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th style={{ padding: '8px 12px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', background: 'var(--surface2)' }}>Nosso campo</th>
+                  <th style={{ padding: '8px 12px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', background: 'var(--surface2)' }}>Campo do sistema externo (ex: lead.name)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                  <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+                    <td style={{ padding: '7px 12px', fontSize: 12, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>{campo.label}</td>
+                    <td style={{ padding: '4px 8px' }}>
+                      <input
+                        value={mapeamento[campo.key] || ''}
+                        onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
+                        placeholder={`ex: ${campo.key === 'titulo' ? 'lead.name' : campo.key === 'contato_email' ? 'email' : campo.key}`}
+                        style={{ width: '100%', padding: '5px 8px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+            Use notação de ponto para campos aninhados: <code style={{ background: 'var(--surface2)', padding: '1px 4px', borderRadius: 3 }}>lead.name</code>, <code style={{ background: 'var(--surface2)', padding: '1px 4px', borderRadius: 3 }}>deal.value</code>. Deixe em branco para usar o padrão.
+          </span>
+        </div>
+
+        {/* ── Campanha associada ── */}
+        {campanhas.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Campanha associada</label>
+            <select value={campanhaId} onChange={e => setCampanhaId(e.target.value)}
+              style={{ padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+              <option value="">— Nenhuma campanha —</option>
+              {campanhas.map(c => <option key={c.id} value={c.id}>{c.nome || c.name}</option>)}
+            </select>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Leads importados desta integração serão automaticamente vinculados a esta campanha.
+            </span>
+          </div>
+        )}
 
         {/* Lista de leads pendentes */}
         {leads !== null && (
