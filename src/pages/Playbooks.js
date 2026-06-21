@@ -502,10 +502,10 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
       <div style={{ gridColumn: '1 / -1' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
           <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)' }}>Resultados</span>
-          <button type="button" onClick={() => setForm(f => ({ ...f, results: [...f.results, { label: '', value: '' }] }))}
+          <button type="button" onClick={() => setForm(f => ({ ...f, results: [...(f.results || []), { label: '', value: '' }] }))}
             style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)' }}>+ Adicionar</button>
         </div>
-        {form.results.map((r, i) => (
+        {(form.results || []).map((r, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
             <input className="so-field" value={r.label} onChange={e => setResult(i, 'label', e.target.value)} placeholder="Rótulo" />
             <input className="so-field" value={r.value} onChange={e => setResult(i, 'value', e.target.value)} placeholder="Valor" />
@@ -531,7 +531,7 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
   function addTag(e) {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
-      setForm(f => ({ ...f, tags: [...f.tags, tagInput.trim()] }))
+      setForm(f => ({ ...f, tags: [...(f.tags || []), tagInput.trim()] }))
       setTagInput('')
     }
   }
@@ -561,15 +561,15 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
       <div style={{ gridColumn: '1 / -1' }}>
         <label className="so-label">Tags <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(Enter para adicionar)</span></label>
         <div style={{ border: '1px solid #CBD5E1', borderRadius: 6, background: '#fff', padding: '6px 8px', display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-          {form.tags.map((t, i) => (
+          {(form.tags || []).map((t, i) => (
             <span key={i} style={{ background: 'var(--accent-glow)', color: 'var(--accent)', borderRadius: 10, padding: '1px 8px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}>
               {t}
-              <button type="button" onClick={() => setForm(f => ({ ...f, tags: f.tags.filter((_, j) => j !== i) }))}
+              <button type="button" onClick={() => setForm(f => ({ ...f, tags: (f.tags || []).filter((_, j) => j !== i) }))}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--accent)', fontSize: 13, lineHeight: 1, padding: 0 }}>×</button>
             </span>
           ))}
           <input value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={addTag}
-            placeholder={form.tags.length === 0 ? 'ex: institucional, proposta' : ''}
+            placeholder={!form.tags?.length ? 'ex: institucional, proposta' : ''}
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, fontFamily: 'var(--font)', color: 'var(--text)', minWidth: 80, flex: 1 }} />
         </div>
       </div>
@@ -1105,7 +1105,10 @@ export default function Playbooks() {
         initial={modal?.data}
         onSave={savePlaybook}
         onClose={() => setModal(null)}
-        onDelete={modal?.data?.id ? (id) => { deletePb(id); setSelectedPb(null); setModal(null) } : undefined}
+        onDelete={modal?.data?.id ? (id) => {
+          if (!window.confirm('Excluir este playbook? Esta ação não pode ser desfeita.')) return
+          deletePb(id); setSelectedPb(null); setModal(null)
+        } : undefined}
       />
       <StepSlideOver
         open={modal?.type === 'step'}
