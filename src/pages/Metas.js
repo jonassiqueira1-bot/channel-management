@@ -17,53 +17,18 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useGoals } from '../hooks/useGoals'
+import { useProducts } from '../hooks/useProducts'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
-import { DeleteZone } from '../components/NotionDrawer'
-import Drawer, { DrawerSidePanel, DrawerSidePanelSection, DrawerSidePanelField } from '../components/Drawer'
+import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import Button from '../components/Button'
 
-// ─── Dados de referência ──────────────────────────────────────────────────────
-const VENDEDORES = [
-  { id: 'v1', nome: 'Lucas Ferreira',  unidade: 'Matriz — São Paulo' },
-  { id: 'v2', nome: 'Carla Menezes',   unidade: 'Matriz — São Paulo' },
-  { id: 'v3', nome: 'Fernanda Rocha',  unidade: 'Filial — Porto Alegre' },
-  { id: 'v4', nome: 'Pedro Alves',     unidade: 'Filial — Belo Horizonte' },
-  { id: 'v5', nome: 'João Lima',       unidade: 'Filial — Ribeirão Preto' },
-  { id: 'v6', nome: 'Ana Costa',       unidade: 'Filial — Curitiba' },
-  { id: 'v7', nome: 'Rafael Santos',   unidade: 'Matriz — São Paulo' },
-  { id: 'v8', nome: 'Mariana Silva',   unidade: 'Matriz — São Paulo' },
-]
-const UNIDADES = [
-  { id: 'u1', nome: 'Matriz — São Paulo' },
-  { id: 'u2', nome: 'Filial — Curitiba' },
-  { id: 'u3', nome: 'Filial — Rio de Janeiro' },
-  { id: 'u4', nome: 'Filial — Belo Horizonte' },
-  { id: 'u5', nome: 'Filial — Porto Alegre' },
-  { id: 'u6', nome: 'Filial — Ribeirão Preto' },
-]
-const CATEGORIAS = [
-  { id: 'cat1', nome: 'Segurança do Trabalho (EHS)' },
-  { id: 'cat2', nome: 'Gestão de Ativos (CMMS)' },
-  { id: 'cat3', nome: 'Frotas & Logística' },
-  { id: 'cat4', nome: 'Facilities & Manutenção' },
-  { id: 'cat5', nome: 'Compliance & Qualidade' },
-]
-const PRODUTOS = [
-  { id: 'p1', nome: 'Canal NG Pro',             category_id: 'cat2' },
-  { id: 'p2', nome: 'Licença SST',              category_id: 'cat1' },
-  { id: 'p3', nome: 'Módulo Facilities',        category_id: 'cat4' },
-  { id: 'p4', nome: 'Canal NG Frotas',          category_id: 'cat3' },
-  { id: 'p5', nome: 'Canal NG EHS',             category_id: 'cat1' },
-  { id: 'p6', nome: 'Módulo Compliance',        category_id: 'cat5' },
-  { id: 'p7', nome: 'Canal NG CMMS Basic',      category_id: 'cat2' },
-  { id: 'p8', nome: 'Canal NG CMMS Enterprise', category_id: 'cat2' },
-]
-
+// ─── Tipos de alvo ────────────────────────────────────────────────────────────
 const TIPOS_ALVO = {
   vendedor:  { label: 'Por Vendedor',             badgeLabel: 'Vendedor',  badgeColor: 'var(--accent)', badgeBg: '#F5F3FF', badgeBorder: '#DDD6FE' },
-  unidade:   { label: 'Por Unidade',              badgeLabel: 'Unidade',   badgeColor: '#1D4ED8', badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE' },
+  unidade:   { label: 'Por Unidade / Franquia',   badgeLabel: 'Unidade',   badgeColor: '#1D4ED8', badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE' },
   categoria: { label: 'Por Categoria de Produto', badgeLabel: 'Categoria', badgeColor: '#0891B2', badgeBg: '#ECFEFF', badgeBorder: '#A5F3FC' },
   produto:   { label: 'Por Produto Específico',   badgeLabel: 'Produto',   badgeColor: '#059669', badgeBg: '#F0FDF4', badgeBorder: '#A7F3D0' },
+  equipe:    { label: 'Por Equipe',               badgeLabel: 'Equipe',    badgeColor: '#7C3AED', badgeBg: '#F5F3FF', badgeBorder: '#C4B5FD' },
 }
 
 const TIPOS_META = {
@@ -353,12 +318,12 @@ function PeriodoPopover({ deMes, deAno, ateMes, ateAno, setDeMes, setDeAno, setA
 }
 
 // ─── Popover: Responsável ─────────────────────────────────────────────────────
-function ResponsavelPopover({ selected, onChange, onClose, anchorRef }) {
+function ResponsavelPopover({ selected, onChange, onClose, anchorRef, vendedores }) {
   const popRef = useRef(null)
   useOutsideClick(popRef, anchorRef, onClose)
   const [search, setSearch] = useState('')
 
-  const visibleVendedores = VENDEDORES.filter(v =>
+  const visibleVendedores = vendedores.filter(v =>
     v.nome.toLowerCase().includes(search.toLowerCase())
   )
 
@@ -688,13 +653,13 @@ function MesCell({ mes, label, value, onChange, showPrefix, isCurrent }) {
 // ─── Modal Nova/Editar Meta ───────────────────────────────────────────────────
 const EMPTY_MESES_VALORES = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, '']))
 const EMPTY_FORM = {
-  tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', category_id: '', product_id: '',
+  tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', category_id: '', product_id: '', equipe_id: '',
   tipo_meta: 'valor', subtipo_operacional: 'quantidade', valor_sufixo: '',
   periodo_ano: String(ANO), meses_valores: { ...EMPTY_MESES_VALORES }, valor_padrao_str: '',
   status: 'ativa',
 }
 
-function MetaDetail({ initial, row, onClose, onSave }) {
+function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categorias, produtos, equipes }) {
   const isEditing = !!initial
   const [activeTab, setActiveTab] = useState('meta') // 'meta' | 'execucao'
 
@@ -720,7 +685,8 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     return {
       tipo_alvo: initial.tipo_alvo, id_vendedor: initial.id_vendedor || '',
       id_unidade: initial.id_unidade || '', category_id: initial.category_id || '',
-      product_id: initial.product_id || '', tipo_meta: initial.tipo_meta,
+      product_id: initial.product_id || '', equipe_id: initial.equipe_id || '',
+      tipo_meta: initial.tipo_meta,
       subtipo_operacional: initial.subtipo_operacional || 'quantidade',
       valor_sufixo: initial.valor_sufixo || '', periodo_ano: String(initial.periodo_ano),
       meses_valores: mv, valor_padrao_str: '', status: initial.status,
@@ -745,6 +711,7 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     if (form.tipo_alvo==='unidade'   && !form.id_unidade)   e.ref='Selecione uma unidade'
     if (form.tipo_alvo==='categoria' && !form.category_id)  e.ref='Selecione uma categoria'
     if (form.tipo_alvo==='produto'   && !form.product_id)   e.ref='Selecione um produto'
+    if (form.tipo_alvo==='equipe'    && !form.equipe_id)    e.ref='Selecione uma equipe'
     if (filledCount === 0) e.meses='Preencha ao menos um mês'
     setErrors(e); return Object.keys(e).length === 0
   }
@@ -753,10 +720,11 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     e.preventDefault()
     if (!validate()) return
     let nome_ref = '', sub_ref = ''
-    if (form.tipo_alvo==='vendedor')       { const v=VENDEDORES.find(x=>x.id===form.id_vendedor); nome_ref=v?.nome||''; sub_ref=v?.unidade||'' }
-    else if (form.tipo_alvo==='unidade')   { const u=UNIDADES.find(x=>x.id===form.id_unidade);    nome_ref=u?.nome||'' }
-    else if (form.tipo_alvo==='categoria') { const c=CATEGORIAS.find(x=>x.id===form.category_id); nome_ref=c?.nome||''; sub_ref='Categoria de produto' }
-    else { const p=PRODUTOS.find(x=>x.id===form.product_id); const c=CATEGORIAS.find(x=>x.id===p?.category_id); nome_ref=p?.nome||''; sub_ref=c?.nome||'' }
+    if (form.tipo_alvo==='vendedor')       { const v=vendedores.find(x=>x.id===form.id_vendedor); nome_ref=v?.nome||''; sub_ref=v?.unidade||v?.franquia||'' }
+    else if (form.tipo_alvo==='unidade')   { const u=unidades.find(x=>x.id===form.id_unidade);    nome_ref=u?.nome||'' }
+    else if (form.tipo_alvo==='categoria') { nome_ref=form.category_id; sub_ref='Categoria de produto' }
+    else if (form.tipo_alvo==='produto')   { const p=produtos.find(x=>x.id===form.product_id); nome_ref=p?.nome||''; sub_ref=p?.categoria||'' }
+    else if (form.tipo_alvo==='equipe')    { const e=equipes.find(x=>x.id===form.equipe_id);    nome_ref=e?.nome||''; sub_ref='Equipe' }
 
     const base = {
       tipo_alvo: form.tipo_alvo,
@@ -764,6 +732,7 @@ function MetaDetail({ initial, row, onClose, onSave }) {
       id_unidade:  form.tipo_alvo==='unidade'   ? form.id_unidade   : null,
       category_id: form.tipo_alvo==='categoria' ? form.category_id  : null,
       product_id:  form.tipo_alvo==='produto'   ? form.product_id   : null,
+      equipe_id:   form.tipo_alvo==='equipe'    ? form.equipe_id    : null,
       nome_ref, sub_ref,
       tipo_meta: form.tipo_meta,
       subtipo_operacional: form.tipo_meta==='operacional' ? form.subtipo_operacional : null,
@@ -800,7 +769,7 @@ function MetaDetail({ initial, row, onClose, onSave }) {
   const statusOpts     = Object.entries(STATUS_CFG).map(([k,v]) => ({ value:k, label:v.label }))
 
   const left = (
-    <div style={{ padding:'28px 36px', display:'flex', flexDirection:'column', gap:20, flex:1, overflowY:'auto' }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:20, flex:1 }}>
 
       {/* Tipo de Alvo */}
       <div>
@@ -828,22 +797,24 @@ function MetaDetail({ initial, row, onClose, onSave }) {
       <div>
         <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)',
           textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
-          {form.tipo_alvo==='vendedor'?'Vendedor':form.tipo_alvo==='unidade'?'Unidade / Franquia':form.tipo_alvo==='categoria'?'Categoria de produto':'Produto'}
+          {{ vendedor:'Vendedor', unidade:'Unidade / Franquia', categoria:'Categoria de produto', produto:'Produto', equipe:'Equipe' }[form.tipo_alvo]}
         </div>
         <select style={{ width:'100%', padding:'9px 11px', borderRadius:8, border:`1px solid ${errors.ref?'var(--red)':'var(--border)'}`,
           background:'var(--surface2)', fontSize:13, color:'var(--text)', fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }}
-          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='unidade'?form.id_unidade:form.tipo_alvo==='categoria'?form.category_id:form.product_id}
+          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='unidade'?form.id_unidade:form.tipo_alvo==='categoria'?form.category_id:form.tipo_alvo==='equipe'?form.equipe_id:form.product_id}
           onChange={e => {
             if (form.tipo_alvo==='vendedor')       set('id_vendedor',e.target.value)
             else if (form.tipo_alvo==='unidade')   set('id_unidade',e.target.value)
             else if (form.tipo_alvo==='categoria') set('category_id',e.target.value)
+            else if (form.tipo_alvo==='equipe')    set('equipe_id',e.target.value)
             else                                   set('product_id',e.target.value)
           }}>
           <option value="">— Selecione —</option>
-          {form.tipo_alvo==='vendedor'  && VENDEDORES.map(v=><option key={v.id} value={v.id}>{v.nome} · {v.unidade}</option>)}
-          {form.tipo_alvo==='unidade'   && UNIDADES.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
-          {form.tipo_alvo==='categoria' && CATEGORIAS.map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
-          {form.tipo_alvo==='produto'   && PRODUTOS.map(p=>{const cat=CATEGORIAS.find(c=>c.id===p.category_id);return<option key={p.id} value={p.id}>{p.nome}{cat?` · ${cat.nome}`:''}</option>})}
+          {form.tipo_alvo==='vendedor'  && vendedores.map(v=><option key={v.id} value={v.id}>{v.nome}{v.unidade?` · ${v.unidade}`:''}</option>)}
+          {form.tipo_alvo==='unidade'   && unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+          {form.tipo_alvo==='categoria' && categorias.map(c=><option key={c} value={c}>{c}</option>)}
+          {form.tipo_alvo==='produto'   && produtos.map(p=><option key={p.id} value={p.id}>{p.nome}{p.categoria?` · ${p.categoria}`:''}</option>)}
+          {form.tipo_alvo==='equipe'    && equipes.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
         </select>
         {errors.ref && <span style={{ fontSize:11, color:'var(--red)', fontWeight:600, marginTop:3, display:'block' }}>{errors.ref}</span>}
       </div>
@@ -980,51 +951,81 @@ function MetaDetail({ initial, row, onClose, onSave }) {
     </div>
   )
 
+  const fldStyle = { width:'100%', padding:'8px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', fontSize:13, color:'var(--text)', fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }
+  const lbl = { fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:5 }
+
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden', minHeight: 0, margin: '-12px -14px' }}>
-      <div style={{ flex: 1, overflowY: 'auto', borderRight: '1px solid var(--border)' }}>
-        {left}
-      </div>
-      <DrawerSidePanel width={240}>
-        <DrawerSidePanelSection label="Configuração">
-          <DrawerSidePanelField label="Tipo" as="select" editing value={form.tipo_meta} onChange={e => set('tipo_meta', e.target.value)}>
-            {tipoMetaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </DrawerSidePanelField>
-          <DrawerSidePanelField label="Ano" as="select" editing value={form.periodo_ano} onChange={e => set('periodo_ano', e.target.value)}>
-            {periodoAnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </DrawerSidePanelField>
-          {isEditing && (
-            <DrawerSidePanelField label="Status" as="select" editing value={form.status} onChange={e => set('status', e.target.value)}>
-              {statusOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </DrawerSidePanelField>
-          )}
-        </DrawerSidePanelSection>
-
-        {isOp && (
-          <DrawerSidePanelSection label="Operacional">
-            <DrawerSidePanelField label="Natureza" as="select" editing value={form.subtipo_operacional} onChange={e => set('subtipo_operacional', e.target.value)}>
-              <option value="quantidade">Quantidade</option>
-              <option value="moeda">Valor (R$)</option>
-            </DrawerSidePanelField>
-            {form.subtipo_operacional === 'quantidade' && (
-              <DrawerSidePanelField label="Sufixo" editing value={form.valor_sufixo || ''} onChange={e => set('valor_sufixo', e.target.value)} placeholder="treinamentos…" />
-            )}
-          </DrawerSidePanelSection>
-        )}
-
-        {isEditing && initial && (
-          <div style={{ padding: '0 16px', marginTop: 8 }}>
-            <DeleteZone label="Excluir meta" onDelete={() => { handleSaveRealizado && onClose(); onClose() }} />
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {left}
+      {/* Painel de configuração inline */}
+      <FormSection label="Configuração">
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <div>
+            <span style={lbl}>Tipo de meta</span>
+            <select style={fldStyle} value={form.tipo_meta} onChange={e => set('tipo_meta', e.target.value)}>
+              {tipoMetaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </div>
-        )}
-      </DrawerSidePanel>
+          <div>
+            <span style={lbl}>Ano</span>
+            <select style={fldStyle} value={form.periodo_ano} onChange={e => set('periodo_ano', e.target.value)}>
+              {periodoAnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {isEditing && (
+            <div>
+              <span style={lbl}>Status</span>
+              <select style={fldStyle} value={form.status} onChange={e => set('status', e.target.value)}>
+                {statusOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          )}
+          {isOp && (
+            <div>
+              <span style={lbl}>Natureza</span>
+              <select style={fldStyle} value={form.subtipo_operacional} onChange={e => set('subtipo_operacional', e.target.value)}>
+                <option value="quantidade">Quantidade</option>
+                <option value="moeda">Valor (R$)</option>
+              </select>
+            </div>
+          )}
+          {isOp && form.subtipo_operacional === 'quantidade' && (
+            <div>
+              <span style={lbl}>Sufixo</span>
+              <input style={fldStyle} value={form.valor_sufixo || ''} onChange={e => set('valor_sufixo', e.target.value)} placeholder="treinamentos…" />
+            </div>
+          )}
+        </div>
+      </FormSection>
+
+      {isEditing && initial && (
+        <button type="button" onClick={onClose}
+          style={{ alignSelf:'flex-start', padding:'7px 14px', borderRadius:8, border:'1px solid var(--red)', background:'none', color:'var(--red)', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+          Excluir meta
+        </button>
+      )}
     </div>
   )
 }
 
 // ─── Página principal ─────────────────────────────────────────────────────────
+const FUNC_STORAGE_KEY = 'funcionarios:data_v2'
+
 export default function Metas() {
   const { goals, save: saveGoals, remove: deleteGoal } = useGoals()
+  const { produtos: produtosStore } = useProducts()
+
+  // ── Dados reais de referência ─────────────────────────────────────────────
+  const [funcionarios]  = useLocalState(FUNC_STORAGE_KEY, [])
+  const [franquiasData] = useLocalState('settings:franquias_v2', [])
+  const [categoriasData] = useLocalState('produtos:categorias', [])
+  const [equipesData]   = useLocalState('settings:equipes_v1', [])
+
+  const vendedores = funcionarios.map(f => ({ id: f.id, nome: f.nome, unidade: f.empresa || '' }))
+  const unidades   = franquiasData.map(f => ({ id: String(f.id), nome: [f.codigo ? `[${f.codigo}] ` : '', f.nome].join('') }))
+  const categorias = categoriasData
+  const produtos   = produtosStore
+  const equipes    = equipesData.filter(e => e.status !== 'inativa')
 
   // Período De/Até
   const [deMes,  setDeMes]  = useLocalState('metas:deMes',  String(1))
@@ -1123,7 +1124,7 @@ export default function Metas() {
   })()
 
   const responsavelLabel = filterVendedor
-    ? VENDEDORES.find(v => v.id === filterVendedor)?.nome?.split(' ')[0] || 'Responsável'
+    ? vendedores.find(v => v.id === filterVendedor)?.nome?.split(' ')[0] || 'Responsável'
     : 'Responsável'
 
   // ── CRUD ────────────────────────────────────────────────────────────────
@@ -1209,6 +1210,7 @@ export default function Metas() {
                 onChange={setFilterVendedor}
                 onClose={() => setResponsavelOpen(false)}
                 anchorRef={responsavelRef}
+                vendedores={vendedores}
               />
             )}
           </div>
@@ -1236,11 +1238,13 @@ export default function Metas() {
         />
       </div>
 
-      <Drawer
+      <SlideOver
         open={!!modal}
         onClose={() => setModal(null)}
         title={modal?.mode==='edit' ? (modal.goal?.nome_ref || 'Meta') : 'Nova meta'}
         subtitle="Comercial · Metas"
+        showFooter={false}
+        initialSize="default"
       >
         {modal && (
           <MetaDetail
@@ -1248,9 +1252,14 @@ export default function Metas() {
             row={modal.row || null}
             onClose={() => setModal(null)}
             onSave={handleSave}
+            vendedores={vendedores}
+            unidades={unidades}
+            categorias={categorias}
+            produtos={produtos}
+            equipes={equipes}
           />
         )}
-      </Drawer>
+      </SlideOver>
     </div>
   )
 }
