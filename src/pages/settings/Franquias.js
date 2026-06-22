@@ -88,8 +88,8 @@ function ImportModal({ onClose, onImport, existingNomes }) {
 
   function downloadTemplate() {
     const header = IMPORT_COLS.join(';')
-    const example = 'Franquia Norte;FRQ-001;franquia;ativo;'
-    downloadText(`${header}\n${example}`, 'template_franquias.csv', 'text/csv')
+    const example = 'Parceiro Norte;PRC-001;franquia;ativo;'
+    downloadText(`${header}\n${example}`, 'template_parceiros.csv', 'text/csv')
   }
 
   const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.42)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:500, backdropFilter:'blur(2px)' }
@@ -100,7 +100,7 @@ function ImportModal({ onClose, onImport, existingNomes }) {
       <div style={modal}>
         <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
           <div>
-            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Franquias</div>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Parceiros</div>
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{step === 'upload' ? 'Importar dados' : `${rows.length} linhas encontradas`}</div>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:'var(--text-muted)', lineHeight:1 }}>×</button>
@@ -173,9 +173,16 @@ function ImportModal({ onClose, onImport, existingNomes }) {
 function uid() { return Date.now() + Math.floor(Math.random() * 999) }
 
 const CLASSIF_CONFIG = {
-  franquia: { label: 'Franquia', color: 'var(--accent)',  bg: 'var(--accent-lite)' },
+  franquia: { label: 'Parceiro', color: 'var(--accent)',  bg: 'var(--accent-lite)' },
   unidade:  { label: 'Unidade',  color: '#10B981',        bg: '#D1FAE5'            },
 }
+
+const TIPO_PARCEIRO_OPTIONS = [
+  { value: '',          label: '— Selecione —'   },
+  { value: 'vendas',    label: 'Parceiro vendas'  },
+  { value: 'tecnico',   label: 'Parceiro técnico' },
+  { value: 'finder',    label: 'Finder'           },
+]
 
 function ClassifBadge({ value }) {
   const cfg = CLASSIF_CONFIG[value] || CLASSIF_CONFIG.franquia
@@ -240,7 +247,7 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
 
         {precisaFranquia && (
           <div style={{ marginBottom:14 }}>
-            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:6 }}>Franquia detentora *</div>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:6 }}>Parceiro detentor *</div>
             <select className="fpe-field" value={franquiaId} onChange={e => setFranquiaId(e.target.value)}>
               <option value="">— Selecione a franquia —</option>
               {franquiasMae.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
@@ -264,7 +271,7 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
 }
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
-export default function Franquias() {
+export default function Parceiros() {
   const [franquias, setFranquias] = useLocalState('settings:franquias_v2', [])
   const [editando, setEditando]   = useState(null)
   const [form, setForm]           = useState(null)
@@ -280,7 +287,7 @@ export default function Franquias() {
   }, [franquias, search])
 
   function abrirNovo() {
-    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null })
+    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null, tipo_parceiro: '' })
     setEditando('novo')
   }
 
@@ -305,7 +312,8 @@ export default function Franquias() {
     const data = {
       ...form,
       nome: form.nome.trim(),
-      franquia_id: form.classificacao === 'unidade' ? form.franquia_id : null,
+      franquia_id:   form.classificacao === 'unidade' ? form.franquia_id : null,
+      tipo_parceiro: form.classificacao === 'franquia' ? form.tipo_parceiro : '',
     }
     if (editando !== 'novo') {
       setFranquias(prev => prev.map(f => f.id === editando.id ? { ...f, ...data } : f))
@@ -332,13 +340,13 @@ export default function Franquias() {
   function exportCSV() {
     const header = IMPORT_COLS.join(';')
     const body   = filtered.map(f => toCSVRow(IMPORT_COLS, toRow(f))).join('\n')
-    downloadText(`${header}\n${body}`, 'franquias.csv', 'text/csv')
+    downloadText(`${header}\n${body}`, 'parceiros.csv', 'text/csv')
   }
 
   function exportExcel() {
     const header = IMPORT_COLS.join('\t')
     const body   = filtered.map(f => IMPORT_COLS.map(c => toRow(f)[c] ?? '').join('\t')).join('\n')
-    downloadText(`${header}\n${body}`, 'franquias.xls', 'application/vnd.ms-excel')
+    downloadText(`${header}\n${body}`, 'parceiros.xls', 'application/vnd.ms-excel')
   }
 
   function handleImport(rows) {
@@ -395,8 +403,8 @@ export default function Franquias() {
     const isUnidade = form.classificacao === 'unidade'
     return (
       <FullPageEdit
-        breadcrumb={[{ label: 'Franquias', onClick: () => setEditando(null) }]}
-        title={editando === 'novo' ? 'Novo registro' : `Editar: ${editando.nome}`}
+        breadcrumb={[{ label: 'Parceiros', onClick: () => setEditando(null) }]}
+        title={editando === 'novo' ? 'Novo parceiro' : `Editar: ${editando.nome}`}
         onSave={podeGravar ? handleSave : undefined}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(editando.id) : undefined}
@@ -405,7 +413,7 @@ export default function Franquias() {
           {/* Classificação */}
           <FPEField label="Classificação" required style={{ gridColumn: 'span 2' }}>
             <select className="fpe-field" value={form.classificacao || 'franquia'}
-              onChange={e => { set('classificacao', e.target.value); set('franquia_id', null) }}>
+              onChange={e => { set('classificacao', e.target.value); set('franquia_id', null); set('tipo_parceiro', '') }}>
               {Object.entries(CLASSIF_CONFIG).map(([val, cfg]) => (
                 <option key={val} value={val}>{cfg.label}</option>
               ))}
@@ -425,7 +433,7 @@ export default function Franquias() {
           <FPEField label="Código" style={{ gridColumn: 'span 1' }}>
             <input className="fpe-field" value={form.codigo || ''}
               onChange={e => set('codigo', e.target.value)}
-              placeholder="Ex: FRQ-001" />
+              placeholder="Ex: PRC-001" />
           </FPEField>
 
           {/* Estado */}
@@ -440,19 +448,31 @@ export default function Franquias() {
           </FPEField>
 
           {/* Nome */}
-          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome da Franquia'} required error={nomeErr} style={{ gridColumn: '1/-1' }}>
+          <FPEField label={isUnidade ? 'Nome da Unidade' : 'Nome do Parceiro'} required error={nomeErr} style={{ gridColumn: '1/-1' }}>
             <input className="fpe-field" value={form.nome}
               onChange={e => set('nome', e.target.value)}
-              placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Franquia Norte'}
+              placeholder={isUnidade ? 'Ex: Unidade Norte' : 'Ex: Parceiro Norte'}
               style={nomeErr ? { borderColor: 'var(--red)' } : {}} />
           </FPEField>
 
-          {/* Franquia detentora — só se Unidade */}
+          {/* Tipo de Parceiro — só se Parceiro (não Unidade) */}
+          {!isUnidade && (
+            <FPEField label="Tipo de Parceiro" style={{ gridColumn: '1/-1' }}>
+              <select className="fpe-field" value={form.tipo_parceiro || ''}
+                onChange={e => set('tipo_parceiro', e.target.value)}>
+                {TIPO_PARCEIRO_OPTIONS.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </FPEField>
+          )}
+
+          {/* Parceiro detentor — só se Unidade */}
           {isUnidade && (
-            <FPEField label="Franquia detentora" style={{ gridColumn: '1/-1' }}>
+            <FPEField label="Parceiro detentor" style={{ gridColumn: '1/-1' }}>
               <select className="fpe-field" value={form.franquia_id || ''}
                 onChange={e => set('franquia_id', e.target.value || null)}>
-                <option value="">— Nenhuma —</option>
+                <option value="">— Nenhum —</option>
                 {franquiasMae.filter(f => f.id !== editando?.id).map(f => (
                   <option key={f.id} value={f.id}>{f.codigo ? `[${f.codigo}] ` : ''}{f.nome}</option>
                 ))}
@@ -485,8 +505,8 @@ export default function Franquias() {
         columns={columns}
         data={filtered}
         keyField="id"
-        storageKey="settings_franquias"
-        newLabel="Novo registro"
+        storageKey="settings_parceiros"
+        newLabel="Novo parceiro"
         onNew={abrirNovo}
         onRowClick={abrirEdicao}
         search={search}
@@ -500,7 +520,7 @@ export default function Franquias() {
         emptyState={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
             <span style={{ fontSize: 28, opacity: 0.3 }}>🏢</span>
-            <span style={{ fontSize: 13 }}>Nenhuma franquia ou unidade cadastrada.</span>
+            <span style={{ fontSize: 13 }}>Nenhum parceiro ou unidade cadastrado.</span>
           </div>
         }
       />

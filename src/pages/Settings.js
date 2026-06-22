@@ -12,7 +12,7 @@ const SECTIONS = [
     items: [
       { path: '/settings/empresa',   label: 'Empresa / ISV',      Icon: Building2   },
       { path: '/settings/conta',     label: 'Minha Conta',        Icon: UserCircle  },
-      { path: '/settings/franquias', label: 'Franquias',          Icon: Store       },
+      { path: '/settings/franquias', label: 'Parceiros',          Icon: Store       },
     ],
   },
   {

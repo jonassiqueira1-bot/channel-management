@@ -24,7 +24,7 @@ import Comissoes from './pages/Comissoes'
 import CustomerSuccess from './pages/CustomerSuccess'
 import Settings, { SettingsPage } from './pages/Settings'
 import SettingsCampanhas from './pages/settings/Campanhas'
-import SettingsFranquias from './pages/settings/Franquias'
+import SettingsParceiros from './pages/settings/Franquias'
 import SettingsIndicadores from './pages/settings/Indicadores'
 import SettingsMetas from './pages/settings/Metas'
 import SettingsHabilitacoes from './pages/settings/Habilitacoes'
@@ -93,7 +93,7 @@ export default function App() {
               <Route path="forms"        element={<SettingsForms />} />
               <Route path="logs"         element={<SettingsPage title="Logs"                  description="Histórico de eventos e auditoria do sistema." />} />
               <Route path="campanhas"    element={<SettingsCampanhas />} />
-              <Route path="franquias"    element={<SettingsFranquias />} />
+              <Route path="franquias"    element={<SettingsParceiros />} />
               <Route path="indicadores"  element={<SettingsIndicadores />} />
               <Route path="metas"        element={<SettingsMetas />} />
               <Route path="compartilhamento" element={<BranchSharing />} />
