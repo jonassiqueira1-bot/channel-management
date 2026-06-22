@@ -1,14 +1,10 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
-import SlideOver from '../components/ui/SlideOver'
+import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
-import { MOCK_USUARIOS } from '../data/mockUsuarios'
-import { useFormLayout } from '../hooks/useFormLayout'
-import DynamicFormLayout from '../components/DynamicFormLayout'
 import { useContacts } from '../hooks/useContacts'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
@@ -211,7 +207,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const [form, setForm]             = useState(item || EMPTY_FORM)
   const [cnpjStatus, setCnpjStatus] = useState(null)
   const [cepStatus,  setCepStatus]  = useState(null)
-  const { sections, fieldById } = useFormLayout('companies')
 
   // ── Relacionamentos via hooks reais ──────────────────────────────────────
   const { contacts: allContacts, save: saveContact, remove: removeContact } = useContacts()
@@ -304,190 +299,180 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     }
   }
 
-  const inpStyle = { padding:'9px 12px', border:'1px solid var(--border)', borderRadius:8,
-    background:'var(--surface)', color:'var(--text)', fontSize:13,
-    fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }
-
-  const lbl = { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em',
-    color:'var(--text-muted)', display:'block', marginBottom:5 }
-
-  const tipoOptions   = TIPOS.map(t => ({ value: t.value, label: t.label }))
-  const segOptions    = [{ value:'', label:'Selecionar…' }, ...SEGMENTOS.map(s => ({ value:s, label:s }))]
-  const statusOptions = [{ value:'ativo', label:'Ativo' }, { value:'negociacao', label:'Em Negociação' }, { value:'inativo', label:'Inativo' }]
-  const origemOptions = [{ value:'', label:'—' }, ...ORIGENS.map(o => ({ value:o, label:o }))]
   const nivelOptions  = [{ value:'', label:'Selecionar…' }, ...['Platinum','Ouro','Prata','Bronze'].map(n => ({ value:n, label:n }))]
-
-  // ── renderField: mapeamento campo → input (sem label, DynamicFormLayout adiciona) ──
-  function renderField(key) {
-    switch (key) {
-      case 'razao':
-        return <input style={{ ...inpStyle, fontSize:15, fontWeight:700 }} value={form.razao}
-          onChange={e => setForm(f => ({ ...f, razao: e.target.value }))}
-          onBlur={e => patch('razao', e.target.value)} placeholder="Razão Social da empresa…" />
-      case 'fantasia':
-        return <input style={inpStyle} value={form.fantasia || ''}
-          onChange={e => setForm(f => ({ ...f, fantasia: e.target.value }))}
-          onBlur={e => patch('fantasia', e.target.value)} placeholder="Nome fantasia (se diferente)" />
-      case 'cnpj':
-        return (
-          <>
-            <div style={{ position:'relative' }}>
-              <input style={{ ...inpStyle, paddingRight:90,
-                ...(cnpjStatus?.type === 'error' ? { border:'1px solid var(--red)', background:'rgba(220,38,38,0.05)' } : {}) }}
-                value={form.cnpj}
-                onChange={e => { set('cnpj', fmtCNPJ(e.target.value)); setCnpjStatus(null) }}
-                onBlur={lookupCNPJ}
-                placeholder="00.000.000/0001-00" />
-              <button type="button" onClick={lookupCNPJ}
-                style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
-                  padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)',
-                  borderRadius:6, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
-                {cnpjStatus?.type === 'loading' ? '…' : '🔍 Buscar'}
-              </button>
-            </div>
-            <LookupStatus state={cnpjStatus} />
-          </>
-        )
-      case 'inscricao_estadual':
-        return <input style={inpStyle} value={form.inscricao_estadual || ''}
-          onChange={e => setForm(f => ({ ...f, inscricao_estadual: e.target.value }))}
-          onBlur={e => patch('inscricao_estadual', e.target.value)} placeholder="Inscrição Estadual" />
-      case 'tipo':
-        return <select style={inpStyle} value={form.tipo} onChange={e => patch('tipo', e.target.value)}>
-          {tipoOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      case 'status':
-        return <select style={inpStyle} value={form.status} onChange={e => patch('status', e.target.value)}>
-          {statusOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      case 'segmento':
-        return <select style={inpStyle} value={form.segmento || ''} onChange={e => patch('segmento', e.target.value)}>
-          {segOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      case 'cnae_codigo':
-        return <input style={{ ...inpStyle, fontFamily:'var(--mono)' }} value={form.cnae_codigo || ''}
-          onChange={e => setForm(f => ({ ...f, cnae_codigo: e.target.value }))}
-          onBlur={e => patch('cnae_codigo', e.target.value)} placeholder="0000-0/00" />
-      case 'email':
-        return <input style={inpStyle} type="email" value={form.email || ''}
-          onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-          onBlur={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
-      case 'telefone':
-        return <input style={inpStyle} value={form.telefone || ''}
-          onChange={e => setForm(f => ({ ...f, telefone: fmtPhone(e.target.value) }))}
-          onBlur={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000" />
-      case 'site':
-        return <input style={inpStyle} value={form.site || ''}
-          onChange={e => setForm(f => ({ ...f, site: e.target.value }))}
-          onBlur={e => patch('site', e.target.value)} placeholder="https://empresa.com.br" />
-      case 'origem':
-        return <select style={inpStyle} value={form.origem || ''} onChange={e => patch('origem', e.target.value)}>
-          {origemOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-      case 'responsavel':
-        return <input style={inpStyle} value={form.responsavel || ''}
-          onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))}
-          onBlur={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
-      case 'cep':
-        return (
-          <>
-            <div style={{ position:'relative' }}>
-              <input style={{ ...inpStyle, paddingRight:46 }}
-                value={form.cep}
-                onChange={e => { set('cep', fmtCEP(e.target.value)); setCepStatus(null) }}
-                onBlur={lookupCEP} placeholder="00000-000" />
-              <button type="button" onClick={lookupCEP}
-                style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)',
-                  padding:'3px 8px', background:'none', border:'1px solid var(--border)',
-                  borderRadius:5, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
-                {cepStatus?.type === 'loading' ? '…' : '↗'}
-              </button>
-            </div>
-            <LookupStatus state={cepStatus} />
-          </>
-        )
-      case 'logradouro':
-        return <input style={inpStyle} value={form.logradouro || ''}
-          onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))}
-          onBlur={e => patch('logradouro', e.target.value)} placeholder="Logradouro" />
-      case 'numero':
-        return <input style={inpStyle} value={form.numero || ''}
-          onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
-          onBlur={e => patch('numero', e.target.value)} placeholder="Nº" />
-      case 'complemento':
-        return <input style={inpStyle} value={form.complemento || ''}
-          onChange={e => setForm(f => ({ ...f, complemento: e.target.value }))}
-          onBlur={e => patch('complemento', e.target.value)} placeholder="Apto, bloco, sala…" />
-      case 'bairro':
-        return <input style={inpStyle} value={form.bairro || ''}
-          onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
-          onBlur={e => patch('bairro', e.target.value)} placeholder="Bairro" />
-      case 'cidade':
-        return <input style={inpStyle} value={form.cidade || ''}
-          onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
-          onBlur={e => patch('cidade', e.target.value)} placeholder="Cidade" />
-      case 'uf':
-        return <input style={{ ...inpStyle, fontFamily:'var(--mono)', textTransform:'uppercase' }}
-          value={form.uf || ''} maxLength={2}
-          onChange={e => setForm(f => ({ ...f, uf: e.target.value.slice(0,2) }))}
-          onBlur={e => patch('uf', e.target.value)} placeholder="UF" />
-      case 'observacoes':
-        return <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
-          placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
-      default: {
-        // Campo customizado — renderiza input genérico conectado ao form
-        if (!key) return null
-        const val = form[key] ?? ''
-        const fieldDef = fieldById[Object.keys(fieldById).find(id => fieldById[id].field_key === key)]
-        const ft = fieldDef?.field_type || 'text'
-        const opts = fieldDef?.options || []
-        if (ft === 'textarea')
-          return <InlineTextarea value={String(val)} onChange={v => patch(key, v)} minRows={3}
-            placeholder={fieldDef?.label || '—'} />
-        if (ft === 'boolean')
-          return (
-            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
-              padding:'8px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)' }}>
-              <input type="checkbox" checked={!!val} onChange={e => patch(key, e.target.checked)}
-                style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
-              <span style={{ fontSize:13, color:'var(--text)' }}>{fieldDef?.label || key}</span>
-            </label>
-          )
-        if (ft === 'date')
-          return <input style={inpStyle} type="date" value={val}
-            onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-            onBlur={e => patch(key, e.target.value)} />
-        if (ft === 'number')
-          return <input style={inpStyle} type="number" value={val}
-            onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-            onBlur={e => patch(key, e.target.value)} />
-        if (ft === 'select' && opts.length)
-          return (
-            <select style={inpStyle} value={val} onChange={e => patch(key, e.target.value)}>
-              <option value="">— Selecione —</option>
-              {opts.map(o => <option key={o} value={o}>{o}</option>)}
-            </select>
-          )
-        return <input style={inpStyle} type="text" value={val}
-          placeholder={fieldDef?.label || '—'}
-          onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-          onBlur={e => patch(key, e.target.value)} />
-      }
-    }
-  }
 
   // ── Conteúdo das abas ───────────────────────────────────────────────────
 
   function TabDados() {
     return (
-      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-        <DynamicFormLayout
-          sections={sections}
-          fieldById={fieldById}
-          renderField={renderField}
-          sectionStyle={{ background:'var(--surface)', borderRadius:12, padding:'18px 22px', boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)' }}
-          labelStyle={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', display:'block', marginBottom:5 }}
-        />
+      <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'20px 24px' }}>
+        <FormSection label="Identificação">
+          <FormGrid cols={2}>
+            <FormField label="Razão Social" required style={{ gridColumn:'span 2' }}>
+              <input className="so-field" value={form.razao}
+                onChange={e => setForm(f => ({ ...f, razao: e.target.value }))}
+                onBlur={e => patch('razao', e.target.value)}
+                placeholder="Razão Social da empresa…" />
+            </FormField>
+            <FormField label="Nome Fantasia">
+              <input className="so-field" value={form.fantasia || ''}
+                onChange={e => setForm(f => ({ ...f, fantasia: e.target.value }))}
+                onBlur={e => patch('fantasia', e.target.value)}
+                placeholder="Nome fantasia (se diferente)" />
+            </FormField>
+            <FormField label="Tipo">
+              <select className="so-field" value={form.tipo} onChange={e => patch('tipo', e.target.value)}>
+                {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="CNPJ">
+              <div style={{ position:'relative' }}>
+                <input className="so-field" style={{ paddingRight:90,
+                  ...(cnpjStatus?.type === 'error' ? { borderColor:'var(--red)', background:'rgba(220,38,38,0.05)' } : {}) }}
+                  value={form.cnpj}
+                  onChange={e => { set('cnpj', fmtCNPJ(e.target.value)); setCnpjStatus(null) }}
+                  onBlur={lookupCNPJ}
+                  placeholder="00.000.000/0001-00" />
+                <button type="button" onClick={lookupCNPJ}
+                  style={{ position:'absolute', right:6, top:'50%', transform:'translateY(-50%)',
+                    padding:'4px 10px', background:'var(--surface2)', border:'1px solid var(--border)',
+                    borderRadius:6, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
+                  {cnpjStatus?.type === 'loading' ? '…' : '🔍 Buscar'}
+                </button>
+              </div>
+              <LookupStatus state={cnpjStatus} />
+            </FormField>
+            <FormField label="Inscrição Estadual">
+              <input className="so-field" value={form.inscricao_estadual || ''}
+                onChange={e => setForm(f => ({ ...f, inscricao_estadual: e.target.value }))}
+                onBlur={e => patch('inscricao_estadual', e.target.value)}
+                placeholder="Inscrição Estadual" />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Atividade">
+          <FormGrid cols={2}>
+            <FormField label="Segmento">
+              <select className="so-field" value={form.segmento || ''} onChange={e => patch('segmento', e.target.value)}>
+                <option value="">Selecionar…</option>
+                {SEGMENTOS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </FormField>
+            <FormField label="CNAE">
+              <input className="so-field" style={{ fontFamily:'var(--mono)' }} value={form.cnae_codigo || ''}
+                onChange={e => setForm(f => ({ ...f, cnae_codigo: e.target.value }))}
+                onBlur={e => patch('cnae_codigo', e.target.value)}
+                placeholder="0000-0/00" />
+            </FormField>
+            <FormField label="Descrição CNAE" style={{ gridColumn:'span 2' }}>
+              <input className="so-field" value={form.cnae_descricao || ''}
+                onChange={e => setForm(f => ({ ...f, cnae_descricao: e.target.value }))}
+                onBlur={e => patch('cnae_descricao', e.target.value)}
+                placeholder="Descrição da atividade" />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Endereço">
+          <FormGrid cols={2}>
+            <FormField label="CEP">
+              <div style={{ position:'relative' }}>
+                <input className="so-field" style={{ paddingRight:46 }}
+                  value={form.cep}
+                  onChange={e => { set('cep', fmtCEP(e.target.value)); setCepStatus(null) }}
+                  onBlur={lookupCEP} placeholder="00000-000" />
+                <button type="button" onClick={lookupCEP}
+                  style={{ position:'absolute', right:5, top:'50%', transform:'translateY(-50%)',
+                    padding:'3px 8px', background:'none', border:'1px solid var(--border)',
+                    borderRadius:5, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', color:'var(--text-soft)' }}>
+                  {cepStatus?.type === 'loading' ? '…' : '↗'}
+                </button>
+              </div>
+              <LookupStatus state={cepStatus} />
+            </FormField>
+            <FormField label="UF">
+              <input className="so-field" style={{ textTransform:'uppercase', fontFamily:'var(--mono)' }}
+                value={form.uf || ''} maxLength={2}
+                onChange={e => setForm(f => ({ ...f, uf: e.target.value.slice(0,2) }))}
+                onBlur={e => patch('uf', e.target.value)} placeholder="UF" />
+            </FormField>
+            <FormField label="Logradouro" style={{ gridColumn:'span 2' }}>
+              <input className="so-field" value={form.logradouro || ''}
+                onChange={e => setForm(f => ({ ...f, logradouro: e.target.value }))}
+                onBlur={e => patch('logradouro', e.target.value)} placeholder="Logradouro" />
+            </FormField>
+            <FormField label="Número">
+              <input className="so-field" value={form.numero || ''}
+                onChange={e => setForm(f => ({ ...f, numero: e.target.value }))}
+                onBlur={e => patch('numero', e.target.value)} placeholder="Nº" />
+            </FormField>
+            <FormField label="Complemento">
+              <input className="so-field" value={form.complemento || ''}
+                onChange={e => setForm(f => ({ ...f, complemento: e.target.value }))}
+                onBlur={e => patch('complemento', e.target.value)} placeholder="Apto, bloco, sala…" />
+            </FormField>
+            <FormField label="Bairro">
+              <input className="so-field" value={form.bairro || ''}
+                onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
+                onBlur={e => patch('bairro', e.target.value)} placeholder="Bairro" />
+            </FormField>
+            <FormField label="Cidade">
+              <input className="so-field" value={form.cidade || ''}
+                onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
+                onBlur={e => patch('cidade', e.target.value)} placeholder="Cidade" />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Contato">
+          <FormGrid cols={2}>
+            <FormField label="E-mail">
+              <input className="so-field" type="email" value={form.email || ''}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                onBlur={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
+            </FormField>
+            <FormField label="Telefone">
+              <input className="so-field" value={form.telefone || ''}
+                onChange={e => setForm(f => ({ ...f, telefone: fmtPhone(e.target.value) }))}
+                onBlur={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+            </FormField>
+            <FormField label="Site" style={{ gridColumn:'span 2' }}>
+              <input className="so-field" value={form.site || ''}
+                onChange={e => setForm(f => ({ ...f, site: e.target.value }))}
+                onBlur={e => patch('site', e.target.value)} placeholder="https://empresa.com.br" />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Comercial">
+          <FormGrid cols={2}>
+            <FormField label="Status">
+              <select className="so-field" value={form.status} onChange={e => patch('status', e.target.value)}>
+                <option value="ativo">Ativo</option>
+                <option value="negociacao">Em Negociação</option>
+                <option value="inativo">Inativo</option>
+              </select>
+            </FormField>
+            <FormField label="Origem">
+              <select className="so-field" value={form.origem || ''} onChange={e => patch('origem', e.target.value)}>
+                <option value="">—</option>
+                {ORIGENS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Responsável" style={{ gridColumn:'span 2' }}>
+              <input className="so-field" value={form.responsavel || ''}
+                onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))}
+                onBlur={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Observações">
+          <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
+            placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
+        </FormSection>
+
         {isNew && (
           <Button onClick={() => {
             if (!form.razao.trim()) return alert('Razão social é obrigatória')
@@ -532,26 +517,26 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               display:'flex', flexDirection:'column', gap:8 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                 <div>
-                  <label style={lbl}>Nome</label>
-                  <input style={inpStyle} value={novoContato.nome}
+                  <label className="so-label">Nome</label>
+                  <input className="so-field" value={novoContato.nome}
                     onChange={e => setNovoContato(p => ({ ...p, nome:e.target.value }))}
                     placeholder="Nome completo" />
                 </div>
                 <div>
-                  <label style={lbl}>Cargo</label>
-                  <input style={inpStyle} value={novoContato.cargo}
+                  <label className="so-label">Cargo</label>
+                  <input className="so-field" value={novoContato.cargo}
                     onChange={e => setNovoContato(p => ({ ...p, cargo:e.target.value }))}
                     placeholder="Ex: Diretor Comercial" />
                 </div>
                 <div>
-                  <label style={lbl}>E-mail</label>
-                  <input style={inpStyle} value={novoContato.email}
+                  <label className="so-label">E-mail</label>
+                  <input className="so-field" value={novoContato.email}
                     onChange={e => setNovoContato(p => ({ ...p, email:e.target.value }))}
                     placeholder="email@empresa.com" />
                 </div>
                 <div>
-                  <label style={lbl}>Telefone</label>
-                  <input style={inpStyle} value={novoContato.telefone}
+                  <label className="so-label">Telefone</label>
+                  <input className="so-field" value={novoContato.telefone}
                     onChange={e => setNovoContato(p => ({ ...p, telefone:fmtPhone(e.target.value) }))}
                     placeholder="(00) 00000-0000" />
                 </div>
@@ -651,14 +636,14 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               display:'flex', flexDirection:'column', gap:8 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                 <div>
-                  <label style={lbl}>Título</label>
-                  <input style={inpStyle} value={novaOpp.titulo}
+                  <label className="so-label">Título</label>
+                  <input className="so-field" value={novaOpp.titulo}
                     onChange={e => setNovaOpp(p => ({ ...p, titulo:e.target.value }))}
                     placeholder="Ex: Renovação contrato 2025" />
                 </div>
                 <div>
-                  <label style={lbl}>Situação</label>
-                  <select style={inpStyle} value={novaOpp.situacao}
+                  <label className="so-label">Situação</label>
+                  <select className="so-field" value={novaOpp.situacao}
                     onChange={e => setNovaOpp(p => ({ ...p, situacao:e.target.value }))}>
                     <option value="em_andamento">Em andamento</option>
                     <option value="ganha">Ganha</option>
@@ -666,14 +651,14 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>Valor (R$)</label>
-                  <input style={inpStyle} type="number" min="0" value={novaOpp.valor}
+                  <label className="so-label">Valor (R$)</label>
+                  <input className="so-field" type="number" min="0" value={novaOpp.valor}
                     onChange={e => setNovaOpp(p => ({ ...p, valor:e.target.value }))}
                     placeholder="0" />
                 </div>
                 <div>
-                  <label style={lbl}>Prazo</label>
-                  <input style={inpStyle} type="date" value={novaOpp.data}
+                  <label className="so-label">Prazo</label>
+                  <input className="so-field" type="date" value={novaOpp.data}
                     onChange={e => setNovaOpp(p => ({ ...p, data:e.target.value }))} />
                 </div>
               </div>
@@ -762,20 +747,20 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               display:'flex', flexDirection:'column', gap:8 }}>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                 <div>
-                  <label style={lbl}>Número</label>
-                  <input style={inpStyle} value={novoContrato.numero}
+                  <label className="so-label">Número</label>
+                  <input className="so-field" value={novoContrato.numero}
                     onChange={e => setNovoContrato(p => ({ ...p, numero:e.target.value }))}
                     placeholder="Ex: CT-2025-001" />
                 </div>
                 <div>
-                  <label style={lbl}>Tipo / Produto</label>
-                  <input style={inpStyle} value={novoContrato.tipo}
+                  <label className="so-label">Tipo / Produto</label>
+                  <input className="so-field" value={novoContrato.tipo}
                     onChange={e => setNovoContrato(p => ({ ...p, tipo:e.target.value }))}
                     placeholder="Ex: Licença, Serviço…" />
                 </div>
                 <div>
-                  <label style={lbl}>Status</label>
-                  <select style={inpStyle} value={novoContrato.status}
+                  <label className="so-label">Status</label>
+                  <select className="so-field" value={novoContrato.status}
                     onChange={e => setNovoContrato(p => ({ ...p, status:e.target.value }))}>
                     <option value="ativo">Ativo</option>
                     <option value="encerrado">Encerrado</option>
@@ -783,14 +768,14 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>Valor MRR (R$)</label>
-                  <input style={inpStyle} type="number" min="0" value={novoContrato.valor}
+                  <label className="so-label">Valor MRR (R$)</label>
+                  <input className="so-field" type="number" min="0" value={novoContrato.valor}
                     onChange={e => setNovoContrato(p => ({ ...p, valor:e.target.value }))}
                     placeholder="0" />
                 </div>
                 <div>
-                  <label style={lbl}>Validade</label>
-                  <input style={inpStyle} type="date" value={novoContrato.validade}
+                  <label className="so-label">Validade</label>
+                  <input className="so-field" type="date" value={novoContrato.validade}
                     onChange={e => setNovoContrato(p => ({ ...p, validade:e.target.value }))} />
                 </div>
               </div>
@@ -894,22 +879,22 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             <div style={{ padding:'16px 20px', background:'var(--surface2)', borderBottom:'1px solid var(--border2)',
               display:'flex', flexDirection:'column', gap:8 }}>
               <div>
-                <label style={lbl}>Nome do projeto</label>
-                <input style={inpStyle} value={novoPrj.name} autoFocus
+                <label className="so-label">Nome do projeto</label>
+                <input className="so-field" value={novoPrj.name} autoFocus
                   onChange={e => setNovoPrj(p => ({ ...p, name:e.target.value }))}
                   placeholder="Ex: Implantação ERP" />
               </div>
               <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
                 <div>
-                  <label style={lbl}>Fase MIT</label>
-                  <select style={inpStyle} value={novoPrj.phase}
+                  <label className="so-label">Fase MIT</label>
+                  <select className="so-field" value={novoPrj.phase}
                     onChange={e => setNovoPrj(p => ({ ...p, phase:e.target.value }))}>
                     {FASES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label style={lbl}>Status</label>
-                  <select style={inpStyle} value={novoPrj.status}
+                  <label className="so-label">Status</label>
+                  <select className="so-field" value={novoPrj.status}
                     onChange={e => setNovoPrj(p => ({ ...p, status:e.target.value }))}>
                     {Object.entries(STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                   </select>
@@ -974,8 +959,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             Franquia (AR)
           </div>
           <div>
-            <label style={lbl}>Franquia vinculada</label>
-            <select style={inpStyle}
+            <label className="so-label">Franquia vinculada</label>
+            <select className="so-field"
               value={form.franquia_ar_id || ''}
               onChange={e => {
                 const f = franquias.find(x => String(x.id) === e.target.value)
@@ -1009,25 +994,25 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             Dados do Canal
           </div>
           <div>
-            <label style={lbl}>Responsável AR</label>
-            <input style={inpStyle} value={canal.resp_ar || ''}
+            <label className="so-label">Responsável AR</label>
+            <input className="so-field" value={canal.resp_ar || ''}
               onChange={e => setCanal(p => ({ ...p, resp_ar:e.target.value }))}
               placeholder="Nome do responsável" />
           </div>
           <div>
-            <label style={lbl}>Código do Canal</label>
-            <input style={{ ...inpStyle, fontFamily:'var(--mono)' }} value={canal.codigo_canal || ''}
+            <label className="so-label">Código do Canal</label>
+            <input className="so-field" style={{ fontFamily:'var(--mono)' }} value={canal.codigo_canal || ''}
               onChange={e => setCanal(p => ({ ...p, codigo_canal:e.target.value }))}
               placeholder="Ex: CH-001" />
           </div>
           <div>
-            <label style={lbl}>Data de Credenciamento</label>
-            <input style={inpStyle} type="date" value={canal.data_credenciamento || ''}
+            <label className="so-label">Data de Credenciamento</label>
+            <input className="so-field" type="date" value={canal.data_credenciamento || ''}
               onChange={e => setCanal(p => ({ ...p, data_credenciamento:e.target.value }))} />
           </div>
           <div>
-            <label style={lbl}>Nível de Parceria</label>
-            <select style={inpStyle} value={canal.nivel_parceria || ''}
+            <label className="so-label">Nível de Parceria</label>
+            <select className="so-field" value={canal.nivel_parceria || ''}
               onChange={e => setCanal(p => ({ ...p, nivel_parceria:e.target.value }))}>
               {nivelOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
@@ -1056,56 +1041,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   )
 }
 
-function SectionLabel({ children }) {
-  return <div style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', fontFamily:'var(--mono)', margin:'16px 0 8px', paddingTop:4 }}>{children}</div>
-}
-function Field({ label, children, style }) {
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:4, ...style }}>
-      <label style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.04em' }}>{label}</label>
-      {children}
-    </div>
-  )
-}
-
-// ─── Ícone Olho ───────────────────────────────────────────────────────────────
-
-// ─── Dropdown Ações ────────────────────────────────────────────────────────────
-function AcoesDropdown({ onImport, onExport, onClose, anchorRef }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    function h(e) {
-      if (ref.current && !ref.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) onClose()
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [onClose, anchorRef])
-  const item = { display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 14px',
-    background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:500,
-    color:'var(--text)', fontFamily:'var(--font)', textAlign:'left', borderRadius:7, transition:'background 0.12s' }
-  return (
-    <div ref={ref} style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:600,
-      width:210, background:'var(--surface)', borderRadius:10,
-      border:'1px solid var(--border)', boxShadow:'0 8px 28px rgba(0,0,0,0.13)', padding:6 }}>
-      <button style={item}
-        onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background='none'}
-        onClick={onImport}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3M1 2h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        Importar dados
-      </button>
-      <button style={item}
-        onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background='none'}
-        onClick={onExport}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        Exportar dados
-      </button>
-    </div>
-  )
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Empresas() {
   // ── estado persistido em localStorage ───────────────────────────────────
@@ -1124,9 +1059,6 @@ export default function Empresas() {
   const [exportLogs, setExportLogs]     = useState([])
   const [showExportTray, setShowExportTray] = useState(false)
   const exportTrayRef                   = useRef(null)
-  const [showMetrics, setShowMetrics]   = useLocalState('empresas:showMetrics', true)
-  const [acoesOpen, setAcoesOpen]       = useState(false)
-  const acoesRef                        = useRef(null)
 
   const filtered = useMemo(() => {
     let list = empresas
@@ -1277,50 +1209,6 @@ export default function Empresas() {
 
   return (
     <div style={p.page}>
-      <div style={p.pageHeader}>
-        <div>
-          <div style={p.breadcrumb}><span>Clientes</span><span style={p.sep}>›</span><span>Empresas</span></div>
-          <h1 style={p.title}>Empresas</h1>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button
-            onClick={() => setShowMetrics(v => !v)}
-            title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
-            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28,
-              borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)',
-              color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginTop:18 }}>
-            {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-          <div ref={acoesRef} style={{ position:'relative' }}>
-            <button style={{ ...p.ghostBtn, ...(acoesOpen ? { borderColor:'var(--accent)', color:'var(--accent)' } : {}) }}
-              onClick={() => setAcoesOpen(v => !v)}>
-              Ações <span style={{ fontSize:10 }}>▾</span>
-            </button>
-            {acoesOpen && (
-              <AcoesDropdown
-                onImport={() => { setImportModal(true); setAcoesOpen(false) }}
-                onExport={() => { handleExport(); setAcoesOpen(false) }}
-                onClose={() => setAcoesOpen(false)}
-                anchorRef={acoesRef}
-              />
-            )}
-          </div>
-          <Button onClick={() => setModal('new')}>+ Nova empresa</Button>
-        </div>
-      </div>
-
-      {/* ── KPIs collapsíveis ── */}
-      <div style={{ display:'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr', transition:'grid-template-rows 0.22s ease', overflow:'hidden' }}>
-        <div style={{ minHeight:0, overflow:'hidden' }}>
-          <div style={p.kpis}>
-            <KpiCard label="Total de empresas" value={empresas.length} />
-            <KpiCard label="Clientes ativos"   value={totalAtivo} accent />
-            <KpiCard label="Em negociação"     value={totalNegoc} />
-            <KpiCard label="MRR total"         value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} mono />
-          </div>
-        </div>
-      </div>
-
       <BrowseLayout
         data={filtered}
         columns={COLUMNS}
@@ -1334,6 +1222,16 @@ export default function Empresas() {
         onNew={() => setModal('new')}
         newLabel="+ Nova empresa"
         storageKey="empresas_browse"
+        onImport={() => setImportModal(true)}
+        onExportCsv={handleExport}
+        kpis={
+          <div style={p.kpis}>
+            <KpiCard label="Total de empresas" value={empresas.length} />
+            <KpiCard label="Clientes ativos"   value={totalAtivo} accent />
+            <KpiCard label="Em negociação"     value={totalNegoc} />
+            <KpiCard label="MRR total"         value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} mono />
+          </div>
+        }
         bulkActions={[
           { label: '→ Ativo',      onClick: (ids) => { bulkSetStatus(ids, 'ativo') } },
           { label: '→ Negociação', onClick: (ids) => { bulkSetStatus(ids, 'negociacao') } },
