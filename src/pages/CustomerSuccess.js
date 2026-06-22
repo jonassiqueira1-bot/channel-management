@@ -7,7 +7,7 @@ import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/Sl
 import BrowseLayout from '../components/BrowseLayout'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
-  MOCK_PARTNER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
+  MOCK_CUSTOMER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
 import { HeartPulse, Plus, Trash2, Circle, CheckCircle2 } from 'lucide-react'
 
@@ -348,7 +348,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose }) {
         <InlineTextarea
           value={form.notes || ''}
           onChange={v => patch('notes', v)}
-          placeholder="Observações, contexto e estratégia para este parceiro…"
+          placeholder="Observações, contexto e estratégia para este cliente…"
           minRows={4}
         />
       </FormSection>
@@ -369,7 +369,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose }) {
             />
           </FormSection>
 
-          <DeleteZone label="Remover parceiro" onDelete={() => { onDelete(item.id); onClose() }} />
+          <DeleteZone label="Remover cliente" onDelete={() => { onDelete(item.id); onClose() }} />
         </>
       )}
 
@@ -440,7 +440,7 @@ const FILTERS = [
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function CustomerSuccess() {
-  const [records, setRecords]           = useLocalState(STORAGE_KEY, MOCK_PARTNER_HEALTH)
+  const [records, setRecords]           = useLocalState(STORAGE_KEY, MOCK_CUSTOMER_HEALTH)
   const [search, setSearch]             = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [modal, setModal]               = useState(null)  // null | 'novo' | record-obj
@@ -513,11 +513,11 @@ export default function CustomerSuccess() {
   const kpisNode = (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
       {[
-        { label: 'Parceiros',   value: records.length, color: 'var(--text)'  },
-        { label: 'Saudáveis',   value: healthy,        color: '#059669'      },
-        { label: 'Atenção',     value: atencao,        color: '#D97706'      },
-        { label: 'Em Risco',    value: risco,          color: '#DC2626'      },
-        { label: 'Score Médio', value: avgScore,       color: avgColor, mono: true },
+        { label: 'Clientes',    value: records.length, color: 'var(--text)'  },
+        { label: 'Saudáveis',  value: healthy,        color: '#059669'      },
+        { label: 'Atenção',    value: atencao,        color: '#D97706'      },
+        { label: 'Em Risco',   value: risco,          color: '#DC2626'      },
+        { label: 'Score Médio',value: avgScore,       color: avgColor, mono: true },
       ].map(k => (
         <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10,
           padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
@@ -564,7 +564,7 @@ export default function CustomerSuccess() {
         emptyState={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
             <HeartPulse size={40} style={{ opacity: 0.25 }} />
-            <span style={{ fontSize: 13 }}>Nenhum parceiro encontrado</span>
+            <span style={{ fontSize: 13 }}>Nenhum cliente encontrado</span>
           </div>
         }
       />
