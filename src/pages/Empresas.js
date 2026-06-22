@@ -1161,10 +1161,10 @@ export default function Empresas() {
   }
 
   const COLUMNS = [
-    { key: 'razao',    label: 'Empresa',   render: (e) => {
-      const nome = e.fantasia || e.razao
-      const sub  = nome && e.fantasia && e.fantasia !== e.razao ? e.razao : (e.cnpj || e.email || null)
-      const fallback = e.email ? e.email[0].toUpperCase() : (e.cnpj ? e.cnpj.replace(/\D/g,'').slice(0,2) : '?')
+    { key: 'razao',    label: 'Empresa',   render: (_, row) => {
+      const nome = row.fantasia || row.razao
+      const sub  = nome && row.fantasia && row.fantasia !== row.razao ? row.razao : (row.cnpj || row.email || null)
+      const fallback = row.email ? row.email[0].toUpperCase() : (row.cnpj ? row.cnpj.replace(/\D/g,'').slice(0,2) : '?')
       const avatarLetters = nome ? nome.slice(0,2).toUpperCase() : fallback
       return (
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -1182,11 +1182,11 @@ export default function Empresas() {
         </div>
       )
     }},
-    { key: 'tipo',     label: 'Tipo',      render: (e) => <TipoBadge tipo={e.tipo} /> },
-    { key: 'status',   label: 'Status',    render: (e) => <StatusBadge status={e.status} /> },
+    { key: 'tipo',     label: 'Tipo',      render: val => <TipoBadge tipo={val} /> },
+    { key: 'status',   label: 'Status',    render: val => <StatusBadge status={val} /> },
     { key: 'segmento', label: 'Segmento' },
-    { key: 'cidade',   label: 'Cidade/UF', render: (e) => e.cidade ? `${e.cidade}/${e.uf}` : '—' },
-    { key: 'mrr',      label: 'MRR',       render: (e) => e.mrr ? `R$ ${e.mrr.toLocaleString('pt-BR')}` : '—' },
+    { key: 'cidade',   label: 'Cidade/UF', render: (val, row) => val ? `${val}/${row.uf}` : '—' },
+    { key: 'mrr',      label: 'MRR',       render: val => val ? `R$ ${Number(val).toLocaleString('pt-BR')}` : '—' },
   ]
 
   const FILTERS = [
