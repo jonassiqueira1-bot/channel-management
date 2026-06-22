@@ -8,10 +8,8 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useProjects } from '../hooks/useProjects'
 import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
-import { useFormLayout } from '../hooks/useFormLayout'
-import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
-import SlideOver from '../components/ui/SlideOver'
+import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import EmpresaSearch from '../components/EmpresaSearch'
 
 const ACCENT = 'var(--accent)'
@@ -233,63 +231,51 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
       defaultWidth={600}
       showFooter={false}
     >
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        <div style={ms.fg}>
-          <label style={ms.lbl}>Nome do Projeto <span style={{ color: 'var(--red)' }}>*</span></label>
-          <input style={ms.inp} value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Implantação ERP — Empresa X" autoFocus />
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Empresa <span style={{ color: 'var(--red)' }}>*</span></label>
-            <EmpresaSearch
-              value={form.company_id}
-              label={form.company_nome}
-              onChange={(id, nome) => setForm(f => ({ ...f, company_id: id, company_nome: nome || '' }))}
-              placeholder="Buscar empresa…"
-            />
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Franquia / Canal</label>
-            <input style={ms.inp} value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Fase MIT</label>
-            <select style={ms.inp} value={form.phase} onChange={e => { set('phase', e.target.value); set('current_phase_index', FASES_MIT.find(x => x.value === e.target.value)?.order || 1) }}>
-              {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-            </select>
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Status</label>
-            <select style={ms.inp} value={form.status} onChange={e => set('status', e.target.value)}>
-              {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Horas estimadas</label>
-            <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={e => set('total_hours_estimated', e.target.value)} placeholder="160" />
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Data de início</label>
-            <input style={ms.inp} type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Previsão de término</label>
-            <input style={ms.inp} type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
-          </div>
-        </div>
-
-        <div style={ms.fg}>
-          <label style={ms.lbl}>Observações</label>
-          <textarea style={{ ...ms.inp, height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
-        </div>
-
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
+        <FormSection label="Identificação">
+          <FormGrid cols={1}>
+            <FormField label="Nome do Projeto" required>
+              <input className="so-field" value={form.name} onChange={e => set('name', e.target.value)} placeholder="Ex: Implantação ERP — Empresa X" autoFocus />
+            </FormField>
+          </FormGrid>
+          <FormGrid cols={2}>
+            <FormField label="Empresa" required>
+              <EmpresaSearch
+                value={form.company_id}
+                label={form.company_nome}
+                onChange={(id, nome) => setForm(f => ({ ...f, company_id: id, company_nome: nome || '' }))}
+                placeholder="Buscar empresa…"
+              />
+            </FormField>
+            <FormField label="Franquia / Canal">
+              <input className="so-field" value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
+            </FormField>
+            <FormField label="Fase MIT">
+              <select className="so-field" value={form.phase} onChange={e => { set('phase', e.target.value); set('current_phase_index', FASES_MIT.find(x => x.value === e.target.value)?.order || 1) }}>
+                {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Status">
+              <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
+                {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </FormField>
+          </FormGrid>
+          <FormGrid cols={3}>
+            <FormField label="Horas estimadas">
+              <input className="so-field" type="number" value={form.total_hours_estimated} onChange={e => set('total_hours_estimated', e.target.value)} placeholder="160" />
+            </FormField>
+            <FormField label="Data de início">
+              <input className="so-field" type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+            </FormField>
+            <FormField label="Previsão de término">
+              <input className="so-field" type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
+            </FormField>
+          </FormGrid>
+        </FormSection>
+        <FormSection label="Observações">
+          <textarea className="so-field" style={{ height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
+        </FormSection>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
           <button onClick={onClose} style={ms.btn}>Cancelar</button>
           <button onClick={() => form.name.trim() && onSave(form)} style={ms.btnPrimary}>Criar projeto</button>
@@ -345,7 +331,6 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const [showOppPicker, setShowOppPicker] = useState(false)
   const [memberName, setMemberName] = useState('')
   const [memberRole, setMemberRole] = useState('Consultor')
-  const { sections: prSections, fieldById: prFieldById } = useFormLayout('projects')
   const oppPickerRef = useRef(null)
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
@@ -395,64 +380,50 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
       {/* ── Identificação ── */}
       <NotionSection title="Identificação" icon="📋" defaultOpen={true}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Nome do projeto</label>
-            <input style={ms.inp} value={form.name} onChange={set('name')} />
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Empresa cliente</label>
-              <input style={ms.inp} value={form.company_nome || ''} onChange={set('company_nome')} placeholder="Nexus Tech" />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Canal / Franquia</label>
-              <input style={ms.inp} value={form.franchise_nome || ''} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Fase MIT</label>
-              <select style={ms.inp} value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
+          <FormGrid cols={1}>
+            <FormField label="Nome do projeto">
+              <input className="so-field" value={form.name} onChange={set('name')} />
+            </FormField>
+          </FormGrid>
+          <FormGrid cols={2}>
+            <FormField label="Empresa cliente">
+              <input className="so-field" value={form.company_nome || ''} onChange={set('company_nome')} placeholder="Nexus Tech" />
+            </FormField>
+            <FormField label="Canal / Franquia">
+              <input className="so-field" value={form.franchise_nome || ''} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
+            </FormField>
+            <FormField label="Fase MIT">
+              <select className="so-field" value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
                 {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
               </select>
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Status</label>
-              <select style={ms.inp} value={form.status} onChange={set('status')}>
+            </FormField>
+            <FormField label="Status">
+              <select className="so-field" value={form.status} onChange={set('status')}>
                 {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Horas estimadas</label>
-              <input style={ms.inp} type="number" value={form.total_hours_estimated} onChange={set('total_hours_estimated')} />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Início</label>
-              <input style={ms.inp} type="date" value={form.start_date || ''} onChange={set('start_date')} />
-            </div>
-            <div style={{ ...ms.fg, flex: 1 }}>
-              <label style={ms.lbl}>Previsão término</label>
-              <input style={ms.inp} type="date" value={form.end_date_estimated || ''} onChange={set('end_date_estimated')} />
-            </div>
-          </div>
-          <div style={ms.fg}>
-            <label style={ms.lbl}>Observações</label>
-            <textarea style={{ ...ms.inp, height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
-          </div>
+            </FormField>
+          </FormGrid>
+          <FormGrid cols={3}>
+            <FormField label="Horas estimadas">
+              <input className="so-field" type="number" value={form.total_hours_estimated} onChange={set('total_hours_estimated')} />
+            </FormField>
+            <FormField label="Início">
+              <input className="so-field" type="date" value={form.start_date || ''} onChange={set('start_date')} />
+            </FormField>
+            <FormField label="Previsão término">
+              <input className="so-field" type="date" value={form.end_date_estimated || ''} onChange={set('end_date_estimated')} />
+            </FormField>
+          </FormGrid>
+          <FormGrid cols={1}>
+            <FormField label="Observações">
+              <textarea className="so-field" style={{ height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
+            </FormField>
+          </FormGrid>
           <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button onClick={handleSave}>{saved ? '✓ Salvo' : 'Salvar alterações'}</Button>
           </div>
         </div>
       </NotionSection>
-
-      <DynamicFormLayout
-        sections={prSections}
-        fieldById={prFieldById}
-        renderField={(_key, field) => field.is_system ? null : undefined}
-        sectionStyle={{ margin: '0 0 0 0', borderRadius: 0, borderLeft: 'none', borderRight: 'none', borderTop: 'none' }}
-      />
 
       {/* ── Comercial (Pipeline) ── */}
       <NotionSection title="Histórico Comercial" icon="💼" defaultOpen={true} badge={linkedOpp ? '1 vínculo' : undefined}>
@@ -1129,9 +1100,8 @@ export default function Projetos() {
   const [filtros,      setFiltros]     = useState({ status: '', franchise: '' })
   const [filtrosOpen,  setFiltrosOpen] = useState(false)
   const [dragId,       setDragId]      = useState(null)
-  const [search,       setSearch]      = useLocalState('projetos:search', '')
-  const [showMetrics,  setShowMetrics] = useLocalState('projetos:showMetrics', true)
-  const [sortBy,       setSortBy]      = useLocalState('projetos:sortBy', 'recente')
+  const [search,  setSearch]  = useLocalState('projetos:search', '')
+  const [sortBy,  setSortBy]  = useLocalState('projetos:sortBy', 'recente')
 
   // blocked projects = have any critica+aberta issue
   const blockedIds = useMemo(() => {
@@ -1239,39 +1209,19 @@ export default function Projetos() {
       {/* ── Área de scroll (tudo exceto kanban) ── */}
       <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Page header — igual Pipeline */}
+        {/* Page header */}
         <div style={pg.pageHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <div>
-              <div style={pg.breadcrumb}>
-                <span>Operação</span>
-                <span style={pg.sep}>›</span>
-                <span>Projetos</span>
-              </div>
-              <h1 style={pg.title}>Projetos de Implantação</h1>
-            </div>
-            <button
-              onClick={() => setShowMetrics(v => !v)}
-              title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0, marginTop: 18 }}
-            >
-              {showMetrics ? '∧' : '∨'}
-            </button>
-          </div>
+          <h1 style={pg.title}>Projetos de Implantação</h1>
           <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
         </div>
 
-        {/* KPIs retráteis — igual Pipeline */}
-        <div style={{ display: 'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr', transition: 'grid-template-rows 0.25s ease', overflow: 'hidden' }}>
-          <div style={{ minHeight: 0 }}>
-            <div style={pg.kpis}>
-              <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
-              <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
-              <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
-              <KpiCard label="Horas estimadas"  value={`${totalHrsEst}h`}            color="#10B981" />
-              <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
-            </div>
-          </div>
+        {/* KPIs */}
+        <div style={pg.kpis}>
+          <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
+          <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
+          <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
+          <KpiCard label="Horas estimadas"  value={`${totalHrsEst}h`}            color="#10B981" />
+          <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
         </div>
 
         {/* Toolbar — igual Pipeline */}
