@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { SlidersHorizontal, ChevronDown } from 'lucide-react'
+import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
   MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
@@ -1100,8 +1100,9 @@ export default function Projetos() {
   const [filtros,      setFiltros]     = useState({ status: '', franchise: '' })
   const [filtrosOpen,  setFiltrosOpen] = useState(false)
   const [dragId,       setDragId]      = useState(null)
-  const [search,  setSearch]  = useLocalState('projetos:search', '')
-  const [sortBy,  setSortBy]  = useLocalState('projetos:sortBy', 'recente')
+  const [search,    setSearch]    = useLocalState('projetos:search', '')
+  const [sortBy,    setSortBy]    = useLocalState('projetos:sortBy', 'recente')
+  const [viewMode,  setViewMode]  = useLocalState('projetos:viewMode', 'kanban')
 
   // blocked projects = have any critica+aberta issue
   const blockedIds = useMemo(() => {
@@ -1288,6 +1289,18 @@ export default function Projetos() {
               <option value="nome">Nome A–Z</option>
             </select>
 
+            {/* View toggle */}
+            <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
+              {[{ v: 'kanban', Icon: LayoutGrid, title: 'Kanban' }, { v: 'list', Icon: LayoutList, title: 'Lista' }].map(({ v, Icon, title }) => (
+                <button key={v} type="button" title={title} onClick={() => setViewMode(v)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, border: 'none', cursor: 'pointer',
+                    background: viewMode === v ? 'var(--accent)' : 'var(--surface)',
+                    color: viewMode === v ? '#fff' : 'var(--text-muted)' }}>
+                  <Icon size={14} />
+                </button>
+              ))}
+            </div>
+
             {/* Limpar */}
             {hasFilters && (
               <button onClick={() => { setFiltros({ status: '', franchise: '' }); setSearch('') }} style={pg.ghostBtn}>
@@ -1305,25 +1318,73 @@ export default function Projetos() {
         </div>
       </div>
 
-      {/* Kanban */}
-      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
-        <div style={{ display: 'flex', gap: 12, height: '100%' }}>
-          {FASES_MIT.map(fase => (
-            <KanbanColuna
-              key={fase.value}
-              fase={fase}
-              projetos={filtered.filter(p => p.phase === fase.value)}
-              blockedIds={blockedIds}
-              execTotals={execTotals}
-              onEdit={setDrawer}
-              onDragStart={handleDragStart}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
-            />
-          ))}
+      {/* Kanban ou Lista */}
+      {viewMode === 'kanban' ? (
+        <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
+          <div style={{ display: 'flex', gap: 12, height: '100%' }}>
+            {FASES_MIT.map(fase => (
+              <KanbanColuna
+                key={fase.value}
+                fase={fase}
+                projetos={filtered.filter(p => p.phase === fase.value)}
+                blockedIds={blockedIds}
+                execTotals={execTotals}
+                onEdit={setDrawer}
+                onDragStart={handleDragStart}
+                onDrop={handleDrop}
+                onDragOver={handleDragOver}
+                onAddProject={(phase, order) => setModal({ _new: true, phase, phaseIndex: order })}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 16px' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid var(--border2)' }}>
+                {['Projeto', 'Fase', 'Status', 'Empresa', 'Canal', 'Horas', 'Início', 'Prazo'].map(h => (
+                  <th key={h} style={{ textAlign: 'left', padding: '8px 10px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(p => {
+                const fase = FASES_MIT.find(f => f.value === p.phase)
+                const st   = STATUS_PROJETO[p.status] || {}
+                const blocked = blockedIds.has(p.id)
+                return (
+                  <tr key={p.id} onClick={() => setDrawer(p)}
+                    style={{ borderBottom: '1px solid var(--border2)', cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td style={{ padding: '10px 10px' }}>
+                      <div style={{ fontWeight: 600, color: 'var(--text)' }}>{p.name}</div>
+                      {blocked && <span className="prj-blocked-badge" style={{ fontSize: 9, fontWeight: 700, color: '#EF4444', fontFamily: 'var(--mono)' }}>⚠ BLOQUEADO</span>}
+                    </td>
+                    <td style={{ padding: '10px 10px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: fase?.color + '22' || 'var(--surface2)', color: fase?.color || 'var(--text-muted)', fontWeight: 600 }}>{fase?.label || p.phase}</span>
+                    </td>
+                    <td style={{ padding: '10px 10px', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: st.bg || 'var(--surface2)', color: st.color || 'var(--text-muted)', fontWeight: 600 }}>{st.label || p.status}</span>
+                    </td>
+                    <td style={{ padding: '10px 10px', color: 'var(--text-soft)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.company_nome || '—'}</td>
+                    <td style={{ padding: '10px 10px', color: 'var(--text-muted)', fontSize: 12 }}>{p.franchise_nome || '—'}</td>
+                    <td style={{ padding: '10px 10px', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)', whiteSpace: 'nowrap' }}>
+                      {p.total_hours_estimated ? `${execTotals[p.id] || 0}h / ${p.total_hours_estimated}h` : '—'}
+                    </td>
+                    <td style={{ padding: '10px 10px', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.start_date ? new Date(p.start_date).toLocaleDateString('pt-BR') : '—'}</td>
+                    <td style={{ padding: '10px 10px', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{p.end_date_estimated ? new Date(p.end_date_estimated).toLocaleDateString('pt-BR') : '—'}</td>
+                  </tr>
+                )
+              })}
+              {filtered.length === 0 && (
+                <tr><td colSpan={8} style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum projeto encontrado</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Modal — criar */}
       {modal && (

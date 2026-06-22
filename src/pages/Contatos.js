@@ -253,6 +253,34 @@ export default function Contatos() {
         storageKey="contatos_browse"
         keyField="id"
         kpis={kpisNode}
+        renderCard={row => {
+          const display = row.nome || row.email || 'Sem nome'
+          const av = avatarColor(display)
+          const avatarText = row.nome ? initials(row.nome) : (row.email ? row.email[0].toUpperCase() : '?')
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={{ width:40, height:40, borderRadius:'50%', background:av.bg, color:av.color,
+                  display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:13, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0, border:`1px solid ${av.color}33` }}>
+                  {avatarText}
+                </div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{display}</div>
+                  {row.nome && row.email && <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{row.email}</div>}
+                </div>
+              </div>
+              {row.cargo && <span style={{ fontSize:12, color:'var(--text-soft)', padding:'2px 8px', background:'var(--surface2)', borderRadius:6, border:'1px solid var(--border)', alignSelf:'flex-start' }}>{row.cargo}</span>}
+              {row.empresa_nome && (
+                <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-soft)' }}>
+                  <div style={{ width:20, height:20, borderRadius:5, background:ACCENT+'18', color:ACCENT, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, fontFamily:'var(--mono)' }}>{row.empresa_nome.slice(0,2).toUpperCase()}</div>
+                  {row.empresa_nome}
+                </div>
+              )}
+              {row.telefone && <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>📞 {row.telefone}</div>}
+            </div>
+          )
+        }}
       />
 
       {/* ── SlideOver ── */}

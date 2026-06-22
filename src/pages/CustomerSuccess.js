@@ -555,6 +555,26 @@ export default function CustomerSuccess() {
         onImport={importCSV}
         onExportCsv={exportCSV}
         kpis={kpisNode}
+        renderCard={row => (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <HealthRing score={row.health_score} size={44} />
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{row.company_name}</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{[row.company_city, row.company_uf].filter(Boolean).join(' · ')}</div>
+              </div>
+            </div>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+              <LaerBadge stage={row.laer_stage} />
+              <TouchBadge model={row.touch_model} />
+            </div>
+            {row.csm && <div style={{ fontSize:12, color:'var(--text-soft)' }}>CSM: {row.csm}</div>}
+            {row.renewal_date && (() => {
+              const days = Math.ceil((new Date(row.renewal_date) - new Date()) / 86400000)
+              return <div style={{ fontSize:11, fontFamily:'var(--mono)', color: days < 60 ? 'var(--red-text)' : 'var(--text-muted)' }}>🔁 Renovação: {new Date(row.renewal_date).toLocaleDateString('pt-BR')} {days >= 0 ? `(${days}d)` : '(vencido)'}</div>
+            })()}
+          </div>
+        )}
         bulkActions={[
           { label: 'Excluir selecionados', onClick: ids => {
             if (!window.confirm(`Excluir ${ids.length} registro(s) permanentemente?`)) return

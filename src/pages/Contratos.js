@@ -705,6 +705,23 @@ export default function Contratos() {
           { label: 'Encerrar',   onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'encerrado' } : c)) },
           { label: 'Excluir',    onClick: ids => { if (window.confirm(`Excluir ${ids.length} contrato(s)?`)) setContratos(prev => prev.filter(c => !ids.includes(c.id))) } },
         ]}
+        renderCard={row => (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--blue-bg)', color: 'var(--blue-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                {(row.empresa_nome || '?').slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{row.numero}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.empresa_nome}</div>
+              </div>
+            </div>
+            <StatusBadge status={row.status} />
+            {row.produto_mrr_nome && <div style={{ fontSize: 12, color: 'var(--blue-text)', fontWeight: 600 }}>{row.produto_mrr_nome} · {fmtMoeda(row.valor_mrr)}<span style={{ fontWeight: 400, fontSize: 10 }}>/mês</span></div>}
+            {row.produto_adesao_nome && <div style={{ fontSize: 11, color: '#0E7490' }}>{row.produto_adesao_nome} · {fmtMoeda(row.valor_adesao)}</div>}
+            {row.vigencia_inicio && <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtData(row.vigencia_inicio)} → {fmtData(row.vigencia_fim)}</div>}
+          </div>
+        )}
         emptyState={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
             <span style={{ fontSize: 28, opacity: 0.3 }}>📄</span>

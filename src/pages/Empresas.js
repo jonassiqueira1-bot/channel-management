@@ -1224,6 +1224,27 @@ export default function Empresas() {
         storageKey="empresas_browse"
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}
+        renderCard={row => {
+          const nome = row.fantasia || row.razao
+          return (
+            <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <div style={p.avatar}>{nome ? nome.slice(0,2).toUpperCase() : '?'}</div>
+                <div>
+                  <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{nome || 'Sem nome'}</div>
+                  {row.cnpj && <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{row.cnpj}</div>}
+                </div>
+              </div>
+              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                <TipoBadge tipo={row.tipo} />
+                <StatusBadge status={row.status} />
+              </div>
+              {row.segmento && <div style={{ fontSize:12, color:'var(--text-soft)' }}>{row.segmento}</div>}
+              {(row.cidade || row.uf) && <div style={{ fontSize:11, color:'var(--text-muted)' }}>📍 {[row.cidade, row.uf].filter(Boolean).join('/')}</div>}
+              {row.mrr > 0 && <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-soft)' }}>MRR: R$ {Number(row.mrr).toLocaleString('pt-BR')}</div>}
+            </div>
+          )
+        }}
         kpis={
           <div style={p.kpis}>
             <KpiCard label="Total de empresas" value={empresas.length} />
