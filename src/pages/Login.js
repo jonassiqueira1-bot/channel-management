@@ -36,8 +36,19 @@ export default function Login() {
       <div style={s.left}>
         <div style={s.leftInner}>
           <div style={s.brand}>
-            <div style={s.logoMark}>CN</div>
-            <span style={s.brandName}>Canais NG</span>
+            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+              <defs>
+                <linearGradient id="bly-login" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#4F8EF7"/>
+                  <stop offset="100%" stopColor="#1E3A5F"/>
+                </linearGradient>
+              </defs>
+              <rect width="40" height="40" rx="10" fill="url(#bly-login)"/>
+              <rect x="11" y="24" width="5" height="8" rx="2.5" fill="white" fillOpacity="0.55"/>
+              <rect x="18" y="17" width="5" height="15" rx="2.5" fill="white" fillOpacity="0.78"/>
+              <rect x="25" y="10" width="5" height="22" rx="2.5" fill="white"/>
+            </svg>
+            <span style={s.brandName}>Boostly</span>
           </div>
 
           <div style={s.heroText}>
@@ -145,20 +156,6 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     gap: 12,
-  },
-  logoMark: {
-    width: 40,
-    height: 40,
-    background: 'rgba(255,255,255,0.12)',
-    border: '1px solid rgba(255,255,255,0.18)',
-    borderRadius: 10,
-    color: '#fff',
-    fontWeight: 700,
-    fontSize: 15,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'var(--mono)',
   },
   brandName: {
     color: '#fff',

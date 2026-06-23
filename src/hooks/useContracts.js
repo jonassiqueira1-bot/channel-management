@@ -5,40 +5,45 @@ import { useProfile } from './useProfile'
 
 const MOCK_CONTRATOS_FALLBACK = [] // fallback vazio; dados reais vêm de Supabase ou do inline mock
 
+// Migra campos legados (produto único por slot) para o formato de array
+function migrarSlotLegado(cf, slot) {
+  const id   = cf[`produto_${slot}_id`]
+  const nome = cf[`produto_${slot}_nome`] || ''
+  if (!id) return []
+  return [{
+    produto_id:          id,
+    nome,
+    valor:               cf[`valor_${slot}`] || 0,
+    tabela:              cf[`tabela_${slot}`] || null,
+    desconto_pct:        cf[`desconto_${slot}_pct`] || 0,
+    desconto_autorizado: cf[`desconto_autorizado_${slot}`] || false,
+  }]
+}
+
 function rowToContrato(row) {
   const cf = row.custom_fields || {}
   return {
-    id:                          row.id,
-    numero:                      row.numero || '',
-    empresa_id:                  row.company_id || null,
-    empresa_nome:                row.companies?.nome_fantasia || row.companies?.razao_social || cf.empresa_nome || '',
-    status:                      row.status || 'ativo',
-    primeira_compra:             cf.primeira_compra || false,
-    vigencia_inicio:             row.data_inicio || '',
-    vigencia_fim:                row.data_fim || '',
-    produto_adesao_id:           cf.produto_adesao_id || null,
-    produto_adesao_nome:         cf.produto_adesao_nome || '',
-    valor_adesao:                cf.valor_adesao || null,
-    tabela_adesao:               cf.tabela_adesao || null,
-    desconto_adesao_pct:         cf.desconto_adesao_pct || 0,
-    desconto_autorizado_adesao:  cf.desconto_autorizado_adesao || false,
-    produto_mrr_id:              cf.produto_mrr_id || null,
-    produto_mrr_nome:            cf.produto_mrr_nome || '',
-    valor_mrr:                   cf.valor_mrr || null,
-    tabela_mrr:                  cf.tabela_mrr || null,
-    desconto_mrr_pct:            cf.desconto_mrr_pct || 0,
-    desconto_autorizado_mrr:     cf.desconto_autorizado_mrr || false,
-    produto_servico_id:          cf.produto_servico_id || null,
-    produto_servico_nome:        cf.produto_servico_nome || '',
-    valor_servico:               cf.valor_servico || null,
-    tabela_servico:              cf.tabela_servico || null,
-    desconto_servico_pct:        cf.desconto_servico_pct || 0,
-    desconto_autorizado_servico: cf.desconto_autorizado_servico || false,
-    responsavel:                 cf.responsavel || '',
-    observacoes:                 row.observacoes || '',
-    criado:                      row.created_at?.slice(0, 10) || '',
-    tenant_id:                   row.tenant_id || null,
-    branch_id:                   row.branch_id || null,
+    id:              row.id,
+    numero:          row.numero || '',
+    empresa_id:      row.company_id || null,
+    empresa_nome:    row.companies?.nome_fantasia || row.companies?.razao_social || cf.empresa_nome || '',
+    status:          row.status || 'ativo',
+    primeira_compra: cf.primeira_compra || false,
+    vigencia_inicio: row.data_inicio || '',
+    vigencia_fim:    row.data_fim || '',
+    itens_adesao:    cf.itens_adesao  || migrarSlotLegado(cf, 'adesao'),
+    itens_mrr:       cf.itens_mrr     || migrarSlotLegado(cf, 'mrr'),
+    itens_servico:   cf.itens_servico || migrarSlotLegado(cf, 'servico'),
+    responsavel:     cf.responsavel || '',
+    observacoes:     row.observacoes || '',
+    criado:          row.created_at?.slice(0, 10) || '',
+    tenant_id:       row.tenant_id || null,
+    branch_id:       row.branch_id || null,
+    opportunity_id:  cf.opportunity_id || null,
+    opportunity_titulo: cf.opportunity_titulo || '',
+    origem:          cf.origem || '',
+    data_pag_cdu:    cf.data_pag_cdu || '',
+    data_pag_sms:    cf.data_pag_sms || '',
   }
 }
 
@@ -53,27 +58,17 @@ function contratoToRow(c, tenantId, branchId) {
     data_fim:    c.vigencia_fim || null,
     observacoes: c.observacoes || '',
     custom_fields: {
-      empresa_nome:                c.empresa_nome,
-      primeira_compra:             c.primeira_compra,
-      produto_adesao_id:           c.produto_adesao_id,
-      produto_adesao_nome:         c.produto_adesao_nome,
-      valor_adesao:                c.valor_adesao,
-      tabela_adesao:               c.tabela_adesao,
-      desconto_adesao_pct:         c.desconto_adesao_pct,
-      desconto_autorizado_adesao:  c.desconto_autorizado_adesao,
-      produto_mrr_id:              c.produto_mrr_id,
-      produto_mrr_nome:            c.produto_mrr_nome,
-      valor_mrr:                   c.valor_mrr,
-      tabela_mrr:                  c.tabela_mrr,
-      desconto_mrr_pct:            c.desconto_mrr_pct,
-      desconto_autorizado_mrr:     c.desconto_autorizado_mrr,
-      produto_servico_id:          c.produto_servico_id,
-      produto_servico_nome:        c.produto_servico_nome,
-      valor_servico:               c.valor_servico,
-      tabela_servico:              c.tabela_servico,
-      desconto_servico_pct:        c.desconto_servico_pct,
-      desconto_autorizado_servico: c.desconto_autorizado_servico,
-      responsavel:                 c.responsavel,
+      empresa_nome:       c.empresa_nome,
+      primeira_compra:    c.primeira_compra,
+      itens_adesao:       c.itens_adesao  || [],
+      itens_mrr:          c.itens_mrr     || [],
+      itens_servico:      c.itens_servico || [],
+      responsavel:        c.responsavel,
+      opportunity_id:     c.opportunity_id || null,
+      opportunity_titulo: c.opportunity_titulo || '',
+      origem:             c.origem || '',
+      data_pag_cdu:       c.data_pag_cdu || '',
+      data_pag_sms:       c.data_pag_sms || '',
     },
   }
 }
@@ -106,6 +101,11 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
   }, [session])
 
   useEffect(() => { load() }, [load])
+
+  // Sync para localStorage — permite que Indicadores leiam os dados
+  useEffect(() => {
+    if (!loading) localStorage.setItem('crm:contratos_v2', JSON.stringify(contratos))
+  }, [contratos, loading])
 
   const save = useCallback(async (c) => {
     if (isMockMode.current) {

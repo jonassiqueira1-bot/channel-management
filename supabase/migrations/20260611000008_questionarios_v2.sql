@@ -43,7 +43,7 @@ CREATE TABLE questionnaire_submissions (
   opportunity_id    uuid,
   status            submission_status NOT NULL DEFAULT 'rascunho',
   valores_respostas jsonb       NOT NULL DEFAULT '{}',
-  answered_by       uuid        REFERENCES auth.users(id),
+  created_by        uuid        REFERENCES auth.users(id),
   reviewed_by       uuid        REFERENCES auth.users(id),
   review_notes      text,
   submitted_at      timestamptz,

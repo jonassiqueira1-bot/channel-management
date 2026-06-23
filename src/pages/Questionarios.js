@@ -1,13 +1,14 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { ChevronUp, ChevronDown } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { ClipboardList, CheckCircle2, MessageSquare, ThumbsUp } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import Button from '../components/Button'
-import { FullPageEdit } from '../components/ui'
+import BrowseLayout from '../components/BrowseLayout'
+import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function uid() { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
+function uid()     { return `${Date.now()}-${Math.random().toString(36).slice(2, 7)}` }
 function novoSecId() { return `sec-${uid()}` }
 function novoPId()   { return `p-${uid()}` }
 function novoSubId() { return `sub-${uid()}` }
@@ -45,106 +46,6 @@ function StatusBadge({ status }) {
   )
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, color }) {
-  return (
-    <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '14px 18px',
-      display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)',
-      boxShadow: 'var(--shadow)', borderTop: `3px solid ${color || 'var(--border)'}` }}>
-      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{label}</span>
-    </div>
-  )
-}
-
-// ─── Eye Icon ─────────────────────────────────────────────────────────────────
-
-// ─── Ações Dropdown ───────────────────────────────────────────────────────────
-function AcoesDropdown({ onClose, anchorRef }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    function h(e) {
-      if (ref.current && !ref.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) onClose()
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [onClose, anchorRef])
-  const item = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 14px',
-    background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-    color: 'var(--text)', fontFamily: 'var(--font)', textAlign: 'left', borderRadius: 7, transition: 'background 0.12s' }
-  return (
-    <div ref={ref} style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 600,
-      width: 200, background: 'var(--surface)', borderRadius: 10,
-      border: '1px solid var(--border)', boxShadow: '0 8px 28px rgba(0,0,0,0.13)', padding: 6 }}>
-      <button style={item}
-        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'none'}
-        onClick={onClose}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        Exportar templates
-      </button>
-    </div>
-  )
-}
-
-// ─── Template Card (Browse) ───────────────────────────────────────────────────
-function TemplateCard({ template, submissionsCount, onClick }) {
-  const cfg    = TIPO_CFG[template.type] || TIPO_CFG.pre_venda
-  const total  = totalPerguntas(template)
-  const secoes = (template.estrutura_secoes?.secoes || []).length
-
-  return (
-    <div onClick={onClick}
-      style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 12,
-        padding: '18px 20px', cursor: 'pointer', boxShadow: 'var(--shadow)',
-        display: 'flex', flexDirection: 'column', gap: 12,
-        borderTop: `3px solid ${cfg.color}`, transition: 'box-shadow 0.15s, transform 0.1s' }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.11)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow)'; e.currentTarget.style.transform = 'none' }}>
-
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {template.title}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {template.description}
-          </div>
-        </div>
-        <span style={{ flexShrink: 0, width: 8, height: 8, borderRadius: '50%',
-          background: template.is_active ? '#10B981' : '#9CA3AF', marginTop: 5 }} />
-      </div>
-
-      <TipoBadge tipo={template.type} />
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: 10, borderTop: '1px solid var(--border2)' }}>
-        <div style={{ display: 'flex', gap: 14 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            {secoes} seção{secoes !== 1 ? 'ões' : ''}
-          </span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            {total} pergunta{total !== 1 ? 's' : ''}
-          </span>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4,
-          background: 'var(--surface2)', borderRadius: 6, padding: '3px 8px' }}>
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ color: 'var(--text-muted)' }}>
-            <rect x="1" y="2" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
-            <path d="M4 5h4M4 7.5h2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-          </svg>
-          <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', fontWeight: 600 }}>
-            {submissionsCount}
-          </span>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 // ─── Modal: Resposta somente leitura ──────────────────────────────────────────
 function RespostaModal({ submission, template, onClose }) {
   const secoes = template?.estrutura_secoes?.secoes || []
@@ -175,7 +76,6 @@ function RespostaModal({ submission, template, onClose }) {
         background: 'var(--surface)', borderRadius: 14, boxShadow: '0 24px 72px rgba(0,0,0,0.22)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* Header */}
         <div style={{ padding: '18px 24px 14px', borderBottom: '1px solid var(--border)',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexShrink: 0 }}>
           <div>
@@ -192,7 +92,6 @@ function RespostaModal({ submission, template, onClose }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 18, cursor: 'pointer', padding: '4px 6px', lineHeight: 1 }}>✕</button>
         </div>
 
-        {/* Corpo */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
           {secoes.length === 0 && (
             <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Template sem estrutura definida.</div>
@@ -232,49 +131,33 @@ function RespostaModal({ submission, template, onClose }) {
 }
 
 // ─── Construtor de Estrutura ──────────────────────────────────────────────────
-function EstruturaBuilder({ draft, onChange }) {
+function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
   const secoes = draft.estrutura_secoes?.secoes || []
 
   function updateSecoes(newSecoes) {
     onChange({ ...draft, estrutura_secoes: { secoes: newSecoes } })
   }
-
-  function addSection() {
-    updateSecoes([...secoes, { id: novoSecId(), titulo: 'Nova seção', perguntas: [] }])
-  }
-
-  function removeSection(secId) {
-    updateSecoes(secoes.filter(s => s.id !== secId))
-  }
-
-  function updateSection(secId, key, val) {
-    updateSecoes(secoes.map(s => s.id === secId ? { ...s, [key]: val } : s))
-  }
-
+  function addSection() { updateSecoes([...secoes, { id: novoSecId(), titulo: 'Nova seção', perguntas: [] }]) }
+  function removeSection(secId) { updateSecoes(secoes.filter(s => s.id !== secId)) }
+  function updateSection(secId, key, val) { updateSecoes(secoes.map(s => s.id === secId ? { ...s, [key]: val } : s)) }
   function addQuestion(secId) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: [...(s.perguntas || []), { id: novoPId(), tipo: 'texto', label: 'Nova pergunta', obrigatorio: false, opcoes: [] }] }
       : s))
   }
-
   function removeQuestion(secId, pId) {
-    updateSecoes(secoes.map(s => s.id === secId
-      ? { ...s, perguntas: s.perguntas.filter(p => p.id !== pId) }
-      : s))
+    updateSecoes(secoes.map(s => s.id === secId ? { ...s, perguntas: s.perguntas.filter(p => p.id !== pId) } : s))
   }
-
   function updateQuestion(secId, pId, key, val) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => p.id === pId ? { ...p, [key]: val } : p) }
       : s))
   }
-
   function addOption(secId, pId) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => p.id === pId ? { ...p, opcoes: [...(p.opcoes || []), ''] } : p) }
       : s))
   }
-
   function updateOption(secId, pId, idx, val) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => {
@@ -285,7 +168,6 @@ function EstruturaBuilder({ draft, onChange }) {
         }) }
       : s))
   }
-
   function removeOption(secId, pId, idx) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => p.id === pId
@@ -295,44 +177,54 @@ function EstruturaBuilder({ draft, onChange }) {
   }
 
   const TIPOS = [
-    { value: 'texto',           label: 'Texto livre' },
-    { value: 'numero',          label: 'Número' },
+    { value: 'texto',            label: 'Texto livre' },
+    { value: 'numero',           label: 'Número' },
     { value: 'multipla_escolha', label: 'Múltipla escolha' },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* Info header */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 180px', gap: 12 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <label style={lbl}>Título do template</label>
-          <input style={inp} value={draft.title || ''}
-            onChange={e => onChange({ ...draft, title: e.target.value })}
-            placeholder="Ex: Levantamento de Pré-Venda" />
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-          <label style={lbl}>Tipo</label>
-          <select style={inp} value={draft.type || 'pre_venda'}
-            onChange={e => onChange({ ...draft, type: e.target.value })}>
-            {Object.entries(TIPO_CFG).map(([k, v]) => (
-              <option key={k} value={k}>{v.icon} {v.label}</option>
-            ))}
-          </select>
-        </div>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        <label style={lbl}>Descrição</label>
-        <input style={inp} value={draft.description || ''}
-          onChange={e => onChange({ ...draft, description: e.target.value })}
-          placeholder="Descreva brevemente o objetivo deste questionário" />
+      <FormSection label="Identificação">
+        <FormGrid cols={2}>
+          <FormField label="Título do template" required error={errs.title}>
+            <input className="so-field" value={draft.title || ''}
+              onChange={e => { onChange({ ...draft, title: e.target.value }); if (errs.title) setErrs(p => ({...p, title:''})) }}
+              placeholder="Ex: Levantamento de Pré-Venda"
+              style={{ borderColor: errs.title ? '#DC2626' : '', gridColumn: '1/-1' }} />
+          </FormField>
+          <FormField label="Tipo">
+            <select className="so-field" value={draft.type || 'pre_venda'}
+              onChange={e => onChange({ ...draft, type: e.target.value })}>
+              {Object.entries(TIPO_CFG).map(([k, v]) => (
+                <option key={k} value={k}>{v.icon} {v.label}</option>
+              ))}
+            </select>
+          </FormField>
+        </FormGrid>
+        <FormGrid cols={1}>
+          <FormField label="Descrição">
+            <input className="so-field" value={draft.description || ''}
+              onChange={e => onChange({ ...draft, description: e.target.value })}
+              placeholder="Descreva brevemente o objetivo deste questionário" />
+          </FormField>
+        </FormGrid>
+        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: 'var(--text-soft)' }}>
+          <input type="checkbox" checked={draft.is_active}
+            onChange={e => onChange({ ...draft, is_active: e.target.checked })}
+            style={{ accentColor: 'var(--accent)', cursor: 'pointer', width: 15, height: 15 }} />
+          Template ativo
+        </label>
+      </FormSection>
+
+      <div style={{ height: 1, background: 'var(--border)' }} />
+
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+        Seções e perguntas
       </div>
 
-      <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-
-      {/* Seções */}
       {secoes.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', border: '1px dashed var(--border)', borderRadius: 10 }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
           <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>Nenhuma seção ainda</div>
           <div style={{ fontSize: 12, opacity: 0.7 }}>Clique em "Adicionar seção" para começar</div>
@@ -342,8 +234,6 @@ function EstruturaBuilder({ draft, onChange }) {
       {secoes.map((sec, si) => (
         <div key={sec.id} style={{ border: '1px solid var(--border)', borderRadius: 10,
           background: 'var(--surface2)', overflow: 'hidden' }}>
-
-          {/* Cabeçalho da seção */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px',
             borderBottom: '1px solid var(--border)', background: 'var(--surface)' }}>
             <div style={{ width: 22, height: 22, borderRadius: 6, background: 'var(--accent)', color: '#fff',
@@ -364,7 +254,6 @@ function EstruturaBuilder({ draft, onChange }) {
               title="Remover seção">✕</button>
           </div>
 
-          {/* Perguntas */}
           <div style={{ padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {(sec.perguntas || []).length === 0 && (
               <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0', fontStyle: 'italic' }}>
@@ -376,26 +265,24 @@ function EstruturaBuilder({ draft, onChange }) {
               <div key={p.id} style={{ background: 'var(--surface)', borderRadius: 8,
                 border: '1px solid var(--border2)', padding: '12px 14px',
                 display: 'flex', flexDirection: 'column', gap: 10 }}>
-
-                {/* Linha principal da pergunta */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
                     flexShrink: 0, minWidth: 18 }}>{pi + 1}.</span>
                   <input
-                    style={{ flex: 1, ...inp, padding: '6px 10px' }}
+                    className="so-field"
+                    style={{ flex: 1, padding: '6px 10px' }}
                     value={p.label}
                     onChange={e => updateQuestion(sec.id, p.id, 'label', e.target.value)}
                     placeholder="Texto da pergunta"
                   />
                   <select
-                    style={{ ...inp, padding: '6px 8px', width: 160, flexShrink: 0 }}
+                    className="so-field"
+                    style={{ padding: '6px 8px', width: 160, flexShrink: 0 }}
                     value={p.tipo}
                     onChange={e => {
                       const newTipo = e.target.value
                       updateQuestion(sec.id, p.id, 'tipo', newTipo)
-                      if (newTipo !== 'multipla_escolha') {
-                        updateQuestion(sec.id, p.id, 'opcoes', [])
-                      }
+                      if (newTipo !== 'multipla_escolha') updateQuestion(sec.id, p.id, 'opcoes', [])
                     }}>
                     {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
                   </select>
@@ -412,7 +299,6 @@ function EstruturaBuilder({ draft, onChange }) {
                     title="Remover pergunta">✕</button>
                 </div>
 
-                {/* Editor de opções (multipla_escolha) */}
                 {p.tipo === 'multipla_escolha' && (
                   <div style={{ marginLeft: 26, display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 2 }}>
@@ -422,7 +308,8 @@ function EstruturaBuilder({ draft, onChange }) {
                       <div key={oi} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--border)', flexShrink: 0 }} />
                         <input
-                          style={{ flex: 1, ...inp, padding: '5px 10px', fontSize: 12 }}
+                          className="so-field"
+                          style={{ flex: 1, padding: '5px 10px', fontSize: 12 }}
                           value={opt}
                           placeholder={`Opção ${oi + 1}`}
                           onChange={e => updateOption(sec.id, p.id, oi, e.target.value)}
@@ -448,9 +335,7 @@ function EstruturaBuilder({ draft, onChange }) {
               style={{ display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
                 background: 'none', border: '1px dashed var(--accent)44', borderRadius: 7,
                 fontSize: 12, color: 'var(--accent)', cursor: 'pointer', padding: '7px 12px',
-                fontFamily: 'var(--font)', fontWeight: 500, marginTop: 2, transition: 'background 0.12s' }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-glow)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                fontFamily: 'var(--font)', fontWeight: 500, marginTop: 2 }}>
               + Pergunta
             </button>
           </div>
@@ -461,9 +346,7 @@ function EstruturaBuilder({ draft, onChange }) {
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           padding: '11px', border: '2px dashed var(--border)', borderRadius: 10,
           background: 'none', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer',
-          fontFamily: 'var(--font)', fontWeight: 500, transition: 'border-color 0.15s, color 0.15s' }}
-        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.color = 'var(--accent)' }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)';  e.currentTarget.style.color = 'var(--text-muted)' }}>
+          fontFamily: 'var(--font)', fontWeight: 500 }}>
         + Adicionar seção
       </button>
     </div>
@@ -472,9 +355,9 @@ function EstruturaBuilder({ draft, onChange }) {
 
 // ─── Aba: Respostas Recebidas ─────────────────────────────────────────────────
 function RespostasTab({ template, submissions, onSaveSubmission }) {
-  const [selected, setSelected] = useState(null)
-  const [novaEmpresa, setNovaEmpresa] = useState('')
-  const [showNovaForm, setShowNovaForm] = useState(false)
+  const [selected,      setSelected]      = useState(null)
+  const [novaEmpresa,   setNovaEmpresa]   = useState('')
+  const [showNovaForm,  setShowNovaForm]  = useState(false)
 
   const lista = submissions.filter(s => s.template_id === template.id)
     .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
@@ -488,14 +371,11 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
       answered_by_nome: 'Você', valores_respostas: {},
       created_at: now, submitted_at: null,
     })
-    setNovaEmpresa('')
-    setShowNovaForm(false)
+    setNovaEmpresa(''); setShowNovaForm(false)
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-
-      {/* Toolbar da aba */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
           {lista.length} resposta{lista.length !== 1 ? 's' : ''} recebida{lista.length !== 1 ? 's' : ''}
@@ -508,12 +388,11 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
         </button>
       </div>
 
-      {/* Formulário rápido nova resposta */}
       {showNovaForm && (
         <div style={{ display: 'flex', gap: 8, padding: '12px 14px', background: 'var(--surface2)',
           borderRadius: 8, border: '1px solid var(--border)' }}>
-          <input style={{ flex: 1, ...inp, padding: '7px 12px' }} value={novaEmpresa}
-            autoFocus placeholder="Nome da empresa / franquia"
+          <input className="so-field" style={{ flex: 1 }} value={novaEmpresa} autoFocus
+            placeholder="Nome da empresa / franquia"
             onChange={e => setNovaEmpresa(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') criarSubmission() }} />
           <button onClick={criarSubmission}
@@ -529,7 +408,6 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
         </div>
       )}
 
-      {/* Tabela */}
       {lista.length === 0 && !showNovaForm ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>📭</div>
@@ -550,10 +428,8 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
             </thead>
             <tbody>
               {lista.map((sub, i) => (
-                <tr key={sub.id}
-                  onClick={() => setSelected(sub)}
-                  style={{ borderBottom: i < lista.length - 1 ? '1px solid var(--border2)' : 'none',
-                    cursor: 'pointer', transition: 'background 0.1s' }}
+                <tr key={sub.id} onClick={() => setSelected(sub)}
+                  style={{ borderBottom: i < lista.length - 1 ? '1px solid var(--border2)' : 'none', cursor: 'pointer' }}
                   onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
                   onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                   <td style={{ padding: '10px 14px', fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
@@ -563,8 +439,7 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
                   <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-soft)' }}>
                     {sub.answered_by_nome || '—'}
                   </td>
-                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)',
-                    fontFamily: 'var(--mono)' }}>
+                  <td style={{ padding: '10px 14px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
                     {fmtData(sub.submitted_at || sub.created_at)}
                   </td>
                 </tr>
@@ -574,20 +449,15 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
         </div>
       )}
 
-      {/* Modal leitura */}
       {selected && (
-        <RespostaModal
-          submission={selected}
-          template={template}
-          onClose={() => setSelected(null)}
-        />
+        <RespostaModal submission={selected} template={template} onClose={() => setSelected(null)} />
       )}
     </div>
   )
 }
 
-// ─── Template FullPage ───────────────────────────────────────────────────────
-function TemplateFullPage({ template: initial, submissions, onClose, onSave, onSaveSubmission, onDelete }) {
+// ─── Conteúdo do SlideOver ────────────────────────────────────────────────────
+function TemplateForm({ template: initial, submissions, onClose, onSave, onSaveSubmission, onDelete }) {
   const isNew = !initial?.id
   const [draft, setDraft] = useState(() => initial || {
     id: `tpl-${uid()}`, tenant_id: 't1', title: '', description: '',
@@ -595,11 +465,17 @@ function TemplateFullPage({ template: initial, submissions, onClose, onSave, onS
     created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     estrutura_secoes: { secoes: [] },
   })
-  const [tab, setTab]   = useState('estrutura')
+  const [tab,    setTab]    = useState('estrutura')
   const [saving, setSaving] = useState(false)
+  const [errs,   setErrs]   = useState({})
+
+  const TABS = [
+    { id: 'estrutura', label: 'Estrutura' },
+    { id: 'respostas', label: `Respostas (${submissions.filter(s => s.template_id === draft.id).length})` },
+  ]
 
   function handleSave() {
-    if (!draft.title.trim()) { alert('Informe o título do template'); return }
+    if (!draft.title.trim()) { setErrs({ title: 'Título é obrigatório' }); return }
     setSaving(true)
     setTimeout(() => {
       onSave({ ...draft, updated_at: new Date().toISOString() })
@@ -608,237 +484,252 @@ function TemplateFullPage({ template: initial, submissions, onClose, onSave, onS
     }, 300)
   }
 
-  const TABS = [
-    { id: 'estrutura', label: 'Estrutura' },
-    { id: 'respostas', label: `Respostas recebidas (${submissions.filter(s => s.template_id === draft.id).length})` },
-  ]
-
   return (
-    <FullPageEdit
-      breadcrumb={[{ label: 'Questionários', onClick: onClose }]}
-      title={isNew ? 'Novo questionário' : draft.title || 'Editar questionário'}
-      subtitle={isNew ? 'Defina a estrutura do template' : `Atualizado ${fmtData(draft.updated_at)}`}
-      onSave={handleSave}
-      onCancel={onClose}
-      onDelete={!isNew && onDelete ? () => { onDelete(draft.id); onClose() } : undefined}
-      saving={saving}
-      saveLabel={saving ? 'Salvando…' : isNew ? 'Criar template' : 'Salvar alterações'}
-      columns={1}
-    >
-      {/* Checkbox ativo */}
-      <div style={{ marginBottom: 4 }}>
-        <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, color: '#71717A' }}>
-          <input type="checkbox" checked={draft.is_active}
-            onChange={e => setDraft(d => ({ ...d, is_active: e.target.checked }))}
-            style={{ accentColor: '#1E3A5F', cursor: 'pointer', width: 15, height: 15 }} />
-          Template ativo
-        </label>
-      </div>
-
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '2px solid #E4E4E7', marginBottom: 20 }}>
+      <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 9, padding: 3, border: '1px solid var(--border)', alignSelf: 'flex-start' }}>
         {TABS.map(t => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            style={{ padding: '9px 18px', background: 'none', border: 'none', fontSize: 13,
-              fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
-              color: tab === t.id ? '#1E3A5F' : '#71717A',
-              borderBottom: tab === t.id ? '2px solid #1E3A5F' : '2px solid transparent',
-              marginBottom: -2, transition: 'color 0.15s', whiteSpace: 'nowrap' }}>
+            style={{ padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13,
+              fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
+              background: tab === t.id ? 'var(--surface)' : 'none',
+              color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
+              boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+              transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
             {t.label}
           </button>
         ))}
       </div>
 
       {tab === 'estrutura' && (
-        <EstruturaBuilder draft={draft} onChange={setDraft} />
+        <EstruturaBuilder draft={draft} onChange={setDraft} errs={errs} setErrs={setErrs} />
       )}
       {tab === 'respostas' && !isNew && (
         <RespostasTab template={draft} submissions={submissions} onSaveSubmission={onSaveSubmission} />
       )}
       {tab === 'respostas' && isNew && (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: '#71717A' }}>
+        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
           <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
           <div style={{ fontSize: 13 }}>Salve o template primeiro para receber respostas.</div>
         </div>
       )}
-    </FullPageEdit>
+
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <div>
+          {!isNew && onDelete && (
+            <button onClick={() => { if (window.confirm('Excluir este template?')) { onDelete(draft.id); onClose() } }}
+              style={{ padding: '8px 14px', borderRadius: 8, background: 'none', border: '1px solid rgba(239,68,68,0.35)',
+                color: '#EF4444', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              Excluir
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button loading={saving} onClick={handleSave}>
+            {isNew ? 'Criar template' : 'Salvar alterações'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Questionarios() {
   const { templates, submissions, saveTemplate, removeTemplate, saveSubmission } = useQuestionnaires()
-  const [search,       setSearch]       = useLocalState('questionarios:search', '')
-  const [filtroTipo,   setFiltroTipo]   = useLocalState('questionarios:filtroTipo', '')
-  const [showMetrics,  setShowMetrics]  = useLocalState('questionarios:showMetrics', true)
-  const [acoesOpen,    setAcoesOpen]    = useState(false)
-  const [drawer,       setDrawer]       = useState(null)  // null | template object
-  const acoesRef = useRef(null)
+  const [search,       setSearch]       = useState('')
+  const [activeFilters, setActiveFilters] = useState({})
+  const [drawer,       setDrawer]       = useState(null)  // null | 'novo' | template object
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q = search.toLowerCase().trim()
+    const tipoF = activeFilters.type || []
     return templates.filter(t =>
-      (!filtroTipo || t.type === filtroTipo) &&
+      (!tipoF.length || tipoF.includes(t.type)) &&
       (!q || t.title.toLowerCase().includes(q) || (t.description || '').toLowerCase().includes(q))
     ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  }, [templates, filtroTipo, search])
+  }, [templates, activeFilters, search])
 
   const kpis = useMemo(() => ({
-    total:   templates.length,
-    ativos:  templates.filter(t => t.is_active).length,
+    total:     templates.length,
+    ativos:    templates.filter(t => t.is_active).length,
     respostas: submissions.length,
     aprovados: submissions.filter(s => s.status === 'aprovado').length,
   }), [templates, submissions])
 
   const submissoesPorTemplate = useCallback(id => submissions.filter(s => s.template_id === id).length, [submissions])
 
-  function handleSaveTemplate(updated) { saveTemplate(updated) }
-  function handleSaveSubmission(sub) { saveSubmission(sub) }
+  const COLUMNS = [
+    { key: 'title', label: 'Template', render: (val, row) => {
+      const cfg = TIPO_CFG[row.type] || TIPO_CFG.pre_venda
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 15 }}>
+            {cfg.icon}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 7 }}>
+              {val}
+              {!row.is_active && <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 99, background: 'var(--surface2)', color: 'var(--text-muted)', border: '1px solid var(--border)', fontWeight: 600 }}>Inativo</span>}
+            </div>
+            {row.description && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>
+                {row.description}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }},
+    { key: 'type', label: 'Tipo', render: val => <TipoBadge tipo={val} /> },
+    { key: 'estrutura_secoes', label: 'Seções / Perguntas', render: (_, row) => {
+      const secoes = (row.estrutura_secoes?.secoes || []).length
+      const total  = totalPerguntas(row)
+      return (
+        <div style={{ display: 'flex', gap: 12 }}>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{secoes} seção{secoes !== 1 ? 'ões' : ''}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{total} perg.</span>
+        </div>
+      )
+    }},
+    { key: 'id', label: 'Respostas', render: (val) => {
+      const count = submissoesPorTemplate(val)
+      return (
+        <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: count > 0 ? 'var(--text)' : 'var(--text-muted)', fontWeight: count > 0 ? 700 : 400 }}>
+          {count}
+        </span>
+      )
+    }},
+    { key: 'created_at', label: 'Criado em', render: val =>
+      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtData(val)}</span>
+    },
+  ]
 
-  if (drawer) {
-    return (
-      <TemplateFullPage
-        template={drawer === 'novo' ? null : drawer}
-        submissions={submissions}
-        onClose={() => setDrawer(null)}
-        onSave={handleSaveTemplate}
-        onSaveSubmission={handleSaveSubmission}
-        onDelete={removeTemplate}
-      />
-    )
-  }
+  const FILTERS = [
+    { key: 'type', label: 'Tipo', options: Object.entries(TIPO_CFG).map(([k, v]) => ({ value: k, label: `${v.icon} ${v.label}` })) },
+  ]
+
+  const kpisNode = (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      {[
+        { label: 'Templates',  value: kpis.total,     Icon: ClipboardList, color: 'var(--border)'  },
+        { label: 'Ativos',     value: kpis.ativos,    Icon: CheckCircle2,  color: 'var(--accent)'  },
+        { label: 'Respostas',  value: kpis.respostas, Icon: MessageSquare, color: '#F59E0B'         },
+        { label: 'Aprovadas',  value: kpis.aprovados, Icon: ThumbsUp,      color: '#10B981'         },
+      ].map(m => (
+        <div key={m.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+          padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}` }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
-
-      <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-        {/* ── Header ── */}
-        <div style={pg.pageHeader}>
-          <div>
-            <div style={pg.breadcrumb}>
-              <span>Operação</span><span style={pg.sep}>›</span><span>Questionários</span>
+    <>
+      <BrowseLayout
+        data={filtered}
+        columns={COLUMNS}
+        filters={FILTERS}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
+        search={search}
+        onSearchChange={setSearch}
+        keyField="id"
+        storageKey="questionarios_browse"
+        onRowClick={row => setDrawer(row)}
+        onNew={() => setDrawer('novo')}
+        newLabel="+ Novo questionário"
+        kpis={kpisNode}
+        bulkEditFields={[
+          { key: 'type', label: 'Tipo', type: 'select',
+            options: Object.entries(TIPO_CFG).map(([k, v]) => ({ value: k, label: `${v.icon} ${v.label}` })) },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const t = templates.find(t => t.id === id); if (t) saveTemplate({ ...t, ...changes }) })
+        }
+        renderCard={row => {
+          const cfg    = TIPO_CFG[row.type] || TIPO_CFG.pre_venda
+          const total  = totalPerguntas(row)
+          const secoes = (row.estrutura_secoes?.secoes || []).length
+          const count  = submissoesPorTemplate(row.id)
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.title}
+                  </div>
+                  {row.description && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4,
+                      display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                      {row.description}
+                    </div>
+                  )}
+                </div>
+                <span style={{ flexShrink: 0, width: 8, height: 8, borderRadius: '50%',
+                  background: row.is_active ? '#10B981' : '#9CA3AF', marginTop: 5 }} />
+              </div>
+              <TipoBadge tipo={row.type} />
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                paddingTop: 8, borderTop: '1px solid var(--border2)' }}>
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                    {secoes} seção{secoes !== 1 ? 'ões' : ''}
+                  </span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                    {total} perg.
+                  </span>
+                </div>
+                <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {count} resp.
+                </span>
+              </div>
             </div>
-            <h1 style={pg.title}>Questionários</h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={() => setShowMetrics(v => !v)}
-              title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
-              style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28,
-                borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)',
-                color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginTop:18 }}>
-              {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-            <div ref={acoesRef} style={{ position: 'relative' }}>
-              <button style={{ ...pg.ghostBtn, ...(acoesOpen ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setAcoesOpen(v => !v)}>
-                Ações <span style={{ fontSize: 10 }}>▾</span>
-              </button>
-              {acoesOpen && (
-                <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />
-              )}
-            </div>
-            <Button onClick={() => setDrawer('novo')}>+ Novo questionário</Button>
-          </div>
-        </div>
-
-        {/* ── KPIs retráteis ── */}
-        <div style={{ display: 'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.25s ease', overflow: 'hidden' }}>
-          <div style={{ minHeight: 0, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, paddingBottom: 4 }}>
-              <KpiCard label="Templates"      value={kpis.total}     color="var(--border)" />
-              <KpiCard label="Ativos"         value={kpis.ativos}    color="var(--accent)" />
-              <KpiCard label="Respostas"      value={kpis.respostas} color="#F59E0B" />
-              <KpiCard label="Aprovadas"      value={kpis.aprovados} color="#10B981" />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Toolbar ── */}
-        <div style={pg.toolbar}>
-          <div style={pg.tbLeft}>
-            <div style={pg.searchWrap}>
-              <span style={pg.searchIcon}>⌕</span>
-              <input style={pg.searchInput} placeholder="Buscar template por nome ou descrição…"
-                value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <select style={pg.select} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
-              <option value="">Todos os tipos</option>
-              {Object.entries(TIPO_CFG).map(([k, v]) => (
-                <option key={k} value={k}>{v.icon} {v.label}</option>
-              ))}
-            </select>
-          </div>
-          <div style={pg.tbDivider} />
-          <div style={pg.tbRight}>
-            {(search || filtroTipo) && (
-              <button style={pg.ghostBtn} onClick={() => { setSearch(''); setFiltroTipo('') }}>
-                ✕ Limpar
-              </button>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
-              {filtered.length} template{filtered.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── Grid de Templates ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 28px 28px' }}>
-        {filtered.length === 0 ? (
+          )
+        }}
+        emptyState={
           <div style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📋</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-              {search || filtroTipo ? 'Nenhum template encontrado' : 'Nenhum template ainda'}
+              {search || Object.keys(activeFilters).length ? 'Nenhum template encontrado' : 'Nenhum template ainda'}
             </div>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              {search || filtroTipo ? 'Tente ajustar os filtros' : 'Crie o primeiro clicando em "+ Novo questionário"'}
+              {search || Object.keys(activeFilters).length ? 'Tente ajustar os filtros' : 'Crie o primeiro clicando em "+ Novo questionário"'}
             </div>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 14, paddingTop: 8 }}>
-            {filtered.map(tpl => (
-              <TemplateCard
-                key={tpl.id}
-                template={tpl}
-                submissionsCount={submissoesPorTemplate(tpl.id)}
-                onClick={() => setDrawer(tpl)}
-              />
-            ))}
-          </div>
+        }
+      />
+
+      <SlideOver
+        open={!!drawer}
+        onClose={() => setDrawer(null)}
+        title={drawer && drawer !== 'novo' ? (drawer.title || 'Editar questionário') : 'Novo questionário'}
+        subtitle={drawer && drawer !== 'novo' ? `Atualizado ${fmtData(drawer.updated_at)}` : 'Defina a estrutura do template'}
+        defaultWidth={760}
+        showFooter={false}
+      >
+        {drawer && (
+          <TemplateForm
+            template={drawer === 'novo' ? null : drawer}
+            submissions={submissions}
+            onClose={() => setDrawer(null)}
+            onSave={saveTemplate}
+            onSaveSubmission={saveSubmission}
+            onDelete={removeTemplate}
+          />
         )}
-      </div>
-
-    </div>
+      </SlideOver>
+    </>
   )
-}
-
-// ─── Estilos ──────────────────────────────────────────────────────────────────
-const pg = {
-  pageHeader:  { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' },
-  breadcrumb:  { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)', marginBottom: 4 },
-  sep:         { color: 'var(--border)' },
-  title:       { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.4px' },
-  newBtn:      { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
-  iconBtn:     { width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text-muted)', cursor: 'pointer' },
-  iconBtnActive: { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-glow)' },
-  ghostBtn:    { height: 36, display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text-soft)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' },
-  toolbar:     { background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8 },
-  tbLeft:      { display: 'flex', alignItems: 'center', gap: 8, flex: 1, flexShrink: 1, minWidth: 0 },
-  tbDivider:   { width: 1, height: 24, background: 'var(--border)', flexShrink: 0 },
-  tbRight:     { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
-  searchWrap:  { position: 'relative', flexShrink: 0 },
-  searchIcon:  { position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' },
-  searchInput: { width: 300, height: 36, padding: '0 10px 0 28px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', boxSizing: 'border-box' },
-  select:      { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, outline: 'none', cursor: 'pointer', fontFamily: 'var(--font)' },
-}
-
-const lbl = { fontSize: 11, fontWeight: 700, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: 0.4 }
-const inp = {
-  padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 7,
-  background: 'var(--surface)', color: 'var(--text)', fontSize: 13,
-  outline: 'none', fontFamily: 'var(--font)', width: '100%', boxSizing: 'border-box',
 }

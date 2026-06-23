@@ -9,6 +9,7 @@ import { useContacts } from '../hooks/useContacts'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
+import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH, LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -207,6 +208,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const [form, setForm]             = useState(item || EMPTY_FORM)
   const [cnpjStatus, setCnpjStatus] = useState(null)
   const [cepStatus,  setCepStatus]  = useState(null)
+  const [errs, setErrs]             = useState({})
 
   // ── Relacionamentos via hooks reais ──────────────────────────────────────
   const { contacts: allContacts, save: saveContact, remove: removeContact } = useContacts()
@@ -229,6 +231,16 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     setForm(next)
     if (!isNew) onSave({ ...next, id: item.id }, true)
   }
+
+  // Score CS — lê do localStorage
+  const csRecord = useMemo(() => {
+    if (!item?.id) return null
+    try {
+      const raw  = localStorage.getItem(CS_STORAGE_KEY)
+      const recs = raw ? JSON.parse(raw) : MOCK_CUSTOMER_HEALTH
+      return recs.find(r => String(r.company_id) === String(item.id)) || null
+    } catch { return null }
+  }, [item?.id])
 
   function checkDuplicateCNPJ(cnpj) {
     const raw = cnpj.replace(/\D/g, '')
@@ -308,11 +320,12 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
       <div style={{ display:'flex', flexDirection:'column', gap:16, padding:'20px 24px' }}>
         <FormSection label="Identificação">
           <FormGrid cols={2}>
-            <FormField label="Razão Social" required style={{ gridColumn:'span 2' }}>
+            <FormField label="Razão Social" required error={errs.razao} style={{ gridColumn:'span 2' }}>
               <input className="so-field" value={form.razao}
-                onChange={e => setForm(f => ({ ...f, razao: e.target.value }))}
+                onChange={e => { setForm(f => ({ ...f, razao: e.target.value })); if (errs.razao) setErrs(p => ({...p, razao:''})) }}
                 onBlur={e => patch('razao', e.target.value)}
-                placeholder="Razão Social da empresa…" />
+                placeholder="Razão Social da empresa…"
+                style={{ borderColor: errs.razao ? '#DC2626' : '' }} />
             </FormField>
             <FormField label="Nome Fantasia">
               <input className="so-field" value={form.fantasia || ''}
@@ -353,8 +366,10 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
         <FormSection label="Atividade">
           <FormGrid cols={2}>
-            <FormField label="Segmento">
-              <select className="so-field" value={form.segmento || ''} onChange={e => patch('segmento', e.target.value)}>
+            <FormField label="Segmento" required error={errs.segmento}>
+              <select className="so-field" value={form.segmento || ''}
+                onChange={e => { patch('segmento', e.target.value); if (errs.segmento) setErrs(p => ({...p, segmento:''})) }}
+                style={{ borderColor: errs.segmento ? '#DC2626' : '' }}>
                 <option value="">Selecionar…</option>
                 {SEGMENTOS.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
@@ -417,25 +432,34 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 onChange={e => setForm(f => ({ ...f, bairro: e.target.value }))}
                 onBlur={e => patch('bairro', e.target.value)} placeholder="Bairro" />
             </FormField>
-            <FormField label="Cidade">
+            <FormField label="Cidade" required error={errs.cidade}>
               <input className="so-field" value={form.cidade || ''}
-                onChange={e => setForm(f => ({ ...f, cidade: e.target.value }))}
-                onBlur={e => patch('cidade', e.target.value)} placeholder="Cidade" />
+                onChange={e => { setForm(f => ({ ...f, cidade: e.target.value })); if (errs.cidade) setErrs(p => ({...p, cidade:''})) }}
+                onBlur={e => patch('cidade', e.target.value)} placeholder="Cidade"
+                style={{ borderColor: errs.cidade ? '#DC2626' : '' }} />
             </FormField>
           </FormGrid>
         </FormSection>
 
         <FormSection label="Contato">
+          {errs.contato && (
+            <div style={{ fontSize:11, color:'#DC2626', padding:'5px 10px', background:'#FEF2F2',
+              borderRadius:6, border:'1px solid #FECACA', marginBottom:4 }}>
+              {errs.contato}
+            </div>
+          )}
           <FormGrid cols={2}>
-            <FormField label="E-mail">
+            <FormField label="E-mail" required>
               <input className="so-field" type="email" value={form.email || ''}
-                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
-                onBlur={e => patch('email', e.target.value)} placeholder="contato@empresa.com" />
+                onChange={e => { setForm(f => ({ ...f, email: e.target.value })); if (errs.contato) setErrs(p => ({...p, contato:''})) }}
+                onBlur={e => patch('email', e.target.value)} placeholder="contato@empresa.com"
+                style={{ borderColor: errs.contato && !form.email?.trim() && !form.telefone?.trim() ? '#DC2626' : '' }} />
             </FormField>
-            <FormField label="Telefone">
+            <FormField label="Telefone" required>
               <input className="so-field" value={form.telefone || ''}
-                onChange={e => setForm(f => ({ ...f, telefone: fmtPhone(e.target.value) }))}
-                onBlur={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+                onChange={e => { setForm(f => ({ ...f, telefone: fmtPhone(e.target.value) })); if (errs.contato) setErrs(p => ({...p, contato:''})) }}
+                onBlur={e => patch('telefone', e.target.value)} placeholder="(00) 00000-0000"
+                style={{ borderColor: errs.contato && !form.email?.trim() && !form.telefone?.trim() ? '#DC2626' : '' }} />
             </FormField>
             <FormField label="Site" style={{ gridColumn:'span 2' }}>
               <input className="so-field" value={form.site || ''}
@@ -468,22 +492,98 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           </FormGrid>
         </FormSection>
 
+        {!isNew && csRecord && (() => {
+          const { color, bg, border } = healthColor(csRecord.health_score)
+          const laer = LAER_STAGES.find(s => s.value === csRecord.laer_stage)
+          return (
+            <FormSection label="Score do Cliente (CS)">
+              <div style={{ display:'flex', alignItems:'center', gap:16, padding:'14px 16px',
+                background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10,
+                borderLeft:`4px solid ${color}` }}>
+                {/* Score ring simplificado */}
+                <div style={{ position:'relative', width:52, height:52, flexShrink:0 }}>
+                  <svg width={52} height={52} style={{ transform:'rotate(-90deg)' }}>
+                    {(() => { const r=23, circ=2*Math.PI*r, dash=(csRecord.health_score/100)*circ; return (<>
+                      <circle cx={26} cy={26} r={r} fill="none" stroke={bg} strokeWidth={5} />
+                      <circle cx={26} cy={26} r={r} fill="none" stroke={color} strokeWidth={5}
+                        strokeLinecap="round" strokeDasharray={`${dash} ${circ}`} />
+                    </>)})()}
+                  </svg>
+                  <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center',
+                    justifyContent:'center', fontSize:13, fontWeight:800, color, fontFamily:'var(--mono)' }}>
+                    {csRecord.health_score}
+                  </div>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 }}>
+                    Health Score: <span style={{ color }}>{csRecord.health_score}/100</span>
+                  </div>
+                  <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                    {laer && (
+                      <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px',
+                        borderRadius:20, background:laer.bg, color:laer.color, border:`1px solid ${laer.color}33` }}>
+                        {laer.label}
+                      </span>
+                    )}
+                    {csRecord.csm && (
+                      <span style={{ fontSize:11, color:'var(--text-muted)' }}>CSM: {csRecord.csm}</span>
+                    )}
+                    {csRecord.renewal_date && (
+                      <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                        Renovação: {csRecord.renewal_date}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </FormSection>
+          )
+        })()}
+
+        {!isNew && !csRecord && (
+          <FormSection label="Score do Cliente (CS)">
+            <div style={{ fontSize:12, color:'var(--text-muted)', padding:'10px 14px',
+              background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
+              Nenhum registro de Customer Success para esta empresa.
+            </div>
+          </FormSection>
+        )}
+
         <FormSection label="Observações">
           <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
             placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
         </FormSection>
 
         {isNew && (
-          <Button onClick={() => {
-            if (!form.razao.trim()) return alert('Razão social é obrigatória')
-            const isDraft = form.tipo === 'rascunho'
-            const cnpjRaw = (form.cnpj || '').replace(/\D/g, '')
-            if (!isDraft && !cnpjRaw) return alert('CNPJ é obrigatório para este tipo de empresa')
-            onSave(form)
-          }}
-            style={{ alignSelf:'flex-start' }}>
-            Cadastrar empresa
-          </Button>
+          <>
+            {Object.keys(errs).length > 0 && (
+              <div style={{ color:'#DC2626', fontSize:12, padding:'8px 12px', background:'#FEF2F2', borderRadius:8, border:'1px solid #FECACA',
+                display:'flex', flexDirection:'column', gap:4 }}>
+                {Object.values(errs).filter(Boolean).map((msg, i) => <span key={i}>• {msg}</span>)}
+              </div>
+            )}
+            <Button onClick={() => {
+              const e = {}
+              // campos obrigatórios standard
+              if (!form.razao.trim()) e.razao = 'Razão social é obrigatória'
+              const isDraft = form.tipo === 'rascunho'
+              const cnpjRaw = (form.cnpj || '').replace(/\D/g, '')
+              if (!isDraft && !cnpjRaw) e.cnpj = 'CNPJ é obrigatório'
+              if (!isDraft && cnpjRaw && cnpjRaw.length !== 14) e.cnpj = 'CNPJ inválido (deve ter 14 dígitos)'
+              if (!isDraft && cnpjRaw && cnpjRaw.length === 14 && checkDuplicateCNPJ(form.cnpj)) {
+                const dup = empresas.find(d => d.id !== item?.id && (d.cnpj||'').replace(/\D/g,'') === cnpjRaw)
+                e.cnpj = `CNPJ já cadastrado: ${dup?.fantasia || dup?.razao || 'outra empresa'}`
+              }
+              if (cnpjStatus?.type === 'error') e.cnpj = cnpjStatus.msg
+              if (!form.segmento) e.segmento = 'Segmento é obrigatório'
+              if (!form.telefone?.trim() && !form.email?.trim()) e.contato = 'Informe ao menos um telefone ou e-mail'
+              if (!form.cidade?.trim()) e.cidade = 'Cidade é obrigatória'
+              if (Object.keys(e).length) { setErrs(e); return }
+              onSave(form)
+            }} style={{ alignSelf:'flex-start' }}>
+              Cadastrar empresa
+            </Button>
+          </>
         )}
       </div>
     )
@@ -1224,6 +1324,14 @@ export default function Empresas() {
         storageKey="empresas_browse"
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}
+        bulkEditFields={[
+          { key: 'segmento', label: 'Segmento', type: 'select',
+            options: SEGMENTOS.map(s => ({ value: s, label: s })) },
+          { key: 'responsavel', label: 'Responsável', type: 'text' },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const e = empresas.find(e => e.id === id); if (e) updateEmpresa({ ...e, ...changes }) })
+        }
         renderCard={row => {
           const nome = row.fantasia || row.razao
           return (

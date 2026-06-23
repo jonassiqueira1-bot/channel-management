@@ -9,7 +9,7 @@ export const MOCK_LOGS_OPORTUNIDADE = [
   { id:102, opp_id:1, evento:'etapa_alterada',   campos:[{ campo:'Etapa', de:'Prospecção', para:'Qualificação' }], usuario:'Lucas Ferreira', criado_em:'2026-05-08T14:30:00' },
   { id:103, opp_id:1, evento:'editado',          campos:[{ campo:'Valor MRR', de:'R$ 650', para:'R$ 890' }], usuario:'Lucas Ferreira', criado_em:'2026-05-15T10:05:00' },
   { id:104, opp_id:1, evento:'etapa_alterada',   campos:[{ campo:'Etapa', de:'Qualificação', para:'Proposta' }], usuario:'Lucas Ferreira', criado_em:'2026-05-28T16:20:00' },
-  { id:105, opp_id:1, evento:'produto_adicionado', campos:[{ campo:'Produto', de:'—', para:'Canal NG Pro × 1' }], usuario:'Lucas Ferreira', criado_em:'2026-05-28T16:22:00' },
+  { id:105, opp_id:1, evento:'produto_adicionado', campos:[{ campo:'Produto', de:'—', para:'Boostly Pro × 1' }], usuario:'Lucas Ferreira', criado_em:'2026-05-28T16:22:00' },
   { id:106, opp_id:1, evento:'editado',          campos:[{ campo:'Prazo', de:'2026-07-15', para:'2026-07-30' }], usuario:'Admin', criado_em:'2026-06-02T09:00:00' },
 
   // ── Oportunidade 2 — Renovação Contrato 2025 ────────────────────────────────
@@ -18,7 +18,7 @@ export const MOCK_LOGS_OPORTUNIDADE = [
   { id:203, opp_id:2, evento:'etapa_alterada',   campos:[{ campo:'Etapa', de:'Qualificação', para:'Proposta' }], usuario:'Carla Menezes', criado_em:'2026-05-20T15:10:00' },
   { id:204, opp_id:2, evento:'editado',          campos:[{ campo:'Valor MRR', de:'R$ 890', para:'R$ 1.340' },{ campo:'Responsável', de:'Carla Menezes', para:'Carla Menezes' }], usuario:'Carla Menezes', criado_em:'2026-05-22T09:30:00' },
   { id:205, opp_id:2, evento:'etapa_alterada',   campos:[{ campo:'Etapa', de:'Proposta', para:'Negociação' }], usuario:'Carla Menezes', criado_em:'2026-06-01T14:00:00' },
-  { id:206, opp_id:2, evento:'produto_adicionado', campos:[{ campo:'Produto', de:'—', para:'Canal NG Pro × 1' }], usuario:'Carla Menezes', criado_em:'2026-06-01T14:03:00' },
+  { id:206, opp_id:2, evento:'produto_adicionado', campos:[{ campo:'Produto', de:'—', para:'Boostly Pro × 1' }], usuario:'Carla Menezes', criado_em:'2026-06-01T14:03:00' },
   { id:207, opp_id:2, evento:'produto_adicionado', campos:[{ campo:'Produto', de:'—', para:'Suporte Premium × 1' }], usuario:'Carla Menezes', criado_em:'2026-06-01T14:04:00' },
 
   // ── Oportunidade 5 — Contrato financeiro SP ─────────────────────────────────

@@ -29,7 +29,7 @@ function fmtDate(iso) {
 }
 
 function generateWebhookUrl(providerId, settingId) {
-  return `https://api.canaisng.com.br/webhooks/${providerId}/${settingId.slice(0,8)}`
+  return `https://api.boostly.com.br/webhooks/${providerId}/${settingId.slice(0,8)}`
 }
 
 // ─── Toast simples ────────────────────────────────────────────────────────────

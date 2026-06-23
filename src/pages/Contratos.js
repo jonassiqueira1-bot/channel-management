@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useContracts } from '../hooks/useContracts'
+import { useProducts } from '../hooks/useProducts'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
@@ -7,6 +8,7 @@ import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
 import { DeleteZone } from '../components/NotionDrawer'
+import ActionFeedback from '../components/ActionFeedback'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -21,26 +23,26 @@ const SLOTS = [
   {
     key: 'adesao',
     label: 'Adesão / CDU',
-    hint: 'Receita única de ativação ou implementação',
+    hint: 'Licença de ativação ou implementação',
     icon: '①',
     color: '#0891B2', bg: '#ECFEFF', text: '#0E7490',
-    filter: p => p.cobranca === 'unico' && p.status === 'ativo',
+    filter: p => p.status === 'ativo' && p.tipo === 'licenca',
   },
   {
     key: 'mrr',
-    label: 'MRR',
-    hint: 'Receita mensal ou anual recorrente',
+    label: 'MRR / SMS',
+    hint: 'Produto SaaS recorrente',
     icon: '②',
     color: 'var(--blue)', bg: 'var(--blue-bg)', text: 'var(--blue-text)',
-    filter: p => ['mensal','anual','uso','usuario'].includes(p.cobranca) && p.status === 'ativo',
+    filter: p => p.status === 'ativo' && p.tipo === 'saas',
   },
   {
     key: 'servico',
     label: 'Serviço',
-    hint: 'Suporte, consultoria ou serviço recorrente',
+    hint: 'Consultoria ou serviço contratado',
     icon: '③',
     color: 'var(--purple)', bg: 'var(--purple-bg)', text: 'var(--purple-text)',
-    filter: p => p.tipo === 'servico' && p.status === 'ativo',
+    filter: p => p.status === 'ativo' && p.tipo === 'consultoria',
   },
 ]
 
@@ -49,15 +51,11 @@ const EMPTY_FORM = {
   status: 'rascunho',
   primeira_compra: false,
   vigencia_inicio: '', vigencia_fim: '',
-  produto_adesao_id: null, produto_adesao_nome: '', valor_adesao: '',
-  tabela_adesao: null, desconto_adesao_pct: '', desconto_autorizado_adesao: false,
-  produto_mrr_id: null, produto_mrr_nome: '', valor_mrr: '',
-  tabela_mrr: null, desconto_mrr_pct: '', desconto_autorizado_mrr: false,
-  produto_servico_id: null, produto_servico_nome: '', valor_servico: '',
-  tabela_servico: null, desconto_servico_pct: '', desconto_autorizado_servico: false,
+  itens_adesao: [], itens_mrr: [], itens_servico: [],
   responsavel: '', observacoes: '',
   origem: '',
   data_pag_cdu: '', data_pag_sms: '',
+  opportunity_id: null, opportunity_titulo: '',
 }
 
 const MOCK_CONTRATOS = [
@@ -66,9 +64,9 @@ const MOCK_CONTRATOS = [
     empresa_id: 1, empresa_nome: 'Nexus Tech',
     status: 'ativo', primeira_compra: true,
     vigencia_inicio: '2024-03-10', vigencia_fim: '2025-03-10',
-    produto_adesao_id: 3,  produto_adesao_nome: 'Implantação Assistida', valor_adesao: 4800,  tabela_adesao: 4800, desconto_adesao_pct: 0,  desconto_autorizado_adesao: true,
-    produto_mrr_id: 1,     produto_mrr_nome: 'Canal NG Pro',             valor_mrr: 890,      tabela_mrr: 890,     desconto_mrr_pct: 0,    desconto_autorizado_mrr: true,
-    produto_servico_id: 4, produto_servico_nome: 'Suporte Premium',       valor_servico: 450,  tabela_servico: 450, desconto_servico_pct: 0, desconto_autorizado_servico: true,
+    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4800, tabela: 4800, desconto_pct: 0,  desconto_autorizado: true  }],
+    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 890,  tabela: 890,  desconto_pct: 0,  desconto_autorizado: true  }],
+    itens_servico: [{ produto_id: 4, nome: 'Suporte Premium',       valor: 450,  tabela: 450,  desconto_pct: 0,  desconto_autorizado: true  }],
     responsavel: 'Lucas Ferreira', observacoes: '', criado: '2024-03-10',
   },
   {
@@ -76,9 +74,9 @@ const MOCK_CONTRATOS = [
     empresa_id: 2, empresa_nome: 'Alpha Dist.',
     status: 'ativo', primeira_compra: true,
     vigencia_inicio: '2024-05-22', vigencia_fim: '2025-05-22',
-    produto_adesao_id: null,  produto_adesao_nome: '', valor_adesao: null,  tabela_adesao: null, desconto_adesao_pct: 0,  desconto_autorizado_adesao: false,
-    produto_mrr_id: 2,        produto_mrr_nome: 'Canal NG Starter',  valor_mrr: 261,    tabela_mrr: 290,    desconto_mrr_pct: 10,  desconto_autorizado_mrr: true,
-    produto_servico_id: null, produto_servico_nome: '', valor_servico: null, tabela_servico: null, desconto_servico_pct: 0, desconto_autorizado_servico: false,
+    itens_adesao:  [],
+    itens_mrr:     [{ produto_id: 2, nome: 'Boostly Starter', valor: 261, tabela: 290, desconto_pct: 10, desconto_autorizado: true }],
+    itens_servico: [],
     responsavel: 'Ana Costa', observacoes: 'Desconto de 10% aprovado por gerência', criado: '2024-05-22',
   },
   {
@@ -86,9 +84,9 @@ const MOCK_CONTRATOS = [
     empresa_id: 4, empresa_nome: 'Milenium',
     status: 'ativo', primeira_compra: false,
     vigencia_inicio: '2024-01-15', vigencia_fim: '2025-01-15',
-    produto_adesao_id: 3,     produto_adesao_nome: 'Implantação Assistida', valor_adesao: 4080, tabela_adesao: 4800, desconto_adesao_pct: 15, desconto_autorizado_adesao: false,
-    produto_mrr_id: 1,        produto_mrr_nome: 'Canal NG Pro',             valor_mrr: 890,     tabela_mrr: 890,     desconto_mrr_pct: 0,    desconto_autorizado_mrr: true,
-    produto_servico_id: null, produto_servico_nome: '', valor_servico: null, tabela_servico: null, desconto_servico_pct: 0, desconto_autorizado_servico: false,
+    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4080, tabela: 4800, desconto_pct: 15, desconto_autorizado: false }],
+    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 890,  tabela: 890,  desconto_pct: 0,  desconto_autorizado: true  }],
+    itens_servico: [],
     responsavel: 'Carla Menezes', observacoes: 'Desconto de 15% na adesão aguardando aprovação', criado: '2024-01-15',
   },
   {
@@ -96,9 +94,9 @@ const MOCK_CONTRATOS = [
     empresa_id: 6, empresa_nome: 'FinCorp',
     status: 'ativo', primeira_compra: false,
     vigencia_inicio: '2023-08-20', vigencia_fim: '2024-08-20',
-    produto_adesao_id: 3,  produto_adesao_nome: 'Implantação Assistida', valor_adesao: 4320,  tabela_adesao: 4800, desconto_adesao_pct: 10, desconto_autorizado_adesao: true,
-    produto_mrr_id: 1,     produto_mrr_nome: 'Canal NG Pro',             valor_mrr: 801,      tabela_mrr: 890,     desconto_mrr_pct: 10,   desconto_autorizado_mrr: true,
-    produto_servico_id: 4, produto_servico_nome: 'Suporte Premium',       valor_servico: 450,  tabela_servico: 450, desconto_servico_pct: 0, desconto_autorizado_servico: true,
+    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4320, tabela: 4800, desconto_pct: 10, desconto_autorizado: true }],
+    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 801,  tabela: 890,  desconto_pct: 10, desconto_autorizado: true }],
+    itens_servico: [{ produto_id: 4, nome: 'Suporte Premium',       valor: 450,  tabela: 450,  desconto_pct: 0,  desconto_autorizado: true }],
     responsavel: 'Mariana Silva', observacoes: 'Descontos de 10% aprovados pela diretoria', criado: '2023-08-20',
   },
   {
@@ -106,9 +104,9 @@ const MOCK_CONTRATOS = [
     empresa_id: 8, empresa_nome: 'MedGroup',
     status: 'encerrado', primeira_compra: true,
     vigencia_inicio: '2024-02-28', vigencia_fim: '2024-08-28',
-    produto_adesao_id: null,  produto_adesao_nome: '', valor_adesao: null,  tabela_adesao: null, desconto_adesao_pct: 0,  desconto_autorizado_adesao: false,
-    produto_mrr_id: 2,        produto_mrr_nome: 'Canal NG Starter',  valor_mrr: 290,    tabela_mrr: 290,    desconto_mrr_pct: 0,   desconto_autorizado_mrr: true,
-    produto_servico_id: null, produto_servico_nome: '', valor_servico: null, tabela_servico: null, desconto_servico_pct: 0, desconto_autorizado_servico: false,
+    itens_adesao:  [],
+    itens_mrr:     [{ produto_id: 2, nome: 'Boostly Starter', valor: 290, tabela: 290, desconto_pct: 0, desconto_autorizado: true }],
+    itens_servico: [],
     responsavel: 'Fernanda Rocha', observacoes: 'Cliente migrou para Pro', criado: '2024-02-28',
   },
 ]
@@ -153,190 +151,178 @@ function DescontoBadge({ pct, autorizado }) {
   )
 }
 
-// ─── Autocomplete de Produto por slot ────────────────────────────────────────
-function ProdutoSearch({ slot, value, label, valor, tabela, descontoPct, autorizado, onChangeProduto, onChangeValor, onChangeDesconto, onChangeAutorizado }) {
-  const [query, setQuery]     = useState(label || '')
-  const [open, setOpen]       = useState(false)
-  const [showAll, setShowAll] = useState(false)
-  const ref                   = useRef(null)
+// ─── Slot multi-produto compacto ─────────────────────────────────────────────
+function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
+  const [addingQuery, setAddingQuery] = useState('')
+  const [addingOpen,  setAddingOpen]  = useState(false)
+  const [showAll,     setShowAll]     = useState(false)
+  const addRef = useRef(null)
 
-  useEffect(() => { setQuery(label || '') }, [label])
+  const todosProdutos = (produtosReal && produtosReal.length > 0) ? produtosReal : MOCK_PRODUTOS
+  const allActive  = todosProdutos.filter(p => p.status === 'ativo')
+  const suggested  = allActive.filter(slot.filter)
+  // se não há sugeridos, expande para todos automaticamente
+  const effectiveShowAll = showAll || suggested.length === 0
+  const pool       = effectiveShowAll ? allActive : suggested
+  const jaAdded    = new Set((itens || []).map(i => i.produto_id))
+
+  const opts = useMemo(() => {
+    const q = addingQuery.toLowerCase()
+    return pool
+      .filter(p => !jaAdded.has(p.id) && (p.nome.toLowerCase().includes(q) || (p.codigo||'').toLowerCase().includes(q)))
+      .slice(0, 12)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [addingQuery, pool, itens])
+
   useEffect(() => {
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    function h(e) { if (addRef.current && !addRef.current.contains(e.target)) setAddingOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const allActive = MOCK_PRODUTOS.filter(p => p.status === 'ativo')
-  const suggested = allActive.filter(slot.filter)
-  const pool      = showAll ? allActive : suggested
-
-  const opts = useMemo(() => {
-    const q = query.toLowerCase()
-    return pool.filter(p =>
-      p.nome.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q)
-    ).slice(0, 8)
-  }, [query, pool])
-
-  const descontoNum  = parseFloat(descontoPct) || 0
-  const tabelaNum    = parseFloat(tabela) || 0
-  const produtoObj   = value ? MOCK_PRODUTOS.find(p => p.id === value) : null
-  const descontoMax  = produtoObj?.desconto_max ?? 100
-  const acimaDaFaixa = descontoNum > descontoMax && descontoMax > 0
-  const temDesconto  = descontoNum > 0
-  const precisaAuth  = temDesconto && !autorizado
-
-  function handleDescontoChange(pct) {
-    const p = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
-    onChangeDesconto(String(p))
-    if (tabelaNum > 0) onChangeValor(String(Math.round(tabelaNum * (1 - p / 100) * 100) / 100))
+  function addItem(p) {
+    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false }])
+    setAddingQuery(''); setAddingOpen(false); setShowAll(false)
   }
 
-  function handleValorChange(v) {
-    onChangeValor(v)
-    if (tabelaNum > 0 && parseFloat(v) >= 0) {
-      const pct = Math.round((1 - parseFloat(v) / tabelaNum) * 10000) / 100
-      onChangeDesconto(String(Math.max(0, pct)))
-    }
+  function updateItem(idx, patch) {
+    const next = (itens||[]).map((it, i) => i === idx ? { ...it, ...patch } : it)
+    onChange(next)
+  }
+
+  function removeItem(idx) {
+    onChange((itens||[]).filter((_, i) => i !== idx))
+  }
+
+  function handleDescontoChange(idx, pct) {
+    const p   = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
+    const tab = parseFloat((itens||[])[idx]?.tabela) || 0
+    updateItem(idx, { desconto_pct: p, valor: tab > 0 ? Math.round(tab * (1 - p / 100) * 100) / 100 : (itens||[])[idx]?.valor })
+  }
+
+  function handleValorChange(idx, v) {
+    const tab = parseFloat((itens||[])[idx]?.tabela) || 0
+    const pct = tab > 0 && parseFloat(v) >= 0 ? Math.round((1 - parseFloat(v) / tab) * 10000) / 100 : (itens||[])[idx]?.desconto_pct
+    updateItem(idx, { valor: v, desconto_pct: Math.max(0, pct) })
   }
 
   return (
-    <div style={{ border: `1px solid ${precisaAuth ? 'rgba(220,38,38,0.35)' : 'var(--border)'}`, borderRadius: 10, padding: 14, background: precisaAuth ? 'var(--red-bg)' : 'var(--surface2)', transition: 'all 0.2s' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-        <span style={{ width: 22, height: 22, borderRadius: 6, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, border: `1px solid ${slot.color}33`, flexShrink: 0 }}>{slot.icon}</span>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
+      {/* cabeçalho do slot */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface2)', borderBottom: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none' }}>
+        <span style={{ width: 20, height: 20, borderRadius: 5, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: `1px solid ${slot.color}33`, flexShrink: 0 }}>{slot.icon}</span>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{slot.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{slot.hint}</div>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{slot.label}</span>
+          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{slot.hint}</span>
         </div>
-        {value && temDesconto && (
-          <span style={{ fontSize: 11, fontWeight: 600, fontFamily: 'var(--mono)', padding: '2px 8px', borderRadius: 10,
-            background: autorizado ? 'var(--green-bg)' : 'var(--red-bg)',
-            color:       autorizado ? 'var(--green-text)' : 'var(--red-text)',
-            border:      `1px solid ${autorizado ? 'rgba(5,150,105,0.2)' : 'rgba(220,38,38,0.2)'}` }}>
-            {autorizado ? '✓ Autorizado' : '⚠ Sem autorização'}
+        {(itens||[]).length > 0 && (
+          <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+            {fmtMoeda((itens||[]).reduce((s, i) => s + (parseFloat(i.valor)||0), 0))}
           </span>
-        )}
-        {value && (
-          <button type="button" onClick={() => { onChangeProduto(null, '', null); setQuery(''); onChangeDesconto('0'); onChangeAutorizado(false) }}
-            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕</button>
         )}
       </div>
 
-      <div ref={ref} style={{ position: 'relative', marginBottom: value ? 12 : 0 }}>
+      {/* lista de itens */}
+      {(itens||[]).map((item, idx) => {
+        const prodObj     = todosProdutos.find(p => p.id === item.produto_id)
+        const descontoMax = prodObj?.desconto_max ?? 100
+        const desc        = parseFloat(item.desconto_pct) || 0
+        const acima       = desc > descontoMax && descontoMax > 0
+        const precisaAuth = desc > 0 && !item.desconto_autorizado
+        return (
+          <div key={idx} style={{ borderBottom: idx < (itens||[]).length - 1 ? '1px solid var(--border)' : 'none' }}>
+            {/* linha principal */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 90px 28px', gap: 6, alignItems: 'center', padding: '7px 12px', background: precisaAuth ? 'var(--red-bg)' : 'var(--surface)' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'right' }}>
+                {item.tabela ? fmtMoeda(item.tabela) : '—'}
+              </div>
+              {/* desconto */}
+              <div style={{ position: 'relative' }}>
+                <input type="number" min="0" max="100" step="0.5"
+                  style={{ width: '100%', padding: '4px 20px 4px 6px', borderRadius: 5, border: `1px solid ${acima ? 'var(--red)' : 'var(--border)'}`, fontSize: 11, fontFamily: 'var(--mono)', color: acima ? 'var(--red)' : 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none' }}
+                  value={item.desconto_pct}
+                  onChange={e => handleDescontoChange(idx, e.target.value)}
+                  placeholder="0"
+                />
+                <span style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>%</span>
+              </div>
+              {/* valor contratado */}
+              <input type="number" min="0" step="0.01"
+                style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none' }}
+                value={item.valor}
+                onChange={e => handleValorChange(idx, e.target.value)}
+                placeholder="0"
+              />
+              <button type="button" onClick={() => removeItem(idx)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+            {/* autorização de desconto */}
+            {desc > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', background: item.desconto_autorizado ? 'var(--green-bg)' : 'var(--red-bg)' }}>
+                <span style={{ fontSize: 11, flex: 1, color: item.desconto_autorizado ? 'var(--green-text)' : 'var(--red-text)' }}>
+                  {item.desconto_autorizado ? `✓ Desconto de ${desc}% autorizado` : `⚠ ${desc}% aguarda autorização${acima ? ` (máx ${descontoMax}%)` : ''}`}
+                </span>
+                <div style={{ display: 'flex', gap: 1, borderRadius: 5, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                  {[{ v: true, l: 'Sim' }, { v: false, l: 'Não' }].map(({ v, l }) => (
+                    <button key={l} type="button"
+                      style={{ padding: '2px 10px', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
+                        background: item.desconto_autorizado === v ? (v ? 'var(--green)' : 'var(--red)') : 'var(--surface)',
+                        color: item.desconto_autorizado === v ? '#fff' : 'var(--text-muted)' }}
+                      onClick={() => updateItem(idx, { desconto_autorizado: v })}>{l}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* campo de busca para adicionar */}
+      <div ref={addRef} style={{ position: 'relative', padding: '6px 10px', background: 'var(--surface2)', borderTop: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none' }}>
         <input
-          style={{ ...md.input, background: 'var(--surface)' }}
-          placeholder="Selecionar produto…"
-          value={query}
-          onChange={e => { setQuery(e.target.value); setOpen(true) }}
-          onFocus={() => setOpen(true)}
+          style={{ width: '100%', padding: '5px 10px', borderRadius: 6, border: '1px dashed var(--border)', fontSize: 12, color: 'var(--text-muted)', background: 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font)' }}
+          placeholder="+ Adicionar produto…"
+          value={addingQuery}
+          onChange={e => { setAddingQuery(e.target.value); setAddingOpen(true) }}
+          onFocus={() => setAddingOpen(true)}
         />
-        {open && (
-          <div style={ac.dropdown}>
-            <div style={{ padding: '6px 10px', borderBottom: '1px solid var(--border2)', display: 'flex', gap: 8 }}>
-              <button type="button"
-                style={{ fontSize: 11, fontFamily: 'var(--mono)', padding: '2px 8px', borderRadius: 4, border: '1px solid', cursor: 'pointer',
-                  background: !showAll ? slot.bg : 'none', color: !showAll ? slot.text : 'var(--text-muted)', borderColor: !showAll ? slot.color + '44' : 'var(--border)' }}
-                onMouseDown={e => { e.preventDefault(); setShowAll(false) }}>
-                Sugeridos ({suggested.length})
-              </button>
-              <button type="button"
-                style={{ fontSize: 11, fontFamily: 'var(--mono)', padding: '2px 8px', borderRadius: 4, border: '1px solid', cursor: 'pointer',
-                  background: showAll ? 'var(--accent-glow)' : 'none', color: showAll ? 'var(--accent)' : 'var(--text-muted)', borderColor: showAll ? 'rgba(30,58,95,0.2)' : 'var(--border)' }}
-                onMouseDown={e => { e.preventDefault(); setShowAll(true) }}>
-                Todos
-              </button>
+        {addingOpen && (
+          <div style={{ position: 'absolute', bottom: 'calc(100% - 6px)', left: 10, right: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 100, overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
+            <div style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
+              {[{ label: `Sugeridos (${suggested.length})`, val: false }, { label: 'Todos', val: true }].map(({ label, val }) => (
+                <button key={label} type="button"
+                  style={{ fontSize: 10, fontFamily: 'var(--mono)', padding: '2px 7px', borderRadius: 4, border: '1px solid', cursor: 'pointer',
+                    background: showAll === val ? (val ? 'var(--accent-glow)' : slot.bg) : 'none',
+                    color: showAll === val ? (val ? 'var(--accent)' : slot.text) : 'var(--text-muted)',
+                    borderColor: showAll === val ? (val ? 'rgba(30,58,95,0.2)' : slot.color + '44') : 'var(--border)' }}
+                  onMouseDown={e => { e.preventDefault(); setShowAll(val) }}>{label}</button>
+              ))}
             </div>
             {opts.length === 0
-              ? <div style={{ padding: '12px 14px', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum produto encontrado</div>
+              ? <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>Nenhum produto disponível</div>
               : opts.map(p => (
-                  <button type="button" key={p.id} style={ac.option}
-                    onMouseDown={() => { onChangeProduto(p.id, p.nome, p.preco); setQuery(p.nome); setOpen(false); onChangeDesconto('0') }}>
-                    <span style={{ ...ac.avatar, background: slot.bg, color: slot.text }}>{p.nome.slice(0, 2).toUpperCase()}</span>
-                    <span style={{ flex: 1 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.nome}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                        {p.codigo} · R$ {Number(p.preco || 0).toLocaleString('pt-BR')}/{p.cobranca}
-                        {p.desconto_max > 0 && <span style={{ color: 'var(--green-text)' }}> · desc. máx {p.desconto_max}%</span>}
-                      </div>
-                    </span>
-                  </button>
-                ))
+                <button type="button" key={p.id}
+                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+                  onMouseDown={() => addItem(p)}>
+                  <span style={{ width: 24, height: 24, borderRadius: 5, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0 }}>{p.nome.slice(0,2).toUpperCase()}</span>
+                  <span style={{ flex: 1 }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{p.nome}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                      {p.codigo} · {fmtMoeda(p.preco)}/{p.cobranca}
+                      {p.desconto_max > 0 && <span style={{ color: 'var(--green-text)' }}> · desc. máx {p.desconto_max}%</span>}
+                    </div>
+                  </span>
+                </button>
+              ))
             }
           </div>
         )}
       </div>
-
-      {value && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 1fr', gap: 8, alignItems: 'end' }}>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', display: 'block', marginBottom: 4 }}>Preço tabela (R$)</label>
-              <input
-                style={{ ...md.input, background: 'var(--surface3)', color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}
-                value={tabelaNum ? Number(tabelaNum).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}
-                readOnly
-              />
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: acimaDaFaixa ? 'var(--red)' : 'var(--text-soft)', display: 'block', marginBottom: 4 }}>
-                Desconto {descontoMax > 0 ? `(máx ${descontoMax}%)` : ''}
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input type="number" min="0" max="100" step="0.5"
-                  style={{ ...md.input, fontFamily: 'var(--mono)', background: 'var(--surface)', paddingRight: 24,
-                    borderColor: acimaDaFaixa ? 'var(--red)' : undefined,
-                    color: acimaDaFaixa ? 'var(--red)' : undefined }}
-                  value={descontoPct}
-                  onChange={e => handleDescontoChange(e.target.value)}
-                  placeholder="0"
-                />
-                <span style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', fontSize: 12, color: 'var(--text-muted)', pointerEvents: 'none' }}>%</span>
-              </div>
-              {acimaDaFaixa && <div style={{ fontSize: 10, color: 'var(--red)', marginTop: 2, fontFamily: 'var(--mono)' }}>Acima do limite de {descontoMax}%</div>}
-            </div>
-            <div>
-              <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', display: 'block', marginBottom: 4 }}>Valor contratado (R$)</label>
-              <input type="number" min="0" step="0.01"
-                style={{ ...md.input, fontFamily: 'var(--mono)', background: 'var(--surface)', fontWeight: 600 }}
-                value={valor}
-                onChange={e => handleValorChange(e.target.value)}
-                placeholder="0,00"
-              />
-            </div>
-          </div>
-          {temDesconto && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 7,
-              background: autorizado ? 'var(--green-bg)' : 'var(--red-bg)',
-              border: `1px solid ${autorizado ? 'rgba(5,150,105,0.2)' : 'rgba(220,38,38,0.2)'}` }}>
-              <span style={{ fontSize: 12, color: autorizado ? 'var(--green-text)' : 'var(--red-text)', flex: 1 }}>
-                {autorizado ? '✓ Desconto autorizado' : `⚠ Desconto de ${descontoNum}% aguarda autorização`}
-              </span>
-              <div style={{ display: 'flex', gap: 1, borderRadius: 6, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <button type="button"
-                  style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
-                    background: autorizado ? 'var(--green)' : 'var(--surface)', color: autorizado ? '#fff' : 'var(--text-muted)' }}
-                  onClick={() => onChangeAutorizado(true)}>Sim</button>
-                <button type="button"
-                  style={{ padding: '4px 12px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
-                    background: !autorizado ? 'var(--red)' : 'var(--surface)', color: !autorizado ? '#fff' : 'var(--text-muted)' }}
-                  onClick={() => onChangeAutorizado(false)}>Não</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   )
 }
 
-const md = {
-  input: { width: '100%', padding: '8px 11px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 13, color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box' },
-}
-const ac = {
-  dropdown: { position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 100, overflow: 'hidden', maxHeight: 280, overflowY: 'auto' },
-  option:   { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' },
-  avatar:   { width: 28, height: 28, borderRadius: 6, background: 'var(--blue-bg)', color: 'var(--blue-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0, border: '1px solid rgba(30,58,95,0.12)' },
-}
 
 // ─── Geração de provisões de pagamento ────────────────────────────────────────
 function gerarProvisoesPagamento(contrato) {
@@ -346,10 +332,10 @@ function gerarProvisoesPagamento(contrato) {
   const toRefMonth = date => date.slice(0, 7) + '-01'
   const cduRef = contrato.data_pag_cdu ? toRefMonth(contrato.data_pag_cdu) : null
   const smsRef = contrato.data_pag_sms ? toRefMonth(contrato.data_pag_sms) : null
-  const valorCdu = parseFloat(contrato.valor_adesao) || 0
-  const valorSms = parseFloat(contrato.valor_mrr)    || 0
-  const prodCdu = { id: contrato.produto_adesao_id || null, nome: contrato.produto_adesao_nome || '' }
-  const prodSms = { id: contrato.produto_mrr_id    || null, nome: contrato.produto_mrr_nome    || '' }
+  const valorCdu = (contrato.itens_adesao||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+  const valorSms = (contrato.itens_mrr||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+  const prodCdu  = contrato.itens_adesao?.[0] ? { id: contrato.itens_adesao[0].produto_id, nome: contrato.itens_adesao[0].nome } : { id: null, nome: '' }
+  const prodSms  = contrato.itens_mrr?.[0]    ? { id: contrato.itens_mrr[0].produto_id,    nome: contrato.itens_mrr[0].nome    } : { id: null, nome: '' }
   const base = {
     contract_id: contrato.id, contract_numero: contrato.numero,
     company_id: contrato.empresa_id, company_nome: contrato.empresa_nome,
@@ -372,48 +358,155 @@ function gerarProvisoesPagamento(contrato) {
   if (smsRef && valorSms > 0 && cduRef !== smsRef && !jaExiste(smsRef, 'amount_sms')) {
     novas.push({ ...base, id: 'prov_' + Date.now() + '_sms', produto_id: prodSms.id, produto_nome: prodSms.nome, amount_cdu: 0, amount_sms: valorSms, amount_total_net: valorSms, reference_month: smsRef, due_date: contrato.data_pag_sms, notes: 'Provisão SMS gerada automaticamente ao criar contrato.' })
   }
+  // Fallback: se nenhuma data específica foi configurada mas o contrato tem valor, gera uma provisão geral
+  if (novas.length === 0) {
+    const totalGeral = [
+      ...(contrato.itens_adesao  || []),
+      ...(contrato.itens_mrr     || []),
+      ...(contrato.itens_servico || []),
+    ].reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)
+    const dueDate = contrato.vigencia_inicio || new Date().toISOString().slice(0, 10)
+    const ref     = dueDate.slice(0, 7) + '-01'
+    const jaExisteGeral = pagamentos.some(
+      p => p.contract_numero === contrato.numero && p.reference_month === ref
+    )
+    if (totalGeral > 0 && !jaExisteGeral) {
+      novas.push({
+        ...base,
+        id: 'prov_' + Date.now() + '_geral',
+        produto_id: null, produto_nome: '',
+        amount_cdu: totalGeral, amount_sms: 0,
+        amount_total_net: totalGeral,
+        reference_month: ref,
+        due_date: dueDate,
+        notes: 'Provisão gerada automaticamente ao criar contrato.',
+      })
+    }
+  }
+
   if (novas.length > 0) localStorage.setItem(PAGAMENTOS_STORAGE_KEY, JSON.stringify([...novas, ...pagamentos]))
   return novas.length
 }
 
 // ─── Formulário (SlideOver) ───────────────────────────────────────────────────
-function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos }) {
+function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, onShowFeedback }) {
   const [saving, setSaving] = useState(false)
+  const [errs, setErrs] = useState({})
+  const [confirmData, setConfirmData] = useState(null)
+  const [gerarProvisao, setGerarProvisao] = useState(true)
 
-  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
+  function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
 
-  const valorAdesao  = parseFloat(form.valor_adesao)  || 0
-  const valorMrr     = parseFloat(form.valor_mrr)     || 0
-  const valorServico = parseFloat(form.valor_servico) || 0
-  const totalRec     = valorMrr + valorServico
+  const totalRec = [...(form.itens_mrr||[]), ...(form.itens_servico||[])].reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
 
   async function handleSave() {
-    if (!form.empresa_id) return alert('Selecione uma empresa')
+    const e = {}
+    if (!form.empresa_id) e.empresa_id = 'Selecione uma empresa'
+    if (!form.numero?.trim()) e.numero = 'Número é obrigatório'
+    else {
+      const num = form.numero.trim().toUpperCase()
+      const dup = contratos.find(c => c.id !== form.id && c.numero?.toUpperCase() === num)
+      if (dup) e.numero = `Número já existe: ${dup.numero} (${dup.empresa_nome})`
+    }
+    if (Object.keys(e).length) { setErrs(e); return }
+    if (isNew) {
+      // mostra confirm de integração antes de criar
+      setConfirmData({ ...form, id: Date.now(), criado: new Date().toISOString().slice(0, 10) })
+      return
+    }
+    setSaving(true)
+    try { onSave(form); onClose() } finally { setSaving(false) }
+  }
+
+  async function executarSave() {
     setSaving(true)
     try {
-      if (isNew) {
-        const novoContrato = { ...form, id: Date.now(), criado: new Date().toISOString().slice(0, 10) }
-        onSave(novoContrato)
-        const provisoes = gerarProvisoesPagamento(novoContrato)
-        if (provisoes > 0) alert(`Contrato salvo! ${provisoes} provisão(ões) de pagamento gerada(s) em Faturamento.`)
-      } else {
-        onSave(form)
-      }
+      onSave(confirmData)
+      let qtd = 0
+      if (gerarProvisao) qtd = gerarProvisoesPagamento(confirmData)
+      onShowFeedback([
+        { id: 'contrato', label: `Contrato ${confirmData.numero} criado`, sublabel: confirmData.empresa_nome },
+        gerarProvisao
+          ? { id: 'provisao', label: `${qtd || 1} provisão(ões) gerada(s) em Pagamentos`, sublabel: 'Status: Pendente' }
+          : { id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true },
+      ])
       onClose()
     } finally {
       setSaving(false)
     }
   }
 
+  // ─── Confirm modal de integração ───────────────────────────────────────────
+  const chkRow = (on) => ({
+    display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+    border:`1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+    background: on ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s',
+  })
+
   return (
+    <>
+    {/* ─── Confirm modal integração ──────────────────────────────────────── */}
+    {confirmData && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
+        display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+        <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
+          boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+          {/* Header */}
+          <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:'var(--accent-glow)', display:'flex',
+              alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>📄</div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Criar contrato</div>
+              <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
+                Ao criar <strong style={{ color:'var(--text)' }}>{confirmData.numero}</strong>, as seguintes ações serão executadas automaticamente:
+              </div>
+            </div>
+          </div>
+          {/* Consequences */}
+          <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+            {/* Contrato — sempre */}
+            <div style={chkRow(true)}>
+              <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Salvar contrato</div>
+                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>{confirmData.numero} · {confirmData.empresa_nome}</div>
+              </div>
+            </div>
+            {/* Provisão — opcional */}
+            <div style={chkRow(gerarProvisao)} onClick={() => setGerarProvisao(g => !g)}>
+              <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                border:`2px solid ${gerarProvisao ? 'var(--accent)' : 'var(--border)'}`,
+                background: gerarProvisao ? 'var(--accent)' : 'transparent',
+                display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                {gerarProvisao && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar provisão de pagamento</div>
+                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro pendente criado em Pagamentos (D+0 da vigência)</div>
+              </div>
+            </div>
+          </div>
+          {/* Actions */}
+          <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
+            display:'flex', justifyContent:'flex-end', gap:10 }}>
+            <Button variant="ghost" onClick={() => setConfirmData(null)}>Voltar</Button>
+            <Button onClick={executarSave} disabled={saving}>{saving ? 'Criando…' : 'Criar contrato'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
       {/* Resumo financeiro */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
         {[
-          { label: 'Adesão',      val: valorAdesao,  suffix: '' },
-          { label: 'MRR',         val: valorMrr,     suffix: '/mês' },
-          { label: 'Serviço',     val: valorServico, suffix: '' },
-          { label: 'Recorrente',  val: totalRec,     suffix: '/mês', bold: true },
+          { label: 'Adesão',     val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'MRR',        val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
+          { label: 'Serviço',    val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'Recorrente', val: totalRec, suffix: '/mês', bold: true },
         ].map(({ label, val, suffix, bold }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
@@ -426,8 +519,9 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
 
       <FormSection label="Identificação">
         <FormGrid cols={2}>
-          <FormField label="Número do contrato" required>
-            <input className="so-field" value={form.numero} onChange={e => set('numero', e.target.value)} placeholder="CTR-2025-001" />
+          <FormField label="Número do contrato" required error={errs.numero}>
+            <input className="so-field" value={form.numero} onChange={e => set('numero', e.target.value)} placeholder="CTR-2025-001"
+              style={{ borderColor: errs.numero ? '#DC2626' : '' }} />
           </FormField>
           <FormField label="Status">
             <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
@@ -436,15 +530,33 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           </FormField>
         </FormGrid>
         <FormGrid cols={1}>
-          <FormField label="Empresa" required>
+          <FormField label="Empresa" required error={errs.empresa_id}>
             <select className="so-field" value={form.empresa_id || ''} onChange={e => {
               const emp = MOCK_EMPRESAS.find(x => x.id === Number(e.target.value))
               setForm(f => ({ ...f, empresa_id: e.target.value ? Number(e.target.value) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
-            }}>
+              if (errs.empresa_id) setErrs(p => ({ ...p, empresa_id: '' }))
+            }} style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
               <option value="">— Selecione —</option>
               {MOCK_EMPRESAS.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
             </select>
           </FormField>
+          {form.opportunity_id && (
+            <FormField label="Oportunidade de origem">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>
+                  {form.opportunity_titulo || '—'}
+                </span>
+                <span title={form.opportunity_id} style={{
+                  fontSize: 10, fontFamily: 'var(--mono)', color: 'var(--text-muted)',
+                  background: 'var(--surface2)', border: '1px solid var(--border)',
+                  borderRadius: 5, padding: '2px 7px', letterSpacing: '0.04em',
+                  flexShrink: 0, userSelect: 'all',
+                }}>
+                  {String(form.opportunity_id).slice(0, 8)}…
+                </span>
+              </div>
+            </FormField>
+          )}
         </FormGrid>
         <FormGrid cols={2}>
           <FormField label="Responsável">
@@ -485,26 +597,19 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       </FormSection>
 
       <FormSection label="Produtos contratados">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {SLOTS.map(slot => {
-            const idKey         = `produto_${slot.key}_id`
-            const nomeKey       = `produto_${slot.key}_nome`
-            const valorKey      = `valor_${slot.key}`
-            const tabelaKey     = `tabela_${slot.key}`
-            const descontoKey   = `desconto_${slot.key}_pct`
-            const autorizadoKey = `desconto_autorizado_${slot.key}`
-            return (
-              <ProdutoSearch key={slot.key} slot={slot}
-                value={form[idKey]} label={form[nomeKey]}
-                valor={form[valorKey]} tabela={form[tabelaKey]}
-                descontoPct={form[descontoKey]} autorizado={form[autorizadoKey]}
-                onChangeProduto={(id, nome, preco) => setForm(f => ({ ...f, [idKey]: id, [nomeKey]: nome || '', [valorKey]: id ? (preco || '') : '', [tabelaKey]: id ? (preco || null) : null, [descontoKey]: '0', [autorizadoKey]: false }))}
-                onChangeValor={v => set(valorKey, v)}
-                onChangeDesconto={v => set(descontoKey, v)}
-                onChangeAutorizado={v => set(autorizadoKey, v)}
-              />
-            )
-          })}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {/* cabeçalho das colunas */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 90px 28px', gap: 6, padding: '0 12px 4px', marginTop: 2 }}>
+            {['Produto', 'Tabela', 'Desc.', 'Contratado', ''].map((h, i) => (
+              <span key={i} style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
+            ))}
+          </div>
+          {SLOTS.map(slot => (
+            <SlotProdutos key={slot.key} slot={slot} produtos={produtos}
+              itens={form[`itens_${slot.key}`] || []}
+              onChange={itens => set(`itens_${slot.key}`, itens)}
+            />
+          ))}
         </div>
       </FormSection>
 
@@ -521,11 +626,12 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
       )}
     </div>
+    </>
   )
 }
 
 // ─── Colunas ─────────────────────────────────────────────────────────────────
-const COLUMNS = [
+function buildColumns(inadimplentesIds) { return [
   {
     key: 'numero',
     label: 'Contrato',
@@ -557,41 +663,53 @@ const COLUMNS = [
     ),
   },
   {
-    key: 'produto_adesao_nome',
+    key: 'itens_adesao',
     label: '① Adesão',
-    render: (val, row) => val
-      ? <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: '#0E7490' }}>{val}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(row.valor_adesao)}</span>
-            {row.desconto_adesao_pct > 0 && <DescontoBadge pct={row.desconto_adesao_pct} autorizado={row.desconto_autorizado_adesao} />}
-          </div>
+    render: (val) => (val||[]).length > 0
+      ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {(val||[]).map((it,i) => (
+            <div key={i}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#0E7490' }}>{it.nome}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(it.valor)}</span>
+                {it.desconto_pct > 0 && <DescontoBadge pct={it.desconto_pct} autorizado={it.desconto_autorizado} />}
+              </div>
+            </div>
+          ))}
         </div>
       : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>,
   },
   {
-    key: 'produto_mrr_nome',
+    key: 'itens_mrr',
     label: '② MRR',
-    render: (val, row) => val
-      ? <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue-text)' }}>{val}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(row.valor_mrr)}<span style={{ fontSize: 10 }}>/mês</span></span>
-            {row.desconto_mrr_pct > 0 && <DescontoBadge pct={row.desconto_mrr_pct} autorizado={row.desconto_autorizado_mrr} />}
-          </div>
+    render: (val) => (val||[]).length > 0
+      ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {(val||[]).map((it,i) => (
+            <div key={i}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--blue-text)' }}>{it.nome}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(it.valor)}<span style={{ fontSize: 10 }}>/mês</span></span>
+                {it.desconto_pct > 0 && <DescontoBadge pct={it.desconto_pct} autorizado={it.desconto_autorizado} />}
+              </div>
+            </div>
+          ))}
         </div>
       : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>,
   },
   {
-    key: 'produto_servico_nome',
+    key: 'itens_servico',
     label: '③ Serviço',
-    render: (val, row) => val
-      ? <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--purple-text)' }}>{val}</div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
-            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(row.valor_servico)}</span>
-            {row.desconto_servico_pct > 0 && <DescontoBadge pct={row.desconto_servico_pct} autorizado={row.desconto_autorizado_servico} />}
-          </div>
+    render: (val) => (val||[]).length > 0
+      ? <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {(val||[]).map((it,i) => (
+            <div key={i}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--purple-text)' }}>{it.nome}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(it.valor)}</span>
+                {it.desconto_pct > 0 && <DescontoBadge pct={it.desconto_pct} autorizado={it.desconto_autorizado} />}
+              </div>
+            </div>
+          ))}
         </div>
       : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>,
   },
@@ -605,50 +723,79 @@ const COLUMNS = [
         </div>
       : <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>—</span>,
   },
-  { key: 'status', label: 'Status', render: val => <StatusBadge status={val} /> },
-]
+  { key: 'status', label: 'Status', render: (val, row) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <StatusBadge status={val} />
+      {inadimplentesIds.has(String(row.id)) && (
+        <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)', padding: '1px 6px', borderRadius: 4, background: '#FEE2E2', color: '#991B1B', border: '1px solid #FCA5A5', letterSpacing: '0.02em' }}>
+          INADIMPLENTE
+        </span>
+      )}
+    </div>
+  )},
+] }
 
 const FILTERS = [
   { key: 'status', label: 'Status', options: STATUS_CONTRATO.map(s => ({ value: s.value, label: s.label })) },
 ]
 
+// ─── Inadimplência D+1 ───────────────────────────────────────────────────────
+function getInadimplentesIds() {
+  try {
+    const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
+    const ontemStr = ontem.toISOString().slice(0, 10)
+    const raw = localStorage.getItem(PAGAMENTOS_STORAGE_KEY)
+    const pags = raw ? JSON.parse(raw) : MOCK_PAGAMENTOS
+    const ids = new Set()
+    pags.forEach(p => {
+      if ((p.status === 'pendente' || p.status === 'vencido') && p.due_date && p.due_date < ontemStr && p.contract_id) {
+        ids.add(String(p.contract_id))
+      }
+    })
+    return ids
+  } catch { return new Set() }
+}
+
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
-  const { contratos, setContratos } = useContracts(MOCK_CONTRATOS)
+  const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts(MOCK_CONTRATOS)
+  const { produtos } = useProducts()
   const [search, setSearch]           = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [editando, setEditando]       = useState(null)
+  const [feedbackSteps, setFeedbackSteps] = useState(null)
+
+  const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     const statusFilter = activeFilters.status || []
     return contratos.filter(c => {
       if (statusFilter.length && !statusFilter.includes(c.status)) return false
-      if (q && !(
-        c.numero?.toLowerCase().includes(q) ||
-        c.empresa_nome?.toLowerCase().includes(q) ||
-        c.produto_mrr_nome?.toLowerCase().includes(q) ||
-        c.produto_adesao_nome?.toLowerCase().includes(q) ||
-        c.produto_servico_nome?.toLowerCase().includes(q)
-      )) return false
+      if (q) {
+        const nomes = [...(c.itens_adesao||[]), ...(c.itens_mrr||[]), ...(c.itens_servico||[])].map(i => i.nome?.toLowerCase() || '')
+        if (!(c.numero?.toLowerCase().includes(q) || c.empresa_nome?.toLowerCase().includes(q) || nomes.some(n => n.includes(q)))) return false
+      }
       return true
     })
   }, [contratos, search, activeFilters])
 
   // KPIs
-  const ativos      = contratos.filter(c => c.status === 'ativo').length
-  const totalMRR    = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + (parseFloat(c.valor_mrr) || 0) + (parseFloat(c.valor_servico) || 0), 0)
-  const totalAdesao = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + (parseFloat(c.valor_adesao) || 0), 0)
+  const ativos           = contratos.filter(c => c.status === 'ativo').length
+  const totalMRR         = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + [...(c.itens_mrr||[]), ...(c.itens_servico||[])].reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
+  const totalAdesao      = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + (c.itens_adesao||[]).reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
+  const qtdInadimplentes = inadimplentesIds.size
 
   const kpisNode = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
       {[
-        { label: 'Total de contratos', value: contratos.length, mono: false },
-        { label: 'Contratos ativos',   value: ativos,           color: 'var(--green-text)' },
-        { label: 'MRR recorrente',     value: fmtMoeda(totalMRR),    mono: true },
-        { label: 'Receita de adesão',  value: fmtMoeda(totalAdesao), mono: true },
+        { label: 'Total de contratos', value: contratos.length,       mono: false },
+        { label: 'Contratos ativos',   value: ativos,                 color: 'var(--green-text)' },
+        { label: 'MRR recorrente',     value: fmtMoeda(totalMRR),     mono: true },
+        { label: 'Receita de adesão',  value: fmtMoeda(totalAdesao),  mono: true },
+        { label: 'Inadimplentes',      value: qtdInadimplentes,       color: qtdInadimplentes > 0 ? '#991B1B' : 'var(--text)', border: qtdInadimplentes > 0 ? '#EF4444' : undefined },
       ].map(k => (
-        <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', borderTop: '3px solid var(--border)' }}>
+        <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.border || 'var(--border)'}` }}>
           <span style={{ fontSize: 20, fontWeight: 700, color: k.color || 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1, fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>{k.value}</span>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{k.label}</span>
         </div>
@@ -656,23 +803,26 @@ export default function Contratos() {
     </div>
   )
 
-  function handleSave(data) {
-    setContratos(prev => {
-      const idx = prev.findIndex(c => c.id === data.id)
-      if (idx >= 0) { const next = [...prev]; next[idx] = data; return next }
-      return [...prev, { ...data, criado: new Date().toISOString().slice(0, 10) }]
-    })
+  async function handleSave(data) {
+    await saveContrato(data)
   }
 
-  function handleDelete(id) {
-    setContratos(prev => prev.filter(c => c.id !== id))
+  async function handleDelete(id) {
+    await removeContrato(id)
     setEditando(null)
   }
 
   function handleExport() {
-    const cols = ['numero','empresa_nome','status','vigencia_inicio','vigencia_fim','produto_adesao_nome','valor_adesao','produto_mrr_nome','valor_mrr','produto_servico_nome','valor_servico','responsavel']
+    const cols = ['numero','empresa_nome','status','vigencia_inicio','vigencia_fim','responsavel']
     const bom  = '﻿'
-    const csv  = bom + [cols.join(';'), ...filtered.map(r => cols.map(c => `"${String(r[c] ?? '').replace(/"/g, '""')}"`).join(';'))].join('\n')
+    const toRow = r => {
+      const base = cols.map(c => `"${String(r[c] ?? '').replace(/"/g, '""')}"`)
+      const prods = ['adesao','mrr','servico'].map(s =>
+        `"${(r[`itens_${s}`]||[]).map(i=>`${i.nome}: ${fmtMoeda(i.valor)}`).join(' | ')}"`)
+      return [...base, ...prods].join(';')
+    }
+    const header = [...cols, 'itens_adesao','itens_mrr','itens_servico'].join(';')
+    const csv  = bom + [header, ...filtered.map(toRow)].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const a    = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -686,7 +836,7 @@ export default function Contratos() {
     <>
       <BrowseLayout
         data={filtered}
-        columns={COLUMNS}
+        columns={buildColumns(inadimplentesIds)}
         filters={FILTERS}
         activeFilters={activeFilters}
         onFilterChange={setActiveFilters}
@@ -705,6 +855,12 @@ export default function Contratos() {
           { label: 'Encerrar',   onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'encerrado' } : c)) },
           { label: 'Excluir',    onClick: ids => { if (window.confirm(`Excluir ${ids.length} contrato(s)?`)) setContratos(prev => prev.filter(c => !ids.includes(c.id))) } },
         ]}
+        bulkEditFields={[
+          { key: 'responsavel',  label: 'Responsável',   type: 'text' },
+          { key: 'vigencia_fim', label: 'Fim de vigência', type: 'date' },
+          { key: 'observacoes',  label: 'Observações',   type: 'textarea' },
+        ]}
+        onBulkEdit={(ids, changes) => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, ...changes } : c))}
         renderCard={row => (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -717,8 +873,8 @@ export default function Contratos() {
               </div>
             </div>
             <StatusBadge status={row.status} />
-            {row.produto_mrr_nome && <div style={{ fontSize: 12, color: 'var(--blue-text)', fontWeight: 600 }}>{row.produto_mrr_nome} · {fmtMoeda(row.valor_mrr)}<span style={{ fontWeight: 400, fontSize: 10 }}>/mês</span></div>}
-            {row.produto_adesao_nome && <div style={{ fontSize: 11, color: '#0E7490' }}>{row.produto_adesao_nome} · {fmtMoeda(row.valor_adesao)}</div>}
+            {(row.itens_mrr||[]).map((it,i) => <div key={i} style={{ fontSize: 12, color: 'var(--blue-text)', fontWeight: 600 }}>{it.nome} · {fmtMoeda(it.valor)}<span style={{ fontWeight: 400, fontSize: 10 }}>/mês</span></div>)}
+            {(row.itens_adesao||[]).map((it,i) => <div key={i} style={{ fontSize: 11, color: '#0E7490' }}>{it.nome} · {fmtMoeda(it.valor)}</div>)}
             {row.vigencia_inicio && <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtData(row.vigencia_inicio)} → {fmtData(row.vigencia_fim)}</div>}
           </div>
         )}
@@ -747,9 +903,21 @@ export default function Contratos() {
             onClose={() => setEditando(null)}
             isNew={isNew}
             contratos={contratos}
+            produtos={produtos}
+            onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
           />
         )}
       </SlideOver>
+
+      {feedbackSteps && (
+        <ActionFeedback
+          title="Contrato criado com sucesso!"
+          steps={feedbackSteps}
+          onClose={() => setFeedbackSteps(null)}
+          stepDelay={700}
+          autoClose={0}
+        />
+      )}
     </>
   )
 }

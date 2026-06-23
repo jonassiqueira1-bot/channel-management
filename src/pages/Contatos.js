@@ -40,19 +40,28 @@ function avatarColor(nome) {
 // ─── ContatoDetail ─────────────────────────────────────────────────────────────
 const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'' }
 
-function ContatoDetail({ item, onSave, onDelete, onClose }) {
+function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
   const isNew = !item?.id
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
+  const [errs, setErrs] = useState({})
   const av = avatarColor(form.nome || '?')
 
   function patch(k, v) {
     const next = { ...form, [k]: v }
     setForm(next)
+    if (errs[k]) setErrs(p => ({ ...p, [k]: '' }))
     if (!isNew) onSave({ ...next, id: item.id })
   }
 
   function handleCreate() {
-    if (!form.nome.trim()) return
+    const e = {}
+    if (!form.nome.trim()) e.nome = 'Nome é obrigatório'
+    if (form.email?.trim()) {
+      const emailLow = form.email.trim().toLowerCase()
+      const dup = todos.find(c => c.id !== item?.id && c.email?.toLowerCase() === emailLow)
+      if (dup) e.email = `E-mail já cadastrado: ${dup.nome}`
+    }
+    if (Object.keys(e).length) { setErrs(e); return }
     onSave({ ...form, nome: form.nome.trim() })
     onClose()
   }
@@ -70,16 +79,17 @@ function ContatoDetail({ item, onSave, onDelete, onClose }) {
         <div style={{ flex:1 }}>
           <input
             value={form.nome}
-            onChange={e => setForm(f => ({ ...f, nome: e.target.value }))}
+            onChange={e => { setForm(f => ({ ...f, nome: e.target.value })); if (errs.nome) setErrs(p => ({ ...p, nome: '' })) }}
             onBlur={e => patch('nome', e.target.value)}
             placeholder="Nome completo…"
             style={{ width:'100%', boxSizing:'border-box', border:'none', outline:'none',
               background:'transparent', fontSize:22, fontWeight:700, color:'var(--text)',
               fontFamily:'var(--font)', padding:0,
-              borderBottom:'2px solid transparent', transition:'border-color 0.15s' }}
-            onFocus={e => { e.target.style.borderBottomColor = 'var(--accent)' }}
-            onBlurCapture={e => { e.target.style.borderBottomColor = 'transparent' }}
+              borderBottom:`2px solid ${errs.nome ? '#DC2626' : 'transparent'}`, transition:'border-color 0.15s' }}
+            onFocus={e => { if (!errs.nome) e.target.style.borderBottomColor = 'var(--accent)' }}
+            onBlurCapture={e => { if (!errs.nome) e.target.style.borderBottomColor = 'transparent' }}
           />
+          {errs.nome && <span style={{ color:'#DC2626', fontSize:11, marginTop:2, display:'block' }}>{errs.nome}</span>}
           {form.empresa_nome && (
             <div style={{ fontSize:12, color:ACCENT, marginTop:2 }}>{form.empresa_nome}</div>
           )}
@@ -106,11 +116,12 @@ function ContatoDetail({ item, onSave, onDelete, onClose }) {
               }}
             />
           </FormField>
-          <FormField label="E-mail">
+          <FormField label="E-mail" error={errs.email}>
             <input className="so-field" value={form.email || ''}
-              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              onChange={e => { setForm(f => ({ ...f, email: e.target.value })); if (errs.email) setErrs(p => ({...p, email:''})) }}
               onBlur={e => patch('email', e.target.value)}
-              placeholder="email@empresa.com" />
+              placeholder="email@empresa.com"
+              style={{ borderColor: errs.email ? '#DC2626' : '' }} />
           </FormField>
           <FormField label="Telefone">
             <input className="so-field" value={form.telefone || ''}
@@ -253,6 +264,12 @@ export default function Contatos() {
         storageKey="contatos_browse"
         keyField="id"
         kpis={kpisNode}
+        bulkEditFields={[
+          { key: 'cargo', label: 'Cargo', type: 'text' },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const c = contatos.find(c => c.id === id); if (c) salvarContato({ ...c, ...changes }) })
+        }
         renderCard={row => {
           const display = row.nome || row.email || 'Sem nome'
           const av = avatarColor(display)
@@ -295,6 +312,7 @@ export default function Contatos() {
         {modal && (
           <ContatoDetail
             item={modal === 'novo' ? null : modal}
+            todos={contatos}
             onSave={salvarContato}
             onDelete={deletarContato}
             onClose={() => setModal(null)}

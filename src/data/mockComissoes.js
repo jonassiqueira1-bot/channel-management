@@ -211,7 +211,7 @@ export const MOCK_RULES = [
   },
   {
     ...EMPTY_RULE,
-    id: 'r2', nome: 'Regra Premium — Canal NG Pro',
+    id: 'r2', nome: 'Regra Premium — Boostly Pro',
     descricao: 'Para franquias com contrato Premium ativo.',
     contexto: 'Percentuais elevados como incentivo para parceiros do nível Premium. Revisada anualmente pela diretoria comercial.',
     escopo: 'global', tipos_calculo_arr: ['percentual_fixo'],
@@ -224,7 +224,7 @@ export const MOCK_RULES = [
     }),
     revisao_anual: true, vigencia_inicio: '2026-01-01',
     condicoes_elegibilidade: [
-      { id: 'c1', entidade: 'contrato', campo: 'tipo', operador: '=', valor: 'Canal NG Pro', label: 'Contrato tipo Canal NG Pro' },
+      { id: 'c1', entidade: 'contrato', campo: 'tipo', operador: '=', valor: 'Boostly Pro', label: 'Contrato tipo Boostly Pro' },
       { id: 'c2', entidade: 'contrato', campo: 'status', operador: '=', valor: 'Ativo', label: 'Contrato ativo' },
     ],
     created_at: '2026-01-10T10:00:00Z', updated_at: '2026-04-15T08:30:00Z',

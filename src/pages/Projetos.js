@@ -11,6 +11,8 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import EmpresaSearch from '../components/EmpresaSearch'
+import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
+import ActionFeedback from '../components/ActionFeedback'
 
 const ACCENT = 'var(--accent)'
 
@@ -19,6 +21,40 @@ const EMPTY_FORM = {
   phase: 'iniciacao', current_phase_index: 1, status: 'em_andamento',
   total_hours_estimated: '', total_hours_executed: 0,
   start_date: '', end_date_estimated: '', notes: '', opportunity_id: '',
+  produto_nome: '',
+}
+
+// ─── CS Integration: cria check-in ao concluir projeto ───────────────────────
+function criarCheckinCS(projeto) {
+  try {
+    const raw  = localStorage.getItem(CS_STORAGE_KEY)
+    const recs = raw ? JSON.parse(raw) : [...MOCK_CUSTOMER_HEALTH]
+    const hoje = new Date().toISOString().slice(0, 10)
+    const checkin = {
+      id:           'ci_prj_' + Date.now(),
+      date:         hoje,
+      type:         'Reunião',
+      summary:      `Projeto "${projeto.name}" concluído. Check-in gerado automaticamente.`,
+      produto_id:   null,
+      produto_nome: projeto.produto_nome || '',
+    }
+    const idx = recs.findIndex(r => String(r.company_id) === String(projeto.company_id))
+    if (idx >= 0) {
+      recs[idx] = { ...recs[idx], checkins: [checkin, ...(recs[idx].checkins || [])] }
+    } else {
+      recs.push({
+        id: 'ch_prj_' + Date.now(), tenant_id: 't1',
+        company_id: projeto.company_id, company_name: projeto.company_nome || '',
+        company_city: '', company_uf: '',
+        csm: '', laer_stage: 'Land', touch_model: 'Tech-Touch',
+        health_score: 75, renewal_date: '',
+        notes: `Cliente adicionado automaticamente ao concluir o projeto "${projeto.name}".`,
+        action_plans: [], checkins: [checkin], attachments: [],
+        contract_id: null, contract_numero: '',
+      })
+    }
+    localStorage.setItem(CS_STORAGE_KEY, JSON.stringify(recs))
+  } catch (e) { console.error('Erro ao criar check-in CS:', e) }
 }
 
 // ─── @keyframes ───────────────────────────────────────────────────────────────
@@ -218,9 +254,24 @@ function KanbanColuna({ fase, projetos, blockedIds, execTotals, onEdit, onDragSt
 }
 
 // ─── Novo Projeto Modal ───────────────────────────────────────────────────────
-function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) {
+function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose, projetos = [] }) {
   const [form, setForm] = useState({ ...EMPTY_FORM, phase: defaultPhase || 'iniciacao', current_phase_index: defaultPhaseIndex || 1, company_id: null })
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const dupWarning = useMemo(() => {
+    if (!form.company_id || !form.produto_nome?.trim() || !form.start_date) return ''
+    const prod = form.produto_nome.trim().toLowerCase()
+    const start = form.start_date
+    const end   = form.end_date_estimated || '9999-12-31'
+    const dup = projetos.find(p =>
+      String(p.company_id) === String(form.company_id) &&
+      (p.produto_nome || '').trim().toLowerCase() === prod &&
+      p.status !== 'cancelado' &&
+      (p.start_date || '') <= end &&
+      (p.end_date_estimated || '9999-12-31') >= start
+    )
+    return dup ? `Já existe o projeto "${dup.name}" para esta empresa e produto no mesmo período.` : ''
+  }, [form.company_id, form.produto_nome, form.start_date, form.end_date_estimated, projetos])
 
   return (
     <SlideOver
@@ -247,6 +298,9 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
                 placeholder="Buscar empresa…"
               />
             </FormField>
+            <FormField label="Produto implantado">
+              <input className="so-field" value={form.produto_nome} onChange={e => set('produto_nome', e.target.value)} placeholder="Ex: Boostly Pro" />
+            </FormField>
             <FormField label="Franquia / Canal">
               <input className="so-field" value={form.franchise_nome} onChange={e => set('franchise_nome', e.target.value)} placeholder="Canal SP Sul" />
             </FormField>
@@ -272,6 +326,13 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose }) 
               <input className="so-field" type="date" value={form.end_date_estimated} onChange={e => set('end_date_estimated', e.target.value)} />
             </FormField>
           </FormGrid>
+          {dupWarning && (
+            <div style={{ fontSize: 12, color: '#92400E', padding: '8px 12px', background: '#FEF3C7',
+              borderRadius: 7, border: '1px solid #FCD34D', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <span style={{ fontSize: 14 }}>⚠️</span>
+              <span>{dupWarning}</span>
+            </div>
+          )}
         </FormSection>
         <FormSection label="Observações">
           <textarea className="so-field" style={{ height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
@@ -738,6 +799,11 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
   const myLogs     = timeLogs.filter(l => l.project_id === projeto.id).sort((a, b) => b.logged_at.localeCompare(a.logged_at))
   const currentPhId = `ph_${projeto.id}_${projeto.current_phase_index}`
 
+  const [profiles] = useLocalState('usuarios:profiles', [])
+  const usuarios = profiles.filter(p => p.status !== 'inativo').length > 0
+    ? profiles.filter(p => p.status !== 'inativo')
+    : MOCK_USUARIOS
+
   const [form, setForm] = useState({
     phase_id: currentPhId,
     hours_executed: '',
@@ -783,7 +849,7 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
           <div style={{ ...ms.fg, flex: 2 }}>
             <label style={ms.lbl}>Usuário</label>
             <SearchSelect
-              options={MOCK_USUARIOS.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo, avatar: u.avatar, color: 'var(--accent)' }))}
+              options={usuarios.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo || u.perfil, avatar: u.avatar || (u.nome?.[0] || '?'), color: 'var(--accent)' }))}
               value={form.user_id}
               onChange={(id, nome) => setForm(f => ({ ...f, user_id: id, user_name: nome }))}
               placeholder="Pesquisar usuário…"
@@ -996,7 +1062,7 @@ const DRAWER_TABS = [
   { key: 'documentos', label: 'Documentos'     },
 ]
 
-function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember }) {
+function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember, onDelete }) {
   const [tab, setTab] = useState('projeto')
   const fase        = FASES_MIT[projeto.current_phase_index - 1] || FASES_MIT[0]
   const isBlocked   = blockedIds.has(projeto.id)
@@ -1040,6 +1106,18 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
         {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
+      </div>
+
+      {/* Rodapé com excluir */}
+      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => { if (window.confirm(`Excluir o projeto "${projeto.name}"? Esta ação não pode ser desfeita.`)) onDelete(projeto.id) }}
+          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444' }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
+        >
+          Excluir projeto
+        </button>
       </div>
     </SlideOver>
   )
@@ -1093,7 +1171,7 @@ function FiltrosPopover({ open, onClose, filtros, setFiltros, projetos }) {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
-  const { projetos, phases, timeLogs, issues, members, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
+  const { projetos, phases, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
   const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
   const [modal,        setModal]       = useState(null)
   const [drawer,       setDrawer]      = useState(null)
@@ -1103,6 +1181,9 @@ export default function Projetos() {
   const [search,    setSearch]    = useLocalState('projetos:search', '')
   const [sortBy,    setSortBy]    = useLocalState('projetos:sortBy', 'recente')
   const [viewMode,  setViewMode]  = useLocalState('projetos:viewMode', 'kanban')
+  const [integrationPending, setIntegrationPending] = useState(null)
+  const [feedbackSteps, setFeedbackSteps] = useState(null)
+  const [criarCSCheckin, setCriarCSCheckin] = useState(true)
 
   // blocked projects = have any critica+aberta issue
   const blockedIds = useMemo(() => {
@@ -1144,11 +1225,8 @@ export default function Projetos() {
   }
 
   // CRUD
-  function handleCreate(form) {
+  async function handleCreate(form) {
     const np = { ...form, id: 'prj_' + Date.now(), tenant_id: 't1', company_id: null, franchise_id: null, created_at: new Date().toISOString().slice(0, 10) }
-    setProjetos(ps => [np, ...ps])
-    // Create 6 blank phases for the new project
-    const now = new Date().toISOString().slice(0, 10)
     const newPhases = PHASE_NAMES.map((name, i) => ({
       id: `ph_${np.id}_${i + 1}`, project_id: np.id, tenant_id: 't1',
       phase_name: name, phase_order: i + 1,
@@ -1156,48 +1234,81 @@ export default function Projetos() {
       hours_estimated: Math.round(Number(form.total_hours_estimated) / 6) || 20,
       is_completed: false, completed_at: null,
     }))
-    setPhases(ps => [...ps, ...newPhases])
+    await saveProjeto(np)
+    await Promise.all(newPhases.map(ph => savePhase(ph)))
     setModal(null)
   }
 
-  function handleUpdate(updated) {
-    setProjetos(ps => ps.map(p => p.id === updated.id ? { ...p, ...updated } : p))
-    setDrawer(d => d?.id === updated.id ? { ...d, ...updated } : d)
+  async function handleUpdate(updated) {
+    const current = projetos.find(p => p.id === updated.id) || {}
+    const merged  = {
+      ...current,
+      ...updated,
+      phase:               current.phase               ?? updated.phase,
+      current_phase_index: current.current_phase_index ?? updated.current_phase_index,
+      total_hours_executed: current.total_hours_executed ?? updated.total_hours_executed,
+    }
+    // Integração CS: ao finalizar projeto, mostra confirm antes de salvar
+    if (merged.status === 'concluido' && current.status !== 'concluido') {
+      setCriarCSCheckin(true)
+      setIntegrationPending({ merged, current })
+      return
+    }
+    setDrawer(d => d?.id === updated.id ? { ...d, ...merged } : d)
+    await saveProjeto(merged)
   }
 
-  // Advance phase
-  const handleAdvancePhase = useCallback((projeto, currentPhase) => {
+  async function executarFinalizarProjeto() {
+    const { merged } = integrationPending
+    setDrawer(d => d?.id === merged.id ? { ...d, ...merged } : d)
+    await saveProjeto(merged)
+    if (criarCSCheckin) criarCheckinCS(merged)
+    setFeedbackSteps([
+      { id: 'projeto', label: `Projeto "${merged.name}" finalizado`, sublabel: merged.company_nome },
+      criarCSCheckin
+        ? { id: 'cs', label: 'Check-in criado em Sucesso do Cliente', sublabel: `Empresa: ${merged.company_nome}` }
+        : { id: 'cs', label: 'Check-in CS ignorado', skip: true },
+    ])
+    setIntegrationPending(null)
+  }
+
+  const handleAdvancePhase = useCallback(async (projeto, currentPhase) => {
     const nextIdx = projeto.current_phase_index + 1
     if (nextIdx > 6) return
     const nextFase = FASES_MIT[nextIdx - 1]
-    // Mark phase as completed
-    setPhases(ps => ps.map(p => p.id === currentPhase.id ? { ...p, is_completed: true, completed_at: new Date().toISOString() } : p))
-    // Advance project
-    const updated = { ...projeto, phase: nextFase.value, current_phase_index: nextIdx, total_hours_executed: Math.round(execTotals[projeto.id] || 0) }
-    setProjetos(ps => ps.map(p => p.id === projeto.id ? updated : p))
-    setDrawer(updated)
-  }, [execTotals, setPhases, setProjetos])
+    const phaseUpdated = { ...currentPhase, is_completed: true, completed_at: new Date().toISOString() }
+    const projetoUpdated = { ...projeto, phase: nextFase.value, current_phase_index: nextIdx, total_hours_executed: Math.round(execTotals[projeto.id] || 0) }
+    // atualiza estado local de forma otimista antes de aguardar Supabase
+    setProjetos(ps => ps.map(p => p.id === projetoUpdated.id ? { ...p, ...projetoUpdated } : p))
+    setDrawer(projetoUpdated)
+    await savePhase(phaseUpdated)
+    const res = await saveProjeto(projetoUpdated)
+    if (res && !res.ok) alert('Erro ao salvar fase: ' + res.message)
+  }, [execTotals, savePhase, saveProjeto, setProjetos])
 
-  function handleAddLog(log) {
-    setTimeLogs(prev => [log, ...prev])
-    // Update project total_hours_executed
-    setProjetos(ps => ps.map(p => p.id === log.project_id ? { ...p, total_hours_executed: Number(p.total_hours_executed) + Number(log.hours_executed) } : p))
+  async function handleDelete(id) {
+    await removeProjeto(id)
+    setDrawer(null)
+  }
+
+  async function handleAddLog(log) {
+    await saveTimeLog(log)
     setDrawer(d => d?.id === log.project_id ? { ...d, total_hours_executed: Number(d.total_hours_executed) + Number(log.hours_executed) } : d)
   }
 
-  function handleAddIssue(iss)    { setIssues(prev => [iss, ...prev]) }
-  function handleResolveIssue(id) {
-    setIssues(prev => prev.map(i => i.id === id ? { ...i, status: 'resolvida', resolved_at: new Date().toISOString().slice(0, 10) } : i))
+  async function handleAddIssue(iss)    { await saveIssue(iss) }
+  async function handleResolveIssue(id) {
+    const iss = issues.find(i => i.id === id)
+    if (iss) await saveIssue({ ...iss, status: 'resolvida', resolved_at: new Date().toISOString().slice(0, 10) })
   }
 
-  // Members
   function handleAddMember(m)       { setMembers(prev => [...prev, m]) }
   function handleRemoveMember(id)   { setMembers(prev => prev.filter(m => m.id !== id)) }
 
-  // Pipeline link
-  function handleUpdateOpp(projectId, oppId) {
-    setProjetos(ps => ps.map(p => p.id === projectId ? { ...p, opportunity_id: oppId } : p))
+  async function handleUpdateOpp(projectId, oppId) {
     setDrawer(d => d?.id === projectId ? { ...d, opportunity_id: oppId } : d)
+    const p = projetos.find(p => p.id === projectId)
+    if (p) await saveProjeto({ ...p, opportunity_id: oppId })
   }
 
   const hasFilters   = filtros.status || filtros.franchise || search
@@ -1393,6 +1504,7 @@ export default function Projetos() {
           defaultPhaseIndex={modal.phaseIndex}
           onSave={handleCreate}
           onClose={() => setModal(null)}
+          projetos={projetos}
         />
       )}
 
@@ -1415,6 +1527,87 @@ export default function Projetos() {
           onResolveIssue={handleResolveIssue}
           onAddMember={handleAddMember}
           onRemoveMember={handleRemoveMember}
+          onDelete={handleDelete}
+        />
+      )}
+
+      {/* ─── Confirm modal: finalizar projeto → CS check-in ─────────────── */}
+      {integrationPending && (() => {
+        const { merged } = integrationPending
+        const chkRow = (on) => ({
+          display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+          border:`1.5px solid ${on ? 'var(--accent)' : 'var(--border)'}`,
+          background: on ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s',
+        })
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+            <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
+              boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+              {/* Header */}
+              <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+                <div style={{ width:42, height:42, borderRadius:12, background:'rgba(16,185,129,0.12)', display:'flex',
+                  alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>🏁</div>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Finalizar projeto</div>
+                  <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
+                    Ao finalizar <strong style={{ color:'var(--text)' }}>{merged.name}</strong>, as seguintes ações serão executadas:
+                  </div>
+                </div>
+              </div>
+              {/* Consequences */}
+              <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+                {/* Salvar status — sempre */}
+                <div style={chkRow(true)}>
+                  <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                    <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Marcar projeto como Concluído</div>
+                    <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>{merged.name} · {merged.company_nome}</div>
+                  </div>
+                </div>
+                {/* Check-in CS — opcional */}
+                <div style={chkRow(criarCSCheckin)} onClick={() => setCriarCSCheckin(g => !g)}>
+                  <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                    border:`2px solid ${criarCSCheckin ? 'var(--accent)' : 'var(--border)'}`,
+                    background: criarCSCheckin ? 'var(--accent)' : 'transparent',
+                    display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                    {criarCSCheckin && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Criar check-in em Sucesso do Cliente</div>
+                    <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro automático de conclusão para {merged.company_nome}</div>
+                  </div>
+                </div>
+              </div>
+              {/* Actions */}
+              <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
+                display:'flex', justifyContent:'flex-end', gap:10 }}>
+                <button onClick={() => setIntegrationPending(null)}
+                  style={{ padding:'8px 16px', background:'none', border:'1px solid var(--border)', borderRadius:8,
+                    fontSize:13, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>
+                  Cancelar
+                </button>
+                <button onClick={executarFinalizarProjeto}
+                  style={{ padding:'8px 18px', background:'#10B981', color:'#fff', border:'none', borderRadius:8,
+                    fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  Finalizar projeto
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
+      {feedbackSteps && (
+        <ActionFeedback
+          title="Projeto finalizado com sucesso!"
+          steps={feedbackSteps}
+          onClose={() => setFeedbackSteps(null)}
+          stepDelay={700}
+          autoClose={0}
         />
       )}
     </div>

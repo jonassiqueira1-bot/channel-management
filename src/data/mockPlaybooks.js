@@ -31,9 +31,9 @@ export const MOCK_PLAYBOOKS = [
   {
     id: 'pb-1',
     tenant_id: 't1',
-    title: 'Canal NG Pro — Vendas para SaaS / ISV',
+    title: 'Boostly Pro — Vendas para SaaS / ISV',
     segment: 'SaaS / ISV',
-    description: 'Playbook completo para a venda do Canal NG Pro a empresas ISV. Cobre desde a prospecção de parceiros até o fechamento e onboarding.',
+    description: 'Playbook completo para a venda do Boostly Pro a empresas ISV. Cobre desde a prospecção de parceiros até o fechamento e onboarding.',
     is_active: true,
     created_by: 'Admin',
     created_at: '2026-04-01T10:00:00',
@@ -42,7 +42,7 @@ export const MOCK_PLAYBOOKS = [
   {
     id: 'pb-2',
     tenant_id: 't1',
-    title: 'Canal NG Saúde — Healthtech & Clínicas',
+    title: 'Boostly Saúde — Healthtech & Clínicas',
     segment: 'Saúde',
     description: 'Abordagem especializada para o mercado de saúde digital. Scripts e argumentação adaptados às dores de healthtechs, clínicas e distribuidores de soluções médicas.',
     is_active: true,
@@ -53,7 +53,7 @@ export const MOCK_PLAYBOOKS = [
   {
     id: 'pb-3',
     tenant_id: 't1',
-    title: 'Canal NG Indústria — Distribuidores Industriais',
+    title: 'Boostly Indústria — Distribuidores Industriais',
     segment: 'Indústria',
     description: 'Material focado em distribuidores industriais e empresas de automação. Argumento de venda centrado em eficiência operacional e gestão de rede de revendas.',
     is_active: true,
@@ -322,7 +322,7 @@ No setor de saúde, o ROI mais rápido vem de:
 
 ## Objeção Típica: "Já temos sistema"
 
-> "Entendo. Qual sistema vocês usam hoje para gestão de canal — não de clínica, mas de parceiros e distribuidores? É exatamente essa lacuna que o Canal NG cobre."`,
+> "Entendo. Qual sistema vocês usam hoje para gestão de canal — não de clínica, mas de parceiros e distribuidores? É exatamente essa lacuna que o Boostly cobre."`,
     created_at: '2026-04-17T10:00:00', updated_at: '2026-06-05T09:00:00',
   },
 
@@ -426,10 +426,10 @@ export const MOCK_REFERENCES = [
 // ─── Materiais e Recursos (por Playbook) ─────────────────────────────────────
 export const MOCK_RESOURCES = [
   // Playbook 1 — SaaS/ISV
-  { id: 'res-101', playbook_id: 'pb-1', tenant_id: 't1', title: 'Deck Institucional Canal NG Pro 2026', description: 'Apresentação completa para prospects ISV. Inclui plataforma, módulos, cases e planos.', type: 'pptx', url: '#', file_size: '4.2 MB', tags: ['institucional', 'proposta'], sort_order: 1, created_at: '2026-04-01T10:00:00' },
+  { id: 'res-101', playbook_id: 'pb-1', tenant_id: 't1', title: 'Deck Institucional Boostly Pro 2026', description: 'Apresentação completa para prospects ISV. Inclui plataforma, módulos, cases e planos.', type: 'pptx', url: '#', file_size: '4.2 MB', tags: ['institucional', 'proposta'], sort_order: 1, created_at: '2026-04-01T10:00:00' },
   { id: 'res-102', playbook_id: 'pb-1', tenant_id: 't1', title: 'Calculadora de ROI — Parceiros ISV', description: 'Planilha interativa para calcular ROI com o prospect. Preencha CDU, SMS e receita estimada.', type: 'xls', url: '#', file_size: '860 KB', tags: ['financeiro', 'proposta'], sort_order: 2, created_at: '2026-04-05T10:00:00' },
   { id: 'res-103', playbook_id: 'pb-1', tenant_id: 't1', title: 'Demo Gravada — Pipeline e Metas', description: 'Vídeo de 12 min com demonstração focada em Pipeline e Metas para ISVs.', type: 'video', url: '#', file_size: '—', tags: ['demo', 'prospeccao'], sort_order: 3, created_at: '2026-04-10T10:00:00' },
-  { id: 'res-104', playbook_id: 'pb-1', tenant_id: 't1', title: 'Comparativo: Canal NG vs. Concorrentes', description: 'Estudo de mercado com comparativo funcional e de preço. Uso interno em argumentação.', type: 'pdf', url: '#', file_size: '1.1 MB', tags: ['estudo', 'objecao'], sort_order: 4, created_at: '2026-04-15T10:00:00' },
+  { id: 'res-104', playbook_id: 'pb-1', tenant_id: 't1', title: 'Comparativo: Boostly vs. Concorrentes', description: 'Estudo de mercado com comparativo funcional e de preço. Uso interno em argumentação.', type: 'pdf', url: '#', file_size: '1.1 MB', tags: ['estudo', 'objecao'], sort_order: 4, created_at: '2026-04-15T10:00:00' },
   { id: 'res-105', playbook_id: 'pb-1', tenant_id: 't1', title: 'Scripts de Prospecção (Cold Call + LinkedIn)', description: 'Roteiros de abordagem para diferentes perfis de ISV. Atualizado junho/2026.', type: 'doc', url: '#', file_size: '95 KB', tags: ['prospeccao', 'script'], sort_order: 5, created_at: '2026-04-20T10:00:00' },
 
   // Playbook 2 — Saúde

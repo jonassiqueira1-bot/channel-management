@@ -9,7 +9,7 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
   MOCK_CUSTOMER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
-import { HeartPulse, Plus, Trash2, Circle, CheckCircle2 } from 'lucide-react'
+import { HeartPulse, Plus, Trash2, Circle, CheckCircle2, Paperclip, Download, X } from 'lucide-react'
 
 const ACCENT = 'var(--accent)'
 
@@ -89,6 +89,118 @@ function HealthRing({ score, size = 44 }) {
   )
 }
 
+// ─── CS Card (list/card view) ──────────────────────────────────────────────────
+function CsCard({ row }) {
+  const [hovered, setHovered] = useState(false)
+  const { color: hColor } = healthColor(row.health_score)
+
+  const renewalNode = row.renewal_date ? (() => {
+    const days = Math.ceil((new Date(row.renewal_date) - new Date()) / 86400000)
+    const urgent = days < 60
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:5,
+        fontSize:11, fontFamily:'var(--mono)',
+        color: urgent ? '#EF4444' : 'var(--text-muted)' }}>
+        <span>🔁</span>
+        <span>{new Date(row.renewal_date).toLocaleDateString('pt-BR')}</span>
+        <span style={{ opacity:0.7 }}>
+          {days >= 0 ? `(${days}d)` : '(vencido)'}
+        </span>
+      </div>
+    )
+  })() : null
+
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0,
+        background: 'var(--surface)',
+        border: `1.5px solid ${hovered ? hColor + '55' : 'var(--border)'}`,
+        borderRadius: 14,
+        overflow: 'hidden',
+        transform: hovered ? 'translateY(-2px) scale(1.01)' : 'none',
+        boxShadow: hovered
+          ? '0 8px 24px rgba(0,0,0,0.12), 0 2px 6px rgba(0,0,0,0.06)'
+          : '0 1px 3px rgba(0,0,0,0.05)',
+        transition: 'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease',
+        cursor: 'pointer',
+      }}>
+
+      {/* Barra de saúde no topo */}
+      <div style={{
+        height: 4,
+        background: `linear-gradient(90deg, ${hColor}, ${hColor}88)`,
+      }} />
+
+      <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+        {/* Linha principal: avatar + nome + health ring */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {/* Avatar iniciais */}
+          <div style={{
+            width: 36, height: 36, borderRadius: 10,
+            background: hColor + '18', color: hColor,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 11, fontWeight: 800, fontFamily: 'var(--mono)',
+            border: `1px solid ${hColor}30`, flexShrink: 0,
+            letterSpacing: '-0.03em',
+          }}>
+            {(row.company_name || '?').slice(0, 2).toUpperCase()}
+          </div>
+
+          {/* Nome + localização */}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              lineHeight: 1.3 }}>
+              {row.company_name}
+            </div>
+            {(row.company_city || row.company_uf) && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                {[row.company_city, row.company_uf].filter(Boolean).join(' · ')}
+              </div>
+            )}
+          </div>
+
+          {/* Health Ring */}
+          <HealthRing score={row.health_score} size={40} />
+        </div>
+
+        {/* Badges LAER + Touch */}
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+          <LaerBadge stage={row.laer_stage} />
+          <TouchBadge model={row.touch_model} />
+        </div>
+
+        {/* Divisor */}
+        <div style={{ height: 1, background: 'var(--border2)', margin: '0 -2px' }} />
+
+        {/* CSM + Renovação */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+          {row.csm && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 12, color: 'var(--text-soft)' }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+                <circle cx="8" cy="5.5" r="3" fill="currentColor" opacity="0.5"/>
+                <path d="M2 13.5c0-3.3 2.7-6 6-6s6 2.7 6 6"
+                  stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+              <span style={{ overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {row.csm}
+              </span>
+            </div>
+          )}
+          {renewalNode}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Plano de Ação ─────────────────────────────────────────────────────────────
 function ActionPlanBlock({ plans, onChange }) {
   const [newText, setNewText] = useState('')
@@ -147,14 +259,22 @@ function ActionPlanBlock({ plans, onChange }) {
 }
 
 // ─── Check-in Timeline ────────────────────────────────────────────────────────
-function CheckinBlock({ checkins, onChange }) {
+function CheckinBlock({ checkins, onChange, produtos = [] }) {
   const [form, setForm] = useState(null)
+  const [dupErr, setDupErr] = useState('')
   const TYPES = ['Reunião', 'Ligação', 'E-mail', 'Visita', 'QBR']
 
   function addCheckin() {
     if (!form?.summary?.trim()) return
-    onChange([{ id: cidFn(), date: form.date || new Date().toISOString().slice(0, 10),
-      type: form.type || 'Reunião', summary: form.summary }, ...checkins])
+    const date = form.date || new Date().toISOString().slice(0, 10)
+    const produto_id = form.produto_id || null
+    if (produto_id) {
+      const dup = checkins.find(c => c.produto_id === produto_id && c.date === date)
+      if (dup) { setDupErr(`Já existe um check-in para este produto em ${fmtDate(date)}.`); return }
+    }
+    setDupErr('')
+    onChange([{ id: cidFn(), date, type: form.type || 'Reunião', summary: form.summary,
+      produto_id, produto_nome: form.produto_nome || '' }, ...checkins])
     setForm(null)
   }
 
@@ -175,10 +295,31 @@ function CheckinBlock({ checkins, onChange }) {
             <div>
               <label style={LBL}>Data</label>
               <input type="date" value={form.date || new Date().toISOString().slice(0, 10)}
-                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                onChange={e => { setForm(f => ({ ...f, date: e.target.value })); setDupErr('') }}
                 style={INPUT} />
             </div>
           </div>
+          {produtos.length > 0 && (
+            <div>
+              <label style={LBL}>Produto do contrato</label>
+              <select style={INPUT}
+                value={form.produto_id || ''}
+                onChange={e => {
+                  const p = produtos.find(p => p.produto_id === e.target.value)
+                  setForm(f => ({ ...f, produto_id: e.target.value || null, produto_nome: p?.nome || '' }))
+                  setDupErr('')
+                }}>
+                <option value="">— Nenhum —</option>
+                {produtos.map(p => <option key={p.produto_id} value={p.produto_id}>{p.nome}</option>)}
+              </select>
+            </div>
+          )}
+          {dupErr && (
+            <div style={{ fontSize: 12, color: '#DC2626', padding: '6px 10px',
+              background: '#FEE2E2', borderRadius: 6, border: '1px solid #FCA5A5' }}>
+              {dupErr}
+            </div>
+          )}
           <div>
             <label style={LBL}>Resumo</label>
             <textarea value={form.summary || ''} onChange={e => setForm(f => ({ ...f, summary: e.target.value }))}
@@ -186,7 +327,7 @@ function CheckinBlock({ checkins, onChange }) {
               style={{ ...INPUT, resize: 'vertical', lineHeight: 1.5 }} />
           </div>
           <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <Button variant="secondary" size="sm" onClick={() => setForm(null)}>Cancelar</Button>
+            <Button variant="secondary" size="sm" onClick={() => { setForm(null); setDupErr('') }}>Cancelar</Button>
             <Button size="sm" onClick={addCheckin}>Salvar</Button>
           </div>
         </div>
@@ -244,16 +385,110 @@ function CheckinBlock({ checkins, onChange }) {
   )
 }
 
+// ─── Anexos ──────────────────────────────────────────────────────────────────
+function AnexosBlock({ attachments = [], onChange }) {
+  const fileRef = useRef(null)
+  const [sizeErr, setSizeErr] = useState('')
+
+  function handleFiles(e) {
+    setSizeErr('')
+    Array.from(e.target.files || []).forEach(file => {
+      if (file.size > 512 * 1024) { setSizeErr(`"${file.name}" excede 512 KB.`); return }
+      const reader = new FileReader()
+      reader.onload = ev => {
+        onChange([...attachments, {
+          id: 'att_' + Date.now() + Math.random(),
+          nome: file.name,
+          tipo: file.type || 'application/octet-stream',
+          tamanho: file.size,
+          data: ev.target.result,
+          criado: new Date().toISOString().slice(0, 10),
+        }])
+      }
+      reader.readAsDataURL(file)
+    })
+    e.target.value = ''
+  }
+
+  function remove(id) { onChange(attachments.filter(a => a.id !== id)) }
+
+  function download(att) {
+    const a = document.createElement('a')
+    a.href = att.data; a.download = att.nome; a.click()
+  }
+
+  const fmtSize = b => b < 1024 ? `${b} B` : b < 1024 * 1024 ? `${(b/1024).toFixed(1)} KB` : `${(b/1048576).toFixed(1)} MB`
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <input ref={fileRef} type="file" multiple style={{ display: 'none' }} onChange={handleFiles} />
+      <button onClick={() => fileRef.current?.click()}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px',
+          background: 'none', border: '1.5px dashed var(--border)', borderRadius: 7,
+          fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+        <Paperclip size={13} /> Adicionar anexo (máx 512 KB)
+      </button>
+      {sizeErr && (
+        <div style={{ fontSize: 12, color: '#DC2626', padding: '4px 8px',
+          background: '#FEE2E2', borderRadius: 6 }}>{sizeErr}</div>
+      )}
+      {attachments.map(att => (
+        <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 10px', background: 'var(--surface2)', borderRadius: 7,
+          border: '1px solid var(--border)' }}>
+          <Paperclip size={13} style={{ color: 'var(--accent)', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{att.nome}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+              {fmtSize(att.tamanho)} · {att.criado}
+            </div>
+          </div>
+          <button onClick={() => download(att)} title="Baixar"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              color: 'var(--accent)', display: 'flex', alignItems: 'center' }}>
+            <Download size={14} />
+          </button>
+          <button onClick={() => remove(att.id)} title="Remover"
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              color: 'var(--text-muted)', display: 'flex', alignItems: 'center' }}>
+            <X size={14} />
+          </button>
+        </div>
+      ))}
+      {attachments.length === 0 && (
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', paddingLeft: 2 }}>
+          Nenhum anexo.
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Detail (novo + edição) ───────────────────────────────────────────────────
 const EMPTY_FORM = {
   company_id: null, company_name: '', company_city: '', company_uf: '',
   laer_stage: 'Land', touch_model: 'Mid-Touch', health_score: 75,
   csm: '', renewal_date: '', notes: '', action_plans: [], checkins: [],
+  contract_id: null, contract_numero: '', attachments: [],
 }
 
-function PartnerDetail({ item, onSave, onDelete, onClose }) {
+function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contratos = [] }) {
   const isNew = !item?.id
   const [form, setForm] = useState(item ? { ...EMPTY_FORM, ...item } : { ...EMPTY_FORM })
+
+  // Contratos vinculados à empresa selecionada
+  const contratosEmpresa = useMemo(() =>
+    contratos.filter(c => c.status === 'ativo' && String(c.empresa_id) === String(form.company_id)),
+    [contratos, form.company_id]
+  )
+  // Produtos do contrato selecionado
+  const produtosContrato = useMemo(() => {
+    if (!form.contract_id) return []
+    const c = contratos.find(c => String(c.id) === String(form.contract_id))
+    if (!c) return []
+    return [...(c.itens_adesao || []), ...(c.itens_mrr || []), ...(c.itens_servico || [])]
+  }, [contratos, form.contract_id])
 
   function patch(k, v) {
     const next = { ...form, [k]: v }
@@ -329,10 +564,15 @@ function PartnerDetail({ item, onSave, onDelete, onClose }) {
           </FormField>
           <FormField label="CSM Responsável">
             <select className="so-field"
-              value={MOCK_USUARIOS.find(u => u.nome === form.csm)?.id || ''}
-              onChange={e => { const u = MOCK_USUARIOS.find(u => u.id === e.target.value); patch('csm', u?.nome || '') }}>
+              value={(profiles.find(u => u.nome === form.csm) || MOCK_USUARIOS.find(u => u.nome === form.csm))?.id || ''}
+              onChange={e => {
+                const u = profiles.find(u => u.id === e.target.value) || MOCK_USUARIOS.find(u => u.id === e.target.value)
+                patch('csm', u?.nome || '')
+              }}>
               <option value="">— Selecionar —</option>
-              {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              {(profiles.length > 0 ? profiles : MOCK_USUARIOS)
+                .filter(u => u.status !== 'inativo')
+                .map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
           </FormField>
         </FormGrid>
@@ -342,6 +582,41 @@ function PartnerDetail({ item, onSave, onDelete, onClose }) {
               onChange={e => patch('renewal_date', e.target.value)} />
           </FormField>
         </FormGrid>
+      </FormSection>
+
+      <FormSection label="Contrato vinculado">
+        <FormGrid cols={1}>
+          <FormField label="Contrato ativo da empresa">
+            <select className="so-field"
+              value={form.contract_id || ''}
+              onChange={e => {
+                const c = contratos.find(c => String(c.id) === e.target.value)
+                patch('contract_id', e.target.value || null)
+                patch('contract_numero', c?.numero || '')
+              }}>
+              <option value="">— Nenhum —</option>
+              {contratosEmpresa.map(c => (
+                <option key={c.id} value={String(c.id)}>
+                  {c.numero} {c.empresa_nome ? `· ${c.empresa_nome}` : ''}
+                </option>
+              ))}
+              {contratosEmpresa.length === 0 && form.company_id && (
+                <option disabled value="">Nenhum contrato ativo encontrado</option>
+              )}
+            </select>
+          </FormField>
+        </FormGrid>
+        {produtosContrato.length > 0 && (
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {produtosContrato.map((p, i) => (
+              <span key={i} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px',
+                background: 'var(--surface2)', border: '1px solid var(--border)',
+                borderRadius: 6, color: 'var(--text-soft)', fontFamily: 'var(--mono)' }}>
+                {p.nome}
+              </span>
+            ))}
+          </div>
+        )}
       </FormSection>
 
       <FormSection label="Anotações do CSM">
@@ -366,6 +641,14 @@ function PartnerDetail({ item, onSave, onDelete, onClose }) {
             <CheckinBlock
               checkins={form.checkins || []}
               onChange={checkins => patch('checkins', checkins)}
+              produtos={produtosContrato}
+            />
+          </FormSection>
+
+          <FormSection label="Anexos">
+            <AnexosBlock
+              attachments={form.attachments || []}
+              onChange={attachments => patch('attachments', attachments)}
             />
           </FormSection>
 
@@ -444,6 +727,12 @@ export default function CustomerSuccess() {
   const [search, setSearch]             = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [modal, setModal]               = useState(null)  // null | 'novo' | record-obj
+
+  // Cadastro de usuários (CSM) e contratos (para relacionamento)
+  const [profiles] = useLocalState('usuarios:profiles', [])
+  const contratos  = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem('crm:contratos_v2')) || [] } catch { return [] }
+  }, [])
 
   const lista = useMemo(() => {
     const q = search.toLowerCase()
@@ -555,28 +844,27 @@ export default function CustomerSuccess() {
         onImport={importCSV}
         onExportCsv={exportCSV}
         kpis={kpisNode}
-        renderCard={row => (
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <HealthRing score={row.health_score} size={44} />
-              <div>
-                <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{row.company_name}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{[row.company_city, row.company_uf].filter(Boolean).join(' · ')}</div>
-              </div>
-            </div>
-            <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-              <LaerBadge stage={row.laer_stage} />
-              <TouchBadge model={row.touch_model} />
-            </div>
-            {row.csm && <div style={{ fontSize:12, color:'var(--text-soft)' }}>CSM: {row.csm}</div>}
-            {row.renewal_date && (() => {
-              const days = Math.ceil((new Date(row.renewal_date) - new Date()) / 86400000)
-              return <div style={{ fontSize:11, fontFamily:'var(--mono)', color: days < 60 ? 'var(--red-text)' : 'var(--text-muted)' }}>🔁 Renovação: {new Date(row.renewal_date).toLocaleDateString('pt-BR')} {days >= 0 ? `(${days}d)` : '(vencido)'}</div>
-            })()}
-          </div>
-        )}
+        renderCard={row => <CsCard row={row} />}
+        bulkEditFields={[
+          { key: 'laer_stage',  label: 'Estágio LAER',    type: 'select',
+            options: LAER_STAGES.map(s => ({ value: s.id, label: s.label })) },
+          { key: 'touch_model', label: 'Touch Model',      type: 'select',
+            options: TOUCH_MODELS.map(s => ({ value: s.id, label: s.label })) },
+          { key: 'csm',         label: 'CSM Responsável',  type: 'select',
+            options: (profiles.length > 0 ? profiles : MOCK_USUARIOS)
+              .filter(u => u.status !== 'inativo')
+              .map(u => ({ value: u.nome, label: u.nome })) },
+          { key: 'health_score',label: 'Health Score',     type: 'number' },
+          { key: 'renewal_date',label: 'Data de Renovação',type: 'date' },
+          { key: 'notes',       label: 'Observações',      type: 'textarea' },
+        ]}
+        onBulkEdit={(ids, changes) => {
+          setRecords(prev => prev.map(r =>
+            ids.includes(r.id) ? { ...r, ...changes } : r
+          ))
+        }}
         bulkActions={[
-          { label: 'Excluir selecionados', onClick: ids => {
+          { label: 'Excluir selecionados', variant: 'danger', onClick: ids => {
             if (!window.confirm(`Excluir ${ids.length} registro(s) permanentemente?`)) return
             setRecords(prev => prev.filter(r => !ids.includes(r.id)))
           }},
@@ -603,6 +891,8 @@ export default function CustomerSuccess() {
             onSave={updated => { save(updated); if (isEditing) setModal(updated) }}
             onDelete={remove}
             onClose={() => setModal(null)}
+            profiles={profiles}
+            contratos={contratos}
           />
         )}
       </SlideOver>

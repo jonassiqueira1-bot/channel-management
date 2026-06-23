@@ -59,47 +59,47 @@ const MOCK_UNIDADES = [
 // ─── Mock de profiles (espelha dados do Pipeline/Empresas) ───────────────────
 const MOCK_PROFILES_SEED = [
   {
-    id: 'p1', nome: 'Admin Master', email: 'admin@canaisng.com.br',
+    id: 'p1', nome: 'Admin Master', email: 'admin@boostly.com.br',
     role: 'master', id_unidade: 'u1', status: 'ativo',
     criado_em: '2024-01-10',
   },
   {
-    id: 'p2', nome: 'Carla Menezes', email: 'carla.menezes@canaisng.com.br',
+    id: 'p2', nome: 'Carla Menezes', email: 'carla.menezes@boostly.com.br',
     role: 'gestor', id_unidade: 'u1', status: 'ativo',
     criado_em: '2024-01-15',
   },
   {
-    id: 'p3', nome: 'Lucas Ferreira', email: 'lucas.ferreira@canaisng.com.br',
+    id: 'p3', nome: 'Lucas Ferreira', email: 'lucas.ferreira@boostly.com.br',
     role: 'vendedor', id_unidade: 'u1', status: 'ativo',
     criado_em: '2024-02-01',
   },
   {
-    id: 'p4', nome: 'Fernanda Rocha', email: 'fernanda.rocha@canaisng.com.br',
+    id: 'p4', nome: 'Fernanda Rocha', email: 'fernanda.rocha@boostly.com.br',
     role: 'vendedor', id_unidade: 'u5', status: 'ativo',
     criado_em: '2024-02-28',
   },
   {
-    id: 'p5', nome: 'Mariana Silva', email: 'mariana.silva@canaisng.com.br',
+    id: 'p5', nome: 'Mariana Silva', email: 'mariana.silva@boostly.com.br',
     role: 'gestor', id_unidade: 'u1', status: 'ativo',
     criado_em: '2024-03-05',
   },
   {
-    id: 'p6', nome: 'Pedro Alves', email: 'pedro.alves@canaisng.com.br',
+    id: 'p6', nome: 'Pedro Alves', email: 'pedro.alves@boostly.com.br',
     role: 'vendedor', id_unidade: 'u4', status: 'ativo',
     criado_em: '2024-03-20',
   },
   {
-    id: 'p7', nome: 'João Lima', email: 'joao.lima@canaisng.com.br',
+    id: 'p7', nome: 'João Lima', email: 'joao.lima@boostly.com.br',
     role: 'vendedor', id_unidade: 'u6', status: 'ativo',
     criado_em: '2024-03-05',
   },
   {
-    id: 'p8', nome: 'Ana Costa', email: 'ana.costa@canaisng.com.br',
+    id: 'p8', nome: 'Ana Costa', email: 'ana.costa@boostly.com.br',
     role: 'vendedor', id_unidade: 'u2', status: 'ativo',
     criado_em: '2024-04-10',
   },
   {
-    id: 'p9', nome: 'Rafael Santos', email: 'rafael.santos@canaisng.com.br',
+    id: 'p9', nome: 'Rafael Santos', email: 'rafael.santos@boostly.com.br',
     role: 'vendedor', id_unidade: 'u1', status: 'inativo',
     criado_em: '2024-04-22',
   },
@@ -114,7 +114,7 @@ const MOCK_PROFILES_SEED = [
     criado_em: '2026-05-28',
   },
   {
-    id: 'p12', nome: 'Ricardo Moura', email: 'r.moura@canaisng.com.br',
+    id: 'p12', nome: 'Ricardo Moura', email: 'r.moura@boostly.com.br',
     role: 'gestor', id_unidade: 'u3', status: 'pendente',
     criado_em: '2026-06-02',
   },

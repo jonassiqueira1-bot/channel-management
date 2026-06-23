@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
-  Settings, ShieldAlert, ChevronDown,
+  Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
 } from 'lucide-react'
 
@@ -14,7 +14,7 @@ const ICON_MAP = {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
-  Settings, ShieldAlert,
+  Settings, ShieldAlert, BarChart2, TimerReset,
 }
 
 const INITIAL_GROUPS = [
@@ -23,6 +23,7 @@ const INITIAL_GROUPS = [
     label: 'Visão Geral',
     items: [
       { path: '/dashboard',        label: 'Dashboard',          iconKey: 'LayoutDashboard' },
+      { path: '/relatorios',       label: 'Relatórios',         iconKey: 'BarChart2'        },
       { path: '/metas',            label: 'Metas',              iconKey: 'Target'          },
       { path: '/pipeline',         label: 'Pipeline',           iconKey: 'TrendingUp'      },
       { path: '/tarefas',          label: 'Tarefas',            iconKey: 'CheckSquare'     },
@@ -32,6 +33,7 @@ const INITIAL_GROUPS = [
       { path: '/empresas',         label: 'Empresas',           iconKey: 'Building2'       },
       { path: '/contatos',         label: 'Contatos',           iconKey: 'UserCircle'      },
       { path: '/projetos',         label: 'Projetos',           iconKey: 'FolderKanban'    },
+      { path: '/fechamento-horas', label: 'Fechamento de Horas', iconKey: 'TimerReset'     },
       { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'      },
       { path: '/contratos',        label: 'Contratos',          iconKey: 'FileText'        },
       { path: '/pagamentos',       label: 'Pagamentos',         iconKey: 'CreditCard'      },
@@ -48,8 +50,8 @@ let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
-  const [groups, setGroups]         = useLocalState('sidebar:groups_v7', INITIAL_GROUPS)
-  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v7', {})
+  const [groups, setGroups]         = useLocalState('sidebar:groups_v8', INITIAL_GROUPS)
+  const [openGroups, setOpenGroups] = useLocalState('sidebar:open_v8', {})
 
   const [editingGroup, setEditingGroup] = useState(null)
   const [editValue,    setEditValue]    = useState('')

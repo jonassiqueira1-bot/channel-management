@@ -1,13 +1,13 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
-import { ChevronUp, ChevronDown } from 'lucide-react'
-import { useLocalState } from '../hooks/useLocalState'
+import { useState, useMemo, useRef } from 'react'
+import { FileText, CheckCircle2, Clock, GitBranch } from 'lucide-react'
 import { CATEGORIA_CFG, STATUS_CFG, EVENTO_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
-import { FullPageEdit, FPESection, FPEField } from '../components/ui'
+import BrowseLayout from '../components/BrowseLayout'
+import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
+function uid()   { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
 function logId() { return `l-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
 
 function fmtDate(iso) {
@@ -60,50 +60,7 @@ function StatusBadge({ status }) {
   )
 }
 
-// ─── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, color }) {
-  return (
-    <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '14px 18px',
-      display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)',
-      boxShadow: 'var(--shadow)', borderTop: `3px solid ${color || 'var(--border)'}` }}>
-      <span style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</span>
-      <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{label}</span>
-    </div>
-  )
-}
-
-// ─── Eye Icon ─────────────────────────────────────────────────────────────────
-
-// ─── Ações Dropdown ───────────────────────────────────────────────────────────
-function AcoesDropdown({ onClose, anchorRef }) {
-  const ref = useRef(null)
-  useEffect(() => {
-    function h(e) {
-      if (ref.current && !ref.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) onClose()
-    }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [onClose, anchorRef])
-  const item = { display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 14px',
-    background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-    color: 'var(--text)', fontFamily: 'var(--font)', textAlign: 'left', borderRadius: 7 }
-  return (
-    <div ref={ref} style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 600,
-      width: 200, background: 'var(--surface)', borderRadius: 10,
-      border: '1px solid var(--border)', boxShadow: '0 8px 28px rgba(0,0,0,0.13)', padding: 6 }}>
-      <button style={item}
-        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background = 'none'}
-        onClick={onClose}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        Exportar lista
-      </button>
-    </div>
-  )
-}
-
-// ─── Histórico de Alterações (painel) ─────────────────────────────────────────
+// ─── Histórico ────────────────────────────────────────────────────────────────
 function HistoricoPanel({ docId, logs }) {
   const lista = useMemo(() =>
     (logs || [])
@@ -128,18 +85,14 @@ function HistoricoPanel({ docId, logs }) {
             {!isLast && (
               <div style={{ position: 'absolute', left: 13, top: 28, bottom: 0, width: 1, background: 'var(--border2)' }} />
             )}
-            {/* Ícone */}
             <div style={{ width: 27, height: 27, borderRadius: '50%', background: cfg.bg, flexShrink: 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 11, fontWeight: 700, color: cfg.color,
               border: `1.5px solid ${cfg.color}55`, zIndex: 1 }}>
               {cfg.icon}
             </div>
-            {/* Conteúdo */}
             <div style={{ flex: 1, minWidth: 0, paddingTop: 3 }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 3 }}>
-                {cfg.label}
-              </div>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', marginBottom: 3 }}>{cfg.label}</div>
               {log.campos && log.campos.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginBottom: 5 }}>
                   {log.campos.map((c, i) => (
@@ -185,58 +138,7 @@ function HistoricoPanel({ docId, logs }) {
   )
 }
 
-// ─── Document Card ─────────────────────────────────────────────────────────────
-function DocCard({ doc, onClick }) {
-  const cfg = CATEGORIA_CFG[doc.categoria] || CATEGORIA_CFG.outro
-  const preview = doc.content?.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').split('\n').filter(Boolean)[1] || ''
-
-  return (
-    <div onClick={onClick}
-      style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 12,
-        padding: '18px 20px', cursor: 'pointer', boxShadow: 'var(--shadow)',
-        display: 'flex', flexDirection: 'column', gap: 12,
-        borderTop: `3px solid ${cfg.color}`, transition: 'box-shadow 0.15s, transform 0.1s' }}
-      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.11)'; e.currentTarget.style.transform = 'translateY(-1px)' }}
-      onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow)'; e.currentTarget.style.transform = 'none' }}>
-
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', marginBottom: 4,
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {doc.title}
-          </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-            {doc.description || preview}
-          </div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-        <CategoriaBadge categoria={doc.categoria} />
-        <StatusBadge status={doc.status} />
-      </div>
-
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        paddingTop: 10, borderTop: '1px solid var(--border2)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-            v{doc.version}
-          </span>
-          <span style={{ width: 1, height: 10, background: 'var(--border)' }} />
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            {doc.created_by}
-          </span>
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-          {fmtDate(doc.updated_at)}
-        </span>
-      </div>
-    </div>
-  )
-}
-
-// ─── Painel lateral de recursos (estilo Canva) ────────────────────────────────
+// ─── Painel de recursos (variáveis + blocos) ──────────────────────────────────
 const MERGE_FIELDS = [
   {
     group: 'Oportunidade', icon: '💼', color: 'var(--accent)', bg: '#EEF2FF',
@@ -271,65 +173,41 @@ const MERGE_FIELDS = [
   {
     group: 'Vendedor', icon: '🧑‍💼', color: '#10B981', bg: '#D1FAE5',
     fields: [
-      { token: '{{vendedor.nome}}',  label: 'Nome',  origem: 'Usuários → usuário logado ou responsável pela oportunidade', uso: 'Nome do vendedor/representante comercial.' },
-      { token: '{{vendedor.cargo}}', label: 'Cargo', origem: 'Usuários → campo "Cargo" do perfil',                        uso: 'Cargo institucional do responsável.' },
-      { token: '{{vendedor.email}}', label: 'E-mail',origem: 'Usuários → campo "E-mail" do perfil',                       uso: 'E-mail profissional para assinatura.' },
+      { token: '{{vendedor.nome}}',  label: 'Nome',   origem: 'Usuários → usuário logado ou responsável pela oportunidade', uso: 'Nome do vendedor/representante comercial.' },
+      { token: '{{vendedor.cargo}}', label: 'Cargo',  origem: 'Usuários → campo "Cargo" do perfil',                        uso: 'Cargo institucional do responsável.' },
+      { token: '{{vendedor.email}}', label: 'E-mail', origem: 'Usuários → campo "E-mail" do perfil',                       uso: 'E-mail profissional para assinatura.' },
     ],
   },
   {
     group: 'Sistema', icon: '📅', color: '#F59E0B', bg: '#FEF3C7',
     fields: [
-      { token: '{{sistema.data_hoje}}',       label: 'Data de hoje',    origem: 'Gerado automaticamente no momento da exportação', uso: 'Data do dia formatada em português (ex: 12 de junho de 2026).' },
-      { token: '{{sistema.mes_ano}}',         label: 'Mês/Ano',         origem: 'Gerado automaticamente no momento da exportação', uso: 'Mês e ano por extenso (ex: junho de 2026).' },
-      { token: '{{sistema.numero_proposta}}', label: 'Nº da proposta',  origem: 'Sequencial automático gerado pelo sistema',       uso: 'Número único da proposta (ex: PROP-2026-0042).' },
+      { token: '{{sistema.data_hoje}}',       label: 'Data de hoje',   origem: 'Gerado automaticamente no momento da exportação', uso: 'Data do dia formatada em português (ex: 12 de junho de 2026).' },
+      { token: '{{sistema.mes_ano}}',         label: 'Mês/Ano',        origem: 'Gerado automaticamente no momento da exportação', uso: 'Mês e ano por extenso (ex: junho de 2026).' },
+      { token: '{{sistema.numero_proposta}}', label: 'Nº da proposta', origem: 'Sequencial automático gerado pelo sistema',       uso: 'Número único da proposta (ex: PROP-2026-0042).' },
     ],
   },
 ]
 
 const BLOCKS = [
-  {
-    label: 'Cabeçalho institucional',
-    icon: '🏷️',
-    desc: 'Logo, nome da empresa emissora e data',
-    content: `# {{oportunidade.empresa}} — {{sistema.mes_ano}}\n\n**Documento preparado por:** {{vendedor.nome}} · {{vendedor.cargo}}\n**Data:** {{sistema.data_hoje}}\n\n---`,
-  },
-  {
-    label: 'Introdução da proposta',
-    icon: '📝',
-    desc: 'Parágrafo de abertura personalizável',
-    content: `## Apresentação\n\nPrezado(a) **{{contato.nome}}**,\n\nÉ com satisfação que apresentamos esta proposta comercial para a **{{empresa.nome}}**, considerando as necessidades discutidas durante nossa conversa.\n\nNosso objetivo é apresentar a solução mais adequada para o seu contexto, com transparência em relação a investimentos e próximos passos.`,
-  },
-  {
-    label: 'Tabela de investimento',
-    icon: '💰',
-    desc: 'Tabela com módulos, valores e total',
-    content: `## Investimento\n\n| Módulo | Valor Mensal |\n|--------|-------------|\n| CDU (usuários) | R$ X.XXX |\n| SMS | R$ X.XXX |\n| Serviços | R$ X.XXX |\n| **Total líquido** | **{{oportunidade.valor}}** |\n\n> Os valores acima são válidos por 30 dias a partir de {{sistema.data_hoje}}.`,
-  },
-  {
-    label: 'Próximos passos',
-    icon: '🚀',
-    desc: 'Checklist de ações pós-proposta',
-    content: `## Próximos Passos\n\n- [ ] Revisão e aprovação da proposta por {{contato.nome}}\n- [ ] Assinatura do contrato\n- [ ] Kick-off de implementação\n- [ ] Configuração inicial do ambiente\n- [ ] Treinamento da equipe\n\n**Prazo para aceite:** {{oportunidade.prazo}}`,
-  },
-  {
-    label: 'Bloco de assinatura',
-    icon: '✍️',
-    desc: 'Área de assinatura com dados do vendedor',
-    content: `---\n\n## Aceite e Assinatura\n\n**{{empresa.nome}}**\n\n_______________________________\n{{contato.nome}} — {{contato.cargo}}\n\n**Canal NG / Emitente**\n\n_______________________________\n{{vendedor.nome}} — {{vendedor.cargo}}\n{{vendedor.email}} · {{sistema.data_hoje}}`,
-  },
-  {
-    label: 'Escopo e objetivos',
-    icon: '🎯',
-    desc: 'Seção de escopo do projeto/contrato',
-    content: `## Escopo da Solução\n\n### Objetivos\n\n- Objetivo principal a ser definido\n- Objetivo secundário\n- Critérios de sucesso\n\n### O que está incluído\n\n- Item 1\n- Item 2\n\n### O que não está incluído\n\n- Fora do escopo 1`,
-  },
+  { label: 'Cabeçalho institucional', icon: '🏷️', desc: 'Logo, nome da empresa emissora e data',
+    content: `# {{oportunidade.empresa}} — {{sistema.mes_ano}}\n\n**Documento preparado por:** {{vendedor.nome}} · {{vendedor.cargo}}\n**Data:** {{sistema.data_hoje}}\n\n---` },
+  { label: 'Introdução da proposta', icon: '📝', desc: 'Parágrafo de abertura personalizável',
+    content: `## Apresentação\n\nPrezado(a) **{{contato.nome}}**,\n\nÉ com satisfação que apresentamos esta proposta comercial para a **{{empresa.nome}}**, considerando as necessidades discutidas durante nossa conversa.\n\nNosso objetivo é apresentar a solução mais adequada para o seu contexto, com transparência em relação a investimentos e próximos passos.` },
+  { label: 'Tabela de investimento', icon: '💰', desc: 'Tabela com módulos, valores e total',
+    content: `## Investimento\n\n| Módulo | Valor Mensal |\n|--------|-------------|\n| CDU (usuários) | R$ X.XXX |\n| SMS | R$ X.XXX |\n| Serviços | R$ X.XXX |\n| **Total líquido** | **{{oportunidade.valor}}** |\n\n> Os valores acima são válidos por 30 dias a partir de {{sistema.data_hoje}}.` },
+  { label: 'Próximos passos', icon: '🚀', desc: 'Checklist de ações pós-proposta',
+    content: `## Próximos Passos\n\n- [ ] Revisão e aprovação da proposta por {{contato.nome}}\n- [ ] Assinatura do contrato\n- [ ] Kick-off de implementação\n- [ ] Configuração inicial do ambiente\n- [ ] Treinamento da equipe\n\n**Prazo para aceite:** {{oportunidade.prazo}}` },
+  { label: 'Bloco de assinatura', icon: '✍️', desc: 'Área de assinatura com dados do vendedor',
+    content: `---\n\n## Aceite e Assinatura\n\n**{{empresa.nome}}**\n\n_______________________________\n{{contato.nome}} — {{contato.cargo}}\n\n**Boostly / Emitente**\n\n_______________________________\n{{vendedor.nome}} — {{vendedor.cargo}}\n{{vendedor.email}} · {{sistema.data_hoje}}` },
+  { label: 'Escopo e objetivos', icon: '🎯', desc: 'Seção de escopo do projeto/contrato',
+    content: `## Escopo da Solução\n\n### Objetivos\n\n- Objetivo principal a ser definido\n- Objetivo secundário\n- Critérios de sucesso\n\n### O que está incluído\n\n- Item 1\n- Item 2\n\n### O que não está incluído\n\n- Fora do escopo 1` },
 ]
 
 function DocResourcesPanel({ onInsert }) {
-  const [panelTab, setPanelTab] = useState('variaveis')
+  const [panelTab,  setPanelTab]  = useState('variaveis')
   const [openGroup, setOpenGroup] = useState('Oportunidade')
-  const [tooltip, setTooltip] = useState(null) // { token, label, origem, uso }
-  const [copied, setCopied] = useState(null)
+  const [tooltip,   setTooltip]   = useState(null)
+  const [copied,    setCopied]    = useState(null)
 
   function handleInsert(text) {
     onInsert(text)
@@ -352,8 +230,7 @@ function DocResourcesPanel({ onInsert }) {
                   alignItems:'center', justifyContent:'center', fontSize:12, flexShrink:0 }),
     groupName: (open) => ({ fontSize:12, fontWeight:700, color: open ? 'var(--accent)' : 'var(--text)', flex:1, letterSpacing:'-0.1px' }),
     fieldList: { padding:'4px 8px 8px' },
-    fieldRow:  { display:'flex', alignItems:'center', gap:6, padding:'5px 6px', borderRadius:7,
-                  cursor:'pointer', marginBottom:2 },
+    fieldRow:  { display:'flex', alignItems:'center', gap:6, padding:'5px 6px', borderRadius:7, cursor:'pointer', marginBottom:2 },
     fieldTok:  { fontSize:10, fontFamily:'var(--mono)', background:'var(--surface2)', border:'1px solid var(--border)',
                   borderRadius:5, padding:'1px 5px', color:'var(--text-muted)', flexShrink:0, maxWidth:130,
                   overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
@@ -362,13 +239,11 @@ function DocResourcesPanel({ onInsert }) {
                   border: active ? '1px solid #10B981' : '1px solid transparent', borderRadius:5, fontSize:10,
                   color: active ? '#065F46' : 'var(--accent)', cursor:'pointer', fontFamily:'var(--font)',
                   fontWeight:600, flexShrink:0, whiteSpace:'nowrap' }),
-    infoBox:   { margin:'0 8px 8px', background:'var(--surface2)', border:'1px solid var(--border2)',
-                  borderRadius:8, padding:'10px 12px' },
+    infoBox:   { margin:'0 8px 8px', background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:8, padding:'10px 12px' },
     infoTitle: { fontSize:11, fontWeight:700, color:'var(--text)', marginBottom:4 },
     infoRow:   { fontSize:11, color:'var(--text-muted)', lineHeight:1.6, marginBottom:3 },
     infoLabel: { fontWeight:600, color:'var(--text-soft)' },
-    blockCard: { margin:'0 8px 8px', background:'var(--surface2)', border:'1px solid var(--border2)',
-                  borderRadius:9, padding:'10px 12px', cursor:'pointer', transition:'border-color 0.15s' },
+    blockCard: { margin:'0 8px 8px', background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:9, padding:'10px 12px', cursor:'pointer', transition:'border-color 0.15s' },
     blockTop:  { display:'flex', alignItems:'center', gap:8, marginBottom:4 },
     blockIcon: { fontSize:16 },
     blockName: { fontSize:12, fontWeight:700, color:'var(--text)' },
@@ -382,14 +257,13 @@ function DocResourcesPanel({ onInsert }) {
     <div style={ps.root}>
       <div style={ps.tabBar}>
         <button style={ps.tabBtn(panelTab==='variaveis')} onClick={() => setPanelTab('variaveis')}>Variáveis</button>
-        <button style={ps.tabBtn(panelTab==='blocos')} onClick={() => setPanelTab('blocos')}>Blocos</button>
+        <button style={ps.tabBtn(panelTab==='blocos')}    onClick={() => setPanelTab('blocos')}>Blocos</button>
       </div>
-
       <div style={ps.body}>
         {panelTab === 'variaveis' && (
           <>
             <div style={{ padding:'8px 14px 6px', fontSize:11, color:'var(--text-muted)', lineHeight:1.5 }}>
-              Clique em <strong style={{ color:'var(--accent)' }}>+ Inserir</strong> para adicionar a variável na posição do cursor. Será substituída ao exportar.
+              Clique em <strong style={{ color:'var(--accent)' }}>+ Inserir</strong> para adicionar a variável na posição do cursor.
             </div>
             {MERGE_FIELDS.map(group => {
               const isOpen = openGroup === group.group
@@ -404,13 +278,10 @@ function DocResourcesPanel({ onInsert }) {
                     <div style={ps.fieldList}>
                       {group.fields.map(f => (
                         <div key={f.token}>
-                          <div style={ps.fieldRow}
-                            onMouseEnter={() => setTooltip(f)}
-                            onMouseLeave={() => setTooltip(null)}>
+                          <div style={ps.fieldRow} onMouseEnter={() => setTooltip(f)} onMouseLeave={() => setTooltip(null)}>
                             <span style={ps.fieldTok}>{f.token}</span>
                             <span style={ps.fieldLbl}>{f.label}</span>
-                            <button style={ps.insertBtn(copied === f.token)}
-                              onClick={() => handleInsert(f.token)}>
+                            <button style={ps.insertBtn(copied === f.token)} onClick={() => handleInsert(f.token)}>
                               {copied === f.token ? '✓' : '+ Inserir'}
                             </button>
                           </div>
@@ -430,11 +301,10 @@ function DocResourcesPanel({ onInsert }) {
             })}
           </>
         )}
-
         {panelTab === 'blocos' && (
           <>
             <div style={{ padding:'8px 14px 6px', fontSize:11, color:'var(--text-muted)', lineHeight:1.5 }}>
-              Insira blocos prontos com variáveis pré-configuradas. Edite livremente após inserção.
+              Insira blocos prontos com variáveis pré-configuradas.
             </div>
             {BLOCKS.map((blk, i) => (
               <div key={i} style={ps.blockCard}
@@ -445,8 +315,7 @@ function DocResourcesPanel({ onInsert }) {
                   <span style={ps.blockName}>{blk.label}</span>
                 </div>
                 <div style={ps.blockDesc}>{blk.desc}</div>
-                <button style={ps.blockBtn(copied === blk.label)}
-                  onClick={() => handleInsert('\n\n' + blk.content + '\n')}>
+                <button style={ps.blockBtn(copied === blk.label)} onClick={() => handleInsert('\n\n' + blk.content + '\n')}>
                   {copied === blk.label ? '✓ Inserido' : '+ Inserir bloco'}
                 </button>
               </div>
@@ -458,27 +327,44 @@ function DocResourcesPanel({ onInsert }) {
   )
 }
 
-// ─── Full-page de Edição de Documento ────────────────────────────────────────
-function DocFullPage({ doc: initial, logs: allLogs, onClose, onSave, onAddLog }) {
-  const isNew = !initial?.id
-  const [tab, setTab]   = useState('dados')
-  const textareaRef     = useRef(null)
-  const [draft, setDraft] = useState(() => initial || {
+// ─── Conteúdo do SlideOver ────────────────────────────────────────────────────
+function fmtBytes(b) {
+  if (!b) return ''
+  if (b < 1024) return `${b} B`
+  if (b < 1048576) return `${(b/1024).toFixed(1)} KB`
+  return `${(b/1048576).toFixed(1)} MB`
+}
+
+function DocForm({ doc: initial, logs: allLogs, onClose, onSave, onAddLog, uploadFile, removeFile }) {
+  const isNew       = !initial?.id
+  const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const [tab,      setTab]      = useState('dados')
+  const [draft,    setDraft]    = useState(() => initial || {
     id: uid(), tenant_id: 't1',
     title: '', description: '', categoria: 'proposta',
     status: 'rascunho', version: 1, content: '',
+    file_url: null, file_name: null, file_size: null, file_path: null,
     created_by: 'Você', created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   })
-  const [saving, setSaving] = useState(false)
+  const [saving,     setSaving]     = useState(false)
+  const [uploading,  setUploading]  = useState(false)
+  const [dragOver,   setDragOver]   = useState(false)
 
   const docLogs = useMemo(
     () => allLogs.filter(l => l.doc_id === draft.id).sort((a, b) => new Date(b.criado_em) - new Date(a.criado_em)),
     [allLogs, draft.id]
   )
 
+  const TABS = [
+    { id: 'dados',     label: 'Dados' },
+    { id: 'conteudo',  label: 'Conteúdo' },
+    { id: 'historico', label: `Histórico (${docLogs.length})` },
+  ]
+
   function handleSave() {
-    if (!draft.title.trim()) return alert('Título é obrigatório')
+    if (!draft.title.trim()) { alert('Título é obrigatório'); return }
     const now = new Date().toISOString()
     setSaving(true)
     if (isNew) {
@@ -494,20 +380,27 @@ function DocFullPage({ doc: initial, logs: allLogs, onClose, onSave, onAddLog })
         : null
       const saved = { ...draft, version: newVersion, updated_at: now }
       onSave(saved)
-      if (campos.length > 0 && !statusEvento) {
+      if (campos.length > 0 && !statusEvento)
         onAddLog({ id: logId(), doc_id: saved.id, evento: 'editado', campos, usuario: 'Você', criado_em: now })
-      }
-      if (statusEvento) {
+      if (statusEvento)
         onAddLog({ id: logId(), doc_id: saved.id, evento: statusEvento, campos, usuario: 'Você', criado_em: now })
-      }
     }
     setSaving(false)
     onClose()
   }
 
-  function handleDelete() {
-    onSave(null, draft.id)
-    onClose()
+  async function handleFileSelect(file) {
+    if (!file) return
+    setUploading(true)
+    const res = await uploadFile(file)
+    setUploading(false)
+    if (!res.ok) { alert('Erro ao enviar arquivo: ' + res.message); return }
+    setDraft(d => ({ ...d, file_url: res.url, file_name: res.name, file_size: res.size, file_path: res.path || null }))
+  }
+
+  async function handleRemoveFile() {
+    if (draft.file_path) await removeFile(draft.file_path)
+    setDraft(d => ({ ...d, file_url: null, file_name: null, file_size: null, file_path: null }))
   }
 
   function insertAtCursor(text) {
@@ -521,159 +414,236 @@ function DocFullPage({ doc: initial, logs: allLogs, onClose, onSave, onAddLog })
     requestAnimationFrame(() => { el.focus(); el.setSelectionRange(start + text.length, start + text.length) })
   }
 
-  const TABS = [
-    { id: 'dados',     label: 'Dados' },
-    { id: 'conteudo',  label: 'Conteúdo' },
-    { id: 'historico', label: `Histórico (${docLogs.length})` },
-  ]
-
   return (
-    <FullPageEdit
-      breadcrumb={[{ label: 'Documentos', onClick: onClose }]}
-      title={isNew ? 'Novo documento' : draft.title || 'Editar documento'}
-      subtitle={isNew ? 'Crie um modelo de documento reutilizável' : `Versão ${draft.version} · Atualizado ${fmtDate(draft.updated_at)}`}
-      onSave={handleSave}
-      onCancel={onClose}
-      onDelete={!isNew ? handleDelete : undefined}
-      saving={saving}
-      saveLabel={isNew ? 'Criar documento' : 'Salvar alterações'}
-      columns={1}
-    >
-      {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '2px solid #E4E4E7', marginBottom: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Tab toggle */}
+      <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 9, padding: 3, border: '1px solid var(--border)', alignSelf: 'flex-start' }}>
         {TABS.map(t => (
           <button key={t.id} type="button" onClick={() => setTab(t.id)}
-            style={{ padding: '9px 18px', background: 'none', border: 'none', fontSize: 13,
-              fontWeight: tab === t.id ? 700 : 400, cursor: 'pointer', fontFamily: 'inherit',
-              color: tab === t.id ? '#1E3A5F' : '#71717A',
-              borderBottom: tab === t.id ? '2px solid #1E3A5F' : '2px solid transparent',
-              marginBottom: -2, whiteSpace: 'nowrap' }}>
+            style={{ padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13,
+              fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
+              background: tab === t.id ? 'var(--surface)' : 'none',
+              color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
+              boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+              transition: 'all 0.15s', whiteSpace: 'nowrap' }}>
             {t.label}
           </button>
         ))}
       </div>
 
+      {/* ── Aba: Dados ── */}
       {tab === 'dados' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <FPESection label="Identificação" noBorder style={{ paddingTop: 0 }}>
-            <FPEField label="Título" required span={2}>
-              <input className="fpe-field" value={draft.title}
-                onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
-                placeholder="Ex: Proposta Comercial — Canal NG Pro" />
-            </FPEField>
-            <FPEField label="Descrição" span={2}>
-              <textarea className="fpe-field" value={draft.description}
-                onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
-                placeholder="Descreva brevemente o propósito deste documento…" rows={3} />
-            </FPEField>
-            <FPEField label="Categoria">
-              <select className="fpe-field" value={draft.categoria}
-                onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))}>
-                {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
-                  <option key={k} value={k}>{v.icon} {v.label}</option>
-                ))}
-              </select>
-            </FPEField>
-            <FPEField label="Status">
-              <select className="fpe-field" value={draft.status}
-                onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
-                {Object.entries(STATUS_CFG).map(([k, v]) => (
-                  <option key={k} value={k}>{v.label}</option>
-                ))}
-              </select>
-            </FPEField>
-          </FPESection>
-          <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: '#F4F4F5',
-            borderRadius: 8, border: '1px solid #E4E4E7', alignItems: 'center' }}>
-            <span style={{ fontSize: 11, color: '#71717A', marginRight: 4 }}>Prévia:</span>
-            <CategoriaBadge categoria={draft.categoria} />
-            <StatusBadge status={draft.status} />
-            <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: '#71717A' }}>
-              v{draft.version}
-            </span>
-          </div>
-          {!isNew && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
-              padding: '12px 14px', background: '#F4F4F5', borderRadius: 8, border: '1px solid #E4E4E7' }}>
-              {[
-                { lbl: 'Criado por', val: draft.created_by },
-                { lbl: 'Criado em', val: fmtDate(draft.created_at) },
-                { lbl: 'Última edição', val: fmtDate(draft.updated_at) },
-                { lbl: 'Versão atual', val: `v${draft.version}` },
-              ].map(({ lbl, val }) => (
-                <div key={lbl}>
-                  <div style={{ fontSize: 10, fontWeight: 700, color: '#71717A',
-                    textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
-                  <div style={{ fontSize: 12, color: '#18181B', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'inherit' }}>{val}</div>
-                </div>
-              ))}
+          <FormSection label="Identificação">
+            <FormGrid cols={1}>
+              <FormField label="Título" required>
+                <input className="so-field" value={draft.title}
+                  onChange={e => setDraft(d => ({ ...d, title: e.target.value }))}
+                  placeholder="Ex: Proposta Comercial — Boostly Pro" />
+              </FormField>
+              <FormField label="Descrição">
+                <textarea className="so-field" value={draft.description}
+                  onChange={e => setDraft(d => ({ ...d, description: e.target.value }))}
+                  placeholder="Descreva brevemente o propósito deste documento…"
+                  rows={3} style={{ resize: 'vertical' }} />
+              </FormField>
+            </FormGrid>
+            <FormGrid cols={2}>
+              <FormField label="Categoria">
+                <select className="so-field" value={draft.categoria}
+                  onChange={e => setDraft(d => ({ ...d, categoria: e.target.value }))}>
+                  {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
+                    <option key={k} value={k}>{v.icon} {v.label}</option>
+                  ))}
+                </select>
+              </FormField>
+              <FormField label="Status">
+                <select className="so-field" value={draft.status}
+                  onChange={e => setDraft(d => ({ ...d, status: e.target.value }))}>
+                  {Object.entries(STATUS_CFG).map(([k, v]) => (
+                    <option key={k} value={k}>{v.label}</option>
+                  ))}
+                </select>
+              </FormField>
+            </FormGrid>
+            {/* Prévia de badges */}
+            <div style={{ display: 'flex', gap: 8, padding: '10px 14px', background: 'var(--surface2)',
+              borderRadius: 8, border: '1px solid var(--border)', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 4 }}>Prévia:</span>
+              <CategoriaBadge categoria={draft.categoria} />
+              <StatusBadge status={draft.status} />
+              <span style={{ marginLeft: 'auto', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+                v{draft.version}
+              </span>
             </div>
+          </FormSection>
+
+          {/* ── Arquivo para download ── */}
+          <FormSection label="Arquivo para download">
+            {draft.file_url ? (
+              <div style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 14px',
+                background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:9 }}>
+                <div style={{ fontSize:24 }}>📎</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
+                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {draft.file_name}
+                  </div>
+                  {draft.file_size && (
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+                      {fmtBytes(draft.file_size)}
+                    </div>
+                  )}
+                </div>
+                <a href={draft.file_url} target="_blank" rel="noreferrer" download={draft.file_name}
+                  style={{ fontSize:12, color:'var(--accent)', fontWeight:600, textDecoration:'none',
+                    padding:'5px 10px', border:'1px solid var(--accent)', borderRadius:6, flexShrink:0 }}>
+                  Baixar
+                </a>
+                <button type="button" onClick={handleRemoveFile}
+                  style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
+                    fontSize:14, padding:'4px 6px', borderRadius:5 }}
+                  onMouseEnter={e=>e.currentTarget.style.color='#EF4444'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div
+                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={e => { e.preventDefault(); setDragOver(false); handleFileSelect(e.dataTransfer.files[0]) }}
+                onClick={() => fileInputRef.current?.click()}
+                style={{ border:`2px dashed ${dragOver ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius:9, padding:'20px 16px', textAlign:'center', cursor:'pointer',
+                  background: dragOver ? 'var(--accent-glow, #eef2ff)' : 'var(--surface2)',
+                  transition:'all 0.15s' }}>
+                <input ref={fileInputRef} type="file" style={{ display:'none' }}
+                  onChange={e => handleFileSelect(e.target.files[0])} />
+                {uploading ? (
+                  <div style={{ fontSize:13, color:'var(--text-muted)' }}>Enviando…</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize:22, marginBottom:6 }}>📎</div>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text-soft)' }}>
+                      Arraste um arquivo ou{' '}
+                      <span style={{ color:'var(--accent)', textDecoration:'underline' }}>clique para selecionar</span>
+                    </div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>
+                      PDF, Word, Excel, PowerPoint, imagens…
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </FormSection>
+
+          {!isNew && (
+            <FormSection label="Informações">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12,
+                padding: '12px 14px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                {[
+                  { lbl: 'Criado por',    val: draft.created_by },
+                  { lbl: 'Criado em',     val: fmtDate(draft.created_at) },
+                  { lbl: 'Última edição', val: fmtDate(draft.updated_at) },
+                  { lbl: 'Versão atual',  val: `v${draft.version}` },
+                ].map(({ lbl, val }) => (
+                  <div key={lbl}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                      textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{lbl}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text)', fontFamily: lbl === 'Versão atual' ? 'var(--mono)' : 'inherit' }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+            </FormSection>
           )}
         </div>
       )}
 
+      {/* ── Aba: Conteúdo ── */}
       {tab === 'conteudo' && (
-        <div style={{ display: 'flex', border: '1px solid #E4E4E7', borderRadius: 8, overflow: 'hidden', minHeight: 500 }}>
-          <div style={{ width: 260, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRight: '1px solid #E4E4E7' }}>
-            <DocResourcesPanel onInsert={insertAtCursor} />
-          </div>
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '8px 16px', borderBottom: '1px solid #E4E4E7', flexShrink: 0, background: '#F4F4F5' }}>
-              <div style={{ fontSize: 11, color: '#71717A' }}>
-                Markdown — <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}># Título</code>{' '}
-                <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>**negrito**</code>{' '}
-                <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)' }}>- lista</code>
-              </div>
-              <span style={{ fontSize: 11, color: '#71717A', fontFamily: 'var(--mono)' }}>
-                {draft.content?.length || 0} chars
-              </span>
+        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', minHeight: 480 }}>
+          <div style={{ display: 'flex', height: 480 }}>
+            <div style={{ width: 240, flexShrink: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)' }}>
+              <DocResourcesPanel onInsert={insertAtCursor} />
             </div>
-            <textarea
-              ref={textareaRef}
-              style={{ flex: 1, width: '100%', padding: '16px 18px', border: 'none', outline: 'none',
-                background: '#fff', color: '#18181B', fontSize: 13, lineHeight: 1.75,
-                fontFamily: 'var(--mono)', resize: 'none', boxSizing: 'border-box', minHeight: 440 }}
-              value={draft.content}
-              onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
-              placeholder="Digite o conteúdo do documento em Markdown…"
-              spellCheck={false}
-            />
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '8px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--surface2)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  Markdown —{' '}
+                  {['# Título', '**negrito**', '- lista'].map(c => (
+                    <code key={c} style={{ background: 'var(--surface)', padding: '1px 4px', borderRadius: 3, fontSize: 10, fontFamily: 'var(--mono)', marginRight: 4 }}>{c}</code>
+                  ))}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                  {draft.content?.length || 0} chars
+                </span>
+              </div>
+              <textarea
+                ref={textareaRef}
+                style={{ flex: 1, width: '100%', padding: '16px 18px', border: 'none', outline: 'none',
+                  background: 'var(--surface)', color: 'var(--text)', fontSize: 13, lineHeight: 1.75,
+                  fontFamily: 'var(--mono)', resize: 'none', boxSizing: 'border-box' }}
+                value={draft.content}
+                onChange={e => setDraft(d => ({ ...d, content: e.target.value }))}
+                placeholder="Digite o conteúdo do documento em Markdown…"
+                spellCheck={false}
+              />
+            </div>
           </div>
         </div>
       )}
 
+      {/* ── Aba: Histórico ── */}
       {tab === 'historico' && (
         isNew
-          ? <div style={{ textAlign: 'center', padding: '48px 0', color: '#71717A' }}>
+          ? <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
               <div style={{ fontSize: 28, marginBottom: 8 }}>💾</div>
               <div style={{ fontSize: 13 }}>Salve o documento primeiro para ver o histórico.</div>
             </div>
           : <HistoricoPanel docId={draft.id} logs={allLogs} />
       )}
-    </FullPageEdit>
+
+      {/* Ações */}
+      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
+        <div>
+          {!isNew && (
+            <button onClick={() => { if (window.confirm('Excluir este documento?')) { onSave(null, draft.id); onClose() } }}
+              style={{ padding: '8px 14px', borderRadius: 8, background: 'none', border: '1px solid rgba(239,68,68,0.35)',
+                color: '#EF4444', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              Excluir
+            </button>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button loading={saving} onClick={handleSave}>
+            {isNew ? 'Criar documento' : 'Salvar alterações'}
+          </Button>
+        </div>
+      </div>
+    </div>
   )
 }
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Documentos() {
-  const { docs, logs, save: saveDoc, remove: deleteDoc, setDocs, setLogs } = useDocuments()
-  const [search,   setSearch]   = useLocalState('docs:search', '')
-  const [filtroCategoria, setFiltroCategoria] = useLocalState('docs:filtroCategoria', '')
-  const [filtroStatus,    setFiltroStatus]    = useLocalState('docs:filtroStatus', '')
-  const [showMetrics, setShowMetrics] = useLocalState('docs:showMetrics', true)
-  const [acoesOpen,   setAcoesOpen]   = useState(false)
-  const [drawer,      setDrawer]      = useState(null)  // null | 'novo' | doc object
-  const acoesRef = useRef(null)
+  const { docs, logs, save: saveDoc, remove: deleteDoc, uploadFile, removeFile, setDocs, setLogs } = useDocuments()
+  const [search,       setSearch]       = useState('')
+  const [activeFilters, setActiveFilters] = useState({})
+  const [drawer,       setDrawer]       = useState(null)  // null | 'novo' | doc object
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q        = search.toLowerCase().trim()
+    const catF     = activeFilters.categoria || []
+    const statusF  = activeFilters.status    || []
     return docs.filter(d =>
-      (!filtroCategoria || d.categoria === filtroCategoria) &&
-      (!filtroStatus    || d.status    === filtroStatus) &&
+      (!catF.length    || catF.includes(d.categoria)) &&
+      (!statusF.length || statusF.includes(d.status)) &&
       (!q || d.title.toLowerCase().includes(q) || (d.description || '').toLowerCase().includes(q))
     ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
-  }, [docs, filtroCategoria, filtroStatus, search])
+  }, [docs, activeFilters, search])
 
   const kpis = useMemo(() => ({
     total:    docs.length,
@@ -686,151 +656,180 @@ export default function Documentos() {
     if (deleteId) { deleteDoc(deleteId); return }
     saveDoc(docOrNull)
   }
-
   function handleAddLog(log) { setLogs(prev => [...prev, log]) }
 
-  if (drawer) {
-    return (
-      <DocFullPage
-        doc={drawer === 'novo' ? null : drawer}
-        logs={logs}
-        onClose={() => setDrawer(null)}
-        onSave={handleSave}
-        onAddLog={handleAddLog}
-      />
-    )
-  }
+  const COLUMNS = [
+    { key: 'title', label: 'Documento', render: (val, row) => {
+      const cfg     = CATEGORIA_CFG[row.categoria] || CATEGORIA_CFG.outro
+      const preview = row.content?.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').split('\n').filter(Boolean)[1] || ''
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>
+            {cfg.icon}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>{val}</div>
+            {(row.description || preview) && (
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 220 }}>
+                {row.description || preview}
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }},
+    { key: 'categoria', label: 'Categoria', render: val => <CategoriaBadge categoria={val} /> },
+    { key: 'status',    label: 'Status',    render: val => <StatusBadge status={val} /> },
+    { key: 'version',   label: 'Versão',    render: val =>
+      <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)', fontWeight: 600 }}>v{val}</span>
+    },
+    { key: 'created_by', label: 'Criado por', render: val =>
+      <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{val || '—'}</span>
+    },
+    { key: 'updated_at', label: 'Atualizado', render: val =>
+      <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtDate(val)}</span>
+    },
+  ]
+
+  const FILTERS = [
+    { key: 'categoria', label: 'Categoria', options: Object.entries(CATEGORIA_CFG).map(([k, v]) => ({ value: k, label: `${v.icon} ${v.label}` })) },
+    { key: 'status',    label: 'Status',    options: Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label })) },
+  ]
+
+  const kpisNode = (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+      {[
+        { label: 'Documentos',       value: kpis.total,     Icon: FileText,     color: 'var(--border)'  },
+        { label: 'Ativos',           value: kpis.ativos,    Icon: CheckCircle2, color: '#10B981'         },
+        { label: 'Rascunhos',        value: kpis.rascunhos, Icon: Clock,        color: '#F59E0B'         },
+        { label: 'Total de versões', value: kpis.versoes,   Icon: GitBranch,    color: 'var(--accent)'  },
+      ].map(m => (
+        <div key={m.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+          padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}` }}>
+          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', overflow: 'hidden' }}>
-
-      <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
-
-        {/* ── Header ── */}
-        <div style={pg.pageHeader}>
-          <div>
-            <div style={pg.breadcrumb}>
-              <span>Operação</span><span style={pg.sep}>›</span><span>Documentos</span>
+    <>
+      <BrowseLayout
+        data={filtered}
+        columns={COLUMNS}
+        filters={FILTERS}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
+        search={search}
+        onSearchChange={setSearch}
+        keyField="id"
+        storageKey="documentos_browse"
+        onRowClick={row => setDrawer(row)}
+        onNew={() => setDrawer('novo')}
+        newLabel="+ Novo documento"
+        kpis={kpisNode}
+        bulkActions={[
+          { label: 'Arquivar', onClick: ids => {
+            ids.forEach(id => {
+              const d = docs.find(x => x.id === id); if (d) saveDoc({ ...d, status: 'arquivado' })
+            })
+          }},
+          { label: 'Excluir', onClick: ids => {
+            if (window.confirm(`Excluir ${ids.length} documento(s)?`)) ids.forEach(id => deleteDoc(id))
+          }},
+        ]}
+        renderCard={row => {
+          const cfg     = CATEGORIA_CFG[row.categoria] || CATEGORIA_CFG.outro
+          const preview = row.content?.replace(/^#+\s*/gm, '').replace(/\*\*/g, '').split('\n').filter(Boolean)[1] || ''
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 9, background: cfg.bg, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+                  {cfg.icon}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {row.title}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4, marginTop: 2,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                    {row.description || preview}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                <CategoriaBadge categoria={row.categoria} />
+                <StatusBadge status={row.status} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                paddingTop: 8, borderTop: '1px solid var(--border2)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>v{row.version}</span>
+                  <span style={{ width: 1, height: 10, background: 'var(--border)' }} />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.created_by}</span>
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  {row.file_url && (
+                    <a
+                      href={row.file_url} target="_blank" rel="noreferrer" download={row.file_name}
+                      onClick={e => e.stopPropagation()}
+                      style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, fontWeight:600,
+                        color:'var(--accent)', textDecoration:'none', padding:'3px 8px',
+                        border:'1px solid var(--accent)', borderRadius:5, lineHeight:1 }}
+                      title={row.file_name}>
+                      ↓ Baixar
+                    </a>
+                  )}
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{fmtDate(row.updated_at)}</span>
+                </div>
+              </div>
             </div>
-            <h1 style={pg.title}>Documentos</h1>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <button
-              onClick={() => setShowMetrics(v => !v)}
-              title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
-              style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28,
-                borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)',
-                color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginTop:18 }}>
-              {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-            </button>
-            <div ref={acoesRef} style={{ position: 'relative' }}>
-              <button style={{ ...pg.ghostBtn, ...(acoesOpen ? { borderColor: 'var(--accent)', color: 'var(--accent)' } : {}) }}
-                onClick={() => setAcoesOpen(v => !v)}>
-                Ações <span style={{ fontSize: 10 }}>▾</span>
-              </button>
-              {acoesOpen && <AcoesDropdown onClose={() => setAcoesOpen(false)} anchorRef={acoesRef} />}
-            </div>
-            <Button onClick={() => setDrawer('novo')}>+ Novo documento</Button>
-          </div>
-        </div>
-
-        {/* ── KPIs retráteis ── */}
-        <div style={{ display: 'grid', gridTemplateRows: showMetrics ? '1fr' : '0fr',
-          transition: 'grid-template-rows 0.25s ease', overflow: 'hidden' }}>
-          <div style={{ minHeight: 0, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12, paddingBottom: 4 }}>
-              <KpiCard label="Documentos"  value={kpis.total}     color="var(--border)" />
-              <KpiCard label="Ativos"      value={kpis.ativos}    color="#10B981" />
-              <KpiCard label="Rascunhos"   value={kpis.rascunhos} color="#F59E0B" />
-              <KpiCard label="Total de versões" value={kpis.versoes}  color="var(--accent)" />
-            </div>
-          </div>
-        </div>
-
-        {/* ── Toolbar ── */}
-        <div style={pg.toolbar}>
-          <div style={pg.tbLeft}>
-            <div style={pg.searchWrap}>
-              <span style={pg.searchIcon}>⌕</span>
-              <input style={pg.searchInput} placeholder="Buscar documento por título ou descrição…"
-                value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-            <select style={pg.select} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
-              <option value="">Todas as categorias</option>
-              {Object.entries(CATEGORIA_CFG).map(([k, v]) => (
-                <option key={k} value={k}>{v.icon} {v.label}</option>
-              ))}
-            </select>
-            <select style={pg.select} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
-              <option value="">Todos os status</option>
-              {Object.entries(STATUS_CFG).map(([k, v]) => (
-                <option key={k} value={k}>{v.label}</option>
-              ))}
-            </select>
-          </div>
-          <div style={pg.tbDivider} />
-          <div style={pg.tbRight}>
-            {(search || filtroCategoria || filtroStatus) && (
-              <button style={pg.ghostBtn} onClick={() => { setSearch(''); setFiltroCategoria(''); setFiltroStatus('') }}>
-                ✕ Limpar
-              </button>
-            )}
-            <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
-              {filtered.length} documento{filtered.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-        </div>
-
-      </div>
-
-      {/* ── Grid ── */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '4px 28px 28px' }}>
-        {filtered.length === 0 ? (
+          )
+        }}
+        emptyState={
           <div style={{ textAlign: 'center', padding: '64px 0', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: 36, marginBottom: 12 }}>📄</div>
             <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>
-              {search || filtroCategoria || filtroStatus ? 'Nenhum documento encontrado' : 'Nenhum documento ainda'}
+              {search || Object.keys(activeFilters).length ? 'Nenhum documento encontrado' : 'Nenhum documento ainda'}
             </div>
             <div style={{ fontSize: 12, opacity: 0.7 }}>
-              {search || filtroCategoria || filtroStatus ? 'Tente ajustar os filtros' : 'Crie o primeiro clicando em "+ Novo documento"'}
+              {search || Object.keys(activeFilters).length ? 'Tente ajustar os filtros' : 'Crie o primeiro clicando em "+ Novo documento"'}
             </div>
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14, paddingTop: 8 }}>
-            {filtered.map(doc => (
-              <DocCard key={doc.id} doc={doc} onClick={() => setDrawer(doc)} />
-            ))}
-          </div>
+        }
+      />
+
+      <SlideOver
+        open={!!drawer}
+        onClose={() => setDrawer(null)}
+        title={drawer && drawer !== 'novo' ? (drawer.title || 'Editar documento') : 'Novo documento'}
+        subtitle={drawer && drawer !== 'novo'
+          ? `v${drawer.version} · Atualizado ${fmtDate(drawer.updated_at)}`
+          : 'Crie um modelo de documento reutilizável'}
+        defaultWidth={860}
+        showFooter={false}
+      >
+        {drawer && (
+          <DocForm
+            doc={drawer === 'novo' ? null : drawer}
+            logs={logs}
+            onClose={() => setDrawer(null)}
+            onSave={handleSave}
+            onAddLog={handleAddLog}
+            uploadFile={uploadFile}
+            removeFile={removeFile}
+          />
         )}
-      </div>
-
-    </div>
+      </SlideOver>
+    </>
   )
-}
-
-// ─── Estilos ──────────────────────────────────────────────────────────────────
-const pg = {
-  pageHeader:  { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' },
-  breadcrumb:  { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)', marginBottom: 4 },
-  sep:         { color: 'var(--border)' },
-  title:       { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.4px' },
-  newBtn:      { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
-  iconBtn:     { width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text-muted)', cursor: 'pointer' },
-  iconBtnActive: { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-glow)' },
-  ghostBtn:    { height: 36, display: 'flex', alignItems: 'center', gap: 6, padding: '0 14px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text-soft)', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' },
-  toolbar:     { background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8 },
-  tbLeft:      { display: 'flex', alignItems: 'center', gap: 8, flex: 1, flexShrink: 1, minWidth: 0 },
-  tbDivider:   { width: 1, height: 24, background: 'var(--border)', flexShrink: 0 },
-  tbRight:     { display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 },
-  searchWrap:  { position: 'relative', flexShrink: 0 },
-  searchIcon:  { position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' },
-  searchInput: { width: 280, height: 36, padding: '0 10px 0 28px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', boxSizing: 'border-box' },
-  select:      { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, outline: 'none', cursor: 'pointer', fontFamily: 'var(--font)' },
-}
-
-const s = {
-  lbl: { fontSize: 11, fontWeight: 700, color: 'var(--text-soft)', textTransform: 'uppercase', letterSpacing: 0.4 },
-  inp: { width: '100%', padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 7,
-    background: 'var(--surface)', color: 'var(--text)', fontSize: 13, outline: 'none',
-    fontFamily: 'var(--font)', boxSizing: 'border-box' },
 }

@@ -7,26 +7,29 @@ import {
   MOCK_PROJECT_ISSUES, MOCK_PROJECT_MEMBERS,
 } from '../data/mockProjetos'
 
+const PHASE_ORDER = { iniciacao: 1, modelagem: 2, implantacao: 3, treinamento: 4, go_live: 5, encerramento: 6 }
+
 function rowToProject(row) {
-  const cf = row.custom_fields || {}
+  const cf    = row.custom_fields || {}
+  const phase = cf.phase || 'iniciacao'
   return {
     id:                      row.id,
     tenant_id:               row.tenant_id,
     branch_id:               row.branch_id || null,
     company_id:              row.company_id || null,
     company_nome:            row.companies?.nome_fantasia || row.companies?.razao_social || cf.company_nome || '',
-    franchise_id:            cf.franchise_id || null,
+    franchise_id:            cf.franchise_id  || null,
     franchise_nome:          cf.franchise_nome || null,
     opportunity_id:          cf.opportunity_id || null,
     name:                    row.nome || '',
-    phase:                   cf.phase || 'iniciacao',
-    current_phase_index:     cf.current_phase_index || 1,
+    phase,
+    current_phase_index:     PHASE_ORDER[phase] || 1,
     status:                  row.status || 'em_andamento',
-    total_hours_estimated:   cf.total_hours_estimated || 0,
-    total_hours_executed:    cf.total_hours_executed || 0,
+    total_hours_estimated:   Number(cf.total_hours_estimated) || 0,
+    total_hours_executed:    Number(cf.total_hours_executed)  || 0,
     start_date:              row.data_inicio || '',
-    end_date_estimated:      row.data_fim || '',
-    notes:                   row.descricao || '',
+    end_date_estimated:      row.data_fim    || '',
+    notes:                   row.descricao   || '',
     created_at:              row.created_at?.slice(0, 10) || '',
   }
 }
@@ -36,20 +39,20 @@ function projectToRow(p, tenantId, branchId) {
     tenant_id:  tenantId,
     branch_id:  branchId || null,
     company_id: p.company_id || null,
-    nome:       p.name,
+    nome:       p.name || '',
     status:     p.status || 'em_andamento',
-    data_inicio:p.start_date || null,
-    data_fim:   p.end_date_estimated || null,
-    descricao:  p.notes || '',
+    data_inicio: p.start_date         || null,
+    data_fim:    p.end_date_estimated || null,
+    descricao:   p.notes              || '',
     custom_fields: {
       company_nome:          p.company_nome,
       franchise_id:          p.franchise_id,
       franchise_nome:        p.franchise_nome,
       opportunity_id:        p.opportunity_id,
-      phase:                 p.phase,
-      current_phase_index:   p.current_phase_index,
-      total_hours_estimated: p.total_hours_estimated,
-      total_hours_executed:  p.total_hours_executed,
+      phase:                 p.phase || 'iniciacao',
+      current_phase_index:   PHASE_ORDER[p.phase] || 1,
+      total_hours_estimated: Number(p.total_hours_estimated) || 0,
+      total_hours_executed:  Number(p.total_hours_executed)  || 0,
     },
   }
 }
@@ -60,7 +63,10 @@ export function useProjects() {
 
   const [projetos,    setProjetos]    = useState(MOCK_PROJETOS)
   const [phases,      setPhases]      = useState(MOCK_PROJECT_PHASES)
-  const [timeLogs,    setTimeLogs]    = useState(MOCK_TIME_LOGS)
+  const [timeLogs,    setTimeLogs]    = useState(() => {
+    try { const s = localStorage.getItem('projetos:timeLogs_v1'); return s ? JSON.parse(s) : MOCK_TIME_LOGS }
+    catch { return MOCK_TIME_LOGS }
+  })
   const [issues,      setIssues]      = useState(MOCK_PROJECT_ISSUES)
   const [members,     setMembers]     = useState(MOCK_PROJECT_MEMBERS)
   const [loading,     setLoading]     = useState(true)
@@ -87,6 +93,11 @@ export function useProjects() {
   }, [session])
 
   useEffect(() => { load() }, [load])
+
+  // Sync para localStorage — permite que Indicadores leiam os dados
+  useEffect(() => {
+    if (!loading) localStorage.setItem('projetos:lista_v2', JSON.stringify(projetos))
+  }, [projetos, loading])
 
   const save = useCallback(async (p) => {
     if (isMockMode.current) {
@@ -118,6 +129,11 @@ export function useProjects() {
     setProjetos(prev => prev.filter(p => p.id !== id))
     return { ok: true }
   }, [])
+
+  // Sync timeLogs para localStorage — permite que Fechamento leia/escreva
+  useEffect(() => {
+    localStorage.setItem('projetos:timeLogs_v1', JSON.stringify(timeLogs))
+  }, [timeLogs])
 
   // Fases, timeLogs, issues e members ficam em localStorage/mock por ora
   const savePhase   = useCallback((phase) => { setPhases(prev => { const idx = prev.findIndex(x => x.id === phase.id); if (idx >= 0) { const n = [...prev]; n[idx] = phase; return n } return [...prev, phase] }) }, [])

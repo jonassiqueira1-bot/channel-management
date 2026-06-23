@@ -22,7 +22,7 @@ const MOCK_GOALS_SEED = [
   mockGoal('g6','unidade',null,'u1',null,null,'Matriz — São Paulo','','valor',null,null,80000,56900,MES,ANO),
   mockGoal('g7','unidade',null,'u5',null,null,'Filial — Porto Alegre','','valor',null,null,25000,18700,MES,ANO),
   mockGoal('g8','categoria',null,null,'cat2',null,'Gestão de Ativos (CMMS)','Categoria de produto','valor',null,null,45000,32100,MES,ANO),
-  mockGoal('g10','produto',null,null,null,'p1','Canal NG Pro','Gestão de Ativos (CMMS)','valor',null,null,20000,11400,MES,ANO),
+  mockGoal('g10','produto',null,null,null,'p1','Boostly Pro','Gestão de Ativos (CMMS)','valor',null,null,20000,11400,MES,ANO),
 ]
 
 function rowToGoal(row) {

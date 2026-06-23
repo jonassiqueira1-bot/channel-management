@@ -19,7 +19,7 @@ import { useDashboard } from '../hooks/useDashboard'
 import {
   DEFAULT_SECTIONS_ISV, DEFAULT_SECTIONS_FRANCHISE,
   SECTIONS_STORAGE_KEY, GLOBAL_FILTERS_KEY,
-  applyFilters,
+  applyFilters, MOCK_MAPA_UF,
 } from '../data/mockDashboard'
 
 // ─── Layouts de seção disponíveis ────────────────────────────────────────────
@@ -56,6 +56,7 @@ const WIDGET_CATALOG_ISV = [
   { id:'isv_chart_bar',  title:'Receita por Franquia',  desc:'Comparativo CDU/SMS/Serviços',      type:'chart', Icon:BarChart2,     defaultSettings:{ chartType:'bar'   } },
   { id:'isv_chart_pie',  title:'Distribuição de Receita',desc:'Proporção CDU × SMS × Serviços',  type:'chart', Icon:PieChart,      defaultSettings:{ chartType:'donut' } },
   { id:'isv_pipeline',   title:'Pipeline por Etapa',    desc:'Oportunidades e valor por fase',    type:'chart', Icon:BarChart2,     defaultSettings:{} },
+  { id:'isv_mapa',       title:'Mapa de Parceiros',     desc:'Distribuição geográfica da rede',   type:'map',   Icon:LayoutGrid,    defaultSettings:{} },
 ]
 
 const WIDGET_CATALOG_FRANCHISE = [
@@ -431,6 +432,202 @@ function getAnalyticsValue(id, analytics) {
   return map[id] || null
 }
 
+// ─── Cartograma: posição (col, row) de cada UF em grid geográfico ────────────
+const UF_GRID = {
+  RR:{c:5,r:0},
+  AM:{c:2,r:1}, PA:{c:4,r:1}, AP:{c:6,r:1},
+  AC:{c:0,r:2}, RO:{c:1,r:2}, MT:{c:3,r:2}, TO:{c:5,r:2}, MA:{c:6,r:2}, PI:{c:7,r:2}, CE:{c:8,r:2}, RN:{c:9,r:2},
+  GO:{c:4,r:3}, BA:{c:6,r:3}, PE:{c:8,r:3}, PB:{c:9,r:3},
+  MS:{c:3,r:4}, DF:{c:4,r:4}, MG:{c:5,r:4}, AL:{c:8,r:4}, SE:{c:9,r:4},
+  PR:{c:3,r:5}, SP:{c:4,r:5}, RJ:{c:5,r:5}, ES:{c:7,r:4},
+  SC:{c:3,r:6},
+  RS:{c:3,r:7},
+}
+const TILE_W = 54, TILE_H = 46, TILE_GAP = 3
+const METRICAS_MAP = [
+  { key:'parceiros',     label:'Parceiros',     color:'#6366F1' },
+  { key:'vendedores',    label:'Vendedores',    color:'#0EA5E9' },
+  { key:'oportunidades', label:'Oport.',        color:'#F59E0B' },
+  { key:'clientes',      label:'Clientes',      color:'#10B981' },
+  { key:'contratos',     label:'Contratos',     color:'#EC4899' },
+]
+
+function interpolateColor(t, hex) {
+  // t in [0,1]: 0 = surface2, 1 = accent
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16)
+  return `rgba(${r},${g},${b},${0.12 + t * 0.83})`
+}
+
+function MapaParceirosWidget() {
+  const [metrica,  setMetrica]  = useState('parceiros')
+  const [selected, setSelected] = useState(null)
+  const [hover,    setHover]    = useState(null)
+
+  const dados  = MOCK_MAPA_UF
+  const byUf   = Object.fromEntries(dados.map(d => [d.uf, d]))
+  const cfg    = METRICAS_MAP.find(m => m.key === metrica) || METRICAS_MAP[0]
+  const maxVal = Math.max(...dados.map(d => d[metrica]), 1)
+  const totais = dados.reduce((a, d) => ({
+    parceiros: a.parceiros+d.parceiros, vendedores: a.vendedores+d.vendedores,
+    oportunidades: a.oportunidades+d.oportunidades, clientes: a.clientes+d.clientes,
+    contratos: a.contratos+d.contratos,
+  }), { parceiros:0, vendedores:0, oportunidades:0, clientes:0, contratos:0 })
+
+  const svgW = 10*(TILE_W+TILE_GAP)+TILE_GAP
+  const svgH =  8*(TILE_H+TILE_GAP)+TILE_GAP
+  const sel  = selected ? byUf[selected] : null
+
+  return (
+    <div style={{ ...s.card, padding:0, display:'flex', flexDirection:'column', minHeight:420 }}>
+
+      {/* ── Header ── */}
+      <div style={{ padding:'12px 16px 10px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Distribuição de Parceiros</span>
+          <span style={{ fontSize:10, color:'var(--text-muted)', background:'var(--surface2)', borderRadius:20, padding:'2px 8px' }}>
+            {dados.filter(d=>d.parceiros>0).length} estados ativos
+          </span>
+        </div>
+        <div style={{ display:'flex', gap:3 }}>
+          {METRICAS_MAP.map(m => (
+            <button key={m.key} onClick={() => setMetrica(m.key)} style={{
+              fontSize:10, fontWeight:600, padding:'3px 9px', borderRadius:20, border:'none', cursor:'pointer',
+              background: metrica===m.key ? m.color : 'var(--surface2)',
+              color:       metrica===m.key ? '#fff'  : 'var(--text-muted)',
+              transition:'all 0.15s',
+            }}>{m.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Body ── */}
+      <div style={{ display:'flex', flex:1, minHeight:0, overflow:'hidden' }}>
+
+        {/* Cartograma SVG */}
+        <div style={{ flex:1, padding:'12px 8px 8px 12px', display:'flex', flexDirection:'column', gap:8, overflow:'auto' }}>
+          <svg viewBox={`0 0 ${svgW} ${svgH}`} style={{ width:'100%', height:'auto', maxHeight:320 }}>
+            {Object.entries(UF_GRID).map(([uf, {c, r}]) => {
+              const d      = byUf[uf]
+              if (!d) return null
+              const val    = d[metrica]
+              const active = val > 0
+              const t      = active ? val/maxVal : 0
+              const x      = TILE_GAP + c*(TILE_W+TILE_GAP)
+              const y      = TILE_GAP + r*(TILE_H+TILE_GAP)
+              const isSel  = selected === uf
+              const isHov  = hover === uf
+              const fill   = active ? interpolateColor(t, cfg.color) : 'var(--surface2)'
+              const stroke = isSel ? cfg.color : isHov && active ? cfg.color : 'var(--border)'
+              const sw     = isSel ? 2 : isHov && active ? 1.5 : 1
+              return (
+                <g key={uf} style={{ cursor: active ? 'pointer' : 'default' }}
+                  onClick={() => active && setSelected(isSel ? null : uf)}
+                  onMouseEnter={() => setHover(uf)}
+                  onMouseLeave={() => setHover(null)}
+                >
+                  <rect x={x} y={y} width={TILE_W} height={TILE_H} rx={5}
+                    fill={fill} stroke={stroke} strokeWidth={sw}
+                    style={{ transition:'fill 0.2s, stroke 0.15s' }}
+                  />
+                  <text x={x+TILE_W/2} y={y+TILE_H/2-5} textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontSize:10, fontWeight:700, fill: active ? 'var(--text)' : 'var(--text-muted)', pointerEvents:'none', userSelect:'none' }}>
+                    {uf}
+                  </text>
+                  <text x={x+TILE_W/2} y={y+TILE_H/2+8} textAnchor="middle" dominantBaseline="middle"
+                    style={{ fontSize:active?11:9, fontWeight:active?800:400, fill: active ? cfg.color : 'var(--border)', pointerEvents:'none', userSelect:'none' }}>
+                    {active ? val : '—'}
+                  </text>
+                </g>
+              )
+            })}
+          </svg>
+
+          {/* Legenda de intensidade */}
+          <div style={{ display:'flex', alignItems:'center', gap:6, paddingLeft:4 }}>
+            <span style={{ fontSize:9, color:'var(--text-muted)' }}>Menos</span>
+            {[0.12,0.35,0.55,0.75,0.95].map((t,i) => (
+              <div key={i} style={{ width:16, height:8, borderRadius:2, background: interpolateColor(t, cfg.color) }} />
+            ))}
+            <span style={{ fontSize:9, color:'var(--text-muted)' }}>Mais</span>
+            <span style={{ fontSize:9, color:'var(--text-muted)', marginLeft:4 }}>· clique para detalhes</span>
+          </div>
+        </div>
+
+        {/* Painel direito: drill-down ou totais */}
+        <div style={{ width:170, borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+          {sel ? (
+            /* ── Drill-down de estado ── */
+            <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+              <div style={{ padding:'12px 14px 8px', borderBottom:'1px solid var(--border)' }}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:800, color:'var(--text)' }}>{sel.uf}</div>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>{sel.nome}</div>
+                  </div>
+                  <button onClick={() => setSelected(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'2px 4px', lineHeight:1 }}>✕</button>
+                </div>
+              </div>
+              {/* Mini barras das métricas */}
+              <div style={{ padding:'10px 14px', borderBottom:'1px solid var(--border)' }}>
+                {METRICAS_MAP.map(m => {
+                  const v   = sel[m.key]
+                  const max = Math.max(...dados.map(d=>d[m.key]), 1)
+                  const pct = (v/max)*100
+                  return (
+                    <div key={m.key} style={{ marginBottom:7 }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', fontSize:10, marginBottom:2 }}>
+                        <span style={{ color: m.key===metrica ? m.color : 'var(--text-muted)', fontWeight: m.key===metrica ? 700 : 400 }}>{m.label}</span>
+                        <span style={{ fontWeight:700, color:'var(--text)' }}>{v}</span>
+                      </div>
+                      <div style={{ height:4, borderRadius:2, background:'var(--surface2)' }}>
+                        <div style={{ height:'100%', width:`${pct}%`, borderRadius:2, background:m.color, transition:'width 0.3s' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              {/* Lista de parceiros */}
+              <div style={{ flex:1, overflowY:'auto', padding:'8px 14px' }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>
+                  Parceiros ({sel.lista?.length || 0})
+                </div>
+                {(sel.lista||[]).map((nome, i) => (
+                  <div key={i} style={{ fontSize:11, color:'var(--text)', padding:'5px 0', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', gap:6 }}>
+                    <div style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
+                    {nome}
+                  </div>
+                ))}
+                {(!sel.lista||sel.lista.length===0) && (
+                  <div style={{ fontSize:11, color:'var(--text-muted)', fontStyle:'italic' }}>Sem parceiros neste estado</div>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* ── Totais gerais ── */
+            <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:2, justifyContent:'center', height:'100%' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>Totais</div>
+              {METRICAS_MAP.map(m => (
+                <div key={m.key} onClick={() => setMetrica(m.key)} style={{
+                  padding:'7px 8px', borderRadius:6, cursor:'pointer',
+                  background: m.key===metrica ? `${m.color}18` : 'transparent',
+                  border: `1px solid ${m.key===metrica ? m.color+'44' : 'transparent'}`,
+                  transition:'all 0.15s', marginBottom:2,
+                }}>
+                  <div style={{ fontSize:18, fontWeight:800, color: m.key===metrica ? m.color : 'var(--text)', lineHeight:1 }}>{totais[m.key]}</div>
+                  <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>{m.label}</div>
+                </div>
+              ))}
+              <div style={{ fontSize:9, color:'var(--text-muted)', marginTop:6, lineHeight:1.5 }}>
+                {dados.filter(d=>d.parceiros>0).length} estados<br/>com presença ativa
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function WidgetRenderer({ widget, analytics, isCustomizing, onUpdateMeta, catalog }) {
   const kv = getAnalyticsValue(widget.id, analytics)
   const catalogEntry = catalog.find(c => c.id === widget.id)
@@ -455,6 +652,7 @@ function WidgetRenderer({ widget, analytics, isCustomizing, onUpdateMeta, catalo
   if (widget.id === 'isv_pipeline')  return <PipelineWidget widget={widget} data={analytics.pipeline}/>
   if (widget.id === 'fr_pipeline')   return <PipelineWidget widget={widget} data={analytics.pipeline}/>
   if (widget.id === 'fr_atv')        return <ActivityWidget widget={widget} data={analytics.atividades_recentes}/>
+  if (widget.id === 'isv_mapa')      return <MapaParceirosWidget widget={widget}/>
 
   return <div style={{ ...s.card, color:'var(--text-muted)', fontSize:13 }}>Widget: {widget.id}</div>
 }
@@ -464,6 +662,7 @@ const TYPE_CFG = {
   kpi:   { label:'KPI',     bg:'rgba(99,102,241,0.12)',  color:'var(--accent)' },
   chart: { label:'Gráfico', bg:'rgba(14,165,233,0.12)',  color:'#0EA5E9' },
   list:  { label:'Lista',   bg:'rgba(16,185,129,0.12)',  color:'#10B981' },
+  map:   { label:'Mapa',    bg:'rgba(16,185,129,0.10)',  color:'#10B981' },
 }
 
 // ─── Preview mini ─────────────────────────────────────────────────────────────

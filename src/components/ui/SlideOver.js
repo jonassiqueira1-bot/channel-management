@@ -259,10 +259,13 @@ export default function SlideOver({
         {/* ── Tab bar (optional) ────────────────────────────────────── */}
         {hasTabs && (
           <div style={{
-            display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0,
-            padding: '0 8px', overflowX: 'auto', overflowY: 'hidden',
+            display: 'flex', flexShrink: 0,
+            padding: '0 16px', overflowX: 'auto', overflowY: 'hidden',
             scrollbarWidth: 'none', msOverflowStyle: 'none',
-            background: SO_BG,
+            background: 'var(--surface2)',
+            borderBottom: '1px solid var(--border)',
+            borderTop: '1px solid var(--border)',
+            gap: 2,
           }}>
             {tabs.map(t => {
               const isActive = activeTab === t.key
@@ -272,20 +275,26 @@ export default function SlideOver({
                   type="button"
                   onClick={() => onTabChange?.(t.key)}
                   style={{
-                    padding: '10px 9px', background: 'none', border: 'none',
-                    borderBottom: `2px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
-                    color: isActive ? 'var(--accent)' : 'var(--text-muted)',
-                    fontSize: 12, fontWeight: isActive ? 700 : 400,
+                    padding: '11px 11px 10px',
+                    background: 'none', border: 'none',
+                    borderBottom: `2.5px solid ${isActive ? 'var(--accent)' : 'transparent'}`,
+                    color: isActive ? 'var(--accent)' : 'var(--text-soft)',
+                    fontSize: 12.5, fontWeight: isActive ? 700 : 500,
+                    letterSpacing: isActive ? '-0.1px' : '0',
                     cursor: 'pointer', fontFamily: 'var(--font)', marginBottom: -1,
-                    whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0,
+                    whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
+                    transition: 'color 0.12s',
                   }}
                 >
                   {t.label}
                   {t.badge != null && t.badge !== '' && (
                     <span style={{
                       fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
-                      fontFamily: 'var(--mono)', background: 'var(--surface3)',
-                      color: 'var(--text-muted)', border: '1px solid var(--border)',
+                      fontFamily: 'var(--mono)',
+                      background: isActive ? 'var(--accent)' : 'var(--surface3)',
+                      color: isActive ? '#fff' : 'var(--text-muted)',
+                      border: `1px solid ${isActive ? 'transparent' : 'var(--border)'}`,
+                      minWidth: 18, textAlign: 'center',
                     }}>
                       {t.badge}
                     </span>

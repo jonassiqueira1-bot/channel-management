@@ -7,16 +7,21 @@ import { MOCK_DOCS, MOCK_LOGS } from '../data/mockDocumentos'
 function rowToDoc(row) {
   const cf = row.custom_fields || {}
   return {
-    id:          row.id,
-    title:       row.title,
-    description: row.description || '',
-    categoria:   row.categoria || cf.categoria || 'outro',
-    status:      row.status || 'rascunho',
-    version:     row.version || 1,
-    content:     row.content || '',
-    owner_id:    row.owner_id || null,
-    criado:      row.created_at?.slice(0, 10) || '',
-    atualizado:  row.updated_at?.slice(0, 10) || '',
+    id:             row.id,
+    title:          row.title,
+    description:    row.description || '',
+    categoria:      row.categoria || cf.categoria || 'outro',
+    status:         row.status || 'rascunho',
+    version:        row.version || 1,
+    content:        row.content || '',
+    owner_id:       row.owner_id || null,
+    opportunity_id: cf.opportunity_id || null,
+    file_url:       cf.file_url   || null,
+    file_name:      cf.file_name  || null,
+    file_size:      cf.file_size  || null,
+    file_path:      cf.file_path  || null,
+    criado:         row.created_at?.slice(0, 10) || '',
+    atualizado:     row.updated_at?.slice(0, 10) || '',
   }
 }
 
@@ -31,7 +36,13 @@ function docToRow(d, tenantId, branchId) {
     status:       d.status || 'rascunho',
     version:      d.version || 1,
     content:      d.content || null,
-    custom_fields: {},
+    custom_fields: {
+      opportunity_id: d.opportunity_id || null,
+      file_url:       d.file_url   || null,
+      file_name:      d.file_name  || null,
+      file_size:      d.file_size  || null,
+      file_path:      d.file_path  || null,
+    },
   }
 }
 
@@ -110,5 +121,30 @@ export function useDocuments() {
     return { ok: true }
   }, [])
 
-  return { docs, logs, loading, reload: load, save, remove, setDocs, setLogs, isMock: isMockMode }
+  const linkToOpp = useCallback(async (docId, oppId) => {
+    const doc = docs.find(d => d.id === docId)
+    if (!doc) return { ok: false, message: 'Documento não encontrado' }
+    return save({ ...doc, opportunity_id: oppId || null })
+  }, [docs, save])
+
+  const uploadFile = useCallback(async (file) => {
+    if (isMockMode.current) {
+      return { ok: true, url: URL.createObjectURL(file), name: file.name, size: file.size, path: null }
+    }
+    const ext  = file.name.split('.').pop()
+    const path = `${tenantId || 'public'}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const { error } = await supabase.storage.from('documents').upload(path, file, { upsert: false })
+    if (error) return { ok: false, message: error.message }
+    const { data: { publicUrl } } = supabase.storage.from('documents').getPublicUrl(path)
+    return { ok: true, url: publicUrl, name: file.name, size: file.size, path }
+  }, [tenantId])
+
+  const removeFile = useCallback(async (filePath) => {
+    if (!filePath || isMockMode.current) return { ok: true }
+    const { error } = await supabase.storage.from('documents').remove([filePath])
+    if (error) return { ok: false, message: error.message }
+    return { ok: true }
+  }, [])
+
+  return { docs, logs, loading, reload: load, save, remove, linkToOpp, uploadFile, removeFile, setDocs, setLogs, isMock: isMockMode }
 }

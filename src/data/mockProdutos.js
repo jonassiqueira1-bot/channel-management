@@ -3,7 +3,7 @@
 
 export const MOCK_PRODUTOS = [
   {
-    id: 1, nome: 'Canal NG Pro', codigo: 'CNG-PRO', tipo: 'saas', categoria: 'CRM',
+    id: 1, nome: 'Boostly Pro', codigo: 'CNG-PRO', tipo: 'saas', categoria: 'CRM',
     descricao: 'Plataforma completa de gestão de canal de vendas com pipeline, metas e comissões.',
     status: 'ativo', cobranca: 'mensal', preco: 890, setup: 2500, desconto_max: 20,
     unidades_incluidas: 1, usuarios_incluidos: 10,
@@ -11,7 +11,7 @@ export const MOCK_PRODUTOS = [
     visivel_canal: true, criado: '2023-06-01', contratos: 14,
   },
   {
-    id: 2, nome: 'Canal NG Starter', codigo: 'CNG-STR', tipo: 'saas', categoria: 'CRM',
+    id: 2, nome: 'Boostly Starter', codigo: 'CNG-STR', tipo: 'saas', categoria: 'CRM',
     descricao: 'Versão de entrada ideal para equipes pequenas que estão começando.',
     status: 'ativo', cobranca: 'mensal', preco: 290, setup: 0, desconto_max: 10,
     unidades_incluidas: 1, usuarios_incluidos: 3,
@@ -35,7 +35,7 @@ export const MOCK_PRODUTOS = [
     visivel_canal: false, criado: '2024-01-10', contratos: 5,
   },
   {
-    id: 5, nome: 'Canal NG Enterprise', codigo: 'CNG-ENT', tipo: 'saas', categoria: 'CRM',
+    id: 5, nome: 'Boostly Enterprise', codigo: 'CNG-ENT', tipo: 'saas', categoria: 'CRM',
     descricao: 'Para grandes operações com múltiplas franquias e controle avançado de comissões.',
     status: 'rascunho', cobranca: 'anual', preco: 18000, setup: 5000, desconto_max: 25,
     unidades_incluidas: 10, usuarios_incluidos: 100,

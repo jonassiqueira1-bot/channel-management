@@ -92,9 +92,9 @@ const MOCK_GOALS_SEED = [
   mockGoal('g9','categoria',null,null,'cat1',null,'Segurança do Trabalho (EHS)','Categoria de produto','valor',null,null,35000,35200,MES,ANO),
   mockGoal('g8b','categoria',null,null,'cat2',null,'Gestão de Ativos (CMMS)','Categoria de produto','valor',null,null,40000,38000,MES_ANT,ANO_ANT),
   // Produtos
-  mockGoal('g10','produto',null,null,null,'p1','Canal NG Pro','Gestão de Ativos (CMMS)','valor',null,null,20000,11400,MES,ANO),
+  mockGoal('g10','produto',null,null,null,'p1','Boostly Pro','Gestão de Ativos (CMMS)','valor',null,null,20000,11400,MES,ANO),
   mockGoal('g11','produto',null,null,null,'p2','Licença SST','Segurança do Trabalho (EHS)','atividade',null,null,30,28,MES,ANO),
-  mockGoal('g12','produto',null,null,null,'p4','Canal NG Frotas','Frotas & Logística','valor',null,null,12000,12600,MES,ANO),
+  mockGoal('g12','produto',null,null,null,'p4','Boostly Frotas','Frotas & Logística','valor',null,null,12000,12600,MES,ANO),
   // Operacionais
   mockGoal('g15','unidade',null,'u1',null,null,'Matriz — São Paulo','','operacional','quantidade','treinamentos',4,3,MES,ANO),
   mockGoal('g16','vendedor','v2',null,null,null,'Carla Menezes','Matriz — São Paulo','operacional','moeda',null,5000,5200,MES,ANO),

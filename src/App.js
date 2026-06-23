@@ -41,6 +41,8 @@ import Documentos from './pages/Documentos'
 import BranchSharing from './pages/settings/BranchSharing'
 import SettingsEquipes from './pages/settings/Equipes'
 import Funis from './pages/Funis'
+import Relatorios from './pages/Relatorios'
+import FechamentoHoras from './pages/FechamentoHoras'
 
 export default function App() {
   return (
@@ -71,11 +73,13 @@ export default function App() {
             <Route path="/contratos" element={<Contratos />} />
             <Route path="/pagamentos" element={<Pagamentos />} />
             <Route path="/projetos"      element={<Projetos />} />
+            <Route path="/fechamento-horas" element={<FechamentoHoras />} />
             <Route path="/questionarios" element={<Questionarios />} />
             <Route path="/documentos"   element={<Documentos />} />
             <Route path="/playbooks"     element={<Playbooks />} />
             <Route path="/comissoes"   element={<Comissoes />} />
             <Route path="/customer-success" element={<CustomerSuccess />} />
+            <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/my-account" element={<MyAccount />} />
 
             {/* ── Configurações ── */}

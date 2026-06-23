@@ -130,22 +130,144 @@ export const FONTES_INDICADOR = [
       return Math.round((passaram.length / entraram.length) * 100)
     },
   },
+  // ─── CONTRATOS ────────────────────────────────────────────────────────────────
   {
     value: 'contratos_ativos_qtd',
     label: 'Contratos — Qtd. contratos ativos',
     tipo: 'count',
     modulos: ['contratos'],
     storageKey: 'crm:contratos_v2',
-    fn: (dados) => dados.filter(c => c.situacao === 'ativo').length,
+    fn: (dados) => dados.filter(c => c.status === 'ativo').length,
   },
   {
     value: 'contratos_mrr',
-    label: 'Contratos — MRR total',
+    label: 'Contratos — MRR total (contratos ativos)',
     tipo: 'amount',
     modulos: ['contratos'],
     storageKey: 'crm:contratos_v2',
-    fn: (dados) => dados.filter(c => c.situacao === 'ativo').reduce((s, c) => s + (Number(c.mrr) || 0), 0),
+    fn: (dados) => dados
+      .filter(c => c.status === 'ativo')
+      .reduce((s, c) => s + (c.itens_mrr || []).reduce((a, i) => a + (Number(i.valor) || 0), 0), 0),
   },
+  {
+    value: 'contratos_arr',
+    label: 'Contratos — ARR (MRR × 12)',
+    tipo: 'amount',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => {
+      const mrr = dados
+        .filter(c => c.status === 'ativo')
+        .reduce((s, c) => s + (c.itens_mrr || []).reduce((a, i) => a + (Number(i.valor) || 0), 0), 0)
+      return mrr * 12
+    },
+  },
+  {
+    value: 'contratos_ticket_medio_mrr',
+    label: 'Contratos — Ticket médio MRR por contrato',
+    tipo: 'amount',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => {
+      const ativos = dados.filter(c => c.status === 'ativo')
+      if (!ativos.length) return 0
+      const total = ativos.reduce((s, c) => s + (c.itens_mrr || []).reduce((a, i) => a + (Number(i.valor) || 0), 0), 0)
+      return Math.round(total / ativos.length)
+    },
+  },
+  {
+    value: 'contratos_receita_adesao',
+    label: 'Contratos — Receita de adesão (total)',
+    tipo: 'amount',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => dados
+      .reduce((s, c) => s + (c.itens_adesao || []).reduce((a, i) => a + (Number(i.valor) || 0), 0), 0),
+  },
+  {
+    value: 'contratos_receita_servico',
+    label: 'Contratos — Receita de serviços (total)',
+    tipo: 'amount',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => dados
+      .reduce((s, c) => s + (c.itens_servico || []).reduce((a, i) => a + (Number(i.valor) || 0), 0), 0),
+  },
+  {
+    value: 'contratos_churn_qtd',
+    label: 'Contratos — Qtd. contratos encerrados',
+    tipo: 'count',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => dados.filter(c => c.status === 'encerrado').length,
+  },
+  {
+    value: 'contratos_churn_rate',
+    label: 'Contratos — Taxa de churn (%)',
+    tipo: 'percent',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => {
+      if (!dados.length) return 0
+      return Math.round((dados.filter(c => c.status === 'encerrado').length / dados.length) * 100)
+    },
+  },
+  {
+    value: 'contratos_vencendo_30d',
+    label: 'Contratos — Vencendo em 30 dias',
+    tipo: 'count',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => {
+      const hoje = new Date()
+      const limite = new Date(hoje); limite.setDate(limite.getDate() + 30)
+      return dados.filter(c => {
+        if (c.status !== 'ativo' || !c.vigencia_fim) return false
+        const fim = new Date(c.vigencia_fim)
+        return fim >= hoje && fim <= limite
+      }).length
+    },
+  },
+  {
+    value: 'contratos_suspensos_qtd',
+    label: 'Contratos — Qtd. contratos suspensos',
+    tipo: 'count',
+    modulos: ['contratos'],
+    storageKey: 'crm:contratos_v2',
+    fn: (dados) => dados.filter(c => c.status === 'suspenso').length,
+  },
+  {
+    value: 'contratos_inadimplentes_qtd',
+    label: 'Contratos — Qtd. contratos inadimplentes (D+1)',
+    tipo: 'count',
+    modulos: ['contratos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => {
+      const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
+      const ontemStr = ontem.toISOString().slice(0, 10)
+      const ids = new Set()
+      dados.forEach(p => {
+        if ((p.status === 'pendente' || p.status === 'vencido') && p.due_date && p.due_date < ontemStr && p.contract_id)
+          ids.add(String(p.contract_id))
+      })
+      return ids.size
+    },
+  },
+  {
+    value: 'contratos_inadimplencia_valor',
+    label: 'Contratos — Valor da inadimplência (D+1)',
+    tipo: 'amount',
+    modulos: ['contratos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => {
+      const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
+      const ontemStr = ontem.toISOString().slice(0, 10)
+      return dados
+        .filter(p => (p.status === 'pendente' || p.status === 'vencido') && p.due_date && p.due_date < ontemStr)
+        .reduce((s, p) => s + (Number(p.amount_total_net) || 0), 0)
+    },
+  },
+  // ─── PROJETOS ─────────────────────────────────────────────────────────────────
   {
     value: 'projetos_concluidos_qtd',
     label: 'Projetos — Qtd. projetos concluídos',
@@ -155,14 +277,300 @@ export const FONTES_INDICADOR = [
     fn: (dados) => dados.filter(p => p.status === 'concluido').length,
   },
   {
+    value: 'projetos_em_andamento_qtd',
+    label: 'Projetos — Qtd. projetos em andamento',
+    tipo: 'count',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => dados.filter(p => p.status === 'em_andamento').length,
+  },
+  {
+    value: 'projetos_atrasados_qtd',
+    label: 'Projetos — Qtd. projetos atrasados',
+    tipo: 'count',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => {
+      const hoje = new Date().toISOString().slice(0, 10)
+      return dados.filter(p =>
+        p.status === 'em_andamento' && p.end_date_estimated && p.end_date_estimated < hoje
+      ).length
+    },
+  },
+  {
+    value: 'projetos_no_prazo_pct',
+    label: 'Projetos — Taxa de entrega no prazo (%)',
+    tipo: 'percent',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => {
+      const concluidos = dados.filter(p => p.status === 'concluido' && p.start_date && p.end_date_estimated)
+      if (!concluidos.length) return 0
+      const noPrazo = concluidos.filter(p => {
+        const estimado = (new Date(p.end_date_estimated) - new Date(p.start_date)) / 86400000
+        const exec = p.total_hours_executed || 0
+        const est  = p.total_hours_estimated || 1
+        return (exec / est) <= 1.1
+      }).length
+      return Math.round((noPrazo / concluidos.length) * 100)
+    },
+  },
+  {
+    value: 'projetos_horas_execucao_pct',
+    label: 'Projetos — % horas executadas vs estimadas',
+    tipo: 'percent',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => {
+      const comHoras = dados.filter(p => p.total_hours_estimated > 0)
+      if (!comHoras.length) return 0
+      const est = comHoras.reduce((s, p) => s + p.total_hours_estimated, 0)
+      const exe = comHoras.reduce((s, p) => s + (p.total_hours_executed || 0), 0)
+      return Math.round((exe / est) * 100)
+    },
+  },
+  {
+    value: 'projetos_cancelados_qtd',
+    label: 'Projetos — Qtd. projetos cancelados',
+    tipo: 'count',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => dados.filter(p => p.status === 'cancelado').length,
+  },
+  {
+    value: 'projetos_duracao_media',
+    label: 'Projetos — Duração média (dias)',
+    tipo: 'duration',
+    modulos: ['projetos'],
+    storageKey: 'projetos:lista_v2',
+    fn: (dados) => {
+      const concluidos = dados.filter(p => p.status === 'concluido' && p.start_date && p.end_date_estimated)
+      if (!concluidos.length) return 0
+      const soma = concluidos.reduce((s, p) =>
+        s + Math.max(0, Math.round((new Date(p.end_date_estimated) - new Date(p.start_date)) / 86400000)), 0)
+      return Math.round(soma / concluidos.length)
+    },
+  },
+  // ─── SUCESSO DO CLIENTE ───────────────────────────────────────────────────────
+  {
+    value: 'cs_health_medio',
+    label: 'Sucesso do Cliente — Health Score médio',
+    tipo: 'amount',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => dados.length
+      ? Math.round(dados.reduce((s, r) => s + (Number(r.health_score) || 0), 0) / dados.length)
+      : 0,
+  },
+  {
     value: 'cs_nps',
     label: 'Sucesso do Cliente — NPS médio',
     tipo: 'amount',
     modulos: ['cs'],
-    storageKey: 'cs:nps_v2',
+    storageKey: 'cs:customer_health_v1',
     fn: (dados) => dados.length
-      ? Math.round(dados.reduce((s, r) => s + (Number(r.score) || 0), 0) / dados.length)
+      ? Math.round(dados.reduce((s, r) => s + (Number(r.health_score) || 0), 0) / dados.length)
       : 0,
+  },
+  {
+    value: 'cs_em_risco_qtd',
+    label: 'Sucesso do Cliente — Clientes em risco (health < 50)',
+    tipo: 'count',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => dados.filter(r => (Number(r.health_score) || 0) < 50).length,
+  },
+  {
+    value: 'cs_saudaveis_qtd',
+    label: 'Sucesso do Cliente — Clientes saudáveis (health ≥ 80)',
+    tipo: 'count',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => dados.filter(r => (Number(r.health_score) || 0) >= 80).length,
+  },
+  {
+    value: 'cs_churn_risk_pct',
+    label: 'Sucesso do Cliente — % em risco de churn',
+    tipo: 'percent',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => {
+      if (!dados.length) return 0
+      return Math.round((dados.filter(r => (Number(r.health_score) || 0) < 50).length / dados.length) * 100)
+    },
+  },
+  {
+    value: 'cs_renovacoes_30d',
+    label: 'Sucesso do Cliente — Renovações nos próximos 30 dias',
+    tipo: 'count',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => {
+      const hoje = new Date()
+      const limite = new Date(hoje); limite.setDate(limite.getDate() + 30)
+      return dados.filter(r => {
+        if (!r.renewal_date) return false
+        const d = new Date(r.renewal_date)
+        return d >= hoje && d <= limite
+      }).length
+    },
+  },
+  {
+    value: 'cs_expand_pct',
+    label: 'Sucesso do Cliente — % clientes em Expand',
+    tipo: 'percent',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => {
+      if (!dados.length) return 0
+      return Math.round((dados.filter(r => r.laer_stage === 'Expand').length / dados.length) * 100)
+    },
+  },
+  {
+    value: 'cs_land_pct',
+    label: 'Sucesso do Cliente — % clientes em Land',
+    tipo: 'percent',
+    modulos: ['cs'],
+    storageKey: 'cs:customer_health_v1',
+    fn: (dados) => {
+      if (!dados.length) return 0
+      return Math.round((dados.filter(r => r.laer_stage === 'Land').length / dados.length) * 100)
+    },
+  },
+  // ─── PAGAMENTOS ───────────────────────────────────────────────────────────────
+  {
+    value: 'pagamentos_receita_total',
+    label: 'Pagamentos — Receita recebida (total)',
+    tipo: 'amount',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => dados
+      .filter(p => p.status === 'pago')
+      .reduce((s, p) => s + (Number(p.valor_recebido) || Number(p.amount_total_net) || 0), 0),
+  },
+  {
+    value: 'pagamentos_inadimplencia_valor',
+    label: 'Pagamentos — Inadimplência (valor em aberto)',
+    tipo: 'amount',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => dados
+      .filter(p => p.status === 'vencido')
+      .reduce((s, p) => s + (Number(p.amount_total_net) || 0), 0),
+  },
+  {
+    value: 'pagamentos_inadimplencia_pct',
+    label: 'Pagamentos — Taxa de inadimplência (%)',
+    tipo: 'percent',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => {
+      const ativos = dados.filter(p => p.status !== 'cancelado')
+      if (!ativos.length) return 0
+      return Math.round((ativos.filter(p => p.status === 'vencido').length / ativos.length) * 100)
+    },
+  },
+  {
+    value: 'pagamentos_pendentes_qtd',
+    label: 'Pagamentos — Qtd. pagamentos pendentes',
+    tipo: 'count',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => dados.filter(p => p.status === 'pendente').length,
+  },
+  {
+    value: 'pagamentos_pago_pct',
+    label: 'Pagamentos — % pagamentos quitados',
+    tipo: 'percent',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => {
+      const ativos = dados.filter(p => p.status !== 'cancelado')
+      if (!ativos.length) return 0
+      return Math.round((ativos.filter(p => p.status === 'pago').length / ativos.length) * 100)
+    },
+  },
+  {
+    value: 'pagamentos_prazo_medio_recebimento',
+    label: 'Pagamentos — Prazo médio de recebimento (dias)',
+    tipo: 'duration',
+    modulos: ['pagamentos'],
+    storageKey: 'pagamentos:data_v1',
+    fn: (dados) => {
+      const pagos = dados.filter(p => p.status === 'pago' && p.due_date && p.data_baixa)
+      if (!pagos.length) return 0
+      const soma = pagos.reduce((s, p) =>
+        s + Math.max(0, Math.round((new Date(p.data_baixa) - new Date(p.due_date)) / 86400000)), 0)
+      return Math.round(soma / pagos.length)
+    },
+  },
+  // ─── COMISSÕES ────────────────────────────────────────────────────────────────
+  {
+    value: 'comissoes_total_pago',
+    label: 'Comissões — Total pago',
+    tipo: 'amount',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => dados
+      .filter(p => p.status === 'pago')
+      .reduce((s, p) => s + (Number(p.valor_comissao) || 0), 0),
+  },
+  {
+    value: 'comissoes_pendente_valor',
+    label: 'Comissões — Valor pendente de pagamento',
+    tipo: 'amount',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => dados
+      .filter(p => p.status === 'pendente')
+      .reduce((s, p) => s + (Number(p.valor_comissao) || 0), 0),
+  },
+  {
+    value: 'comissoes_pago_pct',
+    label: 'Comissões — % comissões pagas',
+    tipo: 'percent',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => {
+      const ativos = dados.filter(p => p.status !== 'cancelado')
+      if (!ativos.length) return 0
+      return Math.round((ativos.filter(p => p.status === 'pago').length / ativos.length) * 100)
+    },
+  },
+  {
+    value: 'comissoes_pendentes_qtd',
+    label: 'Comissões — Qtd. comissões pendentes',
+    tipo: 'count',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => dados.filter(p => p.status === 'pendente').length,
+  },
+  {
+    value: 'comissoes_media_por_beneficiario',
+    label: 'Comissões — Comissão média por beneficiário',
+    tipo: 'amount',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => {
+      const pagos = dados.filter(p => p.status === 'pago' && p.beneficiario_id)
+      if (!pagos.length) return 0
+      const porBenef = pagos.reduce((acc, p) => {
+        acc[p.beneficiario_id] = (acc[p.beneficiario_id] || 0) + (Number(p.valor_comissao) || 0)
+        return acc
+      }, {})
+      const ids = Object.keys(porBenef)
+      return Math.round(Object.values(porBenef).reduce((s, v) => s + v, 0) / ids.length)
+    },
+  },
+  {
+    value: 'comissoes_total_geral',
+    label: 'Comissões — Total geral (pago + pendente)',
+    tipo: 'amount',
+    modulos: ['comissoes'],
+    storageKey: 'comissoes:payments_v1',
+    fn: (dados) => dados
+      .filter(p => p.status !== 'cancelado')
+      .reduce((s, p) => s + (Number(p.valor_comissao) || 0), 0),
   },
   {
     value: 'pipeline_ticket_medio',

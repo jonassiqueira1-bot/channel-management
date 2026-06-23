@@ -5,6 +5,7 @@ import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useFunnels } from '../hooks/useFunnels'
 import { useProducts } from '../hooks/useProducts'
 import Button from '../components/Button'
+import SearchSelect from '../components/SearchSelect'
 import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
 import EmpresaSearch from '../components/EmpresaSearch'
@@ -327,7 +328,8 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
   const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
   const [tab, setTab]   = useState('info')
   const [saving, setSaving] = useState(false)
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const [errs, setErrs] = useState({})
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
 
   const slideStageCfg = useMemo(() => {
     if (!form.funil_id) return STAGE_CFG
@@ -347,7 +349,8 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
   }, [initial])
 
   function handleSave() {
-    if (!form.title.trim()) { setTab('info'); return }
+    if (!form.title.trim()) { setTab('info'); setErrs({ title: 'Título é obrigatório' }); return }
+    setErrs({})
     setSaving(true)
     onSave(form)
     setSaving(false)
@@ -383,9 +386,10 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
         <div style={tabStyle}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <FormGrid cols={2}>
-              <FormField label="Título" required span={2}>
+              <FormField label="Título" required span={2} error={errs.title}>
                 <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
-                  placeholder="Ex: Canal NG Pro — Vendas para SaaS/ISV" />
+                  placeholder="Ex: Boostly Pro — Vendas para SaaS/ISV"
+                  style={{ borderColor: errs.title ? '#DC2626' : '' }} />
               </FormField>
               <FormField label="Segmento">
                 <select className="so-field" value={form.segment} onChange={e => set('segment', e.target.value)}>
@@ -399,10 +403,12 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                 </select>
               </FormField>
               <FormField label="Produto (opcional)" span={2}>
-                <select className="so-field" value={form.produto_id} onChange={e => set('produto_id', e.target.value)}>
-                  <option value="">— Nenhum —</option>
-                  {produtos.map(p => <option key={p.id} value={String(p.id)}>{p.nome}</option>)}
-                </select>
+                <SearchSelect
+                  options={produtos.map(p => ({ id: String(p.id), label: p.nome }))}
+                  value={form.produto_id ? String(form.produto_id) : ''}
+                  onChange={v => set('produto_id', v || '')}
+                  placeholder="Pesquisar produto…"
+                />
               </FormField>
               <FormField label="Descrição" span={2}>
                 <textarea className="so-field" value={form.description} onChange={e => set('description', e.target.value)}
@@ -950,7 +956,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
 }
 
 // ─── List View ────────────────────────────────────────────────────────────────
-function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew }) {
+function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew, onBulkEditPb }) {
   const [search, setSearch]               = useState('')
   const [activeFilters, setActiveFilters] = useState({})
 
@@ -1023,6 +1029,11 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew 
       onSearchChange={setSearch}
       onNew={isISV ? onNew : undefined}
       newLabel="+ Novo Playbook"
+      bulkEditFields={isISV ? [
+        { key: 'segment', label: 'Segmento', type: 'select',
+          options: SEGMENT_OPTIONS.map(s => ({ value: s, label: s })) },
+      ] : undefined}
+      onBulkEdit={isISV ? onBulkEditPb : undefined}
       renderCard={renderCard}
       onRowClick={onOpen}
       storageKey="playbooks"
@@ -1064,48 +1075,72 @@ export default function Playbooks() {
 
   function saveStep(form) {
     const t = now()
+    let newPbSteps
     if (form.id) {
+      newPbSteps = pbSteps.map(s => s.id === form.id ? { ...s, ...form, updated_at: t } : s)
       setSteps(prev => prev.map(s => s.id === form.id ? { ...s, ...form, updated_at: t } : s))
     } else {
-      const ns = { ...form, id: `fs-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: steps.length + 1, created_at: t, updated_at: t }
+      const ns = { ...form, id: `fs-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: pbSteps.length + 1, created_at: t, updated_at: t }
+      newPbSteps = [...pbSteps, ns]
       setSteps(prev => [...prev, ns])
     }
+    savePb({ ...selectedPb, steps: newPbSteps })
     setModal(null)
   }
 
   function saveRef(form) {
     const t = now()
     const cleanResults = (form.results || []).filter(r => r.label.trim())
+    let newPbRefs
     if (form.id) {
+      newPbRefs = pbRefs.map(r => r.id === form.id ? { ...r, ...form, results: cleanResults, updated_at: t } : r)
       setRefs(prev => prev.map(r => r.id === form.id ? { ...r, ...form, results: cleanResults, updated_at: t } : r))
     } else {
       const nr = { ...form, id: `ref-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, results: cleanResults, created_at: t, updated_at: t }
+      newPbRefs = [...pbRefs, nr]
       setRefs(prev => [...prev, nr])
     }
+    savePb({ ...selectedPb, refs: newPbRefs })
     setModal(null)
   }
 
   function deleteRef(id) {
-    if (window.confirm('Remover este cliente de referência?')) setRefs(prev => prev.filter(r => r.id !== id))
+    if (window.confirm('Remover este cliente de referência?')) {
+      const newPbRefs = pbRefs.filter(r => r.id !== id)
+      setRefs(prev => prev.filter(r => r.id !== id))
+      savePb({ ...selectedPb, refs: newPbRefs })
+    }
   }
 
   function saveResource(form) {
     const t = now()
+    let newPbResources
     if (form.id) {
+      newPbResources = pbResources.map(r => r.id === form.id ? { ...r, ...form, updated_at: t } : r)
       setResources(prev => prev.map(r => r.id === form.id ? { ...r, ...form, updated_at: t } : r))
     } else {
-      const nr = { ...form, id: `res-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: resources.length + 1, created_at: t, updated_at: t }
+      const nr = { ...form, id: `res-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: pbResources.length + 1, created_at: t, updated_at: t }
+      newPbResources = [...pbResources, nr]
       setResources(prev => [...prev, nr])
     }
+    savePb({ ...selectedPb, resources: newPbResources })
     setModal(null)
   }
 
   function deleteStep(id) {
-    if (window.confirm('Remover esta atividade?')) setSteps(prev => prev.filter(s => s.id !== id))
+    if (window.confirm('Remover esta atividade?')) {
+      const newPbSteps = pbSteps.filter(s => s.id !== id)
+      setSteps(prev => prev.filter(s => s.id !== id))
+      savePb({ ...selectedPb, steps: newPbSteps })
+    }
   }
 
   function deleteResource(id) {
-    if (window.confirm('Remover este material?')) setResources(prev => prev.filter(r => r.id !== id))
+    if (window.confirm('Remover este material?')) {
+      const newPbResources = pbResources.filter(r => r.id !== id)
+      setResources(prev => prev.filter(r => r.id !== id))
+      savePb({ ...selectedPb, resources: newPbResources })
+    }
   }
 
   return (
@@ -1140,6 +1175,9 @@ export default function Playbooks() {
           isISV={isISV}
           onOpen={setSelectedPb}
           onNew={() => setModal({ type: 'playbook' })}
+          onBulkEditPb={(ids, changes) =>
+            ids.forEach(id => { const pb = playbooks.find(p => p.id === id); if (pb) savePb({ ...pb, ...changes }) })
+          }
         />
       )}
 

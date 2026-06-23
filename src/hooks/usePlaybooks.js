@@ -9,13 +9,19 @@ import {
 function rowToPlaybook(row) {
   const cf = row.custom_fields || {}
   return {
-    id:        row.id,
-    titulo:    row.titulo,
-    descricao: row.descricao || '',
-    status:    row.status || 'rascunho',
-    owner_id:  row.owner_id || null,
-    criado:    row.created_at?.slice(0, 10) || '',
-    atualizado:row.updated_at?.slice(0, 10) || '',
+    id:          row.id,
+    titulo:      row.titulo,
+    title:       row.titulo,        // alias usado pelo Pipeline
+    descricao:   row.descricao || '',
+    description: row.descricao || '', // alias usado pelo Pipeline
+    segment:     cf.segment || '',
+    status:      row.status || 'rascunho',
+    owner_id:    row.owner_id || null,
+    criado:      row.created_at?.slice(0, 10) || '',
+    atualizado:  row.updated_at?.slice(0, 10) || '',
+    steps:       row.steps || [],
+    refs:        row.refs  || [],
+    resources:   row.resources || [],
     ...cf,
   }
 }
@@ -61,7 +67,11 @@ export function usePlaybooks() {
       .order('updated_at', { ascending: false })
     if (error) { isMockMode.current = false; setPlaybooks([]); setLoading(false); return }
     isMockMode.current = false
-    setPlaybooks((data || []).map(rowToPlaybook))
+    const all = (data || []).map(rowToPlaybook)
+    setPlaybooks(all)
+    setSteps(all.flatMap(p => p.steps || []))
+    setRefs(all.flatMap(p => p.refs || []))
+    setResources(all.flatMap(p => p.resources || []))
     setLoading(false)
   }, [session])
 

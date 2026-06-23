@@ -240,16 +240,17 @@ function ContatoSearch({ value, label, onChange }) {
 }
 
 // ─── Formulário de Tarefa (usado dentro do SlideOver) ────────────────────────
-function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT }) {
+function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs = {}, clearErr }) {
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
   return (
     <>
       <FormSection label="Identificação">
-        <FormField label="Título" required span={2}>
+        <FormField label="Título" required span={2} error={errs.titulo}>
           <input className="so-field" value={form.titulo}
-            onChange={e => set('titulo', e.target.value)}
-            placeholder="Título da tarefa…" />
+            onChange={e => { set('titulo', e.target.value); clearErr?.('titulo') }}
+            placeholder="Título da tarefa…"
+            style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
         </FormField>
 
         <FormField label="Tipo">
@@ -615,6 +616,7 @@ export default function Tarefas() {
   // ── SlideOver state ───────────────────────────────────────────────────────
   const [editItem, setEditItem]   = useState(null)   // tarefa obj | { _new:true, status? } | null
   const [form, setForm]           = useState(null)
+  const [errs, setErrs]           = useState({})
 
   function openNew(status) {
     setForm({ ...EMPTY_FORM, ...(status ? { status } : {}) })
@@ -627,7 +629,8 @@ export default function Tarefas() {
   function closeSlideOver() { setEditItem(null); setForm(null) }
 
   function handleSave() {
-    if (!form.titulo.trim()) return
+    if (!form?.titulo?.trim()) { setErrs({ titulo: 'Título é obrigatório' }); return }
+    setErrs({})
     const isNew = !!editItem?._new
     saveTarefa(isNew
       ? { ...form, id: novoId(), criado: new Date().toISOString().slice(0, 10) }
@@ -768,7 +771,8 @@ export default function Tarefas() {
         </button>
       )}
     >
-      {form && <TarefaForm form={form} onChange={setForm} tiposTarefa={tiposTarefa} />}
+      {form && <TarefaForm form={form} onChange={setForm} tiposTarefa={tiposTarefa}
+        errs={errs} clearErr={k => setErrs(p => ({ ...p, [k]: '' }))} />}
     </SlideOver>
   )
 
@@ -817,6 +821,14 @@ export default function Tarefas() {
         search={search}
         onSearchChange={setSearch}
         bulkActions={bulkActions}
+        bulkEditFields={[
+          { key: 'prioridade', label: 'Prioridade', type: 'select',
+            options: Object.entries(PRIORIDADE_CFG).map(([k, v]) => ({ value: k, label: v.label })) },
+          { key: 'prazo', label: 'Prazo', type: 'date' },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const t = tarefas.find(t => t.id === id); if (t) saveTarefa({ ...t, ...changes }) })
+        }
         renderCard={row => <TarefaCard tarefa={row} onClick={() => openEdit(row)} />}
         onRowClick={row => openEdit(row)}
         onNew={() => openNew()}

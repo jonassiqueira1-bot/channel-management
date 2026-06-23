@@ -105,17 +105,21 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const isNew = !initial?.id
   const [form, setForm]   = useState(initial ? { ...EMPTY_ACAO, ...initial } : { ...EMPTY_ACAO })
   const [saving, setSaving] = useState(false)
+  const [errs, setErrs] = useState({})
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
+    setErrs({})
   }, [initial])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
 
   function handleSave() {
-    if (!form.titulo.trim())  return alert('Título obrigatório')
-    if (!form.empresa_id)     return alert('Selecione a unidade/franquia')
-    if (!form.data_inicio)    return alert('Data de início obrigatória')
+    const e = {}
+    if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
+    if (!form.empresa_id)    e.empresa_id = 'Selecione a unidade/franquia'
+    if (!form.data_inicio)   e.data_inicio = 'Data de início é obrigatória'
+    if (Object.keys(e).length) { setErrs(e); return }
     const emp  = empresasOpts.find(e => String(e.id) === String(form.empresa_id))
     const resp = responsaveisOpts.find(r => r.id === form.responsavel_id)
     setSaving(true)
@@ -164,12 +168,14 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
           </select>
         </FormField>
 
-        <FormField label="Título" required style={{ gridColumn: 'span 2' }}>
-          <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3" />
+        <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
+          <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
+            style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
         </FormField>
 
-        <FormField label="Unidade / Franquia" required style={{ gridColumn: 'span 2' }}>
-          <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}>
+        <FormField label="Unidade / Franquia" required error={errs.empresa_id} style={{ gridColumn: 'span 2' }}>
+          <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}
+            style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
             <option value="">— Selecione —</option>
             {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
           </select>
@@ -186,8 +192,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
           <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
         </FormField>
 
-        <FormField label="Data de início" required>
-          <input className="so-field" type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)} />
+        <FormField label="Data de início" required error={errs.data_inicio}>
+          <input className="so-field" type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
+            style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
         </FormField>
 
         <FormField label="Data de fim">
@@ -404,6 +411,14 @@ export default function Acoes() {
         onNew={() => { setEditando(null); setSlideOpen(true) }}
         newLabel="+ Nova Ação"
         onRowClick={row => { setEditando(row); setSlideOpen(true) }}
+        bulkEditFields={[
+          { key: 'status', label: 'Status', type: 'select',
+            options: Object.entries(STATUS_ACAO).map(([k, v]) => ({ value: k, label: v.label })) },
+          { key: 'data_inicio', label: 'Data de início', type: 'date' },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
+        }
         renderCard={renderCard}
         emptyState={
           <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>

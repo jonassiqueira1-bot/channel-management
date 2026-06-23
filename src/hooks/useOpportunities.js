@@ -175,7 +175,7 @@ export function useOpportunities() {
 
   // Salvar (insert ou update)
   const save = useCallback(async (data) => {
-    console.log('[save] isMockMode:', isMockMode.current, 'funil_id:', data.funil_id, 'titulo:', data.titulo, 'tenantId:', tenantIdRef.current)
+    console.log('[save] isMockMode:', isMockMode.current, 'titulo:', data.titulo, 'tenantId:', tenantIdRef.current, 'playbook_id:', data.playbook_id)
     if (isMockMode.current) {
       setOpps(prev => {
         const idx = prev.findIndex(o => o.id === data.id)
@@ -218,7 +218,7 @@ export function useOpportunities() {
     setOpps(prev => prev.map(o => o.id === id ? { ...o, etapa_id: etapaId } : o))
     if (!isMockMode.current) {
       const opp = opps.find(o => o.id === id)
-      const cf = { ...(opp?.custom_fields || {}), etapa_id: etapaId, itens: opp?.itens || [] }
+      const cf = { ...(opp?.custom_fields || {}), playbook_id: opp?.playbook_id ?? opp?.custom_fields?.playbook_id ?? null, etapa_id: etapaId, itens: opp?.itens || [] }
       const stage_id = isValidUuid(etapaId) ? etapaId : null
       await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
     }
@@ -231,7 +231,7 @@ export function useOpportunities() {
       const stage_id = isValidUuid(etapaId) ? etapaId : null
       for (const id of ids) {
         const opp = opps.find(o => o.id === id)
-        const cf = { ...(opp?.custom_fields || {}), etapa_id: etapaId, itens: opp?.itens || [] }
+        const cf = { ...(opp?.custom_fields || {}), playbook_id: opp?.playbook_id ?? opp?.custom_fields?.playbook_id ?? null, etapa_id: etapaId, itens: opp?.itens || [] }
         await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
       }
     }

@@ -42,8 +42,19 @@ export default function AppLayout() {
             <span style={s.hLine} />
           </button>
           <div style={s.topBrand}>
-            <div style={s.topLogoMark}>CN</div>
-            <span style={s.topBrandName}>Canais NG</span>
+            <svg width="30" height="30" viewBox="0 0 40 40" fill="none">
+              <defs>
+                <linearGradient id="bly-top" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="#4F8EF7"/>
+                  <stop offset="100%" stopColor="#1E3A5F"/>
+                </linearGradient>
+              </defs>
+              <rect width="40" height="40" rx="10" fill="url(#bly-top)"/>
+              <rect x="11" y="24" width="5" height="8" rx="2.5" fill="white" fillOpacity="0.55"/>
+              <rect x="18" y="17" width="5" height="15" rx="2.5" fill="white" fillOpacity="0.78"/>
+              <rect x="25" y="10" width="5" height="22" rx="2.5" fill="white"/>
+            </svg>
+            <span style={s.topBrandName}>Boostly</span>
           </div>
           {/* espaço espelho para centralizar o brand */}
           <div style={{ width: 40 }} />
@@ -125,20 +136,6 @@ const s = {
     display: 'flex',
     alignItems: 'center',
     gap: 8,
-  },
-  topLogoMark: {
-    width: 30,
-    height: 30,
-    background: 'rgba(255,255,255,0.1)',
-    border: '1px solid rgba(255,255,255,0.15)',
-    borderRadius: 7,
-    color: '#fff',
-    fontWeight: 700,
-    fontSize: 11,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontFamily: 'var(--mono)',
   },
   topBrandName: {
     color: '#fff',

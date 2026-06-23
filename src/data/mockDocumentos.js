@@ -31,7 +31,7 @@ export const MOCK_DOCS = [
   {
     id: 'doc-1',
     tenant_id: 't1',
-    title: 'Proposta Comercial — Canal NG Pro',
+    title: 'Proposta Comercial — Boostly Pro',
     description: 'Modelo padrão de proposta para novos parceiros. Inclui apresentação da solução, preços e condições de implantação.',
     categoria: 'proposta',
     status: 'ativo',
@@ -47,11 +47,11 @@ export const MOCK_DOCS = [
 
 ## Apresentação
 
-A {{EMPRESA}} tem o prazer de receber a proposta para implantação do Canal NG Pro, plataforma especializada em gestão de redes de parceiros ISV.
+A {{EMPRESA}} tem o prazer de receber a proposta para implantação do Boostly Pro, plataforma especializada em gestão de redes de parceiros ISV.
 
 ## Solução Proposta
 
-**Módulo Canal NG Pro** inclui:
+**Módulo Boostly Pro** inclui:
 - Gestão de Pipeline e Funil de Vendas
 - Controle de Metas e Comissões
 - Módulo de Projetos e Cronograma
@@ -126,15 +126,15 @@ O presente contrato tem por objeto a formalização da parceria comercial para d
     id: 'doc-3',
     tenant_id: 't1',
     title: 'Deck de Apresentação Institucional',
-    description: 'Apresentação institucional do Canal NG para uso em reuniões com prospects e eventos.',
+    description: 'Apresentação institucional do Boostly para uso em reuniões com prospects e eventos.',
     categoria: 'apresentacao',
     status: 'ativo',
     version: 5,
-    content: `# Canal NG — Apresentação Institucional
+    content: `# Boostly — Apresentação Institucional
 
 ## Sobre Nós
 
-O Canal NG é a plataforma líder em gestão de redes de parceiros ISV no Brasil, com mais de [X] parceiros ativos em [X] estados.
+O Boostly é a plataforma líder em gestão de redes de parceiros ISV no Brasil, com mais de [X] parceiros ativos em [X] estados.
 
 ## Nossos Diferenciais
 
@@ -222,7 +222,7 @@ O descumprimento deste Acordo sujeitará a Parte Receptora ao pagamento de multa
 
 ## Visão Geral
 
-Este documento descreve o processo padrão de integração de novos parceiros à rede Canal NG, cobrindo as 4 semanas iniciais.
+Este documento descreve o processo padrão de integração de novos parceiros à rede Boostly, cobrindo as 4 semanas iniciais.
 
 ## Semana 1 — Kickoff
 
@@ -261,7 +261,7 @@ Este documento descreve o processo padrão de integração de novos parceiros à
 export const MOCK_LOGS = [
   // doc-1
   { id: 'l101', doc_id: 'doc-1', evento: 'criado',    campos: [], usuario: 'Admin', criado_em: '2026-04-01T10:00:00' },
-  { id: 'l102', doc_id: 'doc-1', evento: 'editado',   campos: [{ campo: 'Título', de: 'Proposta Comercial', para: 'Proposta Comercial — Canal NG Pro' }, { campo: 'Descrição', de: '—', para: 'Modelo padrão de proposta para novos parceiros' }], usuario: 'Admin', criado_em: '2026-04-15T11:20:00' },
+  { id: 'l102', doc_id: 'doc-1', evento: 'editado',   campos: [{ campo: 'Título', de: 'Proposta Comercial', para: 'Proposta Comercial — Boostly Pro' }, { campo: 'Descrição', de: '—', para: 'Modelo padrão de proposta para novos parceiros' }], usuario: 'Admin', criado_em: '2026-04-15T11:20:00' },
   { id: 'l103', doc_id: 'doc-1', evento: 'publicado', campos: [{ campo: 'Status', de: 'Rascunho', para: 'Ativo' }], usuario: 'Mariana Silva', criado_em: '2026-04-20T09:00:00' },
   { id: 'l104', doc_id: 'doc-1', evento: 'editado',   campos: [{ campo: 'Conteúdo', de: 'v1', para: 'v2 — Tabela de preços atualizada' }], usuario: 'Mariana Silva', criado_em: '2026-05-05T14:00:00' },
   { id: 'l105', doc_id: 'doc-1', evento: 'editado',   campos: [{ campo: 'Conteúdo', de: 'v2', para: 'v3 — Módulo de Projetos incluído na proposta' }, { campo: 'Versão', de: '2', para: '3' }], usuario: 'Admin', criado_em: '2026-05-20T14:30:00' },

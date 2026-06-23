@@ -33,12 +33,16 @@ import {
   STAGE_CFG, RESOURCE_CFG,
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
+import { useDocuments } from '../hooks/useDocuments'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCompanies } from '../hooks/useCompanies'
 import SearchSelect from '../components/SearchSelect'
 import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
 import { useFormLayout } from '../hooks/useFormLayout'
+import { useContracts } from '../hooks/useContracts'
+import { useProjects } from '../hooks/useProjects'
+import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 import Button from '../components/Button'
@@ -2131,79 +2135,51 @@ function fmtBytes(b) {
 }
 
 function OppDocumentosTab({ oppId }) {
-  const [allDocs, setAllDocs] = useLocalState(DOC_STORAGE_KEY, [])
-  const [dragging, setDragging] = useState(false)
-  const [addOpen, setAddOpen] = useState(false)
-  const [form, setForm] = useState({ tipo: 'proposta', nome: '', descricao: '', versao: '1.0' })
-  const fileRef = useRef(null)
-  const [fileObj, setFileObj] = useState(null)
+  const { docs: allDocs, save: saveDoc, remove: removeDoc, uploadFile, loading } = useDocuments()
+  const [dragging,   setDragging]   = useState(false)
+  const [uploading,  setUploading]  = useState(false)
+  const fileInputRef = useRef(null)
 
-  const docs = allDocs.filter(d => d.opp_id === oppId)
+  // Arquivos anexados diretamente à oportunidade (têm file_url)
+  const files = allDocs.filter(d => d.opportunity_id === oppId && d.file_url)
 
-  function handleDrop(e) {
-    e.preventDefault()
-    setDragging(false)
-    const files = Array.from(e.dataTransfer.files)
-    if (!files.length) return
-    const f = files[0]
-    setFileObj(f)
-    setForm(p => ({ ...p, nome: p.nome || f.name.replace(/\.[^.]+$/, '') }))
-    setAddOpen(true)
+  async function handleFiles(fileList) {
+    const file = fileList[0]
+    if (!file) return
+    setUploading(true)
+    const res = await uploadFile(file)
+    if (!res.ok) { setUploading(false); alert('Erro ao enviar: ' + res.message); return }
+    await saveDoc({
+      title:          file.name,
+      description:    '',
+      categoria:      'outro',
+      status:         'ativo',
+      version:        1,
+      content:        '',
+      opportunity_id: oppId,
+      file_url:       res.url,
+      file_name:      res.name,
+      file_size:      res.size,
+      file_path:      res.path || null,
+    })
+    setUploading(false)
   }
 
-  function handleFileChange(e) {
-    const f = e.target.files[0]
-    if (!f) return
-    setFileObj(f)
-    setForm(p => ({ ...p, nome: p.nome || f.name.replace(/\.[^.]+$/, '') }))
-    setAddOpen(true)
+  async function handleRemove(doc) {
+    if (!window.confirm(`Remover "${doc.file_name}" desta oportunidade?`)) return
+    await removeDoc(doc.id)
   }
 
-  function handleSave() {
-    if (!form.nome.trim()) return alert('Nome obrigatório')
-    const ext = fileObj ? fileObj.name.split('.').pop() : ''
-    if (fileObj) {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        setAllDocs(prev => [...prev, {
-          id: Date.now() + Math.random(),
-          opp_id: oppId,
-          tipo: form.tipo,
-          nome: form.nome.trim(),
-          descricao: form.descricao.trim(),
-          versao: form.versao || '1.0',
-          file_name: fileObj.name,
-          file_size: fileObj.size,
-          file_data: e.target.result,
-          ext: ext.toLowerCase(),
-          criado_em: new Date().toISOString(),
-        }])
-      }
-      reader.readAsDataURL(fileObj)
-    } else {
-      setAllDocs(prev => [...prev, {
-        id: Date.now() + Math.random(),
-        opp_id: oppId,
-        tipo: form.tipo,
-        nome: form.nome.trim(),
-        descricao: form.descricao.trim(),
-        versao: form.versao || '1.0',
-        file_name: '',
-        file_size: 0,
-        ext: ext.toLowerCase(),
-        criado_em: new Date().toISOString(),
-      }])
-    }
-    setForm({ tipo: 'proposta', nome: '', descricao: '', versao: '1.0' })
-    setFileObj(null)
-    setAddOpen(false)
+  function fmtBytes(b) {
+    if (!b) return ''
+    if (b < 1024) return `${b} B`
+    if (b < 1048576) return `${(b/1024).toFixed(1)} KB`
+    return `${(b/1048576).toFixed(1)} MB`
   }
 
-  function handleRemove(id) {
-    setAllDocs(prev => prev.filter(d => d.id !== id))
-  }
+  const EXT_COLOR = { pdf:'#EF4444', doc:'#3B82F6', docx:'#3B82F6', xls:'#10B981', xlsx:'#10B981', ppt:'#F59E0B', pptx:'#F59E0B', png:'var(--accent)', jpg:'var(--accent)', jpeg:'var(--accent)' }
 
-  const EXT_COLORS = { pdf:'#EF4444', doc:'#3B82F6', docx:'#3B82F6', xls:'#10B981', xlsx:'#10B981', ppt:'#F59E0B', pptx:'#F59E0B', png:'var(--accent)', jpg:'var(--accent)', jpeg:'var(--accent)' }
+  if (loading) return <div style={{ padding:'24px 0', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>Carregando…</div>
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16, paddingTop:8 }}>
@@ -2212,158 +2188,75 @@ function OppDocumentosTab({ oppId }) {
       <div
         onDragOver={e => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}
-        onDrop={handleDrop}
-        onClick={() => fileRef.current?.click()}
+        onDrop={e => { e.preventDefault(); setDragging(false); handleFiles(e.dataTransfer.files) }}
+        onClick={() => !uploading && fileInputRef.current?.click()}
         style={{ border:`2px dashed ${dragging ? 'var(--accent)' : 'var(--border)'}`,
-          borderRadius:10, padding:'28px 20px', textAlign:'center', cursor:'pointer',
-          background: dragging ? 'var(--accent-glow)' : 'var(--surface2)',
-          transition:'all 0.15s', flexShrink:0 }}>
-        <input ref={fileRef} type="file" style={{ display:'none' }} onChange={handleFileChange} />
-        <div style={{ fontSize:28, marginBottom:8 }}>📎</div>
-        <div style={{ fontSize:13, fontWeight:600, color:'var(--text-soft)' }}>
-          Arraste um arquivo ou <span style={{ color:'var(--accent)', textDecoration:'underline' }}>clique para selecionar</span>
-        </div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>
-          PDF, Word, Excel, PowerPoint, imagens…
-        </div>
+          borderRadius:10, padding:'28px 20px', textAlign:'center', cursor: uploading ? 'wait' : 'pointer',
+          background: dragging ? '#eef2ff' : 'var(--surface2)', transition:'all 0.15s', flexShrink:0 }}>
+        <input ref={fileInputRef} type="file" style={{ display:'none' }}
+          onChange={e => handleFiles(e.target.files)} />
+        {uploading ? (
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontWeight:600 }}>Enviando…</div>
+        ) : (
+          <>
+            <div style={{ fontSize:28, marginBottom:8 }}>📎</div>
+            <div style={{ fontSize:13, fontWeight:600, color:'var(--text-soft)' }}>
+              Arraste um arquivo ou{' '}
+              <span style={{ color:'var(--accent)', textDecoration:'underline' }}>clique para selecionar</span>
+            </div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:4 }}>
+              PDF, Word, Excel, PowerPoint, imagens… · {files.length} arquivo{files.length !== 1 ? 's' : ''} anexado{files.length !== 1 ? 's' : ''}
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Form de cadastro (aparece após selecionar arquivo ou ao clicar em + Adicionar) */}
-      {addOpen && (
-        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'16px 18px', display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:2 }}>
-            {fileObj ? `📎 ${fileObj.name}` : 'Novo documento'}
-          </div>
-
-          {/* Tipo */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-              <label style={docLbl}>Tipo *</label>
-              <select style={docInp} value={form.tipo} onChange={e => setForm(p=>({...p, tipo:e.target.value}))}>
-                {MOCK_DOC_TYPES.map(t => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
-              </select>
-            </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-              <label style={docLbl}>Versão</label>
-              <input style={docInp} value={form.versao} placeholder="1.0"
-                onChange={e => setForm(p=>({...p, versao:e.target.value}))} />
-            </div>
-          </div>
-
-          {/* Nome */}
-          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            <label style={docLbl}>Nome do documento *</label>
-            <input style={docInp} value={form.nome} autoFocus
-              placeholder="Ex: Proposta Comercial v2"
-              onChange={e => setForm(p=>({...p, nome:e.target.value}))} />
-          </div>
-
-          {/* Descrição */}
-          <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-            <label style={docLbl}>Descrição / Observação</label>
-            <textarea style={{ ...docInp, height:56, resize:'vertical' }} value={form.descricao}
-              placeholder="Revisão de cláusulas, versão enviada em…"
-              onChange={e => setForm(p=>({...p, descricao:e.target.value}))} />
-          </div>
-
-          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-            <button type="button" onClick={() => { setAddOpen(false); setFileObj(null); setForm({ tipo:'proposta', nome:'', descricao:'', versao:'1.0' }) }}
-              style={docCancelBtn}>Cancelar</button>
-            <button type="button" onClick={handleSave} style={docSaveBtn}>Salvar documento</button>
-          </div>
+      {/* Lista de arquivos */}
+      {files.length === 0 && (
+        <div style={{ textAlign:'center', padding:'16px 0', color:'var(--text-muted)', fontSize:12 }}>
+          Nenhum arquivo anexado ainda.
         </div>
       )}
 
-      {/* Botão manual (sem arquivo) */}
-      {!addOpen && (
-        <button type="button" onClick={() => setAddOpen(true)}
-          style={{ alignSelf:'flex-start', display:'flex', alignItems:'center', gap:6,
-            padding:'6px 14px', border:'1px solid var(--border)', borderRadius:7,
-            background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer',
-            fontFamily:'var(--font)' }}>
-          + Adicionar link / referência
-        </button>
-      )}
-
-      {/* Lista de documentos */}
-      {docs.length === 0 && !addOpen && (
-        <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)' }}>
-          <div style={{ fontSize:24, marginBottom:6 }}>📂</div>
-          <div style={{ fontSize:13, fontWeight:600 }}>Nenhum documento ainda</div>
-          <div style={{ fontSize:11, marginTop:3 }}>Arraste arquivos ou clique na área acima</div>
-        </div>
-      )}
-
-      {docs.length > 0 && (
+      {files.length > 0 && (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-          <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
-            {docs.length} documento{docs.length !== 1 ? 's' : ''}
-          </div>
-          {docs.map(doc => {
-            const tipoCfg = MOCK_DOC_TYPES.find(t => t.value === doc.tipo) || MOCK_DOC_TYPES[5]
-            const extColor = EXT_COLORS[doc.ext] || '#6B7280'
-            const dataCurta = doc.criado_em ? new Date(doc.criado_em).toLocaleDateString('pt-BR', { day:'2-digit', month:'short' }) : ''
+          {files.map(doc => {
+            const ext = doc.file_name?.split('.').pop()?.toLowerCase() || ''
+            const extColor = EXT_COLOR[ext] || '#6B7280'
             return (
               <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:12,
                 padding:'10px 14px', background:'var(--surface)', border:'1px solid var(--border2)',
                 borderRadius:9, borderLeft:`3px solid ${extColor}` }}>
 
-                {/* Ícone de extensão */}
                 <div style={{ width:36, height:36, borderRadius:7, background:`${extColor}18`,
                   border:`1.5px solid ${extColor}44`, display:'flex', alignItems:'center',
                   justifyContent:'center', flexShrink:0, fontSize:10, fontWeight:800,
                   color:extColor, fontFamily:'var(--mono)', textTransform:'uppercase' }}>
-                  {doc.ext || '?'}
+                  {ext || '?'}
                 </div>
 
-                {/* Info */}
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
-                    <span style={{ fontSize:13, fontWeight:600, color:'var(--text)',
-                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {doc.nome}
-                    </span>
-                    {doc.versao && (
-                      <span style={{ fontSize:10, fontFamily:'var(--mono)', color:'var(--text-muted)',
-                        background:'var(--surface2)', padding:'1px 6px', borderRadius:4,
-                        border:'1px solid var(--border)', flexShrink:0 }}>
-                        v{doc.versao}
-                      </span>
-                    )}
-                    <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>
-                      {tipoCfg.icon} {tipoCfg.label}
-                    </span>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
+                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {doc.file_name}
                   </div>
-                  {doc.descricao && (
-                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2,
-                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {doc.descricao}
+                  {doc.file_size && (
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+                      {fmtBytes(doc.file_size)}
                     </div>
                   )}
-                  <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2, fontFamily:'var(--mono)' }}>
-                    {doc.file_name && <span>{doc.file_name}</span>}
-                    {doc.file_size > 0 && <span style={{ marginLeft:6 }}>{fmtBytes(doc.file_size)}</span>}
-                    {dataCurta && <span style={{ marginLeft:8 }}>· {dataCurta}</span>}
-                  </div>
                 </div>
 
-                {/* Download */}
-                {doc.file_data && (
-                  <a href={doc.file_data} download={doc.file_name || doc.nome}
-                    style={{ background:'none', border:'none', cursor:'pointer',
-                      color:'var(--text-muted)', fontSize:15, padding:'4px 6px', borderRadius:5,
-                      flexShrink:0, lineHeight:1, textDecoration:'none', display:'flex', alignItems:'center' }}
-                    title="Baixar arquivo">
-                    ↓
-                  </a>
-                )}
+                <a href={doc.file_url} target="_blank" rel="noreferrer" download={doc.file_name}
+                  style={{ fontSize:12, color:'var(--accent)', fontWeight:600, textDecoration:'none',
+                    padding:'5px 10px', border:'1px solid var(--accent)', borderRadius:6, flexShrink:0 }}>
+                  ↓ Baixar
+                </a>
 
-                {/* Remover */}
-                <button type="button" onClick={() => handleRemove(doc.id)}
+                <button type="button" onClick={() => handleRemove(doc)}
                   style={{ background:'none', border:'none', cursor:'pointer',
-                    color:'var(--text-muted)', fontSize:13, padding:'4px 6px', borderRadius:5,
-                    flexShrink:0, lineHeight:1 }}
-                  onMouseEnter={e=>e.currentTarget.style.color='var(--red)'}
+                    color:'var(--text-muted)', fontSize:13, padding:'4px 6px', borderRadius:5, flexShrink:0 }}
+                  onMouseEnter={e=>e.currentTarget.style.color='#EF4444'}
                   onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
                   ✕
                 </button>
@@ -2467,16 +2360,52 @@ function mergeTemplate(content, opp) {
 }
 
 function OppPropostaTab({ opp }) {
-  const [docs]        = useLocalState(DOCS_MODULE_KEY, MOCK_DOCS)
+  const { docs: allDocs, linkToOpp, loading: loadingDocs } = useDocuments()
   const [proposals, setProposals] = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
-  const [pickerOpen,  setPickerOpen]  = useState(false)
-  const [editing,     setEditing]     = useState(null)  // proposal being edited
+  const [pickerOpen,    setPickerOpen]    = useState(false)
+  const [linkPickerOpen, setLinkPickerOpen] = useState(false)
+  const [editing,       setEditing]       = useState(null)
+  const [linkSearch,    setLinkSearch]    = useState('')
 
+  // Propostas geradas localmente (editor markdown)
   const linked = useMemo(
     () => proposals.filter(p => p.opp_id === String(opp.id))
           .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)),
     [proposals, opp.id]
   )
+
+  // Documentos do módulo Documentos, tipo proposta, vinculados a esta oportunidade
+  const linkedDocs = useMemo(
+    () => allDocs.filter(d => d.opportunity_id === String(opp.id) && d.categoria === 'proposta'),
+    [allDocs, opp.id]
+  )
+
+  // Documentos tipo proposta disponíveis para vincular
+  const availableDocs = useMemo(
+    () => allDocs.filter(d =>
+      d.categoria === 'proposta' &&
+      d.opportunity_id !== String(opp.id) &&
+      (linkSearch.trim() === '' || d.title.toLowerCase().includes(linkSearch.toLowerCase()))
+    ),
+    [allDocs, opp.id, linkSearch]
+  )
+
+  // Templates de proposta ativos (para gerar via editor markdown)
+  const docs = useMemo(
+    () => allDocs.filter(d => d.status === 'ativo' && d.categoria === 'proposta'),
+    [allDocs]
+  )
+
+  async function handleLinkDoc(doc) {
+    await linkToOpp(doc.id, String(opp.id))
+    setLinkPickerOpen(false)
+    setLinkSearch('')
+  }
+
+  async function handleUnlinkDoc(doc) {
+    if (window.confirm(`Desvincular "${doc.title}" desta oportunidade?`))
+      await linkToOpp(doc.id, null)
+  }
 
   function abrirNovaProposta(doc) {
     setEditing({
@@ -2633,10 +2562,9 @@ function OppPropostaTab({ opp }) {
   /* ── Picker de template de documento ── */
   function DocTemplatePicker({ onClose }) {
     const [search, setSearch] = useState('')
-    // proposta category first, then others
+    // já filtrado por proposta+ativo no useMemo acima
     const lista = docs
-      .filter(d => d.status === 'ativo' && (!search || d.title.toLowerCase().includes(search.toLowerCase())))
-      .sort((a, b) => (a.categoria === 'proposta' ? -1 : 1) - (b.categoria === 'proposta' ? -1 : 1))
+      .filter(d => !search || d.title.toLowerCase().includes(search.toLowerCase()))
 
     return (
       <>
@@ -2709,10 +2637,104 @@ function OppPropostaTab({ opp }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+      {/* ── Documentos do módulo vinculados ── */}
+      <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            Propostas vinculadas do módulo Documentos
+          </span>
+          <button type="button" onClick={() => { setLinkPickerOpen(l => !l); setLinkSearch('') }}
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px',
+              border:'1px solid var(--border)', borderRadius:7,
+              background: linkPickerOpen ? 'var(--accent)' : 'none',
+              color: linkPickerOpen ? '#fff' : 'var(--text-muted)',
+              fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
+            {linkPickerOpen ? '✕ Cancelar' : '+ Vincular proposta'}
+          </button>
+        </div>
+
+        {linkPickerOpen && (
+          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10,
+            padding:'14px 16px', display:'flex', flexDirection:'column', gap:10 }}>
+            <input autoFocus style={docInp} value={linkSearch}
+              placeholder="Buscar proposta no módulo Documentos…"
+              onChange={e => setLinkSearch(e.target.value)} />
+            {availableDocs.length === 0 ? (
+              <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'8px 0' }}>
+                {linkSearch ? 'Nenhuma proposta encontrada.' : 'Nenhuma proposta disponível para vincular.'}
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:200, overflowY:'auto' }}>
+                {availableDocs.map(doc => (
+                  <div key={doc.id}
+                    onClick={() => handleLinkDoc(doc)}
+                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                      background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:8, cursor:'pointer' }}>
+                    <span style={{ fontSize:16 }}>📄</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)' }}>v{doc.version} · {doc.status}</div>
+                    </div>
+                    {doc.file_url && (
+                      <span style={{ fontSize:10, color:'var(--text-muted)', background:'var(--surface2)',
+                        padding:'2px 6px', borderRadius:4, border:'1px solid var(--border)', flexShrink:0 }}>
+                        com arquivo
+                      </span>
+                    )}
+                    <span style={{ fontSize:11, color:'var(--accent)', fontWeight:600, flexShrink:0 }}>Vincular →</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {linkedDocs.length === 0 && !linkPickerOpen && (
+          <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
+            Nenhuma proposta vinculada. Vincule documentos do módulo Documentos ou gere uma abaixo.
+          </div>
+        )}
+
+        {linkedDocs.length > 0 && (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {linkedDocs.map(doc => (
+              <div key={doc.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 14px',
+                background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:9,
+                borderLeft:'3px solid var(--accent)' }}>
+                <span style={{ fontSize:18, flexShrink:0 }}>📄</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.title}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>v{doc.version} · {doc.status}</div>
+                  {doc.description && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{doc.description}</div>}
+                </div>
+                {doc.file_url && (
+                  <a href={doc.file_url} target="_blank" rel="noreferrer" download={doc.file_name}
+                    onClick={e => e.stopPropagation()}
+                    style={{ fontSize:12, color:'var(--accent)', fontWeight:600, textDecoration:'none',
+                      padding:'4px 10px', border:'1px solid var(--accent)', borderRadius:6, flexShrink:0 }}>
+                    ↓ Baixar
+                  </a>
+                )}
+                <button type="button" onClick={() => handleUnlinkDoc(doc)}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+                    fontSize:12, padding:'4px 8px', borderRadius:5, flexShrink:0 }}
+                  onMouseEnter={e=>e.currentTarget.style.color='#EF4444'}
+                  onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div style={{ height:1, background:'var(--border2)' }} />
+
       {/* Toolbar */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-          {linked.length} proposta{linked.length !== 1 ? 's' : ''} gerada{linked.length !== 1 ? 's' : ''}
+          {linked.length} proposta{linked.length !== 1 ? 's' : ''} gerada{linked.length !== 1 ? 's' : ''} (editor)
         </span>
         <button onClick={() => setPickerOpen(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
@@ -2789,8 +2811,7 @@ function OppPropostaTab({ opp }) {
 
 // ─── Aba Questionários da Oportunidade ───────────────────────────────────────
 function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
-  const [templates]   = useLocalState(Q_STORAGE_TEMPLATES,   MOCK_Q_TEMPLATES)
-  const [submissions, setSubmissions] = useLocalState(Q_STORAGE_SUBMISSIONS, MOCK_Q_SUBMISSIONS)
+  const { templates, submissions, saveSubmission, removeSubmission } = useQuestionnaires()
   const [pickerOpen, setPickerOpen] = useState(false)
   const [editSub,    setEditSub]    = useState(null)
 
@@ -2800,26 +2821,25 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
     [submissions, oppId]
   )
 
-  function criarSubmission(template) {
-    const now = new Date().toISOString()
+  async function criarSubmission(template) {
     const nova = {
-      id: `sub-opp-${Date.now()}`, tenant_id: 't1',
-      template_id: template.id,
-      opportunity_id: String(oppId),
-      company_id: empresaId || null,
-      company_nome: empresaNome || '',
-      status: 'rascunho',
-      answered_by_nome: 'Você',
-      valores_respostas: {},
-      created_at: now, submitted_at: null,
+      template_id:      template.id,
+      opportunity_id:   String(oppId),
+      company_id:       empresaId || null,
+      company_nome:     empresaNome || '',
+      status:           'rascunho',
+      respondente_nome: 'Você',
+      respostas:        {},
     }
-    setSubmissions(prev => [...prev, nova])
+    const res = await saveSubmission(nova)
     setPickerOpen(false)
-    setEditSub(nova)   // abre direto no editor
+    // abre editor com o objeto retornado (tem id real do Supabase ou temporário)
+    const criada = res?.data || { ...nova, id: `sub-opp-${Date.now()}` }
+    setEditSub(criada)
   }
 
-  function salvarSubmission(updated) {
-    setSubmissions(prev => prev.map(s => s.id === updated.id ? updated : s))
+  async function salvarSubmission(updated) {
+    await saveSubmission(updated)
     setEditSub(null)
   }
 
@@ -2835,17 +2855,17 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
 
     const [draft, setDraft] = useState(() => ({
       ...sub,
-      company_nome:    sub.company_nome    || empresaNome || '',
-      answered_by_nome: sub.answered_by_nome || 'Você',
-      valores_respostas: { ...(sub.valores_respostas || {}) },
+      company_nome:     sub.company_nome     || empresaNome || '',
+      respondente_nome: sub.respondente_nome || sub.answered_by_nome || 'Você',
+      respostas:        { ...(sub.respostas || sub.valores_respostas || {}) },
     }))
 
     function setResp(pid, val) {
-      setDraft(d => ({ ...d, valores_respostas: { ...d.valores_respostas, [pid]: val } }))
+      setDraft(d => ({ ...d, respostas: { ...d.respostas, [pid]: val } }))
     }
 
     function toggleOpcao(pid, opcao) {
-      const atual = Array.isArray(draft.valores_respostas[pid]) ? draft.valores_respostas[pid] : []
+      const atual = Array.isArray(draft.respostas[pid]) ? draft.respostas[pid] : []
       const next  = atual.includes(opcao) ? atual.filter(v => v !== opcao) : [...atual, opcao]
       setResp(pid, next)
     }
@@ -2855,8 +2875,7 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
       const isSubmitting = draft.status !== 'rascunho'
       onSave({
         ...draft,
-        updated_at: now,
-        submitted_at: draft.submitted_at || (isSubmitting ? now : null),
+        enviado_em: draft.enviado_em || (isSubmitting ? now : null),
       })
     }
 
@@ -2907,8 +2926,8 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
                 </div>
                 <div>
                   <label style={lbl}>Respondido por</label>
-                  <input style={inp} value={draft.answered_by_nome}
-                    onChange={e => setDraft(d => ({ ...d, answered_by_nome: e.target.value }))}
+                  <input style={inp} value={draft.respondente_nome}
+                    onChange={e => setDraft(d => ({ ...d, respondente_nome: e.target.value }))}
                     placeholder="Nome do respondente" />
                 </div>
               </div>
@@ -2940,14 +2959,14 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
 
                       {p.tipo === 'texto' && (
                         <input style={inp}
-                          value={draft.valores_respostas[p.id] || ''}
+                          value={draft.respostas[p.id] || ''}
                           onChange={e => setResp(p.id, e.target.value)}
                           placeholder="Digite sua resposta…" />
                       )}
 
                       {p.tipo === 'numero' && (
                         <input type="number" style={inp}
-                          value={draft.valores_respostas[p.id] || ''}
+                          value={draft.respostas[p.id] || ''}
                           onChange={e => setResp(p.id, e.target.value)}
                           placeholder="0" />
                       )}
@@ -2955,8 +2974,8 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
                       {p.tipo === 'multipla_escolha' && (
                         <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                           {(p.opcoes || []).map((opt, oi) => {
-                            const sel = Array.isArray(draft.valores_respostas[p.id])
-                              ? draft.valores_respostas[p.id].includes(opt)
+                            const sel = Array.isArray(draft.respostas[p.id])
+                              ? draft.respostas[p.id].includes(opt)
                               : false
                             return (
                               <label key={oi}
@@ -3099,7 +3118,7 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
           <table style={{ width:'100%', borderCollapse:'collapse' }}>
             <thead>
               <tr style={{ background:'var(--surface2)' }}>
-                {['Template', 'Tipo', 'Status', 'Respondido por', 'Data'].map((h, i) => (
+                {['Template', 'Tipo', 'Status', 'Respondido por', 'Data', ''].map((h, i) => (
                   <th key={i} style={{ padding:'8px 12px', fontSize:10, fontWeight:700,
                     color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em',
                     textAlign:'left', borderBottom:'1px solid var(--border)' }}>{h}</th>
@@ -3137,10 +3156,25 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
                       </span>
                     </td>
                     <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text-soft)' }}>
-                      {sub.answered_by_nome || '—'}
+                      {sub.respondente_nome || '—'}
                     </td>
                     <td style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-                      {fmtData(sub.submitted_at || sub.created_at)}
+                      {fmtData(sub.enviado_em || sub.criado)}
+                    </td>
+                    <td style={{ padding:'10px 12px', textAlign:'right' }}>
+                      {sub.status === 'rascunho' && (
+                        <button
+                          title="Desconectar questionário"
+                          onClick={e => {
+                            e.stopPropagation()
+                            if (window.confirm('Desconectar este questionário da oportunidade?')) removeSubmission(sub.id)
+                          }}
+                          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'2px 6px', borderRadius:5, lineHeight:1 }}
+                          onMouseEnter={e => { e.currentTarget.style.color='var(--red)'; e.currentTarget.style.background='var(--red-bg)' }}
+                          onMouseLeave={e => { e.currentTarget.style.color='var(--text-muted)'; e.currentTarget.style.background='none' }}>
+                          ✕
+                        </button>
+                      )}
                     </td>
                   </tr>
                 )
@@ -3162,27 +3196,12 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
   )
 }
 
-// ─── Storage keys de outros módulos (leitura/escrita direta ao localStorage) ──
-const CONTRATOS_STORAGE_KEY = 'companies:v1'
-const PROJETOS_STORAGE_KEY  = 'projects:data_v1'
-
-function lerStorage(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback } catch { return fallback }
-}
-function gravarStorage(key, valor) {
-  try { localStorage.setItem(key, JSON.stringify(valor)) } catch {}
-}
-
-// ─── Gerador de número de contrato ────────────────────────────────────────────
-function gerarNumeroContrato() {
-  const contratos = lerStorage(CONTRATOS_STORAGE_KEY, [])
-  const ano = new Date().getFullYear()
-  const seq = contratos.filter(c => (c.numero||'').includes(String(ano))).length + 1
-  return `CTR-${ano}-${String(seq).padStart(3,'0')}`
-}
 
 // ─── Modal de fechamento de oportunidade ganha ───────────────────────────────
 function FechamentoModal({ opp, onClose }) {
+  const { save: saveContrato, contratos } = useContracts()
+  const { save: saveProjeto }             = useProjects()
+
   const temServico = (opp.valor_servico > 0) ||
     (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico')
 
@@ -3191,62 +3210,59 @@ function FechamentoModal({ opp, onClose }) {
   const [salvando, setSalvando]           = useState(false)
   const [feito, setFeito]                 = useState(null) // null | { contrato, projeto }
 
-  function confirmar() {
+  function gerarNumero() {
+    const ano = new Date().getFullYear()
+    const seq = (contratos || []).filter(c => (c.numero||'').startsWith(`CTR-${ano}`)).length + 1
+    return `CTR-${ano}-${String(seq).padStart(3,'0')}`
+  }
+
+  async function confirmar() {
     setSalvando(true)
     const resultados = {}
+    const hoje = new Date().toISOString().slice(0,10)
 
     if (gerarContrato) {
-      const contratos = lerStorage(CONTRATOS_STORAGE_KEY, [])
-      const novoContrato = {
-        id: Date.now(),
-        numero: gerarNumeroContrato(),
-        empresa_id:   opp.empresa_id,
-        empresa_nome: opp.empresa_nome,
-        status: 'rascunho', // pendente de auditoria
+      const numero = gerarNumero()
+      const res = await saveContrato({
+        numero,
+        empresa_id:      opp.empresa_id,
+        empresa_nome:    opp.empresa_nome,
+        origem:          'direta',
+        status:          'rascunho',
         primeira_compra: false,
-        vigencia_inicio: new Date().toISOString().slice(0,10),
-        vigencia_fim: '',
-        // produtos da oportunidade
-        produto_adesao_id:   (opp.itens||[]).find(i=>i.slot==='adesao')?.produto_id || null,
-        produto_adesao_nome: (opp.itens||[]).find(i=>i.slot==='adesao')?.nome || '',
-        valor_adesao: (opp.itens||[]).find(i=>i.slot==='adesao')?.valor || opp.valor_cdu || '',
-        tabela_adesao: null, desconto_adesao_pct: '', desconto_autorizado_adesao: false,
-        produto_mrr_id:   (opp.itens||[]).find(i=>i.slot==='mrr')?.produto_id || null,
-        produto_mrr_nome: (opp.itens||[]).find(i=>i.slot==='mrr')?.nome || '',
-        valor_mrr: (opp.itens||[]).find(i=>i.slot==='mrr')?.valor || opp.valor_sms || '',
-        tabela_mrr: null, desconto_mrr_pct: '', desconto_autorizado_mrr: false,
-        produto_servico_id:   (opp.itens||[]).find(i=>i.slot==='servico')?.produto_id || null,
-        produto_servico_nome: (opp.itens||[]).find(i=>i.slot==='servico')?.nome || '',
-        valor_servico: (opp.itens||[]).find(i=>i.slot==='servico')?.valor || opp.valor_servico || '',
-        tabela_servico: null, desconto_servico_pct: '', desconto_autorizado_servico: false,
-        responsavel:  opp.responsavel || '',
-        observacoes:  `Gerado automaticamente ao fechar oportunidade: ${opp.titulo}`,
-        oportunidade_id: opp.id,
-      }
-      gravarStorage(CONTRATOS_STORAGE_KEY, [novoContrato, ...contratos])
-      resultados.contrato = novoContrato.numero
+        vigencia_inicio: opp.data_fechamento || hoje,
+        vigencia_fim:    '',
+        itens_adesao:  (opp.itens||[]).filter(i=>i.slot==='adesao').map(i=>({ produto_id: i.produto_id, nome: i.nome, valor: i.valor||opp.valor_cdu||0, tabela: i.valor||null, desconto_pct: 0, desconto_autorizado: false })),
+        itens_mrr:     (opp.itens||[]).filter(i=>i.slot==='mrr').map(i=>({ produto_id: i.produto_id, nome: i.nome, valor: i.valor||opp.valor_sms||0, tabela: i.valor||null, desconto_pct: 0, desconto_autorizado: false })),
+        itens_servico: (opp.itens||[]).filter(i=>i.slot==='servico').map(i=>({ produto_id: i.produto_id, nome: i.nome, valor: i.valor||opp.valor_servico||0, tabela: i.valor||null, desconto_pct: 0, desconto_autorizado: false })),
+        responsavel:         opp.responsavel || '',
+        observacoes:         `Gerado automaticamente ao fechar oportunidade: ${opp.titulo}`,
+        opportunity_id:      opp.id,
+        opportunity_titulo:  opp.titulo,
+      })
+      if (res.ok) resultados.contrato = numero
+      else resultados.contratoErro = res.message
     }
 
     if (gerarProjeto) {
-      const projetos = lerStorage(PROJETOS_STORAGE_KEY, [])
-      const novoProjeto = {
-        id: Date.now() + 1,
-        name: opp.titulo,
-        company_nome:   opp.empresa_nome,
+      const res = await saveProjeto({
+        name:          opp.titulo,
+        company_id:    opp.empresa_id || null,
+        company_nome:  opp.empresa_nome,
         franchise_nome: '',
-        phase: 'iniciacao',
+        phase:         'iniciacao',
         current_phase_index: 1,
-        status: 'em_andamento',
+        status:        'em_andamento',
         total_hours_estimated: 0,
         total_hours_executed:  0,
-        start_date: new Date().toISOString().slice(0,10),
+        start_date:    hoje,
         end_date_estimated: '',
-        notes: `Projeto criado a partir da oportunidade: ${opp.titulo}`,
+        notes:         `Projeto criado a partir da oportunidade: ${opp.titulo}`,
         opportunity_id: opp.id,
-        responsavel: opp.responsavel || '',
-      }
-      gravarStorage(PROJETOS_STORAGE_KEY, [novoProjeto, ...projetos])
-      resultados.projeto = novoProjeto.name
+        responsavel:   opp.responsavel || '',
+      })
+      if (res.ok) resultados.projeto = opp.titulo
+      else resultados.projetoErro = res.message
     }
 
     setSalvando(false)
@@ -3269,9 +3285,19 @@ function FechamentoModal({ opp, onClose }) {
 
   if (feito) {
     const steps = [
-      { id: 'opp',      label: 'Oportunidade marcada como Ganha',           sublabel: opp.titulo },
-      { id: 'contrato', label: feito.contrato ? `Contrato ${feito.contrato} criado em Rascunho` : 'Contrato não gerado', sublabel: feito.contrato ? 'Pendente de auditoria' : undefined, mono: true, skip: !gerarContrato },
-      { id: 'projeto',  label: feito.projeto  ? `Projeto "${feito.projeto}" criado` : 'Projeto não gerado',              sublabel: feito.projeto  ? 'Etapa: Iniciação' : undefined,           skip: !gerarProjeto  },
+      { id: 'opp',      label: 'Oportunidade marcada como Ganha', sublabel: opp.titulo },
+      ...(gerarContrato ? [{
+        id: 'contrato',
+        label:    feito.contrato    ? `Contrato ${feito.contrato} criado em Rascunho` : `Erro ao criar contrato`,
+        sublabel: feito.contrato    ? 'Pendente de auditoria' : feito.contratoErro,
+        error:    !!feito.contratoErro,
+      }] : []),
+      ...(gerarProjeto ? [{
+        id: 'projeto',
+        label:    feito.projeto     ? `Projeto "${feito.projeto}" criado` : `Erro ao criar projeto`,
+        sublabel: feito.projeto     ? 'Etapa: Iniciação' : feito.projetoErro,
+        error:    !!feito.projetoErro,
+      }] : []),
     ]
     return (
       <ActionFeedback
@@ -3356,7 +3382,7 @@ function FechamentoModal({ opp, onClose }) {
 }
 
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
-function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade }) {
+function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade }) {
   const isEditing = !!initial
   const [tab, setTab]       = useState('dados')
   const [logOpen, setLogOpen] = useState(false)
@@ -3380,11 +3406,11 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
       : { ...EMPTY_OPP, etapa_id: etapas[0]?.id || null, itens: [] }
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
-  const [fechamentoModal, setFechamentoModal] = useState(null) // opp salva, aguardando ação pós-fechamento
   const [cfFields, cfActions] = useCustomFields('oportunidade')
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
-  function set(f, v) { setForm(prev => ({ ...prev, [f]: v })) }
+  const [errs, setErrs] = useState({})
+  function set(f, v) { setForm(prev => ({ ...prev, [f]: v })); if (errs[f]) setErrs(p => ({ ...p, [f]: '' })) }
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
   function setCustomField(key, value) {
     setForm(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, [key]: value } }))
@@ -3399,22 +3425,24 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
   const [allDocsOpp]      = useLocalState(DOC_STORAGE_KEY, [])
   const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
-  const [allSubmissions]  = useLocalState(Q_STORAGE_SUBMISSIONS, MOCK_Q_SUBMISSIONS)
+  const { submissions: allSubmissions } = useQuestionnaires()
   const oppDocumentosCount   = allDocsOpp.filter(d => d.opp_id === initial?.id).length
   const oppPropostaCount     = allPropostas.filter(p => p.opp_id === String(initial?.id)).length
-  const oppQuestionariosCount = allSubmissions.filter(s => s.opportunity_id === String(initial?.id)).length
+  const oppQuestionariosCount = allSubmissions.filter(s => String(s.opportunity_id) === String(initial?.id)).length
   const oppPlaybookCount     = form.playbook_id ? 1 : 0
 
   function handleSave() {
-    if (!form.titulo.trim()) return alert('Título é obrigatório')
-    if (!form.empresa_id)    return alert('Selecione uma empresa')
+    const e = {}
+    if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
+    if (!form.empresa_id)    e.empresa_id = 'Selecione uma empresa'
+    if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
 
     // Regra: ao fechar como ganha, exige ao menos um produto vinculado
     if (form.situacao === 'ganha') {
       const temProduto = (form.itens||[]).length > 0 ||
         form.produto_adesao_id || form.produto_mrr_id || form.produto_servico_id
       if (!temProduto) {
-        alert('Para fechar uma oportunidade como "Ganha", é necessário vincular ao menos um produto.\n\nAcesse a aba Produtos e adicione os itens negociados.')
+        setErrs({ _produto: 'Vincule ao menos um produto para fechar como Ganha.' })
         setTab('produtos')
         return
       }
@@ -3432,10 +3460,9 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
 
     onSave(oppSalva)
     if (form.situacao === 'ganha' && !eraGanha) {
-      setFechamentoModal(oppSalva)
-    } else {
-      onClose()
+      onFechamento(oppSalva)
     }
+    onClose()
   }
 
   // label slate — usado no DadosFormBody
@@ -3445,17 +3472,23 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
   function renderOppField(key) {
     switch (key) {
       case 'titulo':
-        return <input style={m.input} value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Proposta expansão SP" />
+        return <>
+          <input style={{ ...m.input, borderColor: errs.titulo ? '#DC2626' : '' }} value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Proposta expansão SP" />
+          {errs.titulo && <span style={{ color:'#DC2626', fontSize:11, marginTop:2, display:'block' }}>{errs.titulo}</span>}
+        </>
       case 'empresa_id':
-        return <EmpresaSearch value={form.empresa_id} label={form.empresa_nome}
-          onChange={(id, nome) => {
-            set('empresa_id', id); set('empresa_nome', nome)
-            if (id && form.primary_contact_id) {
-              const c = todosContatos.find(c => c.id === form.primary_contact_id)
-              if (!c || c.empresa_id !== Number(id)) { set('primary_contact_id', null); set('primary_contact_nome', '') }
-            }
-            if (!id) { set('primary_contact_id', null); set('primary_contact_nome', '') }
-          }} />
+        return <>
+          <EmpresaSearch value={form.empresa_id} label={form.empresa_nome}
+            onChange={(id, nome) => {
+              set('empresa_id', id); set('empresa_nome', nome)
+              if (id && form.primary_contact_id) {
+                const c = todosContatos.find(c => c.id === form.primary_contact_id)
+                if (!c || c.empresa_id !== Number(id)) { set('primary_contact_id', null); set('primary_contact_nome', '') }
+              }
+              if (!id) { set('primary_contact_id', null); set('primary_contact_nome', '') }
+            }} />
+          {errs.empresa_id && <span style={{ color:'#DC2626', fontSize:11, marginTop:2, display:'block' }}>{errs.empresa_id}</span>}
+        </>
       case 'primary_contact_id':
         return <ContatoSearch value={form.primary_contact_id} label={form.primary_contact_nome}
           empresaId={form.empresa_id} allContatos={todosContatos}
@@ -3490,7 +3523,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
       case 'playbook_id':
         return <select style={m.input} value={form.playbook_id || ''} onChange={e => set('playbook_id', e.target.value || null)}>
           <option value="">— Nenhum —</option>
-          {playbooks.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+          {playbooks.map(p => <option key={p.id} value={p.id}>{p.title || p.titulo}</option>)}
         </select>
       // Valores mostrados em seção separada — não renderizar aqui
       case 'valor_cdu':
@@ -3660,7 +3693,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3689,7 +3723,7 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
             <Button variant="secondary" onClick={onClose}>Fechar</Button>
             <Button
               onClick={() => {
-                if (!form.titulo.trim()) return alert('Salve os Dados primeiro')
+                if (!form.titulo.trim()) { setErrs({ titulo: 'Título é obrigatório' }); setTab('dados'); return }
                 onSave({ ...form, funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
                 onClose()
               }}>Salvar alterações</Button>
@@ -3711,7 +3745,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3724,7 +3759,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3742,7 +3778,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3755,7 +3792,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3768,7 +3806,8 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
           </div>
           <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
             <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
+            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -3803,12 +3842,6 @@ function OppModal({ onClose, onSave, onDelete, initial, etapas, funilId, tarefas
       </SlideOver>
 
       {/* Modal de pós-fechamento — geração de contrato e/ou projeto */}
-      {fechamentoModal && (
-        <FechamentoModal
-          opp={fechamentoModal}
-          onClose={() => { setFechamentoModal(null); onClose() }}
-        />
-      )}
     </>
   )
 }
@@ -3827,9 +3860,6 @@ function mapEtapaToStage(etapaNome) {
 
 function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) {
   const { playbooks } = usePlaybooks()
-  const [allSteps]   = useLocalState(PB_STEPS_STORAGE_KEY,     MOCK_FUNNEL_STEPS)
-  const [allRefs]    = useLocalState(PB_REFS_STORAGE_KEY,      MOCK_REFERENCES)
-  const [allRes]     = useLocalState(PB_RESOURCES_STORAGE_KEY, MOCK_RESOURCES)
 
   // playbookId vem do form (editável); cai de volta para opp.playbook_id se não passado
   const activeId = playbookId !== undefined ? playbookId : opp?.playbook_id
@@ -3839,22 +3869,24 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
   const stageCfg = stage ? STAGE_CFG[stage] : null
 
   const steps = useMemo(() =>
-    playbook ? allSteps.filter(s => s.playbook_id === playbook.id && s.stage === stage) : [],
-    [allSteps, playbook, stage])
+    playbook ? (playbook.steps || []).filter(s =>
+      s.stage === stage || (etapaId != null && String(s.stage) === String(etapaId))
+    ) : [],
+  [playbook, stage, etapaId])
 
   const resources = useMemo(() =>
-    playbook ? allRes.filter(r => r.playbook_id === playbook.id) : [],
-    [allRes, playbook])
+    playbook ? (playbook.resources || []) : [],
+    [playbook])
 
   const refs = useMemo(() => {
     if (!playbook) return []
     const oppSeg  = (opp?.custom_fields?.segmento_industria || '').toLowerCase()
-    return allRefs.filter(r => r.playbook_id === playbook.id).sort((a, b) => {
+    return (playbook.refs || []).sort((a, b) => {
       const aMatch = oppSeg && (a.summary || '').toLowerCase().includes(oppSeg) ? 1 : 0
       const bMatch = oppSeg && (b.summary || '').toLowerCase().includes(oppSeg) ? 1 : 0
       return bMatch - aMatch
     }).slice(0, 3)
-  }, [allRefs, playbook, opp])
+  }, [playbook, opp])
 
   // ── Inline styles ──────────────────────────────────────────────────────────
   const S = {
@@ -3989,8 +4021,8 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
           <p style={S.pbTitle}>{playbook.title}</p>
           <p style={S.pbSub}>{playbook.description || playbook.segment}</p>
         </div>
-        {stageCfg && (
-          <span style={S.stageBadge}>{stageCfg.icon} {stageCfg.label}</span>
+        {etapa && (
+          <span style={S.stageBadge}>{stageCfg?.icon} {etapa.nome}</span>
         )}
       </div>
 
@@ -5156,6 +5188,7 @@ export default function Pipeline() {
   const [acoesOpen, setAcoesOpen]       = useState(false)
   const acoesRef                        = useRef(null)
   const [modal, setModal]               = useState(null)
+  const [fechamentoModal, setFechamentoModal] = useState(null)
   const [importModal, setImportModal]   = useState(false)
   const [importLogs, setImportLogs]     = useState([])
   const [exportLogs, setExportLogs]     = useState([])
@@ -5279,7 +5312,8 @@ export default function Pipeline() {
   }
 
   // ── save/delete ───────────────────────────────────────────────────────────
-  function handleSave(data) { saveOpp({ ...data, funil_nome: funil?.nome || '' }); setModal(null) }
+  function handleSave(data) { saveOpp({ ...data, funil_nome: funil?.nome || '' }) }
+  function handleFechamento(opp) { setFechamentoModal(opp) }
   function handleDelete(id) { removeOpp(id); setModal(null) }
 
   function handleSaveTarefa(tarefa) { saveTask(tarefa) }
@@ -5541,6 +5575,7 @@ export default function Pipeline() {
           onClose={()=>setModal(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          onFechamento={handleFechamento}
           initial={modal._new ? null : modal}
           etapas={etapas}
           funilId={funilAtivo}
@@ -5549,6 +5584,13 @@ export default function Pipeline() {
           onToggleStatus={handleToggleStatus}
           atividades={atividades}
           onAddAtividade={handleAddAtividade}
+        />
+      )}
+
+      {fechamentoModal && (
+        <FechamentoModal
+          opp={fechamentoModal}
+          onClose={() => setFechamentoModal(null)}
         />
       )}
 

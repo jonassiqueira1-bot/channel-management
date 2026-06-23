@@ -206,7 +206,7 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
   function downloadTemplate() {
     const bom = '﻿'
     const header = IMPORT_COLS.join(';')
-    const ex = ['Canal NG Demo','CNG-DEMO','saas','CRM','rascunho','mensal','490.00','0.00','10','5','Feature 1\\nFeature 2','true','Descrição do produto',''].join(';')
+    const ex = ['Boostly Demo','BLY-DEMO','saas','CRM','rascunho','mensal','490.00','0.00','10','5','Feature 1\\nFeature 2','true','Descrição do produto',''].join(';')
     const blob = new Blob([bom + header + '\n' + ex], { type:'text/csv;charset=utf-8' })
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'template_produtos.csv'; a.click()
   }
@@ -315,6 +315,7 @@ export default function Produtos() {
   const { sections: pdSections, fieldById: pdFieldById } = useFormLayout('products')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
+  const [errs, setErrs] = useState({})
   const [importModal, setImportModal] = useState(false)
 
   const filtered = useMemo(() => {
@@ -334,17 +335,22 @@ export default function Produtos() {
     setEditando(prod)
   }
 
-  function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
+  function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({...p, [field]:''})) }
 
   function handleSave() {
-    if (!form.nome.trim()) return alert('Nome é obrigatório')
-    if (!form.codigo.trim()) return alert('Código é obrigatório')
+    const e = {}
+    if (!form.nome.trim()) e.nome = 'Nome é obrigatório'
+    if (!form.codigo.trim()) e.codigo = 'Código é obrigatório'
+    else {
+      const codigo = form.codigo.trim().toUpperCase()
+      const isDup = produtos.some(p => p.codigo?.toUpperCase() === codigo && editando?.codigo?.toUpperCase() !== codigo)
+      if (isDup) e.codigo = 'Já existe um produto com este código'
+    }
+    if (Object.keys(e).length) { setErrs(e); return }
     const codigo = form.codigo.trim().toUpperCase()
-    const existingCodigos = produtos.map(p => p.codigo?.toUpperCase()).filter(Boolean)
-    const isDup = existingCodigos.includes(codigo) && editando?.codigo?.toUpperCase() !== codigo
-    if (isDup) return alert('Já existe um produto com este código')
     saveProduto({ ...form, codigo, id: editando === 'novo' ? Date.now() : editando.id })
     setEditando(null)
+    setErrs({})
   }
 
   function handleDelete(id) {
@@ -367,16 +373,17 @@ export default function Produtos() {
         >
           <FPESection title="Identificação">
             <FPEGrid>
-              <FPEField label="Nome do produto" required>
+              <FPEField label="Nome do produto" required error={errs.nome}>
                 <input className="fpe-field" value={form.nome}
                   onChange={e => set('nome', e.target.value)}
-                  placeholder="Ex: Canal NG Pro" />
+                  placeholder="Ex: Boostly Pro"
+                  style={{ borderColor: errs.nome ? '#DC2626' : '' }} />
               </FPEField>
-              <FPEField label="Código" required>
-                <input className="fpe-field" style={{ fontFamily:'var(--mono)', textTransform:'uppercase' }}
+              <FPEField label="Código" required error={errs.codigo}>
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)', textTransform:'uppercase', borderColor: errs.codigo ? '#DC2626' : '' }}
                   value={form.codigo}
                   onChange={e => set('codigo', e.target.value.toUpperCase())}
-                  placeholder="CNG-PRO" />
+                  placeholder="BLY-PRO" />
               </FPEField>
             </FPEGrid>
             <FPEGrid>

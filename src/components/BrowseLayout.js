@@ -22,11 +22,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   Search, SlidersHorizontal, LayoutList, LayoutGrid,
   ChevronDown, ChevronUp, MoreHorizontal, Plus,
   ChevronsUpDown, ArrowUp, ArrowDown, Check,
-  Columns, GripVertical,
+  Columns, GripVertical, PencilLine, X,
 } from 'lucide-react'
 
 // ── constantes ────────────────────────────────────────────────────────────────
@@ -220,24 +221,64 @@ function useClickOutside(ref, onClose) {
   }, [ref, onClose])
 }
 
-// ── Dropdown controlado — só um abre por vez via openId ───────────────────────
+// ── Dropdown controlado com portal (evita clipping por overflow:hidden) ───────
 function Dropdown({ id, openId, setOpenId, trigger, children, align = 'left', minWidth }) {
-  const open = openId === id
-  const ref  = useRef(null)
-  useClickOutside(ref, useCallback(() => { if (open) setOpenId(null) }, [open, setOpenId]))
+  const open       = openId === id
+  const triggerRef = useRef(null)
+  const menuRef    = useRef(null)
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 0 })
+
+  // Calcula posição ao abrir — abre para cima se não há espaço abaixo
+  useEffect(() => {
+    if (!open || !triggerRef.current) return
+    const r         = triggerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - r.bottom
+    const spaceAbove = r.top
+    const openUp    = spaceBelow < 220 && spaceAbove > spaceBelow
+    setPos({
+      left:   r.left,
+      right:  window.innerWidth - r.right,
+      width:  r.width,
+      // abre para cima: bottom fixado; para baixo: top fixado
+      ...(openUp
+        ? { bottom: window.innerHeight - r.top + 4, top: 'auto' }
+        : { top: r.bottom + 4, bottom: 'auto' }),
+    })
+  }, [open])
+
+  // Fecha ao clicar fora
+  useEffect(() => {
+    if (!open) return
+    function handle(e) {
+      if (
+        triggerRef.current && !triggerRef.current.contains(e.target) &&
+        menuRef.current    && !menuRef.current.contains(e.target)
+      ) setOpenId(null)
+    }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [open, setOpenId])
+
+  const menuStyle = {
+    ...s.dropdown,
+    position: 'fixed',
+    top:    pos.top,
+    bottom: pos.bottom,
+    ...(align === 'right'
+      ? { right: pos.right }
+      : { left: pos.left }),
+    ...(minWidth ? { minWidth } : {}),
+    maxHeight: 320,
+    overflowY: 'auto',
+    zIndex: 9999,
+  }
+
   return (
-    <div ref={ref} style={s.dropdownWrap}>
+    <div ref={triggerRef} style={s.dropdownWrap}>
       <div onClick={() => setOpenId(open ? null : id)}>{trigger}</div>
-      {open && (
-        <div
-          style={{
-            ...s.dropdown,
-            [align === 'right' ? 'right' : 'left']: 0,
-            ...(minWidth ? { minWidth } : {}),
-          }}
-        >
-          {children}
-        </div>
+      {open && createPortal(
+        <div ref={menuRef} style={menuStyle}>{children}</div>,
+        document.body
       )}
     </div>
   )
@@ -268,6 +309,8 @@ export default function BrowseLayout({
   search           = '',
   onSearchChange,
   bulkActions      = [],
+  bulkEditFields,   // [{ key, label, type:'text'|'select'|'date'|'number'|'textarea', options?:[{value,label}] }]
+  onBulkEdit,       // (ids: string[], changes: Record<string,any>) => void
   renderCard,
   storageKey       = 'default',
   emptyState,
@@ -398,6 +441,28 @@ export default function BrowseLayout({
     return pages
   }
 
+  // ── bulk edit ────────────────────────────────────────────────────────────
+  const [bulkEditOpen,   setBulkEditOpen]   = useState(false)
+  const [bulkEdits,      setBulkEdits]      = useState({})   // { key: value }
+  const [bulkActive,     setBulkActive]     = useState({})   // { key: bool } — toggle por campo
+
+  function openBulkEdit() {
+    setBulkEdits({})
+    setBulkActive({})
+    setBulkEditOpen(true)
+  }
+
+  function applyBulkEdit() {
+    const changes = {}
+    Object.entries(bulkActive).forEach(([k, on]) => {
+      if (on) changes[k] = bulkEdits[k] ?? ''
+    })
+    if (Object.keys(changes).length === 0) return
+    onBulkEdit?.([...selected], changes)
+    setBulkEditOpen(false)
+    setSelected(new Set())
+  }
+
   // ── drag-and-drop de reordenação de colunas ───────────────────────────────
   const dragKey = useRef(null)
 
@@ -457,6 +522,19 @@ export default function BrowseLayout({
         {someSelected ? (
           <div style={s.bulkBar}>
             <span style={s.bulkCount}>{selected.size} selecionado{selected.size > 1 ? 's' : ''}</span>
+
+            {/* Editar em lote — só aparece se bulkEditFields foi fornecido */}
+            {bulkEditFields?.length > 0 && onBulkEdit && (
+              <button
+                type="button"
+                style={{ ...s.bulkBtn, color: 'var(--accent)', borderColor: 'var(--accent)', fontWeight: 600 }}
+                onClick={openBulkEdit}
+              >
+                <PencilLine size={13} />
+                Editar em lote
+              </button>
+            )}
+
             {bulkActions.map((a, i) => (
               <button
                 key={i}
@@ -471,7 +549,7 @@ export default function BrowseLayout({
             <button
               type="button"
               style={{ ...s.bulkBtn, color: 'var(--text-muted)' }}
-              onClick={() => setSelected(new Set())}
+              onClick={() => { setSelected(new Set()); setBulkEditOpen(false) }}
             >
               Cancelar
             </button>
@@ -743,6 +821,197 @@ export default function BrowseLayout({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ── Painel Bulk Edit ────────────────────────────────────────────── */}
+      {bulkEditOpen && bulkEditFields?.length > 0 && (
+        <>
+          {/* overlay semitransparente */}
+          <div
+            onClick={() => setBulkEditOpen(false)}
+            style={{
+              position: 'fixed', inset: 0, zIndex: 80,
+              background: 'rgba(0,0,0,0.25)',
+            }}
+          />
+          {/* painel lateral direito */}
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0,
+            width: 360, zIndex: 81,
+            background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+            boxShadow: '-8px 0 32px rgba(0,0,0,0.12)',
+            display: 'flex', flexDirection: 'column',
+            fontFamily: 'var(--font)',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '16px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0,
+            }}>
+              <PencilLine size={16} color="var(--accent)" />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                  Editar em lote
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {selected.size} registro{selected.size > 1 ? 's' : ''} selecionado{selected.size > 1 ? 's' : ''}
+                </div>
+              </div>
+              <button
+                onClick={() => setBulkEditOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Instrução */}
+            <div style={{
+              margin: '12px 20px 0',
+              padding: '10px 12px',
+              background: 'var(--accent-lite, #EEF2FF)',
+              borderRadius: 8,
+              fontSize: 12,
+              color: 'var(--accent)',
+              lineHeight: 1.5,
+              flexShrink: 0,
+            }}>
+              Ative os campos que deseja alterar. Apenas os campos ativados serão aplicados aos registros selecionados.
+            </div>
+
+            {/* Campos */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {bulkEditFields.map(field => {
+                const isOn = !!bulkActive[field.key]
+                return (
+                  <div key={field.key} style={{
+                    border: `1.5px solid ${isOn ? 'var(--accent)' : 'var(--border)'}`,
+                    borderRadius: 10,
+                    padding: '10px 12px',
+                    background: isOn ? 'var(--accent-lite, #EEF2FF)' : 'var(--surface2)',
+                    transition: 'border-color 0.15s, background 0.15s',
+                  }}>
+                    {/* Toggle + label */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: isOn ? 10 : 0 }}>
+                      {/* switch */}
+                      <div
+                        onClick={() => setBulkActive(p => ({ ...p, [field.key]: !p[field.key] }))}
+                        style={{
+                          width: 36, height: 20, borderRadius: 10, flexShrink: 0,
+                          background: isOn ? 'var(--accent)' : 'var(--border)',
+                          position: 'relative', cursor: 'pointer',
+                          transition: 'background 0.2s',
+                        }}
+                      >
+                        <div style={{
+                          position: 'absolute', top: 3,
+                          left: isOn ? 18 : 3,
+                          width: 14, height: 14, borderRadius: '50%',
+                          background: '#fff',
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        }} />
+                      </div>
+                      <span style={{
+                        fontSize: 13, fontWeight: 600,
+                        color: isOn ? 'var(--accent)' : 'var(--text-soft)',
+                      }}>
+                        {field.label}
+                      </span>
+                    </div>
+
+                    {/* Input — só aparece quando ativado */}
+                    {isOn && (() => {
+                      const inputStyle = {
+                        width: '100%', padding: '7px 10px',
+                        border: '1px solid var(--border)', borderRadius: 7,
+                        background: 'var(--surface)', color: 'var(--text)',
+                        fontSize: 13, outline: 'none', fontFamily: 'var(--font)',
+                        boxSizing: 'border-box',
+                      }
+                      if (field.type === 'select') {
+                        return (
+                          <select
+                            style={inputStyle}
+                            value={bulkEdits[field.key] ?? ''}
+                            onChange={e => setBulkEdits(p => ({ ...p, [field.key]: e.target.value }))}
+                          >
+                            <option value="">— selecionar —</option>
+                            {(field.options || []).map(o => (
+                              <option key={o.value} value={o.value}>{o.label}</option>
+                            ))}
+                          </select>
+                        )
+                      }
+                      if (field.type === 'textarea') {
+                        return (
+                          <textarea
+                            style={{ ...inputStyle, resize: 'vertical', minHeight: 72, lineHeight: 1.5 }}
+                            value={bulkEdits[field.key] ?? ''}
+                            onChange={e => setBulkEdits(p => ({ ...p, [field.key]: e.target.value }))}
+                            placeholder={`Novo valor para ${field.label}…`}
+                          />
+                        )
+                      }
+                      return (
+                        <input
+                          type={field.type === 'date' ? 'date' : field.type === 'number' ? 'number' : 'text'}
+                          style={inputStyle}
+                          value={bulkEdits[field.key] ?? ''}
+                          onChange={e => setBulkEdits(p => ({ ...p, [field.key]: e.target.value }))}
+                          placeholder={`Novo valor para ${field.label}…`}
+                        />
+                      )
+                    })()}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 20px', borderTop: '1px solid var(--border)',
+              display: 'flex', gap: 8, flexShrink: 0,
+            }}>
+              {/* Preview dos campos ativos */}
+              {(() => {
+                const ativos = Object.entries(bulkActive).filter(([,v]) => v).length
+                return ativos > 0 ? (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, alignSelf: 'center' }}>
+                    {ativos} campo{ativos > 1 ? 's' : ''} será{ativos > 1 ? 'ão' : ''} alterado{ativos > 1 ? 's' : ''}
+                  </span>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', flex: 1, alignSelf: 'center' }}>
+                    Nenhum campo ativado
+                  </span>
+                )
+              })()}
+              <button
+                onClick={() => setBulkEditOpen(false)}
+                style={{
+                  padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)',
+                  background: 'none', color: 'var(--text-soft)', fontSize: 13,
+                  cursor: 'pointer', fontFamily: 'var(--font)',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={applyBulkEdit}
+                disabled={!Object.values(bulkActive).some(Boolean)}
+                style={{
+                  padding: '8px 18px', borderRadius: 8, border: 'none',
+                  background: Object.values(bulkActive).some(Boolean) ? 'var(--accent)' : 'var(--border)',
+                  color: Object.values(bulkActive).some(Boolean) ? '#fff' : 'var(--text-muted)',
+                  fontSize: 13, fontWeight: 600, cursor: Object.values(bulkActive).some(Boolean) ? 'pointer' : 'not-allowed',
+                  fontFamily: 'var(--font)', transition: 'background 0.15s',
+                }}
+              >
+                Aplicar alterações
+              </button>
+            </div>
+          </div>
+        </>
       )}
 
       {/* ── Footer ──────────────────────────────────────────────────────── */}

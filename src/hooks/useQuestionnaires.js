@@ -42,12 +42,13 @@ function rowToSubmission(row) {
     template_id:      row.template_id || null,
     company_id:       row.company_id || null,
     contact_id:       row.contact_id || null,
-    respondente_nome: row.respondente_nome || '',
+    respondente_nome: row.respondente_nome || cf.answered_by_nome || '',
     status:           row.status || 'rascunho',
-    respostas:        row.respostas || {},
+    respostas:        row.respostas || cf.valores_respostas || {},
     enviado_em:       row.enviado_em || null,
     criado:           row.created_at?.slice(0, 10) || '',
-    ...cf,
+    opportunity_id:   cf.opportunity_id || null,
+    company_nome:     cf.company_nome || '',
   }
 }
 
@@ -58,11 +59,14 @@ function submissionToRow(s, tenantId) {
     template_id:      s.template_id || null,
     company_id:       s.company_id || null,
     contact_id:       s.contact_id || null,
-    respondente_nome: s.respondente_nome || null,
+    respondente_nome: s.respondente_nome || s.answered_by_nome || null,
     status:           s.status || 'rascunho',
-    respostas:        s.respostas || {},
-    enviado_em:       s.enviado_em || null,
-    custom_fields:    {},
+    respostas:        s.respostas || s.valores_respostas || {},
+    enviado_em:       s.enviado_em || s.submitted_at || null,
+    custom_fields:    {
+      opportunity_id: s.opportunity_id || null,
+      company_nome:   s.company_nome || '',
+    },
   }
 }
 
@@ -123,19 +127,24 @@ export function useQuestionnaires() {
 
   const saveSubmission = useCallback(async (sub) => {
     if (isMockMode.current) {
-      setSubmissions(prev => { const idx = prev.findIndex(x => x.id === sub.id); if (idx >= 0) { const n=[...prev]; n[idx]=sub; return n } return [...prev, { ...sub, id: sub.id || `sub-${Date.now()}` }] })
-      return { ok: true }
+      const saved = { ...sub, id: sub.id || `sub-${Date.now()}` }
+      setSubmissions(prev => { const idx = prev.findIndex(x => x.id === sub.id); if (idx >= 0) { const n=[...prev]; n[idx]=saved; return n } return [...prev, saved] })
+      return { ok: true, data: saved }
     }
     const row = submissionToRow(sub, tenantId)
     const isUuid = typeof sub.id === 'string' && sub.id.includes('-') && !sub.id.startsWith('sub-')
     if (isUuid) {
       const { error } = await supabase.from('questionnaire_submissions').update(row).eq('id', sub.id)
       if (error) return { ok: false, message: error.message }
-      setSubmissions(prev => prev.map(x => x.id === sub.id ? { ...x, ...sub } : x))
+      const updated = { ...sub }
+      setSubmissions(prev => prev.map(x => x.id === sub.id ? { ...x, ...updated } : x))
+      return { ok: true, data: updated }
     } else {
       const { data, error } = await supabase.from('questionnaire_submissions').insert(row).select().single()
       if (error) return { ok: false, message: error.message }
-      setSubmissions(prev => [...prev, rowToSubmission(data)])
+      const saved = rowToSubmission(data)
+      setSubmissions(prev => [...prev, saved])
+      return { ok: true, data: saved }
     }
     return { ok: true }
   }, [tenantId])

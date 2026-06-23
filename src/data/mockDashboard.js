@@ -146,6 +146,37 @@ export function applyFilters(analytics, filters) {
   }
 }
 
+// ─── Dados por UF para o mapa de parceiros ───────────────────────────────────
+export const MOCK_MAPA_UF = [
+  { uf:'SP', nome:'São Paulo',          parceiros:4, vendedores:18, oportunidades:21, clientes:62, contratos:88, lista:['Canal SP Sul','Canal SP Capital','Canal SP Oeste','Canal SP Interior'] },
+  { uf:'RJ', nome:'Rio de Janeiro',     parceiros:2, vendedores: 9, oportunidades:11, clientes:28, contratos:35, lista:['Canal RJ Centro','Canal RJ Norte'] },
+  { uf:'MG', nome:'Minas Gerais',       parceiros:2, vendedores: 8, oportunidades: 9, clientes:24, contratos:30, lista:['Canal BH Saúde','Canal MG Sul'] },
+  { uf:'RS', nome:'Rio Grande do Sul',  parceiros:1, vendedores: 5, oportunidades: 6, clientes:14, contratos:18, lista:['Canal RS Sul'] },
+  { uf:'PR', nome:'Paraná',             parceiros:1, vendedores: 4, oportunidades: 4, clientes:11, contratos:14, lista:['Canal PR Curitiba'] },
+  { uf:'SC', nome:'Santa Catarina',     parceiros:1, vendedores: 3, oportunidades: 3, clientes: 8, contratos:10, lista:['Canal SC Floripa'] },
+  { uf:'GO', nome:'Goiás',              parceiros:1, vendedores: 3, oportunidades: 3, clientes: 7, contratos: 9, lista:['Canal GO Centro'] },
+  { uf:'BA', nome:'Bahia',              parceiros:1, vendedores: 2, oportunidades: 2, clientes: 5, contratos: 6, lista:['Canal BA Salvador'] },
+  { uf:'PE', nome:'Pernambuco',         parceiros:1, vendedores: 2, oportunidades: 2, clientes: 4, contratos: 5, lista:['Canal PE Recife'] },
+  { uf:'CE', nome:'Ceará',              parceiros:1, vendedores: 2, oportunidades: 1, clientes: 3, contratos: 4, lista:['Canal CE Fortaleza'] },
+  { uf:'DF', nome:'Distrito Federal',   parceiros:1, vendedores: 2, oportunidades: 2, clientes: 5, contratos: 6, lista:['Canal DF Brasília'] },
+  { uf:'AM', nome:'Amazonas',           parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'PA', nome:'Pará',               parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'MT', nome:'Mato Grosso',        parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'MS', nome:'Mato Grosso do Sul', parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'RR', nome:'Roraima',            parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'RO', nome:'Rondônia',           parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'AC', nome:'Acre',               parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'AP', nome:'Amapá',              parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'TO', nome:'Tocantins',          parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'MA', nome:'Maranhão',           parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'PI', nome:'Piauí',              parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'RN', nome:'Rio Grande do Norte',parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'PB', nome:'Paraíba',            parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'AL', nome:'Alagoas',            parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'SE', nome:'Sergipe',            parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+  { uf:'ES', nome:'Espírito Santo',     parceiros:0, vendedores: 0, oportunidades: 0, clientes: 0, contratos: 0, lista:[] },
+]
+
 // ─── Dados analíticos mocados ─────────────────────────────────────────────────
 export const MOCK_ANALYTICS = {
   isv: {

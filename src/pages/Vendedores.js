@@ -81,19 +81,33 @@ function RoleBadge({ role }) {
 }
 
 // ─── SlideOver de Cadastro ────────────────────────────────────────────────────
-function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franquiasOpts = [] }) {
+function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franquiasOpts = [], todos = [] }) {
   const isNew = !initial?.id
   const [form, setForm] = useState(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
+  const [errs, setErrs] = useState({})
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
+    setErrs({})
   }, [initial])
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
 
   function handleSave() {
-    if (!form.nome.trim()) return
+    const e = {}
+    if (!form.nome.trim()) e.nome = 'Nome é obrigatório'
+    if (form.email?.trim()) {
+      const emailLow = form.email.trim().toLowerCase()
+      const dup = todos.find(s => s.id !== initial?.id && s.email?.toLowerCase() === emailLow)
+      if (dup) e.email = `E-mail já cadastrado: ${dup.nome}`
+    }
+    if (form.cpf?.replace(/\D/g,'')) {
+      const cpfRaw = form.cpf.replace(/\D/g,'')
+      const dup = todos.find(s => s.id !== initial?.id && s.cpf?.replace(/\D/g,'') === cpfRaw)
+      if (dup) e.cpf = `CPF já cadastrado: ${dup.nome}`
+    }
+    if (Object.keys(e).length) { setErrs(e); return }
     setSaving(true)
     onSave(form)
     setSaving(false)
@@ -117,20 +131,23 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
       columns={2}
     >
       <FormGrid cols={2}>
-        <FormField label="Nome" required style={{ gridColumn: 'span 2' }}>
-          <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo" />
+        <FormField label="Nome" required error={errs.nome} style={{ gridColumn: 'span 2' }}>
+          <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo"
+            style={{ borderColor: errs.nome ? '#DC2626' : '' }} />
         </FormField>
 
-        <FormField label="E-mail">
-          <input className="so-field" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
+        <FormField label="E-mail" error={errs.email}>
+          <input className="so-field" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com"
+            style={{ borderColor: errs.email ? '#DC2626' : '' }} />
         </FormField>
 
         <FormField label="Telefone">
           <input className="so-field" value={form.telefone} onChange={e => set('telefone', fmtPhone(e.target.value))} placeholder="(00) 00000-0000" />
         </FormField>
 
-        <FormField label="CPF">
-          <input className="so-field" value={form.cpf} onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00" />
+        <FormField label="CPF" error={errs.cpf}>
+          <input className="so-field" value={form.cpf} onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00"
+            style={{ borderColor: errs.cpf ? '#DC2626' : '' }} />
         </FormField>
 
         <FormField label="Cargo / Papel">
@@ -528,6 +545,15 @@ export default function Vendedores() {
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
         bulkActions={bulkActions}
+        bulkEditFields={[
+          { key: 'role', label: 'Perfil', type: 'select',
+            options: Object.entries(ROLES).map(([k, v]) => ({ value: k, label: v.label })) },
+          { key: 'regiao', label: 'Região', type: 'select',
+            options: REGIOES.map(r => ({ value: r, label: r })) },
+        ]}
+        onBulkEdit={(ids, changes) =>
+          ids.forEach(id => { const s = sellers.find(s => s.id === id); if (s) saveSeller({ ...s, ...changes }) })
+        }
         renderCard={renderCard}
         storageKey="contatos_canais"
         onRowClick={openEdit}
@@ -539,6 +565,7 @@ export default function Vendedores() {
       <ContatoCanalSlideOver
         open={slideOpen}
         initial={editing}
+        todos={sellers}
         onSave={handleSave}
         onClose={() => { setSlideOpen(false); setEditing(null) }}
         onDelete={handleDelete}

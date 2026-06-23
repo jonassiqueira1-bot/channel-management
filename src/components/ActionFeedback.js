@@ -146,7 +146,7 @@ export default function ActionFeedback({
             }}>
               {/* connector line */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-                <StepIcon status={st} icon={step.icon} />
+                <StepIcon status={st} icon={step.icon} error={step.error} />
                 {idx < steps.length - 1 && (
                   <div style={{
                     width: 1.5, flex: 1, minHeight: 12,
@@ -158,7 +158,7 @@ export default function ActionFeedback({
               <div style={{ flex: 1, paddingBottom: idx < steps.length - 1 ? 8 : 0 }}>
                 <div style={{
                   fontSize: 12.5, fontWeight: 600,
-                  color: st === 'skip' ? 'var(--text-muted)' : st === 'done' ? 'var(--text)' : 'var(--text-soft)',
+                  color: st === 'skip' ? 'var(--text-muted)' : (st === 'done' && step.error) ? '#EF4444' : st === 'done' ? 'var(--text)' : 'var(--text-soft)',
                   textDecoration: st === 'skip' ? 'line-through' : 'none',
                   transition: 'color 0.3s',
                 }}>
@@ -217,7 +217,17 @@ export default function ActionFeedback({
 }
 
 // ─── Ícone animado por status ─────────────────────────────────────────────────
-function StepIcon({ status, icon }) {
+function StepIcon({ status, icon, error }) {
+  if (status === 'done' && error) {
+    return (
+      <div style={{
+        width: 20, height: 20, borderRadius: '50%',
+        background: '#FEE2E2', color: '#EF4444',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: 11, fontWeight: 800, flexShrink: 0,
+      }}>✕</div>
+    )
+  }
   if (status === 'done') {
     return (
       <div style={{
