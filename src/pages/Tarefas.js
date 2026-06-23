@@ -71,6 +71,7 @@ const ENTIDADE_TIPOS = [
   { value:'oportunidade', label:'Oportunidade' },
   { value:'empresa',      label:'Empresa'      },
   { value:'contrato',     label:'Contrato'     },
+  { value:'projeto',      label:'Projeto'      },
 ]
 
 const EMPTY_FORM = {
@@ -117,7 +118,7 @@ function PrioridadeBadge({ prioridade }) {
 
 function EntidadeTag({ tipo, nome }) {
   if (!tipo || !nome) return <span style={{ color:'var(--text-muted)', fontSize:11 }}>—</span>
-  const icons = { oportunidade:'▷', empresa:'◈', contrato:'◉', contato:'◎' }
+  const icons = { oportunidade:'▷', empresa:'◈', contrato:'◉', contato:'◎', projeto:'◆' }
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:11,
       color:'var(--accent)', fontFamily:'var(--mono)', background:'var(--blue-bg)',
@@ -142,13 +143,18 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
     document.addEventListener('mousedown', h); return ()=>document.removeEventListener('mousedown', h)
   }, [])
 
+  const projetos = useMemo(() => {
+    try { const s = localStorage.getItem('projetos:lista_v2'); return s ? JSON.parse(s) : [] } catch { return [] }
+  }, [])
+
   const opts = useMemo(() => {
     const q = query.toLowerCase()
     if (entidadeTipo==='oportunidade') return opps.filter(o=>(o.titulo||'').toLowerCase().includes(q)).slice(0,8).map(o=>({ id:o.id, nome:o.titulo }))
     if (entidadeTipo==='empresa')      return companies.filter(e=>(e.fantasia||e.razao||'').toLowerCase().includes(q)).slice(0,8).map(e=>({ id:e.id, nome:e.fantasia||e.razao }))
     if (entidadeTipo==='contrato')     return MOCK_CONTRATOS.filter(c=>c.nome.toLowerCase().includes(q)).slice(0,8)
+    if (entidadeTipo==='projeto')      return projetos.filter(p=>(p.nome||p.titulo||'').toLowerCase().includes(q)).slice(0,8).map(p=>({ id:p.id, nome:p.nome||p.titulo }))
     return []
-  }, [query, entidadeTipo, opps, companies])
+  }, [query, entidadeTipo, opps, companies, projetos])
 
   if (!entidadeTipo) return null
 
