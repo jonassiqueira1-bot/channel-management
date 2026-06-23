@@ -5,6 +5,7 @@ import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
 import { usePayments } from '../hooks/usePayments'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY as COMISSOES_PAYMENTS_KEY, MOCK_RULES, MOCK_PAYMENTS as MOCK_COM_PAYMENTS } from '../data/mockComissoes'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -481,7 +482,7 @@ function ImportModal({ onClose, onImport }) {
 }
 
 // ─── PagamentoModal ───────────────────────────────────────────────────────────
-function PagamentoDetail({ pagamento, onSave, onClose }) {
+function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = [] }) {
   const [form, setForm] = useState({
     amount_cdu:      pagamento.amount_cdu,
     amount_sms:      pagamento.amount_sms,
@@ -499,7 +500,23 @@ function PagamentoDetail({ pagamento, onSave, onClose }) {
     notes:           pagamento.notes||'',
   })
   function set(k, v) { setForm(f=>({...f,[k]:v})) }
-  function patch(k, v) { setForm(f => { const n={...f,[k]:v}; onSave({...pagamento,...n,amount_total_net:Math.max(0,(Number(n.amount_cdu)||0)+(Number(n.amount_sms)||0)+(Number(n.amount_services)||0)-(Number(n.amount_discount)||0)),valor_recebido:n.valor_recebido!==''?Number(n.valor_recebido)||0:null,produto_id:n.produto_id?Number(n.produto_id):null,processed:true}); return n }) }
+  function patch(k, v) {
+    setForm(f => {
+      const n = { ...f, [k]: v }
+      const saved = { ...pagamento, ...n,
+        amount_total_net: Math.max(0,(Number(n.amount_cdu)||0)+(Number(n.amount_sms)||0)+(Number(n.amount_services)||0)-(Number(n.amount_discount)||0)),
+        valor_recebido: n.valor_recebido!==''?Number(n.valor_recebido)||0:null,
+        produto_id: n.produto_id?Number(n.produto_id):null,
+        processed: true,
+      }
+      if (checkDupDrawer(saved)) {
+        alert(`Já existe um pagamento deste produto para esta empresa com o mesmo vencimento.`)
+        return f // reverte
+      }
+      onSave(saved)
+      return n
+    })
+  }
   function numVal(k) {
     return {
       type:'text', inputMode:'numeric',
@@ -519,7 +536,19 @@ function PagamentoDetail({ pagamento, onSave, onClose }) {
                 fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }
   const rInp = { ...inp, paddingLeft:28, fontFamily:'var(--mono)', fontWeight:600 }
   const statusOptions = Object.entries(STATUS_PAGAMENTO).map(([k,v]) => ({ value:k, label:v.label }))
-  const produtoOptions = [{ value:'', label:'— Selecione —' }, ...MOCK_PRODUTOS.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:`${p.nome} (${p.codigo})` }))]
+  const [produtosLS] = useLocalState('produtos:lista_v1', [])
+  const prodListDrawer = produtosLS.length > 0 ? produtosLS.filter(p => p.status === 'ativo') : MOCK_PRODUTOS.filter(p => p.status === 'ativo')
+  const produtoOptions = [{ value:'', label:'— Selecione —' }, ...prodListDrawer.map(p=>({ value:String(p.id), label:`${p.nome} (${p.codigo||p.id})` }))]
+
+  function checkDupDrawer(next) {
+    if (!next.produto_id || !next.company_id || !next.due_date) return false
+    return pagamentosExistentes.some(p =>
+      p.id !== pagamento.id &&
+      String(p.produto_id) === String(next.produto_id) &&
+      String(p.company_id) === String(next.company_id) &&
+      p.due_date === next.due_date
+    )
+  }
 
   const left = (
     <div style={{ padding:'32px 40px', display:'flex', flexDirection:'column', gap:20, flex:1 }}>
@@ -927,7 +956,7 @@ const EMPTY_PAG = {
   due_date: '', status: 'pendente', notes: '',
 }
 
-function NovoPagamentoModal({ onClose, onSave, periodo }) {
+function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [] }) {
   const [form, setForm] = useState({
     ...EMPTY_PAG,
     reference_month: periodoKey(periodo),
@@ -944,6 +973,15 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
   function handleSave() {
     if (!form.contract_numero.trim()) return alert('Número do contrato é obrigatório')
     if (!form.company_nome.trim())    return alert('Empresa é obrigatória')
+    // Bloqueia duplicata: mesmo produto + empresa + vencimento
+    if (form.produto_id && form.company_id && form.due_date) {
+      const dup = pagamentosExistentes.find(p =>
+        String(p.produto_id) === String(form.produto_id) &&
+        String(p.company_id) === String(form.company_id) &&
+        p.due_date === form.due_date
+      )
+      if (dup) return alert(`Já existe um pagamento deste produto para ${form.company_nome} com vencimento em ${form.due_date}.`)
+    }
     onSave({
       id: 'man_' + Date.now(),
       contract_id: null,
@@ -960,11 +998,18 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
       status: form.status,
       processed: false,
       notes: form.notes,
+      produto_id: form.produto_id ? Number(form.produto_id) : null,
+      produto_nome: form.produto_nome || '',
       tenant_id: 't1',
       criado: new Date().toISOString().slice(0, 10),
     })
     onClose()
   }
+
+  const [produtosLS] = useLocalState('produtos:lista_v1', [])
+  const produtosDisponiveis = produtosLS.length > 0
+    ? produtosLS.filter(p => p.status === 'ativo')
+    : MOCK_PRODUTOS.filter(p => p.status === 'ativo')
 
   const SL  = { fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', display:'block', marginBottom:5 }
   const inp = { padding:'8px 12px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface2)', color:'var(--text)', fontSize:13, fontFamily:'var(--font)', outline:'none', width:'100%', boxSizing:'border-box' }
@@ -979,7 +1024,19 @@ function NovoPagamentoModal({ onClose, onSave, periodo }) {
         return <input style={inp} value={form.contract_numero} placeholder="CTR-2024-001" onChange={e => set('contract_numero', e.target.value)} />
       case 'empresa_id':
         return <input style={inp} value={form.company_nome} placeholder="Nome da empresa" onChange={e => set('company_nome', e.target.value)} />
-      case 'tipo':        return null
+      case 'tipo':
+        return (
+          <select style={inp} value={form.produto_id || ''} onChange={e => {
+            const prod = produtosDisponiveis.find(p => String(p.id) === e.target.value)
+            set('produto_id', e.target.value)
+            set('produto_nome', prod?.nome || '')
+          }}>
+            <option value="">— Selecione o produto —</option>
+            {produtosDisponiveis.map(p => (
+              <option key={p.id} value={String(p.id)}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
+            ))}
+          </select>
+        )
       case 'status':
         return (
           <select style={inp} value={form.status} onChange={e => set('status', e.target.value)}>
@@ -1073,6 +1130,10 @@ export default function Pagamentos() {
   const [filtroVencIni, setFiltroVencIni]       = useLocalState('pagamentos:filtroVencIni', '')
   const [filtroVencFim, setFiltroVencFim]       = useLocalState('pagamentos:filtroVencFim', '')
   const [sortBy, setSortBy]                     = useLocalState('pagamentos:sortBy', 'empresa')
+  const [produtosLSPag] = useLocalState('produtos:lista_v1', [])
+  const produtosNovo = produtosLSPag.length > 0
+    ? produtosLSPag.filter(p => p.status === 'ativo')
+    : MOCK_PRODUTOS.filter(p => p.status === 'ativo')
   const [showMetrics, setShowMetrics]           = useLocalState('pagamentos:showMetrics', true)
 
   // ── estado efêmero ────────────────────────────────────────────────────────
@@ -1166,7 +1227,10 @@ export default function Pagamentos() {
     } else if (action==='gerar') {
       setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,processed:true}:p)); clearSelection()
     } else if (action==='pago') {
-      setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'pago'}:p)); clearSelection()
+      const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
+      setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'pago'}:p))
+      naoEramPagos.forEach(p => gerarRepasses({ ...p, status: 'pago' }))
+      clearSelection()
     }
   }
 
@@ -1187,8 +1251,68 @@ export default function Pagamentos() {
     setShowTray(true)
   }
 
+  // Gera repasses de comissão para um pagamento recém marcado como pago
+  function gerarRepasses(pag) {
+    try {
+      const rawRules = localStorage.getItem(RULES_STORAGE_KEY)
+      const rules = rawRules ? JSON.parse(rawRules) : MOCK_RULES
+      const rawCom = localStorage.getItem(COMISSOES_PAYMENTS_KEY)
+      const comPagamentos = rawCom ? JSON.parse(rawCom) : MOCK_COM_PAYMENTS
+
+      const hoje = new Date().toISOString().slice(0, 10)
+      const novos = []
+
+      rules.filter(r => r.ativo !== false).forEach(rule => {
+        // Verifica filtro de produto
+        if (rule.produto_filtro_tipo === 'produto' && rule.produto_ids?.length > 0) {
+          if (!rule.produto_ids.map(String).includes(String(pag.produto_id))) return
+        }
+
+        const percs = rule.persona_percentuais || []
+        percs.forEach(pp => {
+          if (!pp.persona_id) return
+          const cdu_val      = (pag.amount_cdu      || 0) * (pp.cdu_pct      || 0) / 100
+          const sms_val      = (pag.amount_sms      || 0) * (pp.sms_pct      || 0) / 100
+          const servicos_val = (pag.amount_services || 0) * (pp.servicos_pct || 0) / 100
+          const valor = cdu_val + sms_val + servicos_val
+          if (valor <= 0) return
+
+          novos.push({
+            id: `rep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            rule_id: rule.id,
+            rule_nome: rule.nome,
+            persona_id: pp.persona_id,
+            contract_id: pag.contract_id || null,
+            contract_numero: pag.contract_numero || '',
+            company_id: pag.company_id || null,
+            company_nome: pag.company_nome || '',
+            produto_id: pag.produto_id || null,
+            produto_nome: pag.produto_nome || '',
+            descricao: `Repasse — pagamento ${pag.contract_numero} (${pag.company_nome})`,
+            valor,
+            base_cdu: cdu_val, base_sms: sms_val, base_servicos: servicos_val,
+            reference_month: pag.reference_month,
+            data_geracao: hoje,
+            status: 'pendente',
+            pagamento_id: pag.id,
+          })
+        })
+      })
+
+      if (novos.length > 0) {
+        localStorage.setItem(COMISSOES_PAYMENTS_KEY, JSON.stringify([...comPagamentos, ...novos]))
+      }
+    } catch (e) {
+      console.warn('Erro ao gerar repasses:', e)
+    }
+  }
+
   function handleSave(pag) {
-    setPagamentos(prev=>prev.map(p=>p.id===pag.id?pag:p))
+    const anterior = pagamentos.find(p => p.id === pag.id)
+    setPagamentos(prev => prev.map(p => p.id === pag.id ? pag : p))
+    if (pag.status === 'pago' && anterior?.status !== 'pago') {
+      gerarRepasses(pag)
+    }
   }
 
   function handleNovoPagamento(pag) {
@@ -1221,6 +1345,15 @@ export default function Pagamentos() {
     async function handleSaveNovo() {
       if (!form.contract_numero.trim()) return alert('Número do contrato é obrigatório')
       if (!form.company_nome.trim())    return alert('Empresa é obrigatória')
+      // Bloqueia duplicata
+      if (form.produto_id && form.company_id && form.due_date) {
+        const dup = pagamentos.find(p =>
+          String(p.produto_id) === String(form.produto_id) &&
+          String(p.company_id) === String(form.company_id) &&
+          p.due_date === form.due_date
+        )
+        if (dup) return alert(`Já existe um pagamento deste produto para ${form.company_nome} com vencimento em ${form.due_date}.`)
+      }
       setSavingNovo(true)
       try {
         handleNovoPagamento({
@@ -1239,12 +1372,15 @@ export default function Pagamentos() {
           status: form.status,
           processed: false,
           notes: form.notes,
+          produto_id: form.produto_id ? Number(form.produto_id) : null,
+          produto_nome: form.produto_nome || '',
           tenant_id: 't1',
           criado: new Date().toISOString().slice(0, 10),
         })
         setNovoPagForm(null)
       } finally { setSavingNovo(false) }
     }
+
 
     return (
       <FullPageEdit
@@ -1285,6 +1421,18 @@ export default function Pagamentos() {
           </FPEField>
           <FPEField label="Empresa" required>
             <input className="fpe-field" value={form.company_nome} placeholder="Nome da empresa" onChange={e => set('company_nome', e.target.value)} />
+          </FPEField>
+          <FPEField label="Produto">
+            <select className="fpe-field" value={form.produto_id || ''} onChange={e => {
+              const prod = produtosNovo.find(p => String(p.id) === e.target.value)
+              set('produto_id', e.target.value)
+              set('produto_nome', prod?.nome || '')
+            }}>
+              <option value="">— Selecione o produto —</option>
+              {produtosNovo.map(p => (
+                <option key={p.id} value={String(p.id)}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
+              ))}
+            </select>
           </FPEField>
           <FPEField label="Status">
             <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
@@ -1723,7 +1871,7 @@ export default function Pagamentos() {
         breadcrumb="Faturamento · Pagamentos"
         title={detalheModal ? `${detalheModal.contract_numero} — ${detalheModal.company_nome}` : ''}>
         {detalheModal && (
-          <PagamentoDetail pagamento={detalheModal} onSave={handleSave} onClose={() => setDetalheModal(null)} />
+          <PagamentoDetail pagamento={detalheModal} onSave={handleSave} onClose={() => setDetalheModal(null)} pagamentosExistentes={pagamentos} />
         )}
       </NotionDrawer>
       {gerarTodosModal && (
