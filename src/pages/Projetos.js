@@ -1907,28 +1907,31 @@ export default function Projetos() {
 
         {/* Page header */}
         <div style={pg.pageHeader}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : 'Projetos de Implantação'}</h1>
-            <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 9, padding: 3, border: '1px solid var(--border)' }}>
-              {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: '👥 Recursos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
-                <button key={t.id} onClick={() => setTab(t.id)}
-                  style={{ padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13,
-                    fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
-                    background: tab === t.id ? 'var(--surface)' : 'none',
-                    color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
-                    boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-                    transition: 'all 0.15s' }}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : 'Projetos de Implantação'}</h1>
           {tab === 'projetos' && (
             <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
           )}
           {tab === 'recursos' && (
             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
           )}
+        </div>
+
+        {/* Tab switcher — fixo centralizado */}
+        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+          zIndex: 200, display: 'flex', gap: 2,
+          background: 'var(--surface)', borderRadius: 10, padding: 3,
+          border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
+          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: '👥 Recursos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
+                fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
+                background: tab === t.id ? 'var(--accent)' : 'none',
+                color: tab === t.id ? '#fff' : 'var(--text-muted)',
+                boxShadow: tab === t.id ? '0 1px 4px rgba(0,0,0,0.18)' : 'none',
+                transition: 'all 0.15s' }}>
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* KPIs */}
