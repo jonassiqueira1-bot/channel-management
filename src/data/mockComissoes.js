@@ -56,19 +56,21 @@ export const ENTIDADES_ELEGIBILIDADE = [
   {
     id: 'oportunidade', label: 'Oportunidade',
     campos: [
-      { id: 'status',  label: 'Status',        tipo: 'select', opcoes: ['Aberta','Fechada (ganho)','Fechada (perda)','Em negociação'] },
-      { id: 'valor',   label: 'Valor (R$)',     tipo: 'numero' },
-      { id: 'etapa',   label: 'Etapa do funil', tipo: 'texto'  },
-      { id: 'origem',  label: 'Origem',         tipo: 'select', opcoes: ['Inbound','Outbound','Canal','Indicação','Evento'] },
+      { id: 'status',        label: 'Status',            tipo: 'select', opcoes: ['Aberta','Fechada (ganho)','Fechada (perda)','Em negociação'] },
+      { id: 'valor',         label: 'Valor (R$)',         tipo: 'numero' },
+      { id: 'etapa',         label: 'Etapa do funil',    tipo: 'texto'  },
+      { id: 'origem',        label: 'Origem',             tipo: 'select', opcoes: ['Inbound','Outbound','Canal','Indicação','Evento'] },
+      { id: 'data_cadastro', label: 'Data de cadastro',  tipo: 'data'   },
     ],
   },
   {
     id: 'contrato', label: 'Contrato',
     campos: [
-      { id: 'status',       label: 'Status',          tipo: 'select', opcoes: ['Ativo','Encerrado','Suspenso','Em renovação'] },
-      { id: 'tipo',         label: 'Tipo',             tipo: 'select', opcoes: ['Intera (recorrente)','MntNG','Quírons','CDU Tradicional','CDU Corporativo','Keepfy'] },
-      { id: 'valor_mensal', label: 'Valor mensal (R$)',tipo: 'numero' },
-      { id: 'prazo_meses',  label: 'Prazo (meses)',    tipo: 'numero' },
+      { id: 'status',        label: 'Status',             tipo: 'select', opcoes: ['Ativo','Encerrado','Suspenso','Em renovação'] },
+      { id: 'tipo',          label: 'Tipo',               tipo: 'select', opcoes: ['Intera (recorrente)','MntNG','Quírons','CDU Tradicional','CDU Corporativo','Keepfy'] },
+      { id: 'valor_mensal',  label: 'Valor mensal (R$)',  tipo: 'numero' },
+      { id: 'prazo_meses',   label: 'Prazo (meses)',      tipo: 'numero' },
+      { id: 'data_cadastro', label: 'Data de cadastro',   tipo: 'data'   },
     ],
   },
   {
@@ -98,11 +100,49 @@ export const ENTIDADES_ELEGIBILIDADE = [
   },
 ]
 
+// Pares de campo possíveis para condições Join entre entidades
+export const JOIN_PARES = [
+  {
+    id: 'opp_antes_contrato',
+    label: 'Oportunidade cadastrada antes do Contrato',
+    descricao: 'data_cadastro da Oportunidade < data_cadastro do Contrato',
+    entidade_a: 'oportunidade', campo_a: 'data_cadastro',
+    entidade_b: 'contrato',     campo_b: 'data_cadastro',
+    operador: '<',
+  },
+  {
+    id: 'opp_dia_antes_contrato',
+    label: 'Prospecção ≥ 1 dia antes do fechamento',
+    descricao: 'data_cadastro da Oportunidade ≤ data_cadastro do Contrato − 1 dia',
+    entidade_a: 'oportunidade', campo_a: 'data_cadastro',
+    entidade_b: 'contrato',     campo_b: 'data_cadastro',
+    operador: '<=_minus',
+    offset_dias: 1,
+  },
+  {
+    id: 'opp_mesmo_periodo',
+    label: 'Oportunidade e Contrato no mesmo mês',
+    descricao: 'mês/ano de data_cadastro da Oportunidade = mês/ano do Contrato',
+    entidade_a: 'oportunidade', campo_a: 'data_cadastro',
+    entidade_b: 'contrato',     campo_b: 'data_cadastro',
+    operador: 'mesmo_mes',
+  },
+  {
+    id: 'opp_valor_contrato',
+    label: 'Valor Oportunidade ≥ Valor Mensal do Contrato',
+    descricao: 'valor da Oportunidade ≥ valor_mensal do Contrato',
+    entidade_a: 'oportunidade', campo_a: 'valor',
+    entidade_b: 'contrato',     campo_b: 'valor_mensal',
+    operador: '>=',
+  },
+]
+
 export const OPERADORES_POR_TIPO = {
   numero:   [{ id: '=',  l:'= igual' },{ id: '!=',l:'≠ diferente' },{ id: '>=',l:'≥ maior ou igual' },{ id: '<=',l:'≤ menor ou igual' },{ id: '>',l:'> maior que' },{ id: '<',l:'< menor que' }],
   select:   [{ id: '=',  l:'= igual' },{ id: '!=',l:'≠ diferente' }],
   texto:    [{ id: '=',  l:'= igual' },{ id: '!=',l:'≠ diferente' },{ id: 'contém',l:'contém' }],
   booleano: [{ id: '=',  l:'= é' }],
+  data:     [{ id: '=',  l:'= igual' },{ id: '<',l:'antes de' },{ id: '>',l:'depois de' }],
 }
 
 // ─── Escalas padrão ───────────────────────────────────────────────────────────
@@ -127,16 +167,22 @@ export const EMPTY_RULE = {
   descricao: '',
   contexto: '',
 
-  // Escopo (multi-seleção: interna e/ou externa)
+  // Escopo (multi-seleção: interna, equipe e/ou externa)
   escopo_interno: false,
+  escopo_equipe: false,
   escopo_externo: false,
   // Beneficiário interno (usuário do sistema)
   beneficiario_id: null,
   beneficiario_nome: null,
+  // Beneficiário por equipe (lista de usuário ids)
+  equipe_ids: [],
+  equipe_nome: '',
   // Beneficiário externo (Contato Canal)
   contato_id: null,
   contato_nome: null,
   contato_empresa: null,
+  // Condições Join entre entidades
+  condicoes_join: [],
 
   // Tipos compostos (array)
   tipos_calculo_arr: ['percentual_fixo'],

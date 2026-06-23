@@ -12,7 +12,7 @@ import {
   RECEITA_TIPOS, STATUS_CFG,
   TIPO_CALCULO_CFG, TIPO_RECORRENCIA_CFG,
   DEFAULT_ESCALA_INDIVIDUAL, DEFAULT_ESCALA_EQUIPE,
-  ENTIDADES_ELEGIBILIDADE, OPERADORES_POR_TIPO,
+  ENTIDADES_ELEGIBILIDADE, OPERADORES_POR_TIPO, JOIN_PARES,
   EMPTY_RULE,
 } from '../data/mockComissoes'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
@@ -257,7 +257,10 @@ function FormulaPreview({ repasse, base, pct, exemplo = 3500 }) {
 }
 
 // ─── ConditionBuilder ─────────────────────────────────────────────────────────
-function ConditionBuilder({ conditions, onChange }) {
+function ConditionBuilder({ conditions, onChange, joinsAtivos = [], onChangeJoins }) {
+  const [abaCond, setAbaCond] = useState('simples') // 'simples' | 'join'
+
+  // ── Condições simples ──────────────────────────────────────────────────────
   function addRow() {
     const entidade = ENTIDADES_ELEGIBILIDADE[0]; const campo = entidade.campos[0]
     const ops = OPERADORES_POR_TIPO[campo.tipo] || OPERADORES_POR_TIPO.texto
@@ -284,52 +287,112 @@ function ConditionBuilder({ conditions, onChange }) {
     const ops = campo ? (OPERADORES_POR_TIPO[campo.tipo] || OPERADORES_POR_TIPO.texto) : []
     update(id, { campo: campoId, operador: ops[0]?.id || '=', valor: '' })
   }
+
+  // ── Condições Join ─────────────────────────────────────────────────────────
+  function toggleJoin(joinId) {
+    if (!onChangeJoins) return
+    const next = joinsAtivos.includes(joinId)
+      ? joinsAtivos.filter(j => j !== joinId)
+      : [...joinsAtivos, joinId]
+    onChangeJoins(next)
+  }
+
   const sel = { padding:'6px 8px', borderRadius:7, fontSize:12, background:'var(--surface2)', border:'1px solid var(--border)', color:'var(--text)', fontFamily:'var(--font)', outline:'none', cursor:'pointer' }
   const inp = { ...sel, flex:'1 1 120px', minWidth:80 }
+
+  const totalAtivos = conditions.length + (joinsAtivos?.length || 0)
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-      {conditions.length === 0 && (
-        <div style={{ padding:'12px 14px', borderRadius:9, border:'1px dashed var(--border2)', background:'var(--surface2)', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
-          Nenhuma condição — a comissão se aplica a todos os casos elegíveis.
-        </div>
-      )}
-      {conditions.map(cond => {
-        const ent   = ENTIDADES_ELEGIBILIDADE.find(e => e.id === cond.entidade)
-        const campo = ent?.campos.find(f => f.id === cond.campo)
-        const ops   = campo ? (OPERADORES_POR_TIPO[campo.tipo] || OPERADORES_POR_TIPO.texto) : OPERADORES_POR_TIPO.texto
-        return (
-          <div key={cond.id} style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:9 }}>
-            <select style={sel} value={cond.entidade} onChange={e => changeEntidade(cond.id, e.target.value)}>
-              {ENTIDADES_ELEGIBILIDADE.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
-            </select>
-            <select style={sel} value={cond.campo} onChange={e => changeCampo(cond.id, e.target.value, cond.entidade)}>
-              {(ent?.campos || []).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
-            </select>
-            <select style={{ ...sel, maxWidth:130 }} value={cond.operador} onChange={e => update(cond.id, { operador: e.target.value })}>
-              {ops.map(op => <option key={op.id} value={op.id}>{op.l}</option>)}
-            </select>
-            {campo?.tipo === 'select' ? (
-              <select style={inp} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })}>
-                <option value="">— selecione —</option>
-                {(campo.opcoes || []).map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            ) : campo?.tipo === 'booleano' ? (
-              <select style={inp} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })}>
-                <option value="true">Sim</option><option value="false">Não</option>
-              </select>
-            ) : (
-              <input style={inp} type={campo?.tipo === 'numero' ? 'number' : 'text'} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })} placeholder={campo?.tipo === 'numero' ? '0' : 'valor…'} />
-            )}
-            <button onClick={() => remove(cond.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:'4px', display:'flex', alignItems:'center', flexShrink:0 }}><X size={14} strokeWidth={2} /></button>
+      {/* Sub-tabs */}
+      <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:8, padding:3, border:'1px solid var(--border)', alignSelf:'flex-start' }}>
+        {[{ id:'simples', label:`Condições simples${conditions.length ? ` (${conditions.length})` : ''}` },
+          { id:'join',    label:`Cruzamento de tabelas${joinsAtivos?.length ? ` (${joinsAtivos.length})` : ''}` }].map(t => (
+          <button key={t.id} type="button" onClick={() => setAbaCond(t.id)}
+            style={{ padding:'4px 12px', borderRadius:6, border:'none', cursor:'pointer', fontSize:12,
+              fontWeight: abaCond === t.id ? 700 : 500, fontFamily:'var(--font)',
+              background: abaCond === t.id ? 'var(--surface)' : 'none',
+              color: abaCond === t.id ? 'var(--text)' : 'var(--text-muted)',
+              boxShadow: abaCond === t.id ? '0 1px 3px rgba(0,0,0,0.10)' : 'none' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {abaCond === 'simples' && <>
+        {conditions.length === 0 && (
+          <div style={{ padding:'12px 14px', borderRadius:9, border:'1px dashed var(--border2)', background:'var(--surface2)', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
+            Nenhuma condição — a comissão se aplica a todos os casos elegíveis.
           </div>
-        )
-      })}
-      <button onClick={addRow} style={{ alignSelf:'flex-start', padding:'6px 13px', borderRadius:7, background:'none', border:'1px dashed var(--accent)', color:'var(--accent)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
-        <Plus size={12} strokeWidth={2.5} /> Adicionar condição
-      </button>
-      {conditions.length > 0 && (
+        )}
+        {conditions.map(cond => {
+          const ent   = ENTIDADES_ELEGIBILIDADE.find(e => e.id === cond.entidade)
+          const campo = ent?.campos.find(f => f.id === cond.campo)
+          const ops   = campo ? (OPERADORES_POR_TIPO[campo.tipo] || OPERADORES_POR_TIPO.texto) : OPERADORES_POR_TIPO.texto
+          return (
+            <div key={cond.id} style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap', padding:'10px 12px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:9 }}>
+              <select style={sel} value={cond.entidade} onChange={e => changeEntidade(cond.id, e.target.value)}>
+                {ENTIDADES_ELEGIBILIDADE.map(e => <option key={e.id} value={e.id}>{e.label}</option>)}
+              </select>
+              <select style={sel} value={cond.campo} onChange={e => changeCampo(cond.id, e.target.value, cond.entidade)}>
+                {(ent?.campos || []).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+              <select style={{ ...sel, maxWidth:130 }} value={cond.operador} onChange={e => update(cond.id, { operador: e.target.value })}>
+                {ops.map(op => <option key={op.id} value={op.id}>{op.l}</option>)}
+              </select>
+              {campo?.tipo === 'select' ? (
+                <select style={inp} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })}>
+                  <option value="">— selecione —</option>
+                  {(campo.opcoes || []).map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : campo?.tipo === 'booleano' ? (
+                <select style={inp} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })}>
+                  <option value="true">Sim</option><option value="false">Não</option>
+                </select>
+              ) : campo?.tipo === 'data' ? (
+                <input style={inp} type="date" value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })} />
+              ) : (
+                <input style={inp} type={campo?.tipo === 'numero' ? 'number' : 'text'} value={cond.valor} onChange={e => update(cond.id, { valor: e.target.value })} placeholder={campo?.tipo === 'numero' ? '0' : 'valor…'} />
+              )}
+              <button onClick={() => remove(cond.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:'4px', display:'flex', alignItems:'center', flexShrink:0 }}><X size={14} strokeWidth={2} /></button>
+            </div>
+          )
+        })}
+        <button onClick={addRow} style={{ alignSelf:'flex-start', padding:'6px 13px', borderRadius:7, background:'none', border:'1px dashed var(--accent)', color:'var(--accent)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)', fontWeight:600, display:'flex', alignItems:'center', gap:6 }}>
+          <Plus size={12} strokeWidth={2.5} /> Adicionar condição
+        </button>
+      </>}
+
+      {abaCond === 'join' && <>
+        <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:2 }}>
+          Ative condições que cruzam campos de tabelas diferentes do sistema (JOIN). Todas as ativas devem ser verdadeiras.
+        </div>
+        {JOIN_PARES.map(jp => {
+          const ativo = joinsAtivos?.includes(jp.id)
+          return (
+            <button key={jp.id} type="button" onClick={() => toggleJoin(jp.id)}
+              style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10,
+                border: ativo ? '2px solid var(--accent)' : '2px solid var(--border)',
+                background: ativo ? 'var(--accent-glow)' : 'var(--surface2)',
+                cursor:'pointer', textAlign:'left', fontFamily:'var(--font)', transition:'all 0.15s' }}>
+              <div style={{ width:18, height:18, borderRadius:'50%', flexShrink:0, marginTop:1,
+                border: ativo ? 'none' : '2px solid var(--border)',
+                background: ativo ? 'var(--accent)' : 'transparent',
+                display:'flex', alignItems:'center', justifyContent:'center' }}>
+                {ativo && <CheckCircle2 size={12} strokeWidth={3} color="#fff" />}
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color: ativo ? 'var(--accent)' : 'var(--text)', marginBottom:2 }}>{jp.label}</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{jp.descricao}</div>
+              </div>
+            </button>
+          )
+        })}
+      </>}
+
+      {totalAtivos > 0 && (
         <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:5 }}>
-          <Info size={11} strokeWidth={2} /> Todas as condições devem ser verdadeiras (AND) para a comissão ser paga.
+          <Info size={11} strokeWidth={2} /> {totalAtivos} condição{totalAtivos !== 1 ? 'ões ativas' : ' ativa'} — todas devem ser verdadeiras (AND) para a comissão ser paga.
         </div>
       )}
     </div>
@@ -633,8 +696,10 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
 
   async function submit() {
     if (!form.nome.trim()) { setErr('Informe o nome da regra.'); return }
-    if (form.escopo_interno && !form.beneficiario_id) { setErr('Selecione o usuário do sistema para o escopo Interno.'); return }
-    if (form.escopo_externo && !form.contato_id)      { setErr('Selecione o Contato Canal para o escopo Externo.'); return }
+    if (form.escopo_interno && !form.beneficiario_id)                       { setErr('Selecione o usuário do sistema para o escopo Individual.'); return }
+    if (form.escopo_equipe  && !(form.equipe_ids||[]).length)              { setErr('Selecione ao menos um membro para o escopo Equipe.'); return }
+    if (form.escopo_externo && !form.contato_id)                           { setErr('Selecione o Contato Canal para o escopo Externo.'); return }
+    if (!form.escopo_interno && !form.escopo_equipe && !form.escopo_externo) { setErr('Selecione ao menos um escopo (Individual, Equipe ou Externo).'); return }
     setSaving(true); setErr(null)
     try {
       await new Promise(r => setTimeout(r, 300))
@@ -677,8 +742,9 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Selecione um ou ambos os escopos — podem ser aplicados simultaneamente.</div>
         <div style={{ display:'flex', gap:10 }}>
           {[
-            { key:'escopo_interno', label:'Interna', desc:'Vinculada a usuário do sistema', color:'var(--accent)' },
-            { key:'escopo_externo', label:'Externa', desc:'Vinculada a Contato Canal',      color:'#10B981' },
+            { key:'escopo_interno', label:'Individual', desc:'Vinculada a um usuário do sistema', color:'var(--accent)' },
+            { key:'escopo_equipe',  label:'Equipe',     desc:'Múltiplos usuários do sistema',     color:'#F59E0B'      },
+            { key:'escopo_externo', label:'Externa',    desc:'Vinculada a Contato Canal',         color:'#10B981'      },
           ].map(opt => {
             const active = !!form[opt.key]
             return (
@@ -691,6 +757,8 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             )
           })}
         </div>
+
+        {/* Escopo Individual */}
         {form.escopo_interno && (
           <FormGrid cols={1}>
             <FormField label="Usuário do sistema" required>
@@ -701,6 +769,48 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             </FormField>
           </FormGrid>
         )}
+
+        {/* Escopo Equipe */}
+        {form.escopo_equipe && (
+          <div>
+            <FormField label="Nome da equipe">
+              <input className="so-field" value={form.equipe_nome||''} onChange={e => set('equipe_nome', e.target.value)} placeholder="Ex: Time de Inside Sales" />
+            </FormField>
+            <div style={{ marginTop:10 }}>
+              <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', display:'block', marginBottom:6 }}>Membros da equipe</label>
+              <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto', border:'1px solid var(--border)', borderRadius:8, padding:'8px' }}>
+                {usuarios.length === 0 && <div style={{ fontSize:12, color:'var(--text-muted)', padding:'4px 8px' }}>Nenhum usuário disponível</div>}
+                {usuarios.map(u => {
+                  const checked = (form.equipe_ids||[]).includes(String(u.id))
+                  return (
+                    <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 8px', borderRadius:7, cursor:'pointer', background: checked ? 'var(--accent-glow)' : 'transparent', transition:'background 0.12s' }}>
+                      <input type="checkbox" checked={checked}
+                        onChange={e => {
+                          const ids = form.equipe_ids || []
+                          set('equipe_ids', e.target.checked
+                            ? [...ids, String(u.id)]
+                            : ids.filter(id => id !== String(u.id))
+                          )
+                        }}
+                        style={{ accentColor:'var(--accent)', width:14, height:14, flexShrink:0 }} />
+                      <div>
+                        <div style={{ fontSize:13, fontWeight:checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>{u.nome}</div>
+                        {u.cargo && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo}</div>}
+                      </div>
+                    </label>
+                  )
+                })}
+              </div>
+              {(form.equipe_ids||[]).length > 0 && (
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5 }}>
+                  {(form.equipe_ids||[]).length} membro{(form.equipe_ids||[]).length !== 1 ? 's' : ''} selecionado{(form.equipe_ids||[]).length !== 1 ? 's' : ''}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Escopo Externo */}
         {form.escopo_externo && (
           <FormGrid cols={1}>
             <FormField label="Contato Canal" required>
@@ -850,7 +960,12 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
 
       <FormSection label="Elegibilidade">
         <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:4 }}>A comissão só é paga quando todas as condições abaixo forem atendidas.</div>
-        <ConditionBuilder conditions={form.condicoes_elegibilidade||[]} onChange={v=>set('condicoes_elegibilidade',v)} />
+        <ConditionBuilder
+          conditions={form.condicoes_elegibilidade||[]}
+          onChange={v=>set('condicoes_elegibilidade',v)}
+          joinsAtivos={form.condicoes_join||[]}
+          onChangeJoins={v=>set('condicoes_join',v)}
+        />
         <div style={{ display:'flex', gap:20, flexWrap:'wrap', marginTop:4 }}>
           <Toggle value={form.exige_participacao_venda} onChange={v=>set('exige_participacao_venda',v)} label="Exige participação na venda" />
           <Toggle value={form.cessa_no_cancelamento}    onChange={v=>set('cessa_no_cancelamento',v)}    label="Cessa no cancelamento" />
