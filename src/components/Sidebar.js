@@ -33,6 +33,7 @@ const INITIAL_GROUPS = [
       { path: '/empresas',         label: 'Empresas',           iconKey: 'Building2'       },
       { path: '/contatos',         label: 'Contatos',           iconKey: 'UserCircle'      },
       { path: '/projetos',         label: 'Projetos',           iconKey: 'FolderKanban'    },
+      { path: '/fechamento-horas', label: 'Fechamento de Horas', iconKey: 'Clock'           },
       { path: '/customer-success', label: 'Sucesso do Cliente', iconKey: 'HeartPulse'      },
       { path: '/contratos',        label: 'Contratos',          iconKey: 'FileText'        },
       { path: '/pagamentos',       label: 'Pagamentos',         iconKey: 'CreditCard'      },
