@@ -1921,7 +1921,7 @@ export default function Projetos() {
           zIndex: 200, display: 'flex', gap: 2,
           background: 'var(--surface)', borderRadius: 10, padding: 3,
           border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: '👥 Recursos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
+          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: 'Recursos' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
                 fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
