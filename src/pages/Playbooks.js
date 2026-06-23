@@ -4,12 +4,15 @@ import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useFunnels } from '../hooks/useFunnels'
 import { useProducts } from '../hooks/useProducts'
+import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
 import SearchSelect from '../components/SearchSelect'
 import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { useCompanies } from '../hooks/useCompanies'
+
+const STEP_ICONS = ['📋','✅','🎯','💡','🔍','📞','🤝','📊','⚡','🏆','📝','🔧','💬','🚀','⚙️','📌','🔑','💰','📅','🌟']
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -453,7 +456,7 @@ const oe = {
 }
 
 // ─── Step SlideOver ───────────────────────────────────────────────────────────
-const EMPTY_STEP = { stage: 'prospeccao', title: '', content: '' }
+const EMPTY_STEP = { stage: 'prospeccao', icone: '', title: '', content: '' }
 
 function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG }) {
   const [form, setForm] = useState(initial || EMPTY_STEP)
@@ -479,9 +482,34 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG })
             placeholder="Ex: Identificando o Parceiro Ideal" />
         </FormField>
       </FormGrid>
+      <FormField label="Ícone da atividade">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--surface2)',
+            border: '1px solid var(--border)', display: 'flex', alignItems: 'center',
+            justifyContent: 'center', fontSize: 20, flexShrink: 0 }}>
+            {form.icone || '📋'}
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+            {STEP_ICONS.map(ic => (
+              <button key={ic} type="button" onClick={() => set('icone', ic)}
+                style={{ width: 32, height: 32, border: form.icone === ic ? '2px solid var(--accent)' : '1px solid var(--border)',
+                  borderRadius: 6, background: form.icone === ic ? 'var(--accent-glow)' : 'var(--surface2)',
+                  cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {ic}
+              </button>
+            ))}
+            <button type="button" onClick={() => set('icone', '')}
+              style={{ width: 32, height: 32, border: !form.icone ? '2px solid var(--accent)' : '1px solid var(--border)',
+                borderRadius: 6, background: !form.icone ? 'var(--accent-glow)' : 'var(--surface2)',
+                cursor: 'pointer', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font)' }}>
+              —
+            </button>
+          </div>
+        </div>
+      </FormField>
       <FormField label="Conteúdo (Markdown)" span={2}>
         <textarea className="so-field" value={form.content} onChange={e => set('content', e.target.value)}
-          rows={16} style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.6 }}
+          rows={14} style={{ fontFamily: 'var(--mono)', fontSize: 12, lineHeight: 1.6 }}
           placeholder={'## Título da seção\n\nConteúdo em Markdown...'} />
       </FormField>
     </SlideOver>
@@ -491,12 +519,35 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG })
 // ─── Reference SlideOver ──────────────────────────────────────────────────────
 const EMPTY_REF = { company_id: null, company_name: '', logo_initials: '', logo_color: 'var(--accent)', estado: '', summary: '', is_public: true, results: [{ label: '', value: '' }] }
 
-function ReferenceSlideOver({ open, initial, onSave, onClose }) {
+function ReferenceSlideOver({ open, initial, onSave, onClose, produto_id }) {
   const { companies } = useCompanies()
   const [form, setForm] = useState(initial || EMPTY_REF)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setResult = (i, k, v) => setForm(f => { const r = [...f.results]; r[i] = { ...r[i], [k]: v }; return { ...f, results: r } })
   useMemo(() => { setForm(initial || EMPTY_REF) }, [initial])
+
+  // Empresas com contrato ativo do produto do playbook
+  const empresasFiltradas = useMemo(() => {
+    if (!produto_id) return companies
+    try {
+      const contratos = JSON.parse(localStorage.getItem('crm:contratos_v2') || '[]')
+      const idsComProduto = new Set(
+        contratos
+          .filter(c => c.status === 'ativo' && [
+            ...(c.itens_adesao || []),
+            ...(c.itens_mrr || []),
+            ...(c.itens_servico || []),
+          ].some(i => String(i.produto_id) === String(produto_id)))
+          .map(c => String(c.empresa_id))
+      )
+      return companies.filter(c => idsComProduto.has(String(c.id)))
+    } catch { return companies }
+  }, [companies, produto_id])
+
+  const hint = produto_id
+    ? `${empresasFiltradas.length} empresa(s) com contrato ativo deste produto`
+    : null
+
   return (
     <SlideOver
       open={open}
@@ -507,11 +558,19 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
       saveLabel="Salvar"
     >
       <FormField label="Empresa" required>
+        {hint && (
+          <div style={{ fontSize: 11, color: 'var(--accent)', marginBottom: 6,
+            padding: '4px 10px', background: 'var(--accent-glow)', borderRadius: 6,
+            border: '1px solid var(--accent)22' }}>
+            🔍 {hint}
+          </div>
+        )}
         <EmpresaSearch
           value={form.company_id || null}
           label={form.company_name || ''}
+          companies={empresasFiltradas}
           onChange={(id, nome) => {
-            const empresa = companies.find(c => c.id === id)
+            const empresa = empresasFiltradas.find(c => c.id === id) || companies.find(c => c.id === id)
             setForm(f => ({
               ...f,
               company_id: id,
@@ -520,7 +579,7 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
               estado: empresa?.state || f.estado || '',
             }))
           }}
-          placeholder="Buscar empresa…"
+          placeholder={produto_id ? 'Buscar empresa com contrato ativo…' : 'Buscar empresa…'}
         />
       </FormField>
       <FormField label="Sigla">
@@ -554,13 +613,24 @@ function ReferenceSlideOver({ open, initial, onSave, onClose }) {
 }
 
 // ─── Resource SlideOver ───────────────────────────────────────────────────────
-const EMPTY_RES = { title: '', description: '', type: 'link', url: '', file_size: '', tags: [] }
+const EMPTY_RES = { title: '', description: '', type: 'link', url: '', file_size: '', tags: [], documento_id: null, documento_titulo: '' }
 
 function ResourceSlideOver({ open, initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_RES)
   const [tagInput, setTagInput] = useState('')
+  const [docSearch, setDocSearch] = useState('')
+  const [docOpen, setDocOpen] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  useMemo(() => { setForm(initial || EMPTY_RES); setTagInput('') }, [initial])
+  useMemo(() => { setForm(initial || EMPTY_RES); setTagInput(''); setDocSearch('') }, [initial])
+
+  const { docs } = useDocuments()
+  const docsFiltrados = useMemo(() => {
+    const q = docSearch.toLowerCase()
+    return docs.filter(d => d.status !== 'arquivado' &&
+      ((d.title || '').toLowerCase().includes(q) || (d.categoria || '').toLowerCase().includes(q))
+    ).slice(0, 8)
+  }, [docs, docSearch])
+
   function addTag(e) {
     if ((e.key === 'Enter' || e.key === ',') && tagInput.trim()) {
       e.preventDefault()
@@ -581,13 +651,56 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
         <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)} placeholder="Ex: Deck Institucional 2026" />
       </FormField>
       <FormField label="Tipo">
-        <select className="so-field" value={form.type} onChange={e => set('type', e.target.value)}>
+        <select className="so-field" value={form.type} onChange={e => {
+          set('type', e.target.value)
+          if (e.target.value !== 'documento') { set('documento_id', null); set('documento_titulo', '') }
+          if (e.target.value !== 'link' && e.target.value !== 'documento') set('url', '')
+        }}>
           {Object.entries(RESOURCE_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+          <option value="documento">📄 Documento (sistema)</option>
         </select>
       </FormField>
-      <FormField label="URL / Link" required>
-        <input className="so-field" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
-      </FormField>
+
+      {form.type === 'documento' ? (
+        <FormField label="Documento vinculado" required>
+          <div style={{ position: 'relative' }}>
+            <input className="so-field" placeholder="Buscar documento…"
+              value={form.documento_id ? form.documento_titulo : docSearch}
+              onChange={e => { setDocSearch(e.target.value); setDocOpen(true); if (!e.target.value) { set('documento_id', null); set('documento_titulo', '') } }}
+              onFocus={() => setDocOpen(true)}
+              style={{ paddingRight: form.documento_id ? 28 : undefined }} />
+            {form.documento_id && (
+              <button type="button" onClick={() => { set('documento_id', null); set('documento_titulo', ''); setDocSearch('') }}
+                style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0 }}>✕</button>
+            )}
+            {docOpen && !form.documento_id && docsFiltrados.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+                background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+                boxShadow: '0 8px 24px rgba(0,0,0,0.12)', marginTop: 4, maxHeight: 220, overflowY: 'auto' }}>
+                {docsFiltrados.map(d => (
+                  <button key={d.id} type="button"
+                    onMouseDown={() => { set('documento_id', d.id); set('documento_titulo', d.title); set('title', form.title || d.title); setDocOpen(false) }}
+                    style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px',
+                      background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}>
+                    <span style={{ fontSize: 16 }}>📄</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{d.title}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{d.categoria} · v{d.version}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </FormField>
+      ) : (
+        <FormField label="URL / Link" required>
+          <input className="so-field" value={form.url} onChange={e => set('url', e.target.value)} placeholder="https://..." />
+        </FormField>
+      )}
+
       <FormField label="Descrição" span={2}>
         <input className="so-field" value={form.description} onChange={e => set('description', e.target.value)} placeholder="Breve descrição do material" />
       </FormField>
@@ -665,7 +778,14 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, s
                     stageSteps.map(step => (
                       <div key={step.id} style={{ padding: '20px 24px', borderBottom: '1px solid var(--border2)' }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-                          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>{step.title}</h3>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            {step.icone && (
+                              <span style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 16, flexShrink: 0 }}>{step.icone}</span>
+                            )}
+                            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>{step.title}</h3>
+                          </div>
                           {isISV && (
                             <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                               <button onClick={() => onEditStep(step, stageCfg)} style={dp.editBtn}>✎ Editar</button>
@@ -1158,8 +1278,8 @@ export default function Playbooks() {
           onAddStep={(stage, stageCfg) => setModal({ type: 'step', data: { stage }, stageCfg })}
           onEditStep={(step, stageCfg) => setModal({ type: 'step', data: step, stageCfg })}
           onDeleteStep={deleteStep}
-          onAddRef={() => setModal({ type: 'ref' })}
-          onEditRef={ref => setModal({ type: 'ref', data: ref })}
+          onAddRef={() => setModal({ type: 'ref', produto_id: selectedPb.produto_id })}
+          onEditRef={ref => setModal({ type: 'ref', data: ref, produto_id: selectedPb.produto_id })}
           onDeleteRef={deleteRef}
           onAddResource={() => setModal({ type: 'resource' })}
           onEditResource={res => setModal({ type: 'resource', data: res })}
@@ -1205,6 +1325,7 @@ export default function Playbooks() {
         initial={modal?.data}
         onSave={saveRef}
         onClose={() => setModal(null)}
+        produto_id={modal?.produto_id || ''}
       />
       <ResourceSlideOver
         open={modal?.type === 'resource'}

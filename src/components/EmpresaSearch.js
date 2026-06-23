@@ -38,10 +38,11 @@ const avatarStyle = {
  *   placeholder
  *   style      — override no container
  */
-export default function EmpresaSearch({ value, label, onChange, placeholder = 'Buscar empresa…', style }) {
+export default function EmpresaSearch({ value, label, onChange, placeholder = 'Buscar empresa…', style, companies: companiesProp }) {
   const [query, setQuery] = useState(label || '')
   const [open, setOpen]   = useState(false)
-  const { companies }     = useCompanies()
+  const { companies: companiesHook } = useCompanies()
+  const companies = companiesProp ?? companiesHook
   const ref               = useRef(null)
 
   useEffect(() => { setQuery(label || '') }, [label])
