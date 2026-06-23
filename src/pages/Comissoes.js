@@ -20,6 +20,7 @@ import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
+import { useProfile } from '../hooks/useProfile'
 import { InlineSearchSelect } from '../components/NotionDrawer'
 import Button from '../components/Button'
 
@@ -475,7 +476,7 @@ function InfoPill({ icon, label, color }) {
 }
 
 // ─── PaymentForm (SlideOver content) ─────────────────────────────────────────
-function PaymentForm({ form, setForm, rules, personas, onSave, onClose }) {
+function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios = [] }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -520,11 +521,11 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose }) {
         <FormGrid cols={2}>
           <FormField label="Beneficiário" required>
             <select className="so-field" value={form.beneficiario_id||''} onChange={e => {
-              const u = MOCK_USUARIOS.find(u => u.id === e.target.value)
+              const u = usuarios.find(u => String(u.id) === e.target.value)
               set('beneficiario_id', e.target.value); set('beneficiario_nome', u?.nome||'')
             }}>
               <option value="">— Selecionar usuário —</option>
-              {MOCK_USUARIOS.map(u => <option key={u.id} value={u.id}>{u.nome} · {u.cargo}</option>)}
+              {usuarios.map(u => <option key={u.id} value={String(u.id)}>{u.nome}{u.cargo ? ` · ${u.cargo}` : ''}</option>)}
             </select>
           </FormField>
           <FormField label="Persona">
@@ -617,7 +618,7 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose }) {
 }
 
 // ─── RuleForm (SlideOver content) ─────────────────────────────────────────────
-function RuleForm({ form, setForm, personas, contatos, onSave, onClose }) {
+function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [] }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -693,9 +694,9 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose }) {
         {form.escopo_interno && (
           <FormGrid cols={1}>
             <FormField label="Usuário do sistema" required>
-              <select className="so-field" value={form.beneficiario_id||''} onChange={e => { const u = MOCK_USUARIOS.find(u=>u.id===e.target.value); set('beneficiario_id',e.target.value); set('beneficiario_nome',u?.nome||'') }}>
+              <select className="so-field" value={form.beneficiario_id||''} onChange={e => { const u = usuarios.find(u=>String(u.id)===e.target.value); set('beneficiario_id',e.target.value); set('beneficiario_nome',u?.nome||'') }}>
                 <option value="">— Selecionar usuário —</option>
-                {MOCK_USUARIOS.map(u=><option key={u.id} value={u.id}>{u.nome} · {u.cargo}</option>)}
+                {usuarios.map(u=><option key={u.id} value={String(u.id)}>{u.nome}{u.cargo ? ` · ${u.cargo}` : ''}</option>)}
               </select>
             </FormField>
           </FormGrid>
@@ -1157,6 +1158,10 @@ export default function Comissoes() {
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
   const [contatos]                            = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
+  const [profilesLS]                          = useLocalState('usuarios:profiles', [])
+  const usuarios = profilesLS.length > 0 ? profilesLS.filter(p => p.status !== 'inativo') : MOCK_USUARIOS
+  const { profile } = useProfile()
+  const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
   const totalPendente = useMemo(() =>
     payments.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
@@ -1209,7 +1214,7 @@ export default function Comissoes() {
           </div>
           {/* Toggle de abas */}
           <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9, padding:3, border:'1px solid var(--border)' }}>
-            {TABS.map(t => (
+            {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
               <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--surface)':'none', color:tab===t.id?'var(--text)':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 3px rgba(0,0,0,0.12)':'none', transition:'all 0.15s' }}>{t.label}</button>
             ))}
           </div>
@@ -1217,7 +1222,7 @@ export default function Comissoes() {
         <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingTop:4 }}>
           <PeriodPopover value={period} onChange={setPeriod} />
           <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={() => tab==='repasses' ? openPayment('new') : openRule('new')}>
-            {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
+            {tab==='repasses' ? 'Novo Lançamento' : isAdmin ? 'Nova Regra' : 'Novo Lançamento'}
           </Button>
         </div>
       </div>
@@ -1225,7 +1230,7 @@ export default function Comissoes() {
       {tab === 'repasses' && (
         <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} onEdit={openPayment} />
       )}
-      {tab === 'regras' && (
+      {tab === 'regras' && isAdmin && (
         <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} />
       )}
 
@@ -1244,6 +1249,7 @@ export default function Comissoes() {
             setForm={setEditandoPayment}
             rules={rules}
             personas={personas}
+            usuarios={usuarios}
             onSave={savePayment}
             onClose={() => setEditandoPayment(null)}
           />
@@ -1265,6 +1271,7 @@ export default function Comissoes() {
             setForm={setEditandoRule}
             personas={personas}
             contatos={contatos}
+            usuarios={usuarios}
             onSave={saveRule}
             onClose={() => setEditandoRule(null)}
           />
