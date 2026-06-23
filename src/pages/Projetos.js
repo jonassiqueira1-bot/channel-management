@@ -1413,6 +1413,299 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
   )
 }
 
+// ─── Mapa de Recursos ────────────────────────────────────────────────────────
+// Capacidade padrão: 160h/mês (8h × 20 dias úteis)
+const CAPACIDADE_MENSAL = 160
+
+function MapaRecursos({ projetos, members, timeLogs }) {
+  const [expandido, setExpandido] = useState({})
+  const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
+  const [filtroStatus, setFiltroStatus] = useState('todos')
+
+  // Horas apontadas por analista no mês de referência
+  const horasPorAnalista = useMemo(() => {
+    const [ano, mes] = mesRef.split('-').map(Number)
+    const map = {} // name → { total, porProjeto: { prjId: { nome, horas, fase } } }
+    timeLogs.forEach(l => {
+      const d = new Date(l.logged_at)
+      if (d.getFullYear() !== ano || d.getMonth() + 1 !== mes) return
+      const name = l.user_name || 'Sem nome'
+      if (!map[name]) map[name] = { total: 0, porProjeto: {} }
+      map[name].total += Number(l.hours_executed)
+      if (!map[name].porProjeto[l.project_id]) {
+        const prj = projetos.find(p => p.id === l.project_id)
+        map[name].porProjeto[l.project_id] = { nome: prj?.name || l.project_id, horas: 0, fase: prj?.phase || '' }
+      }
+      map[name].porProjeto[l.project_id].horas += Number(l.hours_executed)
+    })
+    return map
+  }, [timeLogs, mesRef, projetos])
+
+  // Pool de analistas: union de members.name + timeLogs.user_name (evitar duplicatas)
+  const analistas = useMemo(() => {
+    const names = new Set()
+    members.forEach(m => { if (m.role !== 'Chave do Cliente') names.add(m.name) })
+    timeLogs.forEach(l => { if (l.user_name) names.add(l.user_name) })
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [members, timeLogs])
+
+  // Projetos ativos por analista (via members)
+  const projetosPorAnalista = useMemo(() => {
+    const map = {}
+    members.forEach(m => {
+      if (m.role === 'Chave do Cliente') return
+      const prj = projetos.find(p => p.id === m.project_id)
+      if (!prj || prj.status === 'concluido') return
+      if (!map[m.name]) map[m.name] = []
+      map[m.name].push({ ...prj, role: m.role })
+    })
+    return map
+  }, [members, projetos])
+
+  function statusCarga(horas) {
+    const pct = (horas / CAPACIDADE_MENSAL) * 100
+    if (pct >= 95) return { label: 'Sobrecarregado', color: '#EF4444', bg: '#FEE2E2', pct }
+    if (pct >= 70) return { label: 'Ocupado',         color: '#F59E0B', bg: '#FEF3C7', pct }
+    if (pct >= 20) return { label: 'Alocado',         color: '#3B82F6', bg: '#DBEAFE', pct }
+    return           { label: 'Disponível',            color: '#10B981', bg: '#D1FAE5', pct }
+  }
+
+  function initials(name) {
+    return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  }
+
+  const listaFiltrada = analistas.filter(name => {
+    const horas = horasPorAnalista[name]?.total || 0
+    const st = statusCarga(horas)
+    if (filtroStatus === 'sobrecarregado') return st.pct >= 95
+    if (filtroStatus === 'ocupado')        return st.pct >= 70 && st.pct < 95
+    if (filtroStatus === 'disponivel')     return st.pct < 70
+    return true
+  })
+
+  // KPIs do mapa
+  const totalAnalistas = analistas.length
+  const sobrecarregados = analistas.filter(n => statusCarga(horasPorAnalista[n]?.total || 0).pct >= 95).length
+  const disponiveis = analistas.filter(n => statusCarga(horasPorAnalista[n]?.total || 0).pct < 70).length
+  const totalHoras = analistas.reduce((s, n) => s + (horasPorAnalista[n]?.total || 0), 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 0 24px' }}>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
+        border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden',
+        background: 'var(--surface)' }}>
+        {[
+          { label: 'Analistas',      value: totalAnalistas,                            color: 'var(--accent)' },
+          { label: 'Sobrecarregados',value: sobrecarregados,                           color: '#EF4444' },
+          { label: 'Disponíveis',    value: disponiveis,                               color: '#10B981' },
+          { label: 'Horas no mês',   value: `${totalHoras.toFixed(0)}h`,              color: '#3B82F6' },
+        ].map((k, i) => (
+          <div key={k.label} style={{ padding: '14px 20px', borderRight: i < 3 ? '1px solid var(--border2)' : 'none',
+            borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filtros */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 8, padding: 3, border: '1px solid var(--border)' }}>
+          {[{ id: 'todos', label: 'Todos' }, { id: 'sobrecarregado', label: 'Sobrecarregados' },
+            { id: 'ocupado', label: 'Ocupados' }, { id: 'disponivel', label: 'Disponíveis' }].map(f => (
+            <button key={f.id} onClick={() => setFiltroStatus(f.id)}
+              style={{ padding: '5px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 12,
+                fontFamily: 'var(--font)', fontWeight: filtroStatus === f.id ? 700 : 500,
+                background: filtroStatus === f.id ? 'var(--surface)' : 'none',
+                color: filtroStatus === f.id ? 'var(--text)' : 'var(--text-muted)',
+                boxShadow: filtroStatus === f.id ? '0 1px 3px rgba(0,0,0,0.1)' : 'none' }}>
+              {f.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Mês de referência:</span>
+          <input type="month" value={mesRef} onChange={e => setMesRef(e.target.value)}
+            style={{ padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)',
+              background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)' }} />
+        </div>
+      </div>
+
+      {/* Tabela de analistas */}
+      <div style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+        {/* Cabeçalho */}
+        <div style={{ display: 'grid', gridTemplateColumns: '36px 200px 1fr 100px 100px 90px',
+          padding: '10px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border2)',
+          gap: 12, alignItems: 'center' }}>
+          <div />
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Analista</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Capacidade utilizada ({mesRef})</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center' }}>Horas</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center' }}>Projetos</div>
+          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', textAlign: 'center' }}>Status</div>
+        </div>
+
+        {listaFiltrada.length === 0 && (
+          <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            Nenhum analista encontrado para o filtro selecionado
+          </div>
+        )}
+
+        {listaFiltrada.map((name, i) => {
+          const horas = horasPorAnalista[name]?.total || 0
+          const prjsHora = horasPorAnalista[name]?.porProjeto || {}
+          const prjsAtivos = projetosPorAnalista[name] || []
+          const st = statusCarga(horas)
+          const isExpanded = expandido[name]
+          const numPrjs = prjsAtivos.length || Object.keys(prjsHora).length
+
+          return (
+            <div key={name}>
+              <div onClick={() => setExpandido(e => ({ ...e, [name]: !e[name] }))}
+                style={{ display: 'grid', gridTemplateColumns: '36px 200px 1fr 100px 100px 90px',
+                  padding: '12px 16px', gap: 12, alignItems: 'center', cursor: 'pointer',
+                  borderBottom: '1px solid var(--border2)',
+                  background: isExpanded ? 'var(--surface2)' : 'transparent',
+                  transition: 'background 0.15s' }}>
+
+                {/* Avatar */}
+                <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0,
+                  background: `${st.color}22`, border: `2px solid ${st.color}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 700, color: st.color }}>
+                  {initials(name)}
+                </div>
+
+                {/* Nome + role principal */}
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                    {prjsAtivos[0]?.role || 'Analista'}
+                  </div>
+                </div>
+
+                {/* Barra de capacidade */}
+                <div>
+                  <div style={{ height: 8, borderRadius: 4, background: 'var(--surface2)',
+                    border: '1px solid var(--border2)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${Math.min(100, st.pct)}%`,
+                      background: st.color, borderRadius: 4, transition: 'width 0.4s ease' }} />
+                  </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                    {Math.round(st.pct)}% de {CAPACIDADE_MENSAL}h
+                  </div>
+                </div>
+
+                {/* Horas */}
+                <div style={{ textAlign: 'center', fontSize: 14, fontWeight: 700,
+                  fontFamily: 'var(--mono)', color: st.color }}>
+                  {horas.toFixed(0)}h
+                </div>
+
+                {/* Qtd projetos */}
+                <div style={{ textAlign: 'center', fontSize: 13, color: 'var(--text-muted)' }}>
+                  {numPrjs} {numPrjs === 1 ? 'projeto' : 'projetos'}
+                </div>
+
+                {/* Badge status */}
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+                    background: st.bg, color: st.color }}>
+                    {st.label}
+                  </span>
+                </div>
+              </div>
+
+              {/* Detalhe expandido */}
+              {isExpanded && (
+                <div style={{ padding: '12px 16px 12px 64px', background: 'var(--surface2)',
+                  borderBottom: '1px solid var(--border2)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+
+                  {/* Projetos ativos (via members) */}
+                  {prjsAtivos.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+                        letterSpacing: '0.06em', marginBottom: 6 }}>Projetos ativos</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        {prjsAtivos.map(prj => {
+                          const horasPrj = prjsHora[prj.id]?.horas || 0
+                          const fase = FASES_MIT.find(f => f.value === prj.phase) || FASES_MIT[0]
+                          return (
+                            <div key={prj.id} style={{ display: 'flex', alignItems: 'center', gap: 10,
+                              padding: '8px 12px', background: 'var(--surface)', borderRadius: 8,
+                              border: '1px solid var(--border2)' }}>
+                              <div style={{ width: 8, height: 8, borderRadius: '50%', background: fase.color, flexShrink: 0 }} />
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{prj.name}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                                  {prj.role} · Fase: {fase.label}
+                                </div>
+                              </div>
+                              {horasPrj > 0 && (
+                                <div style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)',
+                                  fontWeight: 600, flexShrink: 0 }}>
+                                  {horasPrj.toFixed(0)}h no mês
+                                </div>
+                              )}
+                              {prj.status === 'suspenso' && (
+                                <span style={{ fontSize: 10, fontWeight: 700, background: '#FEF3C7', color: '#92400E',
+                                  borderRadius: 20, padding: '1px 7px', flexShrink: 0 }}>Suspenso</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Horas apontadas no mês (se não está em members mas tem timesheet) */}
+                  {prjsAtivos.length === 0 && Object.keys(prjsHora).length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+                        letterSpacing: '0.06em', marginBottom: 6 }}>Horas apontadas em {mesRef}</div>
+                      {Object.values(prjsHora).map(p => (
+                        <div key={p.nome} style={{ display: 'flex', justifyContent: 'space-between',
+                          fontSize: 12, color: 'var(--text-muted)', padding: '4px 0',
+                          borderBottom: '1px solid var(--border2)' }}>
+                          <span>{p.nome}</span>
+                          <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>{p.horas.toFixed(0)}h</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {prjsAtivos.length === 0 && Object.keys(prjsHora).length === 0 && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                      Sem projetos ativos nem apontamentos neste mês
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Legenda */}
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        {[
+          { color: '#10B981', label: `Disponível (< 70% — menos de ${Math.round(CAPACIDADE_MENSAL * 0.7)}h)` },
+          { color: '#3B82F6', label: `Alocado (20–70%)` },
+          { color: '#F59E0B', label: `Ocupado (70–95% — ${Math.round(CAPACIDADE_MENSAL * 0.7)}–${Math.round(CAPACIDADE_MENSAL * 0.95)}h)` },
+          { color: '#EF4444', label: `Sobrecarregado (≥ 95% — ${Math.round(CAPACIDADE_MENSAL * 0.95)}h+)` },
+        ].map(l => (
+          <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+            <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ─── KPI card ─────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, color }) {
   return (
@@ -1615,9 +1908,9 @@ export default function Projetos() {
         {/* Page header */}
         <div style={pg.pageHeader}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : 'Projetos de Implantação'}</h1>
+            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : 'Projetos de Implantação'}</h1>
             <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 9, padding: 3, border: '1px solid var(--border)' }}>
-              {[{ id: 'projetos', label: 'Projetos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
+              {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: '👥 Recursos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
                 <button key={t.id} onClick={() => setTab(t.id)}
                   style={{ padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13,
                     fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
@@ -1633,10 +1926,14 @@ export default function Projetos() {
           {tab === 'projetos' && (
             <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
           )}
+          {tab === 'recursos' && (
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
+          )}
         </div>
 
         {/* KPIs */}
         {tab === 'fechamento' && <FechamentoHoras embedded />}
+        {tab === 'recursos' && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
 
         {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
@@ -1647,7 +1944,7 @@ export default function Projetos() {
         </div>}
 
         {/* Toolbar — igual Pipeline */}
-        <div style={{ ...pg.toolbar, display: tab === 'fechamento' ? 'none' : undefined }}>
+        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos') ? 'none' : undefined }}>
 
           {/* ── Esquerda ── */}
           <div style={pg.tbLeft}>
@@ -1732,7 +2029,7 @@ export default function Projetos() {
         </div>
 
         {/* Contagem */}
-        <div style={{ ...pg.resultRow, display: tab === 'fechamento' ? 'none' : undefined }}>
+        <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos') ? 'none' : undefined }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
             {filtered.length} projeto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
           </span>
@@ -1740,7 +2037,7 @@ export default function Projetos() {
       </div>
 
       {/* Kanban ou Lista */}
-      {tab !== 'fechamento' && viewMode === 'kanban' ? (
+      {tab !== 'fechamento' && tab !== 'recursos' && viewMode === 'kanban' ? (
         <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
           <div style={{ display: 'flex', gap: 12, height: '100%' }}>
             {FASES_MIT.map(fase => (
@@ -1759,7 +2056,7 @@ export default function Projetos() {
             ))}
           </div>
         </div>
-      ) : tab !== 'fechamento' ? (
+      ) : tab !== 'fechamento' && tab !== 'recursos' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
