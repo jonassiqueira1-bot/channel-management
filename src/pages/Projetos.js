@@ -643,7 +643,6 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
   const myPhases = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
   const currentIdx = projeto.current_phase_index
 
-  // Horas executadas por phase_id
   const execByPhase = useMemo(() => {
     const map = {}
     timeLogs.filter(l => l.project_id === projeto.id).forEach(l => {
@@ -658,142 +657,180 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
   const currentPct   = currentEst > 0 ? (currentExe / currentEst) * 100 : 0
   const showSugestao = currentPct >= 90 && currentIdx < 6 && projeto.status !== 'concluido'
 
-  // Totais para régua geral
   const totalEst = myPhases.reduce((s, p) => s + Number(p.hours_estimated || 0), 0)
   const totalExe = myPhases.reduce((s, p) => s + (execByPhase[p.id] || 0), 0)
   const phasesCompleted = myPhases.filter(p => p.is_completed).length
+  const pctGeral = totalEst > 0 ? Math.min(100, Math.round((totalExe / totalEst) * 100)) : 0
+
+  // Cálculo do span do Gantt (datas mínima e máxima das fases)
+  const allDates = myPhases.flatMap(p => [p.start_date_planned, p.end_date_planned].filter(Boolean))
+  const ganttStart = allDates.length ? allDates.reduce((a, b) => a < b ? a : b) : projeto.start_date || new Date().toISOString().slice(0, 10)
+  const ganttEnd   = allDates.length ? allDates.reduce((a, b) => a > b ? a : b) : projeto.end_date_estimated || new Date().toISOString().slice(0, 10)
+  const spanDays   = Math.max(1, (new Date(ganttEnd) - new Date(ganttStart)) / 86400000)
+  const today      = new Date().toISOString().slice(0, 10)
+
+  function phasePct(start, end) {
+    if (!start || !end) return { left: 0, width: 100 }
+    const s = (new Date(start) - new Date(ganttStart)) / 86400000
+    const d = Math.max(1, (new Date(end) - new Date(start)) / 86400000)
+    return { left: (s / spanDays) * 100, width: (d / spanDays) * 100 }
+  }
+
+  function todayPct() {
+    if (today < ganttStart) return null
+    if (today > ganttEnd)   return null
+    return ((new Date(today) - new Date(ganttStart)) / 86400000 / spanDays) * 100
+  }
+  const todayLeft = todayPct()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── Régua de Avanço MIT ── */}
-      <div style={{ marginBottom: 20, padding: '16px', background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase' }}>Progresso MIT</span>
-          <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-            {phasesCompleted}/{FASES_MIT.length} fases · {totalEst > 0 ? Math.round((totalExe / totalEst) * 100) : 0}% horas
-          </span>
-        </div>
-
-        {/* Régua segmentada */}
-        <div style={{ display: 'flex', gap: 3, height: 10, borderRadius: 8, overflow: 'hidden', marginBottom: 10 }}>
-          {FASES_MIT.map((fase, i) => {
-            const ph      = myPhases.find(p => p.phase_order === fase.order)
-            const isDone  = ph?.is_completed
-            const isActive= fase.order === currentIdx
-            const exe     = ph ? (execByPhase[ph.id] || 0) : 0
-            const est     = ph ? Number(ph.hours_estimated || 0) : 0
-            const pct     = est > 0 ? Math.min(100, (exe / est) * 100) : 0
-            return (
-              <div key={fase.value} style={{ flex: 1, position: 'relative', background: isDone ? fase.color : isActive ? fase.color + '33' : 'var(--surface2)', borderRadius: 3, overflow: 'hidden' }}>
-                {isActive && !isDone && pct > 0 && (
-                  <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${pct}%`, background: fase.color, transition: 'width 0.4s ease' }} />
-                )}
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Labels das fases */}
-        <div style={{ display: 'flex', gap: 3 }}>
-          {FASES_MIT.map((fase) => {
-            const ph      = myPhases.find(p => p.phase_order === fase.order)
-            const isDone  = ph?.is_completed
-            const isActive= fase.order === currentIdx
-            return (
-              <div key={fase.value} style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{
-                  fontSize: 9, fontWeight: isActive ? 800 : 600,
-                  color: isDone ? fase.color : isActive ? fase.color : 'var(--text-muted)',
-                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                  fontFamily: 'var(--mono)',
-                }}>
-                  {isDone ? '✓ ' : isActive ? '▶ ' : ''}{fase.label}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      {/* ── KPI strip ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        {[
+          { label: 'Fases concluídas', value: `${phasesCompleted} / ${FASES_MIT.length}`, color: '#10B981' },
+          { label: 'Horas estimadas',  value: `${totalEst}h`,                              color: 'var(--accent)' },
+          { label: 'Horas executadas', value: `${totalExe.toFixed(1)}h`,                  color: '#3B82F6' },
+          { label: 'Progresso geral',  value: `${pctGeral}%`,                              color: pctGeral >= 80 ? '#10B981' : pctGeral >= 50 ? '#F59E0B' : 'var(--accent)' },
+        ].map(k => (
+          <div key={k.label} style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10,
+            padding: '12px 16px', borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{k.label}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Sugestão de avanço de fase */}
+      {/* Sugestão de avanço */}
       {showSugestao && (
-        <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10, padding: '14px 16px', marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>💡 Sugestão do Sistema</div>
-          <div style={{ fontSize: 12.5, color: '#065F46', lineHeight: 1.5 }}>
-            O escopo da fase <strong>{currentPhase?.phase_name}</strong> foi concluído ({currentPct.toFixed(0)}% das horas executadas). Deseja avançar o projeto para a próxima fase?
+        <div style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: 10,
+          padding: '12px 16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#065F46' }}>💡 Fase atual atingiu {currentPct.toFixed(0)}% das horas</div>
+            <div style={{ fontSize: 12, color: '#047857', marginTop: 2 }}>
+              <strong>{currentPhase?.phase_name}</strong> — pronto para avançar para a próxima fase?
+            </div>
           </div>
-          <button
-            style={{ ...ms.btnSuccess, alignSelf: 'flex-start', fontSize: 12 }}
-            onClick={() => onAdvancePhase(projeto, currentPhase)}
-          >
-            Avançar para {PHASE_NAMES[currentIdx]} →
+          <button style={{ ...ms.btnSuccess, fontSize: 12, whiteSpace: 'nowrap', flexShrink: 0 }}
+            onClick={() => onAdvancePhase(projeto, currentPhase)}>
+            Avançar → {PHASE_NAMES[currentIdx]}
           </button>
         </div>
       )}
 
-      {/* Timeline vertical */}
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* ── Gantt ── */}
+      <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden' }}>
+
+        {/* Cabeçalho */}
+        <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', borderBottom: '1px solid var(--border2)',
+          background: 'var(--surface2)' }}>
+          <div style={{ padding: '10px 16px', fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+            textTransform: 'uppercase', letterSpacing: '0.07em', borderRight: '1px solid var(--border2)' }}>Fase</div>
+          <div style={{ padding: '10px 16px', position: 'relative' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{fmtDate(ganttStart)}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{fmtDate(ganttEnd)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Linhas */}
         {myPhases.map((ph, i) => {
-          const fase    = FASES_MIT[i]
+          const faseIdx = FASES_MIT.findIndex(f => f.order === ph.phase_order)
+          const fase    = FASES_MIT[faseIdx] || FASES_MIT[0]
           const exe     = execByPhase[ph.id] || 0
           const est     = Number(ph.hours_estimated)
           const pct     = est > 0 ? Math.min(100, Math.round((exe / est) * 100)) : 0
-          const isActive  = ph.phase_order === currentIdx
-          const isDone    = ph.is_completed
-          const isFuture  = ph.phase_order > currentIdx
+          const isActive = ph.phase_order === currentIdx
+          const isDone   = ph.is_completed
+          const isFuture = ph.phase_order > currentIdx
+          const { left, width } = phasePct(ph.start_date_planned, ph.end_date_planned)
 
           return (
-            <div key={ph.id} style={{ display: 'flex', gap: 14 }}>
-              {/* Linha vertical + dot */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 20, flexShrink: 0 }}>
-                <div style={{
-                  width: 18, height: 18, borderRadius: '50%', flexShrink: 0,
-                  background: isDone ? '#10B981' : isActive ? fase.color : 'var(--surface2)',
-                  border: `2px solid ${isDone ? '#10B981' : isActive ? fase.color : 'var(--border)'}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 9, color: '#fff', fontWeight: 700, marginTop: 14,
-                }}>
-                  {isDone ? '✓' : ph.phase_order}
+            <div key={ph.id} style={{ display: 'grid', gridTemplateColumns: '140px 1fr',
+              borderBottom: i < myPhases.length - 1 ? '1px solid var(--border2)' : 'none',
+              background: isActive ? `${fase.color}08` : 'transparent',
+              transition: 'background 0.2s' }}>
+
+              {/* Nome da fase */}
+              <div style={{ padding: '12px 16px', borderRight: '1px solid var(--border2)',
+                display: 'flex', flexDirection: 'column', gap: 4, justifyContent: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: isDone ? '#10B981' : isActive ? fase.color : 'var(--border)' }} />
+                  <span style={{ fontSize: 12, fontWeight: isActive ? 800 : 600,
+                    color: isDone ? '#10B981' : isActive ? fase.color : isFuture ? 'var(--text-muted)' : 'var(--text)' }}>
+                    {ph.phase_name}
+                  </span>
                 </div>
-                {i < myPhases.length - 1 && (
-                  <div style={{ width: 2, flex: 1, background: isDone ? '#10B981' : 'var(--border)', minHeight: 12 }} />
-                )}
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 14 }}>
+                  {isDone ? '✓ Concluída' : isActive ? `${pct}% · ${exe.toFixed(1)}h` : est ? `${est}h` : '—'}
+                </div>
               </div>
 
-              {/* Conteúdo da fase */}
-              <div style={{
-                flex: 1, paddingBottom: i < myPhases.length - 1 ? 14 : 0, paddingTop: 10,
-                opacity: isFuture ? 0.5 : 1,
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ fontSize: 13, fontWeight: isActive ? 800 : 600, color: isActive ? fase.color : 'var(--text)' }}>{ph.phase_name}</span>
-                    {isDone && <span style={{ fontSize: 10, fontWeight: 700, background: '#D1FAE5', color: '#065F46', borderRadius: 20, padding: '1px 7px' }}>Concluída</span>}
-                    {isActive && <span style={{ fontSize: 10, fontWeight: 700, background: fase.bg, color: fase.text, borderRadius: 20, padding: '1px 7px' }}>Atual</span>}
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{est}h est.</span>
-                </div>
-
-                {/* Datas */}
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>
-                  {fmtDate(ph.start_date_planned)} → {fmtDate(ph.end_date_planned)}
-                </div>
-
-                {/* Progress bar por fase */}
-                {!isFuture && (
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 600 }}>{exe.toFixed(1)}h executadas</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, color: pct >= 90 ? '#EF4444' : pct >= 70 ? '#F59E0B' : '#10B981' }}>{pct}%</span>
+              {/* Barra Gantt */}
+              <div style={{ padding: '10px 0', position: 'relative', minHeight: 52 }}>
+                {/* Linha de hoje */}
+                {todayLeft !== null && (
+                  <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${todayLeft}%`,
+                    width: 1, background: '#EF4444', opacity: 0.5, zIndex: 2 }} />
+                )}
+                {/* Barra da fase */}
+                {ph.start_date_planned && ph.end_date_planned && (
+                  <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                    left: `calc(${left}% + 8px)`, width: `calc(${width}% - 16px)`,
+                    height: 24, borderRadius: 6, overflow: 'hidden', minWidth: 20,
+                    background: isDone ? '#10B98122' : isFuture ? 'var(--surface2)' : `${fase.color}22`,
+                    border: `1px solid ${isDone ? '#10B981' : isActive ? fase.color : 'var(--border)'}` }}>
+                    {/* Progresso interno */}
+                    {!isFuture && pct > 0 && (
+                      <div style={{ position: 'absolute', left: 0, top: 0, height: '100%',
+                        width: `${pct}%`, background: isDone ? '#10B981' : fase.color,
+                        opacity: isDone ? 0.7 : 0.6, transition: 'width 0.5s ease', borderRadius: '5px 0 0 5px' }} />
+                    )}
+                    {/* Label na barra */}
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center',
+                      paddingLeft: 6, fontSize: 9.5, fontWeight: 700, fontFamily: 'var(--mono)',
+                      color: isDone ? '#047857' : isActive ? fase.text : 'var(--text-muted)',
+                      whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      {isDone ? '✓ ' : isActive ? '▶ ' : ''}{pct > 0 ? `${pct}%` : ''}
                     </div>
-                    <ProgressBar executed={exe} estimated={est} thin />
+                  </div>
+                )}
+                {/* Sem datas */}
+                {(!ph.start_date_planned || !ph.end_date_planned) && (
+                  <div style={{ position: 'absolute', top: '50%', transform: 'translateY(-50%)',
+                    left: 8, fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                    Datas não definidas
                   </div>
                 )}
               </div>
             </div>
           )
         })}
+
+        {/* Rodapé — Legenda */}
+        <div style={{ padding: '10px 16px', borderTop: '1px solid var(--border2)', background: 'var(--surface2)',
+          display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+          {[
+            { color: '#10B981', label: 'Concluída' },
+            { color: 'var(--accent)', label: 'Em andamento' },
+            { color: 'var(--border)', label: 'Futura' },
+            { color: '#EF4444', label: 'Hoje', dashed: true },
+          ].map(l => (
+            <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <div style={{ width: l.dashed ? 1 : 10, height: l.dashed ? 12 : 10,
+                background: l.color, borderRadius: l.dashed ? 0 : 3, flexShrink: 0 }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{l.label}</span>
+            </div>
+          ))}
+          {todayLeft !== null && (
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto', fontFamily: 'var(--mono)' }}>
+              Hoje: {fmtDate(today)}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )
