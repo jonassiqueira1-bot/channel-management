@@ -638,8 +638,235 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   )
 }
 
+// ─── MS Project XML parser ────────────────────────────────────────────────────
+function parseMsProjectXml(xmlText) {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(xmlText, 'application/xml')
+  if (doc.querySelector('parsererror')) throw new Error('XML inválido')
+
+  const getText = (el, tag) => el.querySelector(tag)?.textContent?.trim() || ''
+
+  // Duração ISO 8601 (PTxHxMxS ou PxDT...) → horas
+  function isoToHours(dur) {
+    if (!dur) return 0
+    const days  = parseFloat(dur.match(/(\d+(?:\.\d+)?)D/)?.[1] || 0)
+    const hours = parseFloat(dur.match(/(\d+(?:\.\d+)?)H/)?.[1] || 0)
+    const mins  = parseFloat(dur.match(/(\d+(?:\.\d+)?)M(?!O)/)?.[1] || 0)
+    return days * 8 + hours + mins / 60
+  }
+
+  const tasks = []
+  doc.querySelectorAll('Task').forEach(t => {
+    const uid  = getText(t, 'UID')
+    const name = getText(t, 'Name')
+    const type = getText(t, 'Type') // 0=fixed units, summary tasks often type 1
+    if (!name || uid === '0') return // tarefa raiz
+    const isNull  = getText(t, 'IsNull') === '1'
+    if (isNull) return
+    const outlineLevel = parseInt(getText(t, 'OutlineLevel') || '1', 10)
+    const isSummary = getText(t, 'Summary') === '1'
+
+    // Datas no formato YYYY-MM-DDTHH:MM:SS
+    const rawStart  = getText(t, 'Start')
+    const rawFinish = getText(t, 'Finish')
+    const start = rawStart  ? rawStart.slice(0, 10)  : ''
+    const end   = rawFinish ? rawFinish.slice(0, 10) : ''
+
+    // Horas: preferir Work, fallback Duration
+    const work  = getText(t, 'Work')
+    const dur   = getText(t, 'Duration')
+    const hours = isoToHours(work) || isoToHours(dur)
+
+    const pct = parseFloat(getText(t, 'PercentComplete') || '0')
+
+    tasks.push({ uid, name, start, end, hours: Math.round(hours * 10) / 10, pct, isSummary, outlineLevel })
+  })
+  return tasks
+}
+
+// ─── Modal de importação do Project ──────────────────────────────────────────
+function ImportProjectModal({ projeto, myPhases, onApply, onClose }) {
+  const [step, setStep] = useState('upload') // 'upload' | 'map' | 'done'
+  const [tasks, setTasks] = useState([])
+  const [mapping, setMapping] = useState({}) // uid → phase.id
+  const [error, setError] = useState('')
+
+  function handleFile(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    const ext = file.name.split('.').pop().toLowerCase()
+    if (!['xml', 'mpx'].includes(ext)) { setError('Selecione um arquivo .xml exportado pelo MS Project'); return }
+    const reader = new FileReader()
+    reader.onload = ev => {
+      try {
+        const parsed = parseMsProjectXml(ev.target.result)
+        if (!parsed.length) { setError('Nenhuma tarefa encontrada no arquivo.'); return }
+        setTasks(parsed)
+        // Auto-map por similaridade de nome
+        const auto = {}
+        parsed.forEach(t => {
+          const tNorm = t.name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+          const match = myPhases.find(ph => {
+            const pNorm = ph.phase_name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+            return tNorm.includes(pNorm) || pNorm.includes(tNorm)
+          })
+          if (match) auto[t.uid] = match.id
+        })
+        setMapping(auto)
+        setError('')
+        setStep('map')
+      } catch (err) {
+        setError(`Erro ao ler arquivo: ${err.message}`)
+      }
+    }
+    reader.readAsText(file)
+  }
+
+  function handleApply() {
+    const updates = []
+    Object.entries(mapping).forEach(([uid, phaseId]) => {
+      if (!phaseId) return
+      const task  = tasks.find(t => t.uid === uid)
+      const phase = myPhases.find(p => p.id === phaseId)
+      if (!task || !phase) return
+      updates.push({
+        ...phase,
+        start_date_planned: task.start || phase.start_date_planned,
+        end_date_planned:   task.end   || phase.end_date_planned,
+        hours_estimated:    task.hours > 0 ? task.hours : phase.hours_estimated,
+      })
+    })
+    onApply(updates)
+    setStep('done')
+  }
+
+  const overlay = { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1000,
+    display:'flex', alignItems:'center', justifyContent:'center', padding:24 }
+  const box = { background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:640,
+    maxHeight:'85vh', overflow:'hidden', display:'flex', flexDirection:'column',
+    boxShadow:'0 20px 60px rgba(0,0,0,0.3)' }
+  const head = { padding:'18px 24px', borderBottom:'1px solid var(--border2)',
+    display:'flex', justifyContent:'space-between', alignItems:'center' }
+
+  if (step === 'done') return (
+    <div style={overlay} onClick={onClose}>
+      <div style={{ ...box, maxWidth:380, padding:32, textAlign:'center' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+        <div style={{ fontSize:16, fontWeight:800, color:'var(--text)', marginBottom:6 }}>Importação concluída</div>
+        <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:20 }}>
+          Datas e horas das fases mapeadas foram atualizadas.
+        </div>
+        <button style={{ ...ms.btnPrimary }} onClick={onClose}>Fechar</button>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={overlay} onClick={onClose}>
+      <div style={box} onClick={e => e.stopPropagation()}>
+        <div style={head}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>Importar do MS Project</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
+              {step === 'upload' ? 'Selecione o arquivo .xml exportado pelo MS Project' : `${tasks.length} tarefa(s) encontrada(s) — mapeie para as fases MIT`}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer',
+            fontSize:20, color:'var(--text-muted)', padding:4 }}>✕</button>
+        </div>
+
+        <div style={{ flex:1, overflowY:'auto', padding:24 }}>
+          {step === 'upload' && (
+            <div>
+              {/* Instruções */}
+              <div style={{ background:'var(--surface2)', borderRadius:10, padding:'14px 18px',
+                border:'1px solid var(--border2)', marginBottom:20 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:8 }}>Como exportar do MS Project:</div>
+                <ol style={{ margin:0, paddingLeft:20, fontSize:12.5, color:'var(--text-muted)', lineHeight:2 }}>
+                  <li>Abra o projeto no MS Project</li>
+                  <li>Vá em <strong>Arquivo → Salvar como</strong></li>
+                  <li>Escolha o tipo <strong>"Projeto XML (*.xml)"</strong></li>
+                  <li>Salve e selecione o arquivo abaixo</li>
+                </ol>
+              </div>
+
+              {/* Drop zone */}
+              <label style={{ display:'block', border:`2px dashed var(--border)`, borderRadius:12, padding:'40px 24px',
+                textAlign:'center', cursor:'pointer', background:'var(--surface2)',
+                transition:'border-color 0.15s' }}>
+                <input type="file" accept=".xml,.mpx" onChange={handleFile} style={{ display:'none' }} />
+                <div style={{ fontSize:36, marginBottom:10 }}>📂</div>
+                <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:4 }}>
+                  Clique para selecionar o arquivo
+                </div>
+                <div style={{ fontSize:12, color:'var(--text-muted)' }}>Formatos aceitos: .xml (MS Project XML)</div>
+              </label>
+              {error && <div style={{ marginTop:12, fontSize:12, color:'#EF4444', fontWeight:600 }}>{error}</div>}
+            </div>
+          )}
+
+          {step === 'map' && (
+            <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 24px 1fr', gap:'8px 12px',
+                alignItems:'center', marginBottom:12 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Tarefa do Project</div>
+                <div />
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Fase MIT</div>
+              </div>
+              {tasks.map(t => (
+                <div key={t.uid} style={{ display:'grid', gridTemplateColumns:'1fr 24px 1fr', gap:'6px 12px',
+                  alignItems:'center', padding:'8px 0',
+                  borderBottom:'1px solid var(--border2)' }}>
+                  {/* Tarefa */}
+                  <div style={{ background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:8,
+                    padding:'8px 12px' }}>
+                    <div style={{ fontSize:12, fontWeight: t.isSummary ? 700 : 500, color:'var(--text)',
+                      paddingLeft: (t.outlineLevel - 1) * 10 }}>
+                      {t.isSummary ? '▸ ' : ''}{t.name}
+                    </div>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2, paddingLeft:(t.outlineLevel-1)*10 }}>
+                      {t.start && t.end ? `${t.start} → ${t.end}` : 'sem datas'}{t.hours > 0 ? ` · ${t.hours}h` : ''}
+                    </div>
+                  </div>
+                  {/* Seta */}
+                  <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:14 }}>→</div>
+                  {/* Select fase */}
+                  <select value={mapping[t.uid] || ''} onChange={e => setMapping(m => ({ ...m, [t.uid]: e.target.value }))}
+                    style={{ width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)',
+                      background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)' }}>
+                    <option value="">— Ignorar —</option>
+                    {myPhases.map(ph => (
+                      <option key={ph.id} value={ph.id}>{ph.phase_name}</option>
+                    ))}
+                  </select>
+                </div>
+              ))}
+              {error && <div style={{ marginTop:12, fontSize:12, color:'#EF4444', fontWeight:600 }}>{error}</div>}
+            </div>
+          )}
+        </div>
+
+        {step === 'map' && (
+          <div style={{ padding:'16px 24px', borderTop:'1px solid var(--border2)',
+            display:'flex', gap:10, justifyContent:'flex-end' }}>
+            <button onClick={() => setStep('upload')}
+              style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)',
+                background:'var(--surface2)', color:'var(--text)', fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
+              Voltar
+            </button>
+            <button onClick={handleApply} style={{ ...ms.btnPrimary }}>
+              Aplicar importação ({Object.values(mapping).filter(Boolean).length} fases)
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Tab 1: Cronograma MIT ────────────────────────────────────────────────────
-function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
+function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhases }) {
+  const [showImport, setShowImport] = useState(false)
   const myPhases = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
   const currentIdx = projeto.current_phase_index
 
@@ -685,6 +912,17 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+      {/* ── Cabeçalho com botão de importação ── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button onClick={() => setShowImport(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+            borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)',
+            color: 'var(--text)', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+            fontFamily: 'var(--font)', transition: 'background 0.15s' }}>
+          📥 Importar do Project
+        </button>
+      </div>
 
       {/* ── KPI strip ── */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
@@ -832,6 +1070,16 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase }) {
           )}
         </div>
       </div>
+
+      {/* Modal de importação */}
+      {showImport && (
+        <ImportProjectModal
+          projeto={projeto}
+          myPhases={myPhases}
+          onApply={updates => { updates.forEach(ph => onUpdatePhases(ph)); setShowImport(false) }}
+          onClose={() => setShowImport(false)}
+        />
+      )}
     </div>
   )
 }
@@ -1104,7 +1352,7 @@ const DRAWER_TABS = [
   { key: 'documentos', label: 'Documentos'     },
 ]
 
-function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember, onDelete }) {
+function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onUpdatePhases, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember, onDelete }) {
   const [tab, setTab] = useState('projeto')
   const fase        = FASES_MIT[projeto.current_phase_index - 1] || FASES_MIT[0]
   const isBlocked   = blockedIds.has(projeto.id)
@@ -1144,7 +1392,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
       {/* Conteúdo rolável por tab */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
         {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
-        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} />}
+        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} />}
         {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
@@ -1584,6 +1832,7 @@ export default function Projetos() {
           onUpdate={handleUpdate}
           onUpdateOpp={handleUpdateOpp}
           onAdvancePhase={handleAdvancePhase}
+          onUpdatePhases={savePhase}
           onAddLog={handleAddLog}
           onAddIssue={handleAddIssue}
           onResolveIssue={handleResolveIssue}
