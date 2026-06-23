@@ -339,7 +339,12 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose, pr
         </FormSection>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
           <button onClick={onClose} style={ms.btn}>Cancelar</button>
-          <button onClick={() => form.name.trim() && onSave(form)} style={ms.btnPrimary}>Criar projeto</button>
+          <button
+            onClick={() => form.name.trim() && !dupWarning && onSave(form)}
+            disabled={!!dupWarning || !form.name.trim()}
+            style={{ ...ms.btnPrimary, opacity: (dupWarning || !form.name.trim()) ? 0.45 : 1, cursor: (dupWarning || !form.name.trim()) ? 'not-allowed' : 'pointer' }}>
+            Criar projeto
+          </button>
         </div>
       </div>
     </SlideOver>
