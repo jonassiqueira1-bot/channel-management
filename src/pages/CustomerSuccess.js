@@ -269,8 +269,8 @@ function CheckinBlock({ checkins, onChange, produtos = [] }) {
     const date = form.date || new Date().toISOString().slice(0, 10)
     const produto_id = form.produto_id || null
     if (produto_id) {
-      const dup = checkins.find(c => c.produto_id === produto_id && c.date === date)
-      if (dup) { setDupErr(`Já existe um check-in para este produto em ${fmtDate(date)}.`); return }
+      const dup = checkins.find(c => c.produto_id === produto_id)
+      if (dup) { setDupErr(`Já existe um check-in para este produto neste cliente. Edite o existente ou escolha outro produto.`); return }
     }
     setDupErr('')
     onChange([{ id: cidFn(), date, type: form.type || 'Reunião', summary: form.summary,
@@ -564,15 +564,17 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
           </FormField>
           <FormField label="CSM Responsável">
             <select className="so-field"
-              value={(profiles.find(u => u.nome === form.csm) || MOCK_USUARIOS.find(u => u.nome === form.csm))?.id || ''}
+              value={form.csm_id || (profiles.find(u => u.nome === form.csm) || MOCK_USUARIOS.find(u => u.nome === form.csm))?.id || ''}
               onChange={e => {
-                const u = profiles.find(u => u.id === e.target.value) || MOCK_USUARIOS.find(u => u.id === e.target.value)
+                const lista = profiles.length > 0 ? profiles : MOCK_USUARIOS
+                const u = lista.find(u => String(u.id) === e.target.value)
+                patch('csm_id', u?.id || null)
                 patch('csm', u?.nome || '')
               }}>
               <option value="">— Selecionar —</option>
               {(profiles.length > 0 ? profiles : MOCK_USUARIOS)
                 .filter(u => u.status !== 'inativo')
-                .map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                .map(u => <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : u.papel ? ` — ${u.papel}` : ''}</option>)}
             </select>
           </FormField>
         </FormGrid>
