@@ -475,10 +475,8 @@ export default function Acoes() {
     </div>
   )
 
-  // ── Toggle de visão ───────────────────────────────────────────────────────
   const toggleVisao = (
-    <div style={{ position:'absolute', top:16, right:28, zIndex:10,
-      display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
+    <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
       padding:3, border:'1px solid var(--border)' }}>
       {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
         <button key={t.id} type="button" onClick={() => setVisao(t.id)}
@@ -495,8 +493,7 @@ export default function Acoes() {
   )
 
   return (
-    <div style={{ position:'relative' }}>
-      {toggleVisao}
+    <>
       {visao === 'franquias' ? viewFranquias : (
         <BrowseLayout
           storageKey="acoes"
@@ -522,6 +519,7 @@ export default function Acoes() {
             ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
           }
           renderCard={renderCard}
+          secondaryActions={toggleVisao}
           emptyState={
             <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>
               <div style={{ fontSize:32, marginBottom:10 }}>🗓</div>
@@ -542,6 +540,6 @@ export default function Acoes() {
         empresasOpts={empresasOpts}
         responsaveisOpts={responsaveisOpts}
       />
-    </div>
+    </>
   )
 }
