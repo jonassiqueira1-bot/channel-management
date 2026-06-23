@@ -244,6 +244,8 @@ function ContatoSearch({ value, label, onChange }) {
 
 // ─── Formulário de Tarefa (usado dentro do SlideOver) ────────────────────────
 function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs = {}, clearErr }) {
+  const [profiles] = useLocalState('usuarios:profiles', MOCK_USUARIOS)
+  const usuarios = profiles.length ? profiles : MOCK_USUARIOS
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
   return (
@@ -300,20 +302,21 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
           <select className="so-field"
             value={form.responsavel_id || ''}
             onChange={e => {
-              const u = MOCK_USUARIOS.find(u => u.id === e.target.value) || null
+              const u = usuarios.find(u => String(u.id) === e.target.value) || null
               onChange({ ...form, responsavel_id: u?.id || null, responsavel_nome: u?.nome || '' })
             }}>
             <option value="">— Nenhum —</option>
-            <optgroup label="Internos (ISV)">
-              {MOCK_USUARIOS.filter(u => u.tipo === 'interno').map(u => (
-                <option key={u.id} value={u.id}>{u.nome} — {u.cargo}</option>
-              ))}
-            </optgroup>
-            <optgroup label="Parceiros / Franquias">
-              {MOCK_USUARIOS.filter(u => u.tipo === 'externo').map(u => (
-                <option key={u.id} value={u.id}>{u.nome} — {u.cargo}</option>
-              ))}
-            </optgroup>
+            {usuarios.filter(u => u.tipo === 'interno' || u.papel).map(u => (
+              <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : u.papel ? ` — ${u.papel}` : ''}</option>
+            ))}
+            {usuarios.filter(u => u.tipo === 'externo' && !u.papel).length > 0 && (
+              <>
+                <option disabled>────────────</option>
+                {usuarios.filter(u => u.tipo === 'externo' && !u.papel).map(u => (
+                  <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : ''}</option>
+                ))}
+              </>
+            )}
           </select>
         </FormField>
 
