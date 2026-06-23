@@ -229,6 +229,7 @@ export default function Acoes() {
 
   const [slideOpen, setSlideOpen] = useState(false)
   const [editando,  setEditando]  = useState(null)
+  const [visao,     setVisao]     = useLocalState('acoes:visao', 'lista') // 'lista' | 'franquias'
 
   const [search,        setSearch]        = useState('')
   const [activeFilters, setActiveFilters] = useState({})
@@ -261,6 +262,18 @@ export default function Acoes() {
              (a.responsavel_nome || '').toLowerCase().includes(q))
     ).sort((a, b) => (a.data_inicio < b.data_inicio ? 1 : -1))
   }, [acoes, search, activeFilters])
+
+  // ── Agrupamento por franquia ──────────────────────────────────────────────
+  const porFranquia = useMemo(() => {
+    const map = {}
+    lista.forEach(a => {
+      const key  = String(a.empresa_id || '')
+      const nome = a.empresa_nome || 'Sem franquia'
+      if (!map[key]) map[key] = { id: key, nome, acoes: [] }
+      map[key].acoes.push(a)
+    })
+    return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [lista])
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
   const kpis = (
@@ -394,40 +407,130 @@ export default function Acoes() {
     setEditando(null)
   }
 
-  return (
-    <>
-      <BrowseLayout
-        storageKey="acoes"
-        kpis={kpis}
-        kpisLabel="Indicadores"
-        columns={columns}
-        data={lista}
-        keyField="id"
-        search={search}
-        onSearchChange={setSearch}
-        filters={filters}
-        activeFilters={activeFilters}
-        onFilterChange={setActiveFilters}
-        onNew={() => { setEditando(null); setSlideOpen(true) }}
-        newLabel="+ Nova Ação"
-        onRowClick={row => { setEditando(row); setSlideOpen(true) }}
-        bulkEditFields={[
-          { key: 'status', label: 'Status', type: 'select',
-            options: Object.entries(STATUS_ACAO).map(([k, v]) => ({ value: k, label: v.label })) },
-          { key: 'data_inicio', label: 'Data de início', type: 'date' },
-        ]}
-        onBulkEdit={(ids, changes) =>
-          ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
-        }
-        renderCard={renderCard}
-        emptyState={
-          <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>
-            <div style={{ fontSize:32, marginBottom:10 }}>🗓</div>
-            <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Nenhuma ação encontrada</div>
-            <div style={{ fontSize:12, opacity:0.7 }}>Crie a primeira ação clicando em "+ Nova Ação"</div>
+  // ── View por Franquias ────────────────────────────────────────────────────
+  const viewFranquias = (
+    <div style={{ padding:'0 28px 24px', display:'flex', flexDirection:'column', gap:20 }}>
+      {/* KPIs */}
+      <div style={{ paddingTop:20 }}>{kpis}</div>
+
+      {/* Barra de busca + botão */}
+      <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+        <div style={{ flex:1, position:'relative' }}>
+          <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'var(--text-muted)', pointerEvents:'none' }}>⌕</span>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Buscar ação ou franquia…"
+            style={{ width:'100%', boxSizing:'border-box', paddingLeft:32, paddingRight:12, height:36, borderRadius:8,
+              border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:13,
+              fontFamily:'var(--font)', outline:'none' }} />
+        </div>
+        <Button onClick={() => { setEditando(null); setSlideOpen(true) }}>+ Nova Ação</Button>
+      </div>
+
+      {porFranquia.length === 0 && (
+        <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:32, marginBottom:10 }}>🏢</div>
+          <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Nenhuma ação encontrada</div>
+        </div>
+      )}
+
+      {porFranquia.map(grupo => {
+        const agendadas  = grupo.acoes.filter(a => a.status === 'agendado').length
+        const realizadas = grupo.acoes.filter(a => a.status === 'realizado').length
+        const canceladas = grupo.acoes.filter(a => a.status === 'cancelado').length
+        return (
+          <div key={grupo.id} style={{ border:'1px solid var(--border)', borderRadius:12,
+            background:'var(--surface)', boxShadow:'var(--shadow)', overflow:'hidden' }}>
+            {/* Cabeçalho do grupo */}
+            <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border2)',
+              background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent-glow)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>🏢</div>
+                <div>
+                  <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>{grupo.nome}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
+                    {grupo.acoes.length} ação{grupo.acoes.length !== 1 ? 'ões' : ''}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display:'flex', gap:8 }}>
+                {[{ label:'Agendadas', val:agendadas, color:'#F59E0B' },
+                  { label:'Realizadas', val:realizadas, color:'#10B981' },
+                  { label:'Canceladas', val:canceladas, color:'#EF4444' }].map(k => k.val > 0 && (
+                  <div key={k.label} style={{ textAlign:'center', padding:'4px 12px', borderRadius:8,
+                    background:`${k.color}14`, border:`1px solid ${k.color}44` }}>
+                    <div style={{ fontSize:16, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.val}</div>
+                    <div style={{ fontSize:9, color:k.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* Cards das ações */}
+            <div style={{ padding:'16px 20px', display:'grid',
+              gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>
+              {grupo.acoes.map(acao => renderCard(acao))}
+            </div>
           </div>
-        }
-      />
+        )
+      })}
+    </div>
+  )
+
+  // ── Toggle de visão ───────────────────────────────────────────────────────
+  const toggleVisao = (
+    <div style={{ position:'absolute', top:16, right:28, zIndex:10,
+      display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
+      padding:3, border:'1px solid var(--border)' }}>
+      {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
+        <button key={t.id} type="button" onClick={() => setVisao(t.id)}
+          style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
+            fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
+            background: visao === t.id ? 'var(--surface)' : 'none',
+            color: visao === t.id ? 'var(--text)' : 'var(--text-muted)',
+            boxShadow: visao === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+            transition:'all 0.15s' }}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  )
+
+  return (
+    <div style={{ position:'relative' }}>
+      {toggleVisao}
+      {visao === 'franquias' ? viewFranquias : (
+        <BrowseLayout
+          storageKey="acoes"
+          kpis={kpis}
+          kpisLabel="Indicadores"
+          columns={columns}
+          data={lista}
+          keyField="id"
+          search={search}
+          onSearchChange={setSearch}
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={setActiveFilters}
+          onNew={() => { setEditando(null); setSlideOpen(true) }}
+          newLabel="+ Nova Ação"
+          onRowClick={row => { setEditando(row); setSlideOpen(true) }}
+          bulkEditFields={[
+            { key: 'status', label: 'Status', type: 'select',
+              options: Object.entries(STATUS_ACAO).map(([k, v]) => ({ value: k, label: v.label })) },
+            { key: 'data_inicio', label: 'Data de início', type: 'date' },
+          ]}
+          onBulkEdit={(ids, changes) =>
+            ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
+          }
+          renderCard={renderCard}
+          emptyState={
+            <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>
+              <div style={{ fontSize:32, marginBottom:10 }}>🗓</div>
+              <div style={{ fontSize:14, fontWeight:600, marginBottom:4 }}>Nenhuma ação encontrada</div>
+              <div style={{ fontSize:12, opacity:0.7 }}>Crie a primeira ação clicando em "+ Nova Ação"</div>
+            </div>
+          }
+        />
+      )}
 
       <AcaoSlideOver
         open={slideOpen}
@@ -439,6 +542,6 @@ export default function Acoes() {
         empresasOpts={empresasOpts}
         responsaveisOpts={responsaveisOpts}
       />
-    </>
+    </div>
   )
 }
