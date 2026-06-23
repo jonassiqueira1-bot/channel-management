@@ -907,16 +907,15 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
                       {fase && <span style={{ fontSize: 10, fontWeight: 700, background: fase.bg, color: fase.text, borderRadius: 20, padding: '1px 7px' }}>{ph.phase_name}</span>}
                       {log.user_name && (() => {
-                        const u = MOCK_USUARIOS.find(u => u.id === log.user_id)
+                        const u = usuarios.find(u => u.id === log.user_id)
+                        const initials = (log.user_name || '').slice(0, 2).toUpperCase()
                         return (
                           <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                            {u && (
-                              <span style={{ width:16, height:16, borderRadius:'50%', background:'#EDE9FE', color:'var(--accent)',
-                                display:'inline-flex', alignItems:'center', justifyContent:'center',
-                                fontSize:8, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0 }}>
-                                {u.avatar}
-                              </span>
-                            )}
+                            <span style={{ width:16, height:16, borderRadius:'50%', background:'#EDE9FE', color:'var(--accent)',
+                              display:'inline-flex', alignItems:'center', justifyContent:'center',
+                              fontSize:8, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0 }}>
+                              {u?.avatar || initials}
+                            </span>
                             <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{log.user_name}</span>
                           </span>
                         )
