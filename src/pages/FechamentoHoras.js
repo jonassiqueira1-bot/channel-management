@@ -178,7 +178,7 @@ function ConfirmModal({ selectedLogs, projetos, valorHora, servicos_pct, regraNo
 }
 
 // ─── Página principal ────────────────────────────────────────────────────────
-export default function FechamentoHoras() {
+export default function FechamentoHoras({ embedded = false }) {
   // Dados
   const [timeLogs, setTimeLogs] = useState(() => {
     try { const s = localStorage.getItem(TIMELOGS_KEY); return s ? JSON.parse(s) : MOCK_TIME_LOGS }
@@ -305,9 +305,9 @@ export default function FechamentoHoras() {
   }
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 900, margin: '0 auto' }}>
-      {/* Título */}
-      <div style={{ marginBottom: 24 }}>
+    <div style={{ padding: embedded ? '0' : '24px 28px', maxWidth: 900, margin: embedded ? undefined : '0 auto' }}>
+      {/* Título — oculto quando embutido em Projetos */}
+      {!embedded && <div style={{ marginBottom: 24 }}>
         <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10 }}>
           <Clock size={22} style={{ color: 'var(--accent)' }} />
           Fechamento de Horas
@@ -315,7 +315,7 @@ export default function FechamentoHoras() {
         <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
           Confirme os apontamentos de Timesheet e gere repasses de comissão para os analistas.
         </div>
-      </div>
+      </div>}
 
       {/* Feedback de sucesso */}
       {successMsg && (

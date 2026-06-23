@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
+import FechamentoHoras from './FechamentoHoras'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
   MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
@@ -1183,6 +1184,7 @@ export default function Projetos() {
   const [filtros,      setFiltros]     = useState({ status: '', franchise: '' })
   const [filtrosOpen,  setFiltrosOpen] = useState(false)
   const [dragId,       setDragId]      = useState(null)
+  const [tab,       setTab]       = useLocalState('projetos:tab', 'projetos')
   const [search,    setSearch]    = useLocalState('projetos:search', '')
   const [sortBy,    setSortBy]    = useLocalState('projetos:sortBy', 'recente')
   const [viewMode,  setViewMode]  = useLocalState('projetos:viewMode', 'kanban')
@@ -1328,21 +1330,40 @@ export default function Projetos() {
 
         {/* Page header */}
         <div style={pg.pageHeader}>
-          <h1 style={pg.title}>Projetos de Implantação</h1>
-          <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : 'Projetos de Implantação'}</h1>
+            <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 9, padding: 3, border: '1px solid var(--border)' }}>
+              {[{ id: 'projetos', label: 'Projetos' }, { id: 'fechamento', label: '⏱ Fechamento' }].map(t => (
+                <button key={t.id} onClick={() => setTab(t.id)}
+                  style={{ padding: '6px 16px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13,
+                    fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
+                    background: tab === t.id ? 'var(--surface)' : 'none',
+                    color: tab === t.id ? 'var(--text)' : 'var(--text-muted)',
+                    boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                    transition: 'all 0.15s' }}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {tab === 'projetos' && (
+            <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
+          )}
         </div>
 
         {/* KPIs */}
-        <div style={pg.kpis}>
+        {tab === 'fechamento' && <FechamentoHoras embedded />}
+
+        {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
           <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
           <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
           <KpiCard label="Horas estimadas"  value={`${totalHrsEst}h`}            color="#10B981" />
           <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
-        </div>
+        </div>}
 
         {/* Toolbar — igual Pipeline */}
-        <div style={pg.toolbar}>
+        <div style={{ ...pg.toolbar, display: tab === 'fechamento' ? 'none' : undefined }}>
 
           {/* ── Esquerda ── */}
           <div style={pg.tbLeft}>
@@ -1427,7 +1448,7 @@ export default function Projetos() {
         </div>
 
         {/* Contagem */}
-        <div style={pg.resultRow}>
+        <div style={{ ...pg.resultRow, display: tab === 'fechamento' ? 'none' : undefined }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
             {filtered.length} projeto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
           </span>
@@ -1435,7 +1456,7 @@ export default function Projetos() {
       </div>
 
       {/* Kanban ou Lista */}
-      {viewMode === 'kanban' ? (
+      {tab !== 'fechamento' && viewMode === 'kanban' ? (
         <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
           <div style={{ display: 'flex', gap: 12, height: '100%' }}>
             {FASES_MIT.map(fase => (
@@ -1454,7 +1475,7 @@ export default function Projetos() {
             ))}
           </div>
         </div>
-      ) : (
+      ) : tab !== 'fechamento' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
@@ -1500,7 +1521,7 @@ export default function Projetos() {
             </tbody>
           </table>
         </div>
-      )}
+      ) : null}
 
       {/* Modal — criar */}
       {modal && (
