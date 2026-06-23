@@ -53,6 +53,8 @@ const WIDGET_CATALOG_ISV = [
   { id:'isv_taxa_conv',  title:'Taxa de Conversão',     desc:'% de oportunidades convertidas',    type:'kpi',   Icon:Percent,       defaultSettings:{} },
   { id:'isv_ticket',     title:'Ticket Médio CDU',      desc:'Valor médio por contrato CDU',      type:'kpi',   Icon:Ticket,        defaultSettings:{} },
   { id:'isv_contratos',  title:'Contratos Ativos',      desc:'Total de contratos vigentes',       type:'kpi',   Icon:FileCheck,     defaultSettings:{} },
+  { id:'isv_inadimpl',   title:'Contratos Inadimplentes', desc:'Contratos com provisão vencida D+1', type:'kpi', Icon:AlertTriangle,  defaultSettings:{} },
+  { id:'isv_val_inadimpl',title:'Valor Inadimplência',  desc:'Soma dos contratos inadimplentes',  type:'kpi',   Icon:AlertTriangle,  defaultSettings:{} },
   { id:'isv_chart_bar',  title:'Receita por Franquia',  desc:'Comparativo CDU/SMS/Serviços',      type:'chart', Icon:BarChart2,     defaultSettings:{ chartType:'bar'   } },
   { id:'isv_chart_pie',  title:'Distribuição de Receita',desc:'Proporção CDU × SMS × Serviços',  type:'chart', Icon:PieChart,      defaultSettings:{ chartType:'donut' } },
   { id:'isv_pipeline',   title:'Pipeline por Etapa',    desc:'Oportunidades e valor por fase',    type:'chart', Icon:BarChart2,     defaultSettings:{} },
@@ -418,7 +420,9 @@ function getAnalyticsValue(id, analytics) {
     isv_projetos:  { value: analytics.projetos_ativos,  unit:'',   color:'#EC4899', Icon:FolderKanban  },
     isv_taxa_conv: { value: analytics.taxa_conversao,   unit:'%',  color:'#14B8A6', Icon:Percent       },
     isv_ticket:    { value: analytics.ticket_medio,     unit:'R$', color:'#F59E0B', Icon:Ticket        },
-    isv_contratos: { value: analytics.contratos_ativos, unit:'',   color:'var(--accent)', Icon:FileCheck     },
+    isv_contratos:     { value: analytics.contratos_ativos,        unit:'',   color:'var(--accent)', Icon:FileCheck     },
+    isv_inadimpl:      { value: analytics.contratos_inadimplentes, unit:'',   color: (analytics.contratos_inadimplentes||0)>0?'#EF4444':'var(--accent)', Icon:AlertTriangle },
+    isv_val_inadimpl:  { value: analytics.valor_inadimplencia,     unit:'R$', color: (analytics.valor_inadimplencia||0)>0?'#EF4444':'var(--accent)', Icon:AlertTriangle },
     fr_oport:      { value: analytics.oportunidades,    unit:'',   color:'var(--accent)', Icon:Target        },
     fr_projetos:   { value: analytics.projetos_ativos,  unit:'',   color:'#0EA5E9', Icon:FolderKanban  },
     fr_quest:      { value: analytics.questionarios,    unit:'',   color:'#F59E0B', Icon:MessageSquare },
@@ -673,7 +677,10 @@ function WidgetPreview({ entry, analytics }) {
     isv_servicos:{ value:analytics.servicos_receita, unit:'R$', color:'#10B981' }, isv_franquias:{ value:analytics.franquias_ativas, unit:'', color:'#F59E0B' },
     isv_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' }, isv_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#EC4899' },
     isv_taxa_conv:{ value:analytics.taxa_conversao, unit:'%', color:'#14B8A6' }, isv_ticket:{ value:analytics.ticket_medio, unit:'R$', color:'#F59E0B' },
-    isv_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' }, fr_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' },
+    isv_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' },
+    isv_inadimpl:{ value:analytics.contratos_inadimplentes, unit:'', color:'#EF4444' },
+    isv_val_inadimpl:{ value:analytics.valor_inadimplencia, unit:'R$', color:'#EF4444' },
+    fr_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' },
     fr_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#0EA5E9' }, fr_quest:{ value:analytics.questionarios, unit:'', color:'#F59E0B' },
     fr_cdu:{ value:analytics.cdu_receita, unit:'R$', color:'#10B981' }, fr_sms:{ value:analytics.sms_receita, unit:'R$', color:'#0EA5E9' },
     fr_servicos:{ value:analytics.servicos_receita, unit:'R$', color:'#10B981' }, fr_taxa_conv:{ value:analytics.taxa_conversao, unit:'%', color:'#14B8A6' },
@@ -1396,7 +1403,9 @@ export default function Dashboard() {
     setConfigSlotId(null)
   }
 
-  const baseData    = liveAnalytics || (isISV ? { cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, por_franquia:[], pipeline:[] } : { oportunidades:0, projetos_ativos:0, questionarios:0, cdu_receita:0, sms_receita:0, servicos_receita:0, taxa_conversao:0, ticket_medio:0, contratos_ativos:0, pipeline:[], atividades_recentes:[] })
+  const baseData    = liveAnalytics || (isISV
+    ? { cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, por_franquia:[], pipeline:[] }
+    : { oportunidades:0, projetos_ativos:0, questionarios:0, cdu_receita:0, sms_receita:0, servicos_receita:0, taxa_conversao:0, ticket_medio:0, contratos_ativos:0, contratos_inadimplentes:0, valor_inadimplencia:0, pipeline:[], atividades_recentes:[] })
   const configSlot  = configSlotId ? currentSec.flatMap(s => s.slots).find(sl => sl.id===configSlotId) : null
   const franchises  = isISV ? (baseData.por_franquia||[]).map(f => f.nome) : []
   const activeFilters = [globalFilters.period!=='this_month', globalFilters.franchise!=='all'].filter(Boolean).length

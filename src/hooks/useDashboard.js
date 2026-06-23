@@ -25,6 +25,9 @@ async function fetchAnalytics(period) {
   const pf = periodFilter(period)
 
   // Busca paralela de todas as entidades necessárias
+  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
+  const ontemStr = ontem.toISOString().slice(0, 10)
+
   const [
     paymentsRes,
     companiesRes,
@@ -32,6 +35,7 @@ async function fetchAnalytics(period) {
     projectsRes,
     contractsRes,
     oppsAllRes,
+    paymentsInadRes,
   ] = await Promise.all([
     // Pagamentos no período (para receita CDU/SMS/Serviços)
     (() => {
@@ -49,14 +53,19 @@ async function fetchAnalytics(period) {
     supabase.from('contracts').select('id, status, valor'),
     // Todas as opps para calcular taxa conversão
     supabase.from('opportunities').select('id, situacao'),
+    // Pagamentos vencidos D+1 (inadimplência)
+    supabase.from('payments').select('contract_id, vencimento, status, custom_fields')
+      .in('status', ['pendente', 'vencido'])
+      .lt('vencimento', ontemStr),
   ])
 
-  const payments  = paymentsRes.data  || []
-  const companies = companiesRes.data || []
-  const opps      = oppsRes.data      || []
-  const projects  = projectsRes.data  || []
-  const contracts = contractsRes.data || []
-  const oppsAll   = oppsAllRes.data   || []
+  const payments      = paymentsRes.data      || []
+  const companies     = companiesRes.data     || []
+  const opps          = oppsRes.data          || []
+  const projects      = projectsRes.data      || []
+  const contracts     = contractsRes.data     || []
+  const oppsAll       = oppsAllRes.data       || []
+  const paymentsInad  = paymentsInadRes.data  || []
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
   const cdu_receita      = payments.reduce((s, p) => s + (p.custom_fields?.amount_cdu      || 0), 0)
@@ -67,6 +76,36 @@ async function fetchAnalytics(period) {
   const oportunidades    = opps.filter(o => o.situacao === 'em_andamento').length
   const projetos_ativos  = projects.filter(p => p.status === 'em_andamento').length
   const contratos_ativos = contracts.filter(c => c.status === 'ativo').length
+
+  // ── Inadimplência D+1 ─────────────────────────────────────────────────────
+  const inadIdsSupabase = new Set(paymentsInad.map(p => p.contract_id).filter(Boolean))
+  // fallback localStorage (modo mock / sem Supabase)
+  const inadIdsLS = (() => {
+    try {
+      const raw = localStorage.getItem('pagamentos:data_v1')
+      const pags = raw ? JSON.parse(raw) : []
+      const ids = new Set()
+      pags.forEach(p => {
+        if ((p.status === 'pendente' || p.status === 'vencido') && p.due_date && p.due_date < ontemStr && p.contract_id)
+          ids.add(String(p.contract_id))
+      })
+      return ids
+    } catch { return new Set() }
+  })()
+  const inadIds = inadIdsSupabase.size > 0 ? inadIdsSupabase : inadIdsLS
+  const contratos_inadimplentes = inadIds.size
+  const valor_inadimplencia = (() => {
+    // soma valor dos contratos inadimplentes
+    const contratosList = contracts.length > 0 ? contracts : (() => {
+      try { const r = localStorage.getItem('crm:contratos_v2'); return r ? JSON.parse(r) : [] } catch { return [] }
+    })()
+    return contratosList
+      .filter(c => inadIds.has(String(c.id)))
+      .reduce((s, c) => {
+        const mrr = [...(c.itens_mrr||[]), ...(c.itens_servico||[])].reduce((a,i) => a + (parseFloat(i.valor)||0), 0)
+        return s + (c.valor || mrr || 0)
+      }, 0)
+  })()
 
   const ganhas  = oppsAll.filter(o => o.situacao === 'ganho').length
   const fechadas = oppsAll.filter(o => o.situacao === 'ganho' || o.situacao === 'perdido').length
@@ -110,6 +149,7 @@ async function fetchAnalytics(period) {
     cdu_receita, sms_receita, servicos_receita,
     franquias_ativas, oportunidades, projetos_ativos,
     contratos_ativos, taxa_conversao, ticket_medio,
+    contratos_inadimplentes, valor_inadimplencia,
     por_franquia, pipeline,
     questionarios: 0,
     atividades_recentes: [],
@@ -150,7 +190,7 @@ export function useDashboard(period = 'this_month') {
       setAlerts(alertsRes.error ? [] : (alertsRes.data || []))
     } catch {
       isMockMode.current = false
-      setAnalytics({ cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, por_franquia:[], pipeline:[], questionarios:0, atividades_recentes:[] })
+      setAnalytics({ cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, por_franquia:[], pipeline:[], questionarios:0, atividades_recentes:[] })
       setAlerts([])
     }
     setLoading(false)
