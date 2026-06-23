@@ -9,6 +9,9 @@ import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useContacts } from '../hooks/useContacts'
 import { STORAGE_KEY as TIPOS_ATIVIDADE_KEY } from './settings/TiposAcao'
+import { SESSOES_MOCK } from '../data/mockPerfis'
+
+const SESSAO_ATIVA = SESSOES_MOCK[0]
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
 const MOCK_OPPS = [
@@ -602,6 +605,232 @@ const k = {
 }
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
+// ─── Calendário ───────────────────────────────────────────────────────────────
+const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
+
+function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
+  const hoje = new Date()
+  const [ano,  setAno]  = useState(hoje.getFullYear())
+  const [mes,  setMes]  = useState(hoje.getMonth())
+  const [meusFiltro, setMeusFiltro] = useState(true) // padrão: só as do usuário logado
+
+  const tarefasFiltradas = useMemo(() => {
+    if (!meusFiltro) return tarefas
+    return tarefas.filter(t =>
+      t.responsavel_id === sessao.id ||
+      String(t.responsavel_nome || t.responsavel || '').toLowerCase().includes((sessao.nome||'').toLowerCase())
+    )
+  }, [tarefas, meusFiltro, sessao])
+
+  // Agrupa tarefas por data de prazo (YYYY-MM-DD)
+  const porDia = useMemo(() => {
+    const map = {}
+    tarefasFiltradas.forEach(t => {
+      if (!t.prazo) return
+      if (!map[t.prazo]) map[t.prazo] = []
+      map[t.prazo].push(t)
+    })
+    return map
+  }, [tarefasFiltradas])
+
+  // Dias do mês
+  const primeiroDia = new Date(ano, mes, 1)
+  const ultimoDia   = new Date(ano, mes + 1, 0)
+  const diasNoMes   = ultimoDia.getDate()
+  const offsetInicio = primeiroDia.getDay() // 0=Dom
+
+  function navMes(delta) {
+    let nm = mes + delta, na = ano
+    if (nm < 0)  { nm = 11; na-- }
+    if (nm > 11) { nm = 0;  na++ }
+    setMes(nm); setAno(na)
+  }
+
+  const hoje8 = hoje.toISOString().slice(0,10)
+
+  // sem prazo do usuário
+  const semPrazo = tarefasFiltradas.filter(t => !t.prazo && t.status !== 'concluida' && t.status !== 'cancelada')
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Barra superior */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        {/* Nav mês */}
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <button onClick={() => navMes(-1)}
+            style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
+              background:'var(--surface)', cursor:'pointer', fontSize:16, color:'var(--text-soft)' }}>‹</button>
+          <span style={{ fontSize:16, fontWeight:700, color:'var(--text)', minWidth:160, textAlign:'center' }}>
+            {MESES[mes]} {ano}
+          </span>
+          <button onClick={() => navMes(1)}
+            style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
+              background:'var(--surface)', cursor:'pointer', fontSize:16, color:'var(--text-soft)' }}>›</button>
+          <button onClick={() => { setMes(hoje.getMonth()); setAno(hoje.getFullYear()) }}
+            style={{ height:32, padding:'0 12px', border:'1px solid var(--border)', borderRadius:7,
+              background:'var(--surface)', cursor:'pointer', fontSize:12, color:'var(--text-soft)', fontFamily:'var(--font)' }}>
+            Hoje
+          </button>
+        </div>
+
+        <div style={{ flex:1 }}/>
+
+        {/* Filtro: minhas / todas */}
+        <div style={{ display:'flex', border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+          {[{v:true,l:'Minhas'},{v:false,l:'Todas'}].map(opt => (
+            <button key={String(opt.v)} onClick={() => setMeusFiltro(opt.v)}
+              style={{ padding:'6px 14px', border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
+                fontFamily:'var(--font)',
+                background: meusFiltro===opt.v ? 'var(--accent)' : 'var(--surface)',
+                color:       meusFiltro===opt.v ? '#fff'          : 'var(--text-muted)' }}>
+              {opt.l}
+            </button>
+          ))}
+        </div>
+
+        {/* Legenda status */}
+        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+          {Object.entries(STATUS_CFG).map(([k, cfg]) => (
+            <span key={k} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)' }}>
+              <span style={{ width:8, height:8, borderRadius:'50%', background:cfg.dot, display:'inline-block' }}/>
+              {cfg.label}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Grade do calendário */}
+      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+        {/* Cabeçalho dias da semana */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)',
+          borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
+          {DIAS_SEMANA.map(d => (
+            <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11,
+              fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* Células */}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
+          {/* Offset inicial */}
+          {Array.from({ length: offsetInicio }, (_, i) => (
+            <div key={`off-${i}`} style={{ minHeight:100, borderRight:'1px solid var(--border2)',
+              borderBottom:'1px solid var(--border2)', background:'var(--surface2)', opacity:.5 }}/>
+          ))}
+
+          {/* Dias do mês */}
+          {Array.from({ length: diasNoMes }, (_, i) => {
+            const dia = i + 1
+            const dataStr = `${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
+            const isHoje  = dataStr === hoje8
+            const col     = (offsetInicio + i) % 7
+            const tarefasDia = porDia[dataStr] || []
+            const isUltimaColunaLinha = col === 6
+
+            return (
+              <div key={dia}
+                style={{ minHeight:100, padding:'6px 8px', cursor:'pointer',
+                  borderRight: isUltimaColunaLinha ? 'none' : '1px solid var(--border2)',
+                  borderBottom:'1px solid var(--border2)',
+                  background: isHoje ? 'var(--accent-glow)' : 'var(--surface)',
+                  transition:'background .15s' }}
+                onClick={() => onNew({ prazo: dataStr })}
+                onMouseEnter={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface2)' }}
+                onMouseLeave={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface)' }}>
+
+                {/* Número do dia */}
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
+                  <span style={{ fontSize:13, fontWeight: isHoje ? 800 : 400,
+                    color: isHoje ? 'var(--accent)' : 'var(--text-soft)',
+                    width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+                    background: isHoje ? 'var(--accent)' : 'none',
+                    color: isHoje ? '#fff' : 'var(--text-soft)' }}>
+                    {dia}
+                  </span>
+                  {tarefasDia.length > 0 && (
+                    <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                      {tarefasDia.length}
+                    </span>
+                  )}
+                </div>
+
+                {/* Tarefas do dia (max 3, depois +N) */}
+                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                  {tarefasDia.slice(0,3).map(t => {
+                    const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+                    const passado = dataStr < hoje8 && t.status !== 'concluida' && t.status !== 'cancelada'
+                    return (
+                      <div key={t.id}
+                        onClick={e => { e.stopPropagation(); onEdit(t) }}
+                        title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
+                        style={{ fontSize:10, padding:'2px 6px', borderRadius:4,
+                          background: passado ? '#FEE2E2' : cfg.bg,
+                          color:       passado ? '#991B1B' : cfg.text,
+                          fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                          borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`,
+                          cursor:'pointer', lineHeight:1.5 }}>
+                        {tipoIcon(t.tipo)} {t.titulo}
+                      </div>
+                    )
+                  })}
+                  {tarefasDia.length > 3 && (
+                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', paddingLeft:4 }}>
+                      +{tarefasDia.length - 3} mais
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+
+          {/* Completar última linha */}
+          {(() => {
+            const total = offsetInicio + diasNoMes
+            const resto = total % 7 === 0 ? 0 : 7 - (total % 7)
+            return Array.from({ length: resto }, (_, i) => (
+              <div key={`fim-${i}`} style={{ minHeight:100,
+                borderRight: i < resto - 1 ? '1px solid var(--border2)' : 'none',
+                borderBottom:'none', background:'var(--surface2)', opacity:.5 }}/>
+            ))
+          })()}
+        </div>
+      </div>
+
+      {/* Tarefas sem prazo */}
+      {semPrazo.length > 0 && (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 18px' }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase',
+            letterSpacing:'0.06em', marginBottom:10 }}>
+            Sem prazo definido ({semPrazo.length})
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            {semPrazo.map(t => {
+              const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+              return (
+                <div key={t.id} onClick={() => onEdit(t)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                    background:'var(--surface2)', borderRadius:8, cursor:'pointer',
+                    border:'1px solid var(--border2)', transition:'border-color .15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor='var(--accent)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor='var(--border2)'}>
+                  <span style={{ fontSize:15 }}>{tipoIcon(t.tipo)}</span>
+                  <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)' }}>{t.titulo}</span>
+                  {t.responsavel_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
+                  <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text, fontWeight:600 }}>{cfg.label}</span>
+                  <PrioridadeBadge prioridade={t.prioridade}/>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Tarefas() {
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
   const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
@@ -645,7 +874,8 @@ export default function Tarefas() {
 
   // ── outros ────────────────────────────────────────────────────────────────
   const [importModal, setImportModal] = useState(false)
-  const [kanban, setKanban]       = useLocalState('tarefas:kanban', false)
+  const [kanban,      setKanban]      = useLocalState('tarefas:kanban', false)
+  const [calendario,  setCalendario]  = useLocalState('tarefas:calendario', false)
   const [search, setSearch]       = useLocalState('tarefas:search', '')
   const [filterStatus, setFilterStatus]         = useLocalState('tarefas:filterStatus2', [])
   const [filterTipo, setFilterTipo]             = useLocalState('tarefas:filterTipo2', [])
@@ -742,13 +972,21 @@ export default function Tarefas() {
     </div>
   )
 
-  const kanbanToggle = (
-    <button title="Visão Kanban" onClick={() => setKanban(true)}
-      style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32,
-        borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface)',
-        cursor:'pointer', color:'var(--text-soft)', fontSize:15 }}>
-      ⊞
-    </button>
+  const viewToggles = (
+    <div style={{ display:'flex', gap:4 }}>
+      <button title="Visão Kanban" onClick={() => { setKanban(true); setCalendario(false) }}
+        style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32,
+          borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface)',
+          cursor:'pointer', color:'var(--text-soft)', fontSize:15 }}>
+        ⊞
+      </button>
+      <button title="Visão Calendário" onClick={() => { setCalendario(true); setKanban(false) }}
+        style={{ display:'flex', alignItems:'center', justifyContent:'center', width:32, height:32,
+          borderRadius:'var(--radius-md)', border:'1px solid var(--border)', background:'var(--surface)',
+          cursor:'pointer', color:'var(--text-soft)', fontSize:15 }}>
+        📅
+      </button>
+    </div>
   )
 
   // ── SlideOver compartilhado (list + kanban) ───────────────────────────────
@@ -775,6 +1013,45 @@ export default function Tarefas() {
         errs={errs} clearErr={k => setErrs(p => ({ ...p, [k]: '' }))} />}
     </SlideOver>
   )
+
+  // ── Calendário view ───────────────────────────────────────────────────────
+  if (calendario) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+          padding:'12px 20px', borderBottom:'1px solid var(--border)',
+          background:'var(--surface)', flexShrink:0 }}>
+          <div>
+            <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)', marginBottom:4 }}>
+              <span>Geral</span><span style={{ margin:'0 4px', color:'var(--border)' }}>›</span>
+              <span>Tarefas</span><span style={{ margin:'0 4px', color:'var(--border)' }}>›</span>
+              <span>Calendário</span>
+            </div>
+            <h1 style={{ margin:0, fontSize:20, fontWeight:700, color:'var(--text)', letterSpacing:'-0.3px' }}>
+              Tarefas — Calendário
+            </h1>
+          </div>
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setCalendario(false)}
+              style={{ height:34, padding:'0 14px', border:'1px solid var(--border)', borderRadius:7,
+                background:'none', color:'var(--text-soft)', fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
+              ← Lista
+            </button>
+            <button onClick={() => openNew()}
+              style={{ height:34, padding:'0 14px', border:'none', borderRadius:7,
+                background:'var(--accent)', color:'#fff', fontSize:13, fontWeight:600,
+                cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Nova tarefa
+            </button>
+          </div>
+        </div>
+        <div style={{ flex:1, overflow:'auto', padding:20 }}>
+          <CalendarioView tarefas={tarefas} sessao={SESSAO_ATIVA} onEdit={openEdit} onNew={openNew} />
+        </div>
+        {slideOver}
+      </div>
+    )
+  }
 
   // ── Kanban view ───────────────────────────────────────────────────────────
   if (kanban) {
@@ -835,7 +1112,7 @@ export default function Tarefas() {
         newLabel="+ Nova tarefa"
         onImport={() => setImportModal(true)}
         onExportCsv={() => buildExportCsv(filtered)}
-        secondaryActions={kanbanToggle}
+        secondaryActions={viewToggles}
         storageKey="tarefas"
       />
       {slideOver}
