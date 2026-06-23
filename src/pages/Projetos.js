@@ -806,7 +806,7 @@ function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
   const currentPhId = `ph_${projeto.id}_${projeto.current_phase_index}`
 
   const [profiles] = useLocalState('usuarios:profiles', [])
-  const usuarios = profiles.filter(p => p.status !== 'inativo').length > 0
+  const usuarios = profiles.length > 0
     ? profiles.filter(p => p.status !== 'inativo')
     : MOCK_USUARIOS
 
