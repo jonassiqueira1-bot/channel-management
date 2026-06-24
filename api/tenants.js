@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
       id: tenantId,
       nome,
       status: 'ativo',
-      criado_em: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     })
 
     if (companyError) {
@@ -60,7 +60,7 @@ module.exports = async function handler(req, res) {
       tenant_id: tenantId,
       empresa_id: tenantId,
       status: 'ativo',
-      criado_em: new Date().toISOString(),
+      created_at: new Date().toISOString(),
     })
 
     if (profileError) {
