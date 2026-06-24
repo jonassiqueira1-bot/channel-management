@@ -395,8 +395,9 @@ export default function Acoes() {
     )
   }
 
-  function handleSave(form) {
-    saveAcao({ ...form, id: editando?.id || novoId(acoes) })
+  async function handleSave(form) {
+    const res = await saveAcao({ ...form, id: editando?.id || novoId(acoes) })
+    if (res && res.ok === false) { alert('Erro ao salvar ação: ' + (res.message || 'tente novamente')); return }
     setSlideOpen(false)
     setEditando(null)
   }
@@ -413,7 +414,7 @@ export default function Acoes() {
       {/* KPIs */}
       <div style={{ paddingTop:20 }}>{kpis}</div>
 
-      {/* Barra de busca + botão */}
+      {/* Barra de busca + toggle + botão */}
       <div style={{ display:'flex', gap:10, alignItems:'center' }}>
         <div style={{ flex:1, position:'relative' }}>
           <span style={{ position:'absolute', left:10, top:'50%', transform:'translateY(-50%)', fontSize:16, color:'var(--text-muted)', pointerEvents:'none' }}>⌕</span>
@@ -421,6 +422,19 @@ export default function Acoes() {
             style={{ width:'100%', boxSizing:'border-box', paddingLeft:32, paddingRight:12, height:36, borderRadius:8,
               border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:13,
               fontFamily:'var(--font)', outline:'none' }} />
+        </div>
+        <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9, padding:3, border:'1px solid var(--border)', flexShrink:0 }}>
+          {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
+            <button key={t.id} type="button" onClick={() => setVisao(t.id)}
+              style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
+                fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
+                background: visao === t.id ? 'var(--surface)' : 'none',
+                color: visao === t.id ? 'var(--text)' : 'var(--text-muted)',
+                boxShadow: visao === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+                transition:'all 0.15s' }}>
+              {t.label}
+            </button>
+          ))}
         </div>
         <Button onClick={() => { setEditando(null); setSlideOpen(true) }}>+ Nova Ação</Button>
       </div>

@@ -30,7 +30,7 @@ function acaoToRow(a, tenantId, branchId) {
   return {
     tenant_id:      tenantId,
     branch_id:      branchId || null,
-    company_id:     a.empresa_id || null,
+    company_id:     null, // franquias vêm do localStorage, não do Supabase companies
     owner_id:       a.responsavel_id || null,
     titulo:         a.titulo,
     tipo:           a.tipo || 'outros',
@@ -40,6 +40,7 @@ function acaoToRow(a, tenantId, branchId) {
     data_conclusao: a.data_fim || null,
     descricao:      a.descricao || null,
     custom_fields: {
+      empresa_id:       a.empresa_id,
       empresa_nome:     a.empresa_nome,
       responsavel_nome: a.responsavel_nome,
       local:            a.local,
