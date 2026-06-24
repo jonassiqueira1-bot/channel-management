@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
-import FechamentoHoras from './FechamentoHoras'
+import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
   MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
@@ -1359,6 +1359,7 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   // Custo/hora por projeto — salvo em localStorage
   const [custoHoraMap, setCustoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
   const [milestonesMap, setMilestonesMap] = useLocalState(MILESTONES_KEY, {})
+  const [fechamentos] = useLocalState(FECHAMENTOS_KEY, [])
 
   const custoHora = custoHoraMap[projeto.id] ?? 150
   const milestones = milestonesMap[projeto.id] || []
@@ -1368,14 +1369,25 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
     setMilestonesMap(m => ({ ...m, [projeto.id]: typeof fn === 'function' ? fn(m[projeto.id] || []) : fn }))
   }
 
+  // IDs de logs aprovados (via Fechamento de Horas)
+  const approvedLogIds = useMemo(() => {
+    const ids = new Set()
+    fechamentos.filter(f => f.status === 'aprovado').forEach(f => f.log_ids?.forEach(id => ids.add(id)))
+    return ids
+  }, [fechamentos])
+
+  const myLogsAprovados = myLogs.filter(l => approvedLogIds.has(l.id))
+  const myLogsPendentes = myLogs.filter(l => !approvedLogIds.has(l.id))
+
   // Valor do contrato: vem da opp vinculada ou campo manual no projeto
   const oppDetail = MOCK_OPP_DETAILS[projeto.opportunity_id] || null
   const valorContrato = projeto.valor_contrato || oppDetail?.valor_total || 0
   const valorServico  = projeto.valor_servico  || oppDetail?.valor_servico || 0
 
-  // Custo realizado
-  const totalHorasExe = myLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
-  const custoRealizado = totalHorasExe * custoHora
+  // Custo realizado = só horas aprovadas no Fechamento
+  const totalHorasAprov = myLogsAprovados.reduce((s, l) => s + Number(l.hours_executed), 0)
+  const totalHorasExe   = myLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
+  const custoRealizado  = totalHorasAprov * custoHora
 
   // Receita faturada (milestones pagos)
   const receitaFaturada = milestones.filter(m => m.pago).reduce((s, m) => s + Number(m.valor), 0)
@@ -1391,24 +1403,24 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   // Custo por analista
   const porAnalista = useMemo(() => {
     const map = {}
-    myLogs.forEach(l => {
+    myLogsAprovados.forEach(l => {
       const name = l.user_name || 'Sem nome'
       map[name] = (map[name] || 0) + Number(l.hours_executed)
     })
     return Object.entries(map).sort((a, b) => b[1] - a[1])
-  }, [myLogs])
+  }, [myLogsAprovados])
 
-  // Burndown mensal (custo acumulado por mês)
+  // Burndown mensal — baseado em horas aprovadas
   const burndown = useMemo(() => {
     const byMonth = {}
-    myLogs.forEach(l => {
+    myLogsAprovados.forEach(l => {
       const mes = l.logged_at?.slice(0, 7) || 'N/A'
       byMonth[mes] = (byMonth[mes] || 0) + Number(l.hours_executed)
     })
     const sorted = Object.entries(byMonth).sort()
     let acc = 0
     return sorted.map(([mes, h]) => { acc += h * custoHora; return { mes, custo: acc } })
-  }, [myLogs, custoHora])
+  }, [myLogsAprovados, custoHora])
 
   // Milestone form
   const [msForm, setMsForm] = useState(null) // null | { descricao, valor, data_prevista }
@@ -1429,7 +1441,7 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
 
   const kpis = [
     { label: 'Valor do contrato',   value: fmtBRL(valorContrato),   color: 'var(--accent)', hint: null },
-    { label: 'Custo realizado',     value: fmtBRL(custoRealizado),  color: '#3B82F6',       hint: `${totalHorasExe.toFixed(0)}h × R$ ${custoHora}/h` },
+    { label: 'Custo realizado',     value: fmtBRL(custoRealizado),  color: '#3B82F6',       hint: `${totalHorasAprov.toFixed(0)}h aprovadas × R$ ${custoHora}/h` },
     { label: 'Receita faturada',    value: fmtBRL(receitaFaturada), color: '#10B981',       hint: `${milestones.filter(m=>m.pago).length} milestone(s) pago(s)` },
     { label: 'Margem bruta',        value: fmtBRL(margemBruta),     color: margemBruta >= 0 ? '#10B981' : '#EF4444', hint: `${margemPct.toFixed(0)}%` },
   ]
@@ -1450,6 +1462,17 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
           </div>
         ))}
       </div>
+
+      {/* Aviso de horas pendentes */}
+      {myLogsPendentes.length > 0 && (
+        <div style={{ padding: '10px 14px', background: '#FEF3C7', border: '1px solid #FCD34D',
+          borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 16 }}>⚠️</span>
+          <span>
+            <strong>{myLogsPendentes.length} apontamento(s)</strong> ({myLogsPendentes.reduce((s,l)=>s+Number(l.hours_executed),0).toFixed(0)}h) ainda não aprovados no Fechamento de Horas — não estão no custo realizado.
+          </span>
+        </div>
+      )}
 
       {/* Forecast */}
       <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
@@ -1698,18 +1721,28 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
 function PainelFinanceiro({ projetos, timeLogs }) {
   const [custoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
   const [milestonesMap] = useLocalState(MILESTONES_KEY, {})
+  const [fechamentos] = useLocalState(FECHAMENTOS_KEY, [])
+
+  const approvedLogIds = useMemo(() => {
+    const ids = new Set()
+    fechamentos.filter(f => f.status === 'aprovado').forEach(f => f.log_ids?.forEach(id => ids.add(id)))
+    return ids
+  }, [fechamentos])
 
   const rows = useMemo(() => projetos.map(prj => {
-    const custoHora = custoHoraMap[prj.id] ?? 150
-    const horasExe  = timeLogs.filter(l => l.project_id === prj.id).reduce((s, l) => s + Number(l.hours_executed), 0)
-    const custo     = horasExe * custoHora
-    const milestones= milestonesMap[prj.id] || []
-    const faturado  = milestones.filter(m => m.pago).reduce((s, m) => s + Number(m.valor), 0)
-    const contrato  = prj.valor_contrato || MOCK_OPP_DETAILS[prj.opportunity_id]?.valor_total || 0
-    const margem    = faturado - custo
-    const margemPct = faturado > 0 ? (margem / faturado) * 100 : null
-    const faseObj   = FASES_MIT.find(f => f.value === prj.phase) || FASES_MIT[0]
-    return { prj, custo, faturado, contrato, margem, margemPct, horasExe, faseObj, custoHora }
+    const custoHora  = custoHoraMap[prj.id] ?? 150
+    const logsProj   = timeLogs.filter(l => l.project_id === prj.id)
+    const horasExe   = logsProj.reduce((s, l) => s + Number(l.hours_executed), 0)
+    const horasAprov = logsProj.filter(l => approvedLogIds.has(l.id)).reduce((s, l) => s + Number(l.hours_executed), 0)
+    const custo      = horasAprov * custoHora
+    const milestones = milestonesMap[prj.id] || []
+    const faturado   = milestones.filter(m => m.pago).reduce((s, m) => s + Number(m.valor), 0)
+    const contrato   = prj.valor_contrato || MOCK_OPP_DETAILS[prj.opportunity_id]?.valor_total || 0
+    const margem     = faturado - custo
+    const margemPct  = faturado > 0 ? (margem / faturado) * 100 : null
+    const faseObj    = FASES_MIT.find(f => f.value === prj.phase) || FASES_MIT[0]
+    const pendentes  = horasExe - horasAprov
+    return { prj, custo, faturado, contrato, margem, margemPct, horasExe, horasAprov, pendentes, faseObj, custoHora }
   }), [projetos, timeLogs, custoHoraMap, milestonesMap])
 
   const totalContrato = rows.reduce((s, r) => s + r.contrato, 0)
@@ -1789,7 +1822,8 @@ function PainelFinanceiro({ projetos, timeLogs }) {
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: '#3B82F6' }}>
                   {fmtBRL(r.custo)}
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{r.horasExe.toFixed(0)}h × R${r.custoHora}</div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{r.horasAprov.toFixed(0)}h aprov. × R${r.custoHora}</div>
+                  {r.pendentes > 0 && <div style={{ fontSize: 10, color: '#F59E0B' }}>{r.pendentes.toFixed(0)}h pendentes</div>}
                 </td>
                 <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: '#10B981' }}>
                   {r.faturado > 0 ? fmtBRL(r.faturado) : <span style={{ color: 'var(--text-muted)' }}>—</span>}

@@ -1,442 +1,422 @@
-import { useState, useMemo, useCallback } from 'react'
-import { Clock, CheckSquare, Square, ChevronDown, ChevronRight, AlertCircle, CheckCircle2 } from 'lucide-react'
+import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY, MOCK_RULES, MOCK_PAYMENTS } from '../data/mockComissoes'
+import { useProfile } from '../hooks/useProfile'
 import { MOCK_TIME_LOGS } from '../data/mockProjetos'
-import Button from '../components/Button'
 
-const TIMELOGS_KEY = 'projetos:timeLogs_v1'
-const PROJETOS_KEY = 'projetos:lista_v2'
+const TIMELOGS_KEY   = 'projetos:timeLogs_v1'
+const PROJETOS_KEY   = 'projetos:lista_v2'
+export const FECHAMENTOS_KEY = 'projects:fechamentos_v1'
 
+// Fechamento record:
+// { id, periodo, user_name, status: 'aberto'|'enviado'|'aprovado'|'rejeitado',
+//   log_ids[], horas_total, enviado_em, aprovado_em, rejeitado_em, obs }
+
+function fmtH(h) { return `${Number(h || 0).toFixed(1)}h` }
 function fmtDate(d) {
   if (!d) return '—'
   const [y, m, dia] = d.split('-')
   return `${dia}/${m}/${y}`
 }
-function fmtMoney(v) {
-  return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-}
-function fmtH(h) {
-  return `${Number(h || 0).toFixed(1)}h`
+function mesLabel(periodo) {
+  if (!periodo) return ''
+  const [y, m] = periodo.split('-')
+  const nomes = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+  return `${nomes[parseInt(m, 10) - 1]}/${y}`
 }
 
-// ─── Cabeçalho KPI ──────────────────────────────────────────────────────────
-function KpiBox({ label, value, sub, color }) {
+const STATUS_CFG = {
+  aberto:    { label: 'Aberto',    color: 'var(--text-muted)', bg: 'var(--surface2)',   border: 'var(--border)' },
+  enviado:   { label: 'Aguard. aprovação', color: '#F59E0B', bg: '#FEF3C7', border: '#FCD34D' },
+  aprovado:  { label: 'Aprovado', color: '#10B981', bg: '#D1FAE5', border: '#6EE7B7' },
+  rejeitado: { label: 'Rejeitado', color: '#EF4444', bg: '#FEE2E2', border: '#FCA5A5' },
+}
+
+function StatusBadge({ status }) {
+  const cfg = STATUS_CFG[status] || STATUS_CFG.aberto
   return (
-    <div style={{ flex: 1, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
-      padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: color || 'var(--text)', lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sub}</div>}
-    </div>
+    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
+      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+      {cfg.label}
+    </span>
   )
 }
 
-// ─── Linha de apontamento ────────────────────────────────────────────────────
-function LogRow({ log, projeto, selected, onToggle, valorHora, servicos_pct }) {
-  const valor_base = Number(log.hours_executed) * valorHora
-  const valor_com  = valor_base * (servicos_pct / 100)
-  return (
-    <div
-      onClick={onToggle}
-      style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '10px 14px', cursor: 'pointer',
-        background: selected ? 'rgba(99,102,241,0.05)' : 'transparent',
-        borderBottom: '1px solid var(--border)', transition: 'background .12s' }}
-    >
-      <div style={{ paddingTop: 2, color: selected ? 'var(--accent)' : 'var(--text-muted)', flexShrink: 0 }}>
-        {selected ? <CheckSquare size={16} /> : <Square size={16} />}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{log.user_name || 'Não informado'}</span>
-          <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>· {fmtDate(log.logged_at)}</span>
-          {projeto && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', background: 'var(--surface2)', padding: '1px 6px', borderRadius: 4 }}>{projeto.name}</span>}
-        </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.description}</div>
-      </div>
-      <div style={{ textAlign: 'right', flexShrink: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>{fmtH(log.hours_executed)}</div>
-        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{fmtMoney(valor_com)}</div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Grupo por analista ──────────────────────────────────────────────────────
-function AnalystGroup({ userName, logs, projetos, selected, onToggleAll, onToggleOne, valorHora, servicos_pct }) {
-  const [open, setOpen] = useState(true)
-  const allSelected = logs.every(l => selected.has(l.id))
-  const someSelected = logs.some(l => selected.has(l.id))
-  const totalH  = logs.reduce((s, l) => s + Number(l.hours_executed), 0)
-  const baseTotal = totalH * valorHora
-  const comTotal  = baseTotal * (servicos_pct / 100)
-
-  return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', marginBottom: 10 }}>
-      {/* Header do grupo */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px',
-        background: 'var(--surface2)', cursor: 'pointer', userSelect: 'none' }}
-        onClick={() => setOpen(o => !o)}
-      >
-        <div onClick={e => { e.stopPropagation(); onToggleAll(logs, !allSelected) }}
-          style={{ color: allSelected ? 'var(--accent)' : someSelected ? '#F59E0B' : 'var(--text-muted)', flexShrink: 0 }}>
-          {allSelected ? <CheckSquare size={15} /> : <Square size={15} />}
-        </div>
-        <div style={{ flex: 1 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{userName || 'Não informado'}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>{logs.length} apontamento{logs.length !== 1 ? 's' : ''}</span>
-        </div>
-        <div style={{ textAlign: 'right', marginRight: 6 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>{fmtH(totalH)}</div>
-          <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>repasse: {fmtMoney(comTotal)}</div>
-        </div>
-        <div style={{ color: 'var(--text-muted)' }}>
-          {open ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-        </div>
-      </div>
-      {/* Linhas */}
-      {open && logs.map(log => {
-        const proj = projetos.find(p => p.id === log.project_id)
-        return (
-          <LogRow key={log.id} log={log} projeto={proj}
-            selected={selected.has(log.id)}
-            onToggle={() => onToggleOne(log.id)}
-            valorHora={valorHora}
-            servicos_pct={servicos_pct}
-          />
-        )
-      })}
-    </div>
-  )
-}
-
-// ─── Modal de confirmação de fechamento ─────────────────────────────────────
-function ConfirmModal({ selectedLogs, projetos, valorHora, servicos_pct, regraNome, onConfirm, onCancel }) {
-  const byUser = useMemo(() => {
-    const map = {}
-    selectedLogs.forEach(l => {
-      const k = l.user_name || 'Não informado'
-      if (!map[k]) map[k] = { userName: k, userId: l.user_id, hours: 0 }
-      map[k].hours += Number(l.hours_executed)
-    })
-    return Object.values(map)
-  }, [selectedLogs])
-
-  const totalH  = selectedLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
-  const baseTotal = totalH * valorHora
-  const comTotal  = baseTotal * (servicos_pct / 100)
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex',
-      alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
-      <div style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 14,
-        padding: 28, width: 480, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
-        <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--text)', marginBottom: 4 }}>Confirmar fechamento</div>
-        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 20 }}>
-          Os apontamentos selecionados serão fechados e comissões geradas em <strong>Comissões</strong>.
-        </div>
-
-        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', marginBottom: 16 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>Resumo por analista</div>
-          {byUser.map(u => {
-            const base = u.hours * valorHora
-            const com  = base * (servicos_pct / 100)
-            return (
-              <div key={u.userName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{u.userName}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                    {fmtH(u.hours)} × {fmtMoney(valorHora)}/h = {fmtMoney(base)} × {servicos_pct}%
-                  </div>
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#10B981' }}>{fmtMoney(com)}</div>
-              </div>
-            )
-          })}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Total de repasses</div>
-            <div style={{ fontSize: 16, fontWeight: 800, color: '#10B981' }}>{fmtMoney(comTotal)}</div>
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 12px', background: 'rgba(245,158,11,0.08)',
-          border: '1px solid rgba(245,158,11,0.3)', borderRadius: 8, marginBottom: 20 }}>
-          <AlertCircle size={14} style={{ color: '#F59E0B', flexShrink: 0 }} />
-          <div style={{ fontSize: 12, color: '#92400E' }}>
-            Regra aplicada: <strong>{regraNome}</strong>. Os apontamentos fechados não poderão ser reabertos por aqui.
-          </div>
-        </div>
-
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <Button variant="ghost" onClick={onCancel}>Cancelar</Button>
-          <Button onClick={onConfirm} style={{ background: '#10B981', color: '#fff' }}>Confirmar fechamento</Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ─── Página principal ────────────────────────────────────────────────────────
 export default function FechamentoHoras({ embedded = false }) {
-  // Dados
-  const [timeLogs, setTimeLogs] = useState(() => {
-    try { const s = localStorage.getItem(TIMELOGS_KEY); return s ? JSON.parse(s) : MOCK_TIME_LOGS }
-    catch { return MOCK_TIME_LOGS }
-  })
-  const projetos = useMemo(() => {
-    try { const s = localStorage.getItem(PROJETOS_KEY); return s ? JSON.parse(s) : [] }
-    catch { return [] }
-  }, [])
-  const [rules] = useLocalState(RULES_STORAGE_KEY, MOCK_RULES)
-  const [payments, setPayments] = useLocalState(PAYMENTS_STORAGE_KEY, MOCK_PAYMENTS)
+  const { profile } = useProfile()
+  const isGestor = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
-  // Filtros / configuração
-  const [ruleId, setRuleId]     = useState(MOCK_RULES[0]?.id || '')
-  const [valorHora, setValorHora] = useState(80)
-  const [selected, setSelected] = useState(new Set())
-  const [showConfirm, setShowConfirm] = useState(false)
-  const [successMsg, setSuccessMsg] = useState('')
-  const [filterUser, setFilterUser] = useState('')
+  // Período de referência
+  const [periodo, setPeriodo] = useState(() => new Date().toISOString().slice(0, 7))
+  const [expandido, setExpandido] = useState({})
+  const [obsModal, setObsModal] = useState(null) // { fec, obs } para rejeição
 
-  // Apenas apontamentos ainda não fechados
-  const pendingLogs = useMemo(() =>
-    timeLogs.filter(l => !l.fechado),
-  [timeLogs])
+  // Dados brutos
+  const [timeLogs] = useLocalState(TIMELOGS_KEY, MOCK_TIME_LOGS)
+  const [projetos]  = useLocalState(PROJETOS_KEY, [])
+  const [fechamentos, setFechamentos] = useLocalState(FECHAMENTOS_KEY, [])
 
-  const filteredLogs = useMemo(() =>
-    filterUser
-      ? pendingLogs.filter(l => (l.user_name || '').toLowerCase().includes(filterUser.toLowerCase()))
-      : pendingLogs,
-  [pendingLogs, filterUser])
+  // Logs do período
+  const logsNoPeriodo = useMemo(() =>
+    timeLogs.filter(l => l.logged_at?.slice(0, 7) === periodo),
+  [timeLogs, periodo])
 
-  // Agrupar por analista
-  const groups = useMemo(() => {
+  // Agrupa logs por analista
+  const porAnalista = useMemo(() => {
     const map = {}
-    filteredLogs.forEach(l => {
-      const k = l.user_name || 'Não informado'
-      if (!map[k]) map[k] = []
-      map[k].push(l)
+    logsNoPeriodo.forEach(l => {
+      const k = l.user_name || 'Sem nome'
+      if (!map[k]) map[k] = { user_name: k, logs: [] }
+      map[k].logs.push(l)
     })
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b))
-  }, [filteredLogs])
+    return Object.values(map).sort((a, b) => a.user_name.localeCompare(b.user_name, 'pt-BR'))
+  }, [logsNoPeriodo])
 
-  // Regra selecionada e percentual Serviços para persona "interno"
-  const activeRule = useMemo(() => rules.find(r => r.id === ruleId) || rules[0], [rules, ruleId])
-  const servicos_pct = useMemo(() => {
-    if (!activeRule) return 8
-    const pp = (activeRule.persona_percentuais || []).find(p => p.persona_id === 'interno')
-    return pp?.servicos_pct ?? 8
-  }, [activeRule])
-
-  // Seleção
-  const toggleOne = useCallback((id) => {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }, [])
-  const toggleAll = useCallback((logs, forceOn) => {
-    setSelected(prev => {
-      const n = new Set(prev)
-      logs.forEach(l => forceOn ? n.add(l.id) : n.delete(l.id))
-      return n
-    })
-  }, [])
-  const selectAll = () => setSelected(new Set(filteredLogs.map(l => l.id)))
-  const clearAll  = () => setSelected(new Set())
-
-  // KPIs da seleção
-  const selectedLogs  = filteredLogs.filter(l => selected.has(l.id))
-  const totalHSel     = selectedLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
-  const baseTotal     = totalHSel * valorHora
-  const comTotal      = baseTotal * (servicos_pct / 100)
-
-  // Fechar selecionados
-  function handleFechar() {
-    if (selectedLogs.length === 0) return
-    setShowConfirm(true)
+  // Fechamento do período por analista
+  function getFec(user_name) {
+    return fechamentos.find(f => f.periodo === periodo && f.user_name === user_name) || null
   }
 
-  function handleConfirm() {
-    // Agrupa por analista e gera um pagamento por pessoa
-    const byUser = {}
-    selectedLogs.forEach(l => {
-      const k = l.user_id || l.user_name || 'desconhecido'
-      if (!byUser[k]) byUser[k] = { userId: l.user_id, userName: l.user_name || 'Não informado', hours: 0 }
-      byUser[k].hours += Number(l.hours_executed)
-    })
-    const hoje = new Date().toISOString().slice(0, 10)
-    const mes  = hoje.slice(0, 7) + '-01'
-    const novos = Object.values(byUser).map((u, i) => {
-      const valor_base = u.hours * valorHora
-      const valor_com  = valor_base * (servicos_pct / 100)
-      return {
-        id: `p_fec_${Date.now()}_${i}`,
-        rule_id: activeRule?.id || 'r1',
-        beneficiario_id: u.userId || null,
-        beneficiario_nome: u.userName,
-        persona: 'interno',
-        receita_tipo: 'Serviços',
-        valor_base,
-        percentual: servicos_pct,
-        valor_comissao: valor_com,
-        data_competencia: mes,
-        data_vencimento: hoje,
-        data_pagamento: null,
-        status: 'pendente',
-        descricao: `Fechamento timesheet — ${u.hours.toFixed(1)}h × R$${valorHora}/h (${activeRule?.nome || 'Regra'})`,
-        notas: null,
+  function upsertFec(user_name, patch) {
+    setFechamentos(prev => {
+      const idx = prev.findIndex(f => f.periodo === periodo && f.user_name === user_name)
+      if (idx >= 0) {
+        const n = [...prev]; n[idx] = { ...n[idx], ...patch }; return n
       }
+      const grupo = porAnalista.find(g => g.user_name === user_name)
+      const horas = grupo?.logs.reduce((s, l) => s + Number(l.hours_executed), 0) || 0
+      return [...prev, {
+        id: `fec_${periodo}_${user_name}_${Date.now()}`,
+        periodo, user_name,
+        status: 'aberto',
+        log_ids: grupo?.logs.map(l => l.id) || [],
+        horas_total: horas,
+        enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null,
+        ...patch,
+      }]
     })
-
-    // Salva pagamentos
-    const updatedPayments = [...payments, ...novos]
-    setPayments(updatedPayments)
-    localStorage.setItem(PAYMENTS_STORAGE_KEY, JSON.stringify(updatedPayments))
-
-    // Marca timeLogs como fechados
-    const selectedIds = new Set(selectedLogs.map(l => l.id))
-    const updatedLogs = timeLogs.map(l => selectedIds.has(l.id) ? { ...l, fechado: true, fechado_em: hoje } : l)
-    setTimeLogs(updatedLogs)
-    localStorage.setItem(TIMELOGS_KEY, JSON.stringify(updatedLogs))
-
-    setSelected(new Set())
-    setShowConfirm(false)
-    setSuccessMsg(`${novos.length} repasse(s) gerado(s) em Comissões com sucesso.`)
-    setTimeout(() => setSuccessMsg(''), 5000)
   }
+
+  // Marcar logs como fechados no localStorage de timeLogs
+  function marcarLogsAprovados(log_ids) {
+    const ids = new Set(log_ids)
+    const hoje = new Date().toISOString().slice(0, 10)
+    const updated = timeLogs.map(l => ids.has(l.id) ? { ...l, fechado: true, fechado_em: hoje } : l)
+    localStorage.setItem(TIMELOGS_KEY, JSON.stringify(updated))
+  }
+
+  function handleEnviar(user_name) {
+    const grupo = porAnalista.find(g => g.user_name === user_name)
+    const horas = grupo?.logs.reduce((s, l) => s + Number(l.hours_executed), 0) || 0
+    upsertFec(user_name, {
+      status: 'enviado',
+      log_ids: grupo?.logs.map(l => l.id) || [],
+      horas_total: horas,
+      enviado_em: new Date().toISOString().slice(0, 10),
+    })
+  }
+
+  function handleAprovar(user_name) {
+    const fec = getFec(user_name)
+    upsertFec(user_name, { status: 'aprovado', aprovado_em: new Date().toISOString().slice(0, 10) })
+    if (fec?.log_ids?.length) marcarLogsAprovados(fec.log_ids)
+  }
+
+  function handleRejeitar(user_name, obs) {
+    upsertFec(user_name, {
+      status: 'rejeitado',
+      rejeitado_em: new Date().toISOString().slice(0, 10),
+      obs,
+    })
+    setObsModal(null)
+  }
+
+  function handleReabrir(user_name) {
+    upsertFec(user_name, { status: 'aberto', enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null })
+  }
+
+  // KPIs do período
+  const totalAnalistas = porAnalista.length
+  const totalHoras = logsNoPeriodo.reduce((s, l) => s + Number(l.hours_executed), 0)
+  const aprovados   = porAnalista.filter(g => getFec(g.user_name)?.status === 'aprovado').length
+  const enviados    = porAnalista.filter(g => getFec(g.user_name)?.status === 'enviado').length
+  const horasAprov  = porAnalista
+    .filter(g => getFec(g.user_name)?.status === 'aprovado')
+    .reduce((s, g) => s + g.logs.reduce((sh, l) => sh + Number(l.hours_executed), 0), 0)
+
+  // Histórico: fechamentos aprovados de outros períodos
+  const historico = useMemo(() =>
+    fechamentos
+      .filter(f => f.status === 'aprovado' && f.periodo !== periodo)
+      .sort((a, b) => b.periodo.localeCompare(a.periodo)),
+  [fechamentos, periodo])
+
+  // ── Estilos ────────────────────────────────────────────────────────────────
+  const inp = { padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)',
+    background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', width: '100%' }
+  const btnSm = (color, bg, border) => ({
+    padding: '5px 12px', borderRadius: 7, border: `1px solid ${border}`,
+    background: bg, color, fontSize: 12, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)',
+  })
 
   return (
-    <div style={{ padding: embedded ? '0' : '24px 28px', maxWidth: 900, margin: embedded ? undefined : '0 auto' }}>
-      {/* Título — oculto quando embutido em Projetos */}
-      {!embedded && <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 10 }}>
-          <Clock size={22} style={{ color: 'var(--accent)' }} />
-          Fechamento de Horas
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-          Confirme os apontamentos de Timesheet e gere repasses de comissão para os analistas.
-        </div>
-      </div>}
+    <div style={{ padding: embedded ? '0' : '24px 28px', maxWidth: 860, margin: embedded ? undefined : '0 auto' }}>
 
-      {/* Feedback de sucesso */}
-      {successMsg && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px',
-          background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.4)', borderRadius: 10,
-          marginBottom: 20, color: '#065F46', fontSize: 13 }}>
-          <CheckCircle2 size={16} style={{ color: '#10B981', flexShrink: 0 }} />
-          {successMsg}
+      {/* Título */}
+      {!embedded && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)' }}>Fechamento de Horas</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
+            Fluxo de aprovação de horas por período — Aberto → Enviado → Aprovado
+          </div>
         </div>
       )}
 
-      {/* Configuração */}
-      <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-        padding: '16px 20px', marginBottom: 20, display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: 2, minWidth: 220 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-            Regra de comissionamento
-          </label>
-          <select
-            value={ruleId}
-            onChange={e => setRuleId(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', background: 'var(--surface2)',
-              border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: 'var(--text)' }}
-          >
-            {rules.map(r => (
-              <option key={r.id} value={r.id}>{r.nome}</option>
-            ))}
-          </select>
+      {/* Seletor de período */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+            letterSpacing: '.05em', display: 'block', marginBottom: 4 }}>Período</label>
+          <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
+            style={{ ...inp, width: 160 }} />
         </div>
-        <div style={{ flex: 1, minWidth: 140 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-            Valor/hora (R$)
-          </label>
-          <input
-            type="number" min="1" step="5"
-            value={valorHora}
-            onChange={e => setValorHora(Number(e.target.value) || 80)}
-            style={{ width: '100%', padding: '8px 10px', background: 'var(--surface2)',
-              border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: 'var(--text)' }}
-          />
-        </div>
-        <div style={{ flex: 1, minWidth: 140 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-            % Serviços (Interno)
-          </label>
-          <div style={{ padding: '8px 10px', background: 'var(--surface2)', border: '1px solid var(--border)',
-            borderRadius: 8, fontSize: 14, fontWeight: 800, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>
-            {servicos_pct}%
-          </div>
-        </div>
-        <div style={{ flex: 2, minWidth: 200 }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
-            Filtrar por analista
-          </label>
-          <input
-            type="text" placeholder="Digite o nome…"
-            value={filterUser}
-            onChange={e => setFilterUser(e.target.value)}
-            style={{ width: '100%', padding: '8px 10px', background: 'var(--surface2)',
-              border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, color: 'var(--text)' }}
-          />
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'flex-end', paddingBottom: 2 }}>
+          {mesLabel(periodo)} · {logsNoPeriodo.length} apontamento(s) · {fmtH(totalHoras)} no total
         </div>
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <KpiBox label="Apontamentos pendentes" value={pendingLogs.length} />
-        <KpiBox label="Selecionados" value={selectedLogs.length} color="var(--accent)" />
-        <KpiBox label="Horas selecionadas" value={fmtH(totalHSel)} color="var(--accent)" />
-        <KpiBox label="Repasse estimado" value={fmtMoney(comTotal)} color="#10B981"
-          sub={`Base: ${fmtMoney(baseTotal)} × ${servicos_pct}%`} />
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
+        {[
+          { label: 'Analistas no período', value: totalAnalistas,       color: 'var(--accent)' },
+          { label: 'Aguard. aprovação',    value: enviados,             color: '#F59E0B' },
+          { label: 'Aprovados',            value: aprovados,            color: '#10B981' },
+          { label: 'Horas aprovadas',      value: fmtH(horasAprov),    color: '#10B981' },
+        ].map(k => (
+          <div key={k.label} style={{ padding: '12px 16px', background: 'var(--surface)',
+            border: '1px solid var(--border2)', borderRadius: 10, borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase',
+              letterSpacing: '.05em', marginTop: 3 }}>{k.label}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Barra de ações */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={selectAll} style={{ fontSize: 12, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Selecionar todos</button>
-          <span style={{ color: 'var(--border)' }}>|</span>
-          <button onClick={clearAll}  style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Limpar seleção</button>
-        </div>
-        <Button
-          onClick={handleFechar}
-          disabled={selectedLogs.length === 0}
-          style={{ opacity: selectedLogs.length === 0 ? 0.5 : 1 }}
-        >
-          Fechar selecionados ({selectedLogs.length})
-        </Button>
+      {/* Fluxo visual */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20,
+        background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)',
+        padding: '10px 16px', fontSize: 12, color: 'var(--text-muted)' }}>
+        {['Analista lança horas', 'Envia para aprovação', 'Gestor aprova', 'Horas travadas → Financeiro'].map((s, i, arr) => (
+          <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+            <span style={{ padding: '4px 10px', borderRadius: 20,
+              background: i < 3 ? 'var(--surface)' : '#D1FAE5',
+              color: i < 3 ? 'var(--text-muted)' : '#065F46',
+              fontWeight: i === 3 ? 700 : 500, border: '1px solid var(--border2)', whiteSpace: 'nowrap' }}>
+              {s}
+            </span>
+            {i < arr.length - 1 && <span style={{ margin: '0 4px', color: 'var(--border)' }}>→</span>}
+          </div>
+        ))}
       </div>
 
-      {/* Lista */}
-      {groups.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-muted)' }}>
-          <Clock size={32} style={{ marginBottom: 12, opacity: .4 }} />
-          <div style={{ fontSize: 15, fontWeight: 600 }}>Nenhum apontamento pendente de fechamento.</div>
+      {/* Sem dados */}
+      {porAnalista.length === 0 && (
+        <div style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
+          border: '1px solid var(--border2)', borderRadius: 12, background: 'var(--surface)' }}>
+          Nenhum apontamento encontrado para {mesLabel(periodo)}
         </div>
-      ) : (
-        groups.map(([userName, logs]) => (
-          <AnalystGroup
-            key={userName}
-            userName={userName}
-            logs={logs}
-            projetos={projetos}
-            selected={selected}
-            onToggleAll={toggleAll}
-            onToggleOne={toggleOne}
-            valorHora={valorHora}
-            servicos_pct={servicos_pct}
-          />
-        ))
       )}
 
-      {showConfirm && (
-        <ConfirmModal
-          selectedLogs={selectedLogs}
-          projetos={projetos}
-          valorHora={valorHora}
-          servicos_pct={servicos_pct}
-          regraNome={activeRule?.nome || ''}
-          onConfirm={handleConfirm}
-          onCancel={() => setShowConfirm(false)}
-        />
+      {/* Cards por analista */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {porAnalista.map(({ user_name, logs }) => {
+          const fec    = getFec(user_name)
+          const status = fec?.status || 'aberto'
+          const cfg    = STATUS_CFG[status]
+          const horas  = logs.reduce((s, l) => s + Number(l.hours_executed), 0)
+          const isOpen = expandido[user_name]
+          const isLocked = status === 'aprovado'
+
+          return (
+            <div key={user_name} style={{ border: `1px solid ${cfg.border}`, borderRadius: 12,
+              overflow: 'hidden', background: 'var(--surface)',
+              opacity: isLocked ? 0.85 : 1 }}>
+
+              {/* Cabeçalho do analista */}
+              <div style={{ padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12,
+                background: isLocked ? '#D1FAE522' : 'var(--surface2)',
+                borderBottom: isOpen ? '1px solid var(--border2)' : 'none' }}>
+
+                {/* Avatar */}
+                <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
+                  background: `${cfg.color}22`, border: `2px solid ${cfg.color}44`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 12, fontWeight: 700, color: cfg.color }}>
+                  {user_name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()}
+                </div>
+
+                {/* Info */}
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{user_name}</span>
+                    <StatusBadge status={status} />
+                    {isLocked && (
+                      <span style={{ fontSize: 10, color: '#065F46' }}>
+                        Aprovado em {fmtDate(fec?.aprovado_em)} · horas travadas
+                      </span>
+                    )}
+                    {status === 'rejeitado' && fec?.obs && (
+                      <span style={{ fontSize: 10, color: '#991B1B' }}>Obs: {fec.obs}</span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {logs.length} apontamento(s) · {fmtH(horas)}
+                    {fec?.enviado_em && status !== 'aberto' && ` · Enviado em ${fmtDate(fec.enviado_em)}`}
+                  </div>
+                </div>
+
+                {/* Ações */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+                  {/* Analista: pode enviar se aberto ou rejeitado */}
+                  {(status === 'aberto' || status === 'rejeitado') && (
+                    <button onClick={() => handleEnviar(user_name)}
+                      style={btnSm('#fff', 'var(--accent)', 'var(--accent)')}>
+                      Enviar
+                    </button>
+                  )}
+
+                  {/* Gestor: pode aprovar ou rejeitar se enviado */}
+                  {isGestor && status === 'enviado' && (
+                    <>
+                      <button onClick={() => handleAprovar(user_name)}
+                        style={btnSm('#065F46', '#D1FAE5', '#6EE7B7')}>
+                        Aprovar
+                      </button>
+                      <button onClick={() => setObsModal({ user_name, obs: '' })}
+                        style={btnSm('#991B1B', '#FEE2E2', '#FCA5A5')}>
+                        Rejeitar
+                      </button>
+                    </>
+                  )}
+
+                  {/* Gestor: pode reabrir aprovados */}
+                  {isGestor && status === 'aprovado' && (
+                    <button onClick={() => handleReabrir(user_name)}
+                      style={btnSm('var(--text-muted)', 'var(--surface2)', 'var(--border)')}>
+                      Reabrir
+                    </button>
+                  )}
+
+                  {/* Toggle expandir */}
+                  <button onClick={() => setExpandido(e => ({ ...e, [user_name]: !e[user_name] }))}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', fontSize: 18, lineHeight: 1, padding: '2px 4px' }}>
+                    {isOpen ? '▲' : '▼'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Detalhe dos apontamentos */}
+              {isOpen && (
+                <div>
+                  {logs.map((log, i) => {
+                    const prj = projetos.find(p => p.id === log.project_id)
+                    return (
+                      <div key={log.id} style={{ display: 'flex', gap: 12, padding: '10px 16px',
+                        borderBottom: i < logs.length - 1 ? '1px solid var(--border2)' : 'none',
+                        background: isLocked ? '#D1FAE508' : 'transparent' }}>
+                        <div style={{ width: 36, flexShrink: 0, textAlign: 'center',
+                          fontSize: 11, color: 'var(--text-muted)', paddingTop: 2 }}>
+                          {fmtDate(log.logged_at)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {log.description || '—'}
+                          </div>
+                          {prj && (
+                            <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2,
+                              fontFamily: 'var(--mono)', background: 'var(--surface2)',
+                              display: 'inline-block', padding: '1px 6px', borderRadius: 4 }}>
+                              {prj.name}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ fontSize: 13, fontWeight: 800, color: isLocked ? '#10B981' : 'var(--accent)',
+                          fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                          {fmtH(log.hours_executed)}
+                          {isLocked && <span style={{ fontSize: 10, marginLeft: 4 }}>✓</span>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Histórico de períodos aprovados */}
+      {historico.length > 0 && (
+        <div style={{ marginTop: 32 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+            letterSpacing: '.06em', marginBottom: 12 }}>Histórico aprovado</div>
+          <div style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+              <thead>
+                <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border2)' }}>
+                  {['Período', 'Analista', 'Horas', 'Aprovado em'].map(h => (
+                    <th key={h} style={{ padding: '8px 14px', textAlign: 'left', fontSize: 10,
+                      fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {historico.map((f, i) => (
+                  <tr key={f.id} style={{ borderBottom: i < historico.length - 1 ? '1px solid var(--border2)' : 'none',
+                    background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+                    <td style={{ padding: '8px 14px', fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{mesLabel(f.periodo)}</td>
+                    <td style={{ padding: '8px 14px', fontWeight: 600, color: 'var(--text)' }}>{f.user_name}</td>
+                    <td style={{ padding: '8px 14px', fontFamily: 'var(--mono)', color: '#10B981', fontWeight: 700 }}>{fmtH(f.horas_total)}</td>
+                    <td style={{ padding: '8px 14px', color: 'var(--text-muted)' }}>{fmtDate(f.aprovado_em)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de rejeição */}
+      {obsModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', display: 'flex',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}>
+          <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14,
+            padding: 28, width: 420, maxWidth: '95vw' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>Rejeitar fechamento</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+              Analista: <strong>{obsModal.user_name}</strong>
+            </div>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+              letterSpacing: '.05em', display: 'block', marginBottom: 6 }}>
+              Motivo da rejeição (opcional)
+            </label>
+            <textarea value={obsModal.obs}
+              onChange={e => setObsModal(m => ({ ...m, obs: e.target.value }))}
+              style={{ ...inp, height: 80, resize: 'vertical', marginBottom: 16 }}
+              placeholder="Ex: faltam apontamentos do dia 15…" />
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+              <button onClick={() => setObsModal(null)}
+                style={btnSm('var(--text-muted)', 'var(--surface2)', 'var(--border)')}>
+                Cancelar
+              </button>
+              <button onClick={() => handleRejeitar(obsModal.user_name, obsModal.obs)}
+                style={btnSm('#fff', '#EF4444', '#EF4444')}>
+                Confirmar rejeição
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
