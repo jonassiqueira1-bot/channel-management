@@ -68,10 +68,8 @@ module.exports = async function handler(req, res) {
       id: userId,
       nome: admin_nome || admin_email.split('@')[0],
       email: admin_email,
-      papel: 'admin_isv',
       role: 'admin_isv',
       tenant_id: tenantId,
-      status: 'ativo',
     })
     if (profileError) {
       await supabase.auth.admin.deleteUser(userId)
