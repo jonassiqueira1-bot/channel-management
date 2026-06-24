@@ -1340,6 +1340,285 @@ function TabDocumentos({ projectId, attachments }) {
   )
 }
 
+// ─── Tab Financeiro ───────────────────────────────────────────────────────────
+const CUSTO_HORA_KEY   = 'projects:custo_hora_v1'    // { [project_id]: number }
+const MILESTONES_KEY   = 'projects:milestones_v1'    // { [project_id]: Milestone[] }
+const MOCK_OPP_DETAILS = {
+  'opp-1': { valor_total:48900, valor_servico:23500 },
+  'opp-5': { valor_total:112000, valor_servico:50000 },
+  'opp-6': { valor_total:185000, valor_servico:80000 },
+}
+
+function fmtBRL(v) {
+  return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 }).format(v || 0)
+}
+
+function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
+  const myLogs = timeLogs.filter(l => l.project_id === projeto.id)
+
+  // Custo/hora por projeto — salvo em localStorage
+  const [custoHoraMap, setCustoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
+  const [milestonesMap, setMilestonesMap] = useLocalState(MILESTONES_KEY, {})
+
+  const custoHora = custoHoraMap[projeto.id] ?? 150
+  const milestones = milestonesMap[projeto.id] || []
+
+  function setCustoHora(v) { setCustoHoraMap(m => ({ ...m, [projeto.id]: Number(v) })) }
+  function setMilestones(fn) {
+    setMilestonesMap(m => ({ ...m, [projeto.id]: typeof fn === 'function' ? fn(m[projeto.id] || []) : fn }))
+  }
+
+  // Valor do contrato: vem da opp vinculada ou campo manual no projeto
+  const oppDetail = MOCK_OPP_DETAILS[projeto.opportunity_id] || null
+  const valorContrato = projeto.valor_contrato || oppDetail?.valor_total || 0
+  const valorServico  = projeto.valor_servico  || oppDetail?.valor_servico || 0
+
+  // Custo realizado
+  const totalHorasExe = myLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
+  const custoRealizado = totalHorasExe * custoHora
+
+  // Receita faturada (milestones pagos)
+  const receitaFaturada = milestones.filter(m => m.pago).reduce((s, m) => s + Number(m.valor), 0)
+
+  // Margem
+  const margemBruta = receitaFaturada - custoRealizado
+  const margemPct   = receitaFaturada > 0 ? (margemBruta / receitaFaturada) * 100 : 0
+
+  // Forecast: custo estimado ao fim (horas_est × custo_hora)
+  const custoForecast = Number(projeto.total_hours_estimated || 0) * custoHora
+  const margemForecast = valorContrato - custoForecast
+
+  // Custo por analista
+  const porAnalista = useMemo(() => {
+    const map = {}
+    myLogs.forEach(l => {
+      const name = l.user_name || 'Sem nome'
+      map[name] = (map[name] || 0) + Number(l.hours_executed)
+    })
+    return Object.entries(map).sort((a, b) => b[1] - a[1])
+  }, [myLogs])
+
+  // Burndown mensal (custo acumulado por mês)
+  const burndown = useMemo(() => {
+    const byMonth = {}
+    myLogs.forEach(l => {
+      const mes = l.logged_at?.slice(0, 7) || 'N/A'
+      byMonth[mes] = (byMonth[mes] || 0) + Number(l.hours_executed)
+    })
+    const sorted = Object.entries(byMonth).sort()
+    let acc = 0
+    return sorted.map(([mes, h]) => { acc += h * custoHora; return { mes, custo: acc } })
+  }, [myLogs, custoHora])
+
+  // Milestone form
+  const [msForm, setMsForm] = useState(null) // null | { descricao, valor, data_prevista }
+
+  function addMilestone() {
+    if (!msForm?.descricao || !msForm?.valor) return
+    setMilestones(prev => [...prev, { id: 'ms_' + Date.now(), pago: false, data_pagamento: null, ...msForm }])
+    setMsForm(null)
+  }
+  function togglePago(id) {
+    setMilestones(prev => prev.map(m => m.id === id ? { ...m, pago: !m.pago, data_pagamento: !m.pago ? new Date().toISOString().slice(0, 10) : null } : m))
+  }
+  function removeMilestone(id) { setMilestones(prev => prev.filter(m => m.id !== id)) }
+
+  // Valor contrato manual
+  const [editContrato, setEditContrato] = useState(false)
+  const [contratoInput, setContratoInput] = useState(String(valorContrato))
+
+  const kpis = [
+    { label: 'Valor do contrato',   value: fmtBRL(valorContrato),   color: 'var(--accent)', hint: null },
+    { label: 'Custo realizado',     value: fmtBRL(custoRealizado),  color: '#3B82F6',       hint: `${totalHorasExe.toFixed(0)}h × R$ ${custoHora}/h` },
+    { label: 'Receita faturada',    value: fmtBRL(receitaFaturada), color: '#10B981',       hint: `${milestones.filter(m=>m.pago).length} milestone(s) pago(s)` },
+    { label: 'Margem bruta',        value: fmtBRL(margemBruta),     color: margemBruta >= 0 ? '#10B981' : '#EF4444', hint: `${margemPct.toFixed(0)}%` },
+  ]
+
+  const barMax = burndown.length > 0 ? burndown[burndown.length - 1].custo : 1
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* KPIs */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+        {kpis.map(k => (
+          <div key={k.label} style={{ padding: '14px 16px', background: 'var(--surface2)',
+            borderRadius: 10, border: '1px solid var(--border2)', borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 3 }}>{k.label}</div>
+            {k.hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{k.hint}</div>}
+          </div>
+        ))}
+      </div>
+
+      {/* Forecast */}
+      <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Projeção ao encerramento</div>
+        <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Custo estimado (forecast)', value: fmtBRL(custoForecast), color: '#F59E0B' },
+            { label: 'Margem prevista',           value: fmtBRL(margemForecast), color: margemForecast >= 0 ? '#10B981' : '#EF4444' },
+            { label: 'Horas estimadas',           value: `${projeto.total_hours_estimated || 0}h`, color: 'var(--text-muted)' },
+          ].map(f => (
+            <div key={f.label}>
+              <div style={{ fontSize: 15, fontWeight: 800, fontFamily: 'var(--mono)', color: f.color }}>{f.value}</div>
+              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 2 }}>{f.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Configuração */}
+      <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Configuração financeira</div>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Custo/hora (R$)</div>
+            <input type="number" value={custoHora} onChange={e => setCustoHora(e.target.value)} min={0}
+              style={{ ...ms.inp, width: 100, fontFamily: 'var(--mono)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Valor do contrato (R$)</div>
+            {editContrato ? (
+              <div style={{ display: 'flex', gap: 6 }}>
+                <input type="number" value={contratoInput} onChange={e => setContratoInput(e.target.value)}
+                  style={{ ...ms.inp, width: 140, fontFamily: 'var(--mono)' }} />
+                <button onClick={() => { onUpdate({ ...projeto, valor_contrato: Number(contratoInput) }); setEditContrato(false) }}
+                  style={{ ...ms.btnPrimary, padding: '6px 12px', fontSize: 12 }}>OK</button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 14, fontWeight: 700, fontFamily: 'var(--mono)', color: 'var(--text)' }}>{fmtBRL(valorContrato)}</span>
+                <button onClick={() => { setContratoInput(String(valorContrato)); setEditContrato(true) }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--font)' }}>editar</button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Custo por analista */}
+      {porAnalista.length > 0 && (
+        <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Custo por analista</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {porAnalista.map(([name, horas]) => {
+              const custo = horas * custoHora
+              const pct = totalHorasExe > 0 ? (horas / totalHorasExe) * 100 : 0
+              return (
+                <div key={name}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{name}</span>
+                    <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+                      {horas.toFixed(0)}h · {fmtBRL(custo)}
+                    </span>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: 'var(--surface)', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${pct}%`, background: 'var(--accent)', borderRadius: 3 }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Burndown financeiro */}
+      {burndown.length > 0 && (
+        <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 12 }}>Burndown financeiro — custo acumulado</div>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 80 }}>
+            {burndown.map((b, i) => {
+              const h = Math.round((b.custo / barMax) * 70)
+              return (
+                <div key={b.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{fmtBRL(b.custo)}</div>
+                  <div style={{ width: '100%', height: h, background: i === burndown.length - 1 ? 'var(--accent)' : '#3B82F666',
+                    borderRadius: '3px 3px 0 0', minHeight: 4 }} />
+                  <div style={{ fontSize: 9, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden',
+                    maxWidth: '100%', textOverflow: 'ellipsis' }}>{b.mes.slice(5)}/{b.mes.slice(2, 4)}</div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Milestones de faturamento */}
+      <div style={{ padding: '14px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Milestones de faturamento</div>
+          <button onClick={() => setMsForm({ descricao: '', valor: '', data_prevista: '' })}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 11, color: 'var(--accent)',
+              fontFamily: 'var(--font)', fontWeight: 700 }}>+ Adicionar</button>
+        </div>
+
+        {msForm && (
+          <div style={{ background: 'var(--surface)', borderRadius: 8, padding: '12px', marginBottom: 12,
+            border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <input placeholder="Descrição do milestone" value={msForm.descricao}
+              onChange={e => setMsForm(f => ({ ...f, descricao: e.target.value }))}
+              style={{ ...ms.inp, fontSize: 12 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input type="number" placeholder="Valor (R$)" value={msForm.valor}
+                onChange={e => setMsForm(f => ({ ...f, valor: e.target.value }))}
+                style={{ ...ms.inp, flex: 1, fontSize: 12, fontFamily: 'var(--mono)' }} />
+              <input type="date" value={msForm.data_prevista}
+                onChange={e => setMsForm(f => ({ ...f, data_prevista: e.target.value }))}
+                style={{ ...ms.inp, flex: 1, fontSize: 12 }} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button onClick={() => setMsForm(null)}
+                style={{ padding: '5px 12px', borderRadius: 7, border: '1px solid var(--border)',
+                  background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Cancelar
+              </button>
+              <button onClick={addMilestone} style={{ ...ms.btnPrimary, padding: '5px 14px', fontSize: 12 }}>Salvar</button>
+            </div>
+          </div>
+        )}
+
+        {milestones.length === 0 && !msForm && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum milestone cadastrado</div>
+        )}
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {milestones.map(m => (
+            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10,
+              padding: '8px 10px', background: 'var(--surface)', borderRadius: 8,
+              border: `1px solid ${m.pago ? '#10B98133' : 'var(--border2)'}` }}>
+              <button onClick={() => togglePago(m.id)}
+                style={{ width: 18, height: 18, borderRadius: 4, flexShrink: 0, cursor: 'pointer',
+                  background: m.pago ? '#10B981' : 'var(--surface2)',
+                  border: `2px solid ${m.pago ? '#10B981' : 'var(--border)'}`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, color: '#fff' }}>
+                {m.pago ? '✓' : ''}
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)',
+                  textDecoration: m.pago ? 'line-through' : 'none', opacity: m.pago ? 0.6 : 1 }}>
+                  {m.descricao}
+                </div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                  {m.data_prevista ? `Previsto: ${m.data_prevista}` : ''}
+                  {m.data_pagamento ? ` · Pago em: ${m.data_pagamento}` : ''}
+                </div>
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--mono)',
+                color: m.pago ? '#10B981' : 'var(--text)', flexShrink: 0 }}>
+                {fmtBRL(m.valor)}
+              </div>
+              <button onClick={() => removeMilestone(m.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)',
+                  fontSize: 14, padding: '2px 4px', lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SIDE DRAWER
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -1348,6 +1627,7 @@ const DRAWER_TABS = [
   { key: 'projeto',    label: 'Projeto'        },
   { key: 'cronograma', label: 'Cronograma MIT' },
   { key: 'timesheet',  label: 'Timesheet'      },
+  { key: 'financeiro', label: 'Financeiro'     },
   { key: 'bloqueios',  label: 'Bloqueios'      },
   { key: 'documentos', label: 'Documentos'     },
 ]
@@ -1394,6 +1674,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
         {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
         {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} />}
         {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
+        {tab === 'financeiro' && <TabFinanceiro projeto={projeto} timeLogs={timeLogs} onUpdate={onUpdate} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
       </div>
@@ -1410,6 +1691,126 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
         </button>
       </div>
     </SlideOver>
+  )
+}
+
+// ─── Painel Financeiro Global ─────────────────────────────────────────────────
+function PainelFinanceiro({ projetos, timeLogs }) {
+  const [custoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
+  const [milestonesMap] = useLocalState(MILESTONES_KEY, {})
+
+  const rows = useMemo(() => projetos.map(prj => {
+    const custoHora = custoHoraMap[prj.id] ?? 150
+    const horasExe  = timeLogs.filter(l => l.project_id === prj.id).reduce((s, l) => s + Number(l.hours_executed), 0)
+    const custo     = horasExe * custoHora
+    const milestones= milestonesMap[prj.id] || []
+    const faturado  = milestones.filter(m => m.pago).reduce((s, m) => s + Number(m.valor), 0)
+    const contrato  = prj.valor_contrato || MOCK_OPP_DETAILS[prj.opportunity_id]?.valor_total || 0
+    const margem    = faturado - custo
+    const margemPct = faturado > 0 ? (margem / faturado) * 100 : null
+    const faseObj   = FASES_MIT.find(f => f.value === prj.phase) || FASES_MIT[0]
+    return { prj, custo, faturado, contrato, margem, margemPct, horasExe, faseObj, custoHora }
+  }), [projetos, timeLogs, custoHoraMap, milestonesMap])
+
+  const totalContrato = rows.reduce((s, r) => s + r.contrato, 0)
+  const totalCusto    = rows.reduce((s, r) => s + r.custo, 0)
+  const totalFaturado = rows.reduce((s, r) => s + r.faturado, 0)
+  const totalMargem   = totalFaturado - totalCusto
+
+  const [sortCol, setSortCol] = useState('contrato')
+  const sorted = [...rows].sort((a, b) => b[sortCol] - a[sortCol])
+
+  function Th({ col, label }) {
+    return (
+      <th onClick={() => setSortCol(col)} style={{ textAlign: 'right', padding: '8px 12px',
+        fontSize: 11, fontWeight: 700, color: sortCol === col ? 'var(--accent)' : 'var(--text-muted)',
+        fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.05em',
+        cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none' }}>
+        {label}{sortCol === col ? ' ↓' : ''}
+      </th>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 24 }}>
+
+      {/* KPIs globais */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
+        border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+        {[
+          { label: 'Portfólio (contratos)', value: fmtBRL(totalContrato), color: 'var(--accent)' },
+          { label: 'Custo realizado',       value: fmtBRL(totalCusto),    color: '#3B82F6' },
+          { label: 'Receita faturada',      value: fmtBRL(totalFaturado), color: '#10B981' },
+          { label: 'Margem total',          value: fmtBRL(totalMargem),   color: totalMargem >= 0 ? '#10B981' : '#EF4444' },
+        ].map((k, i) => (
+          <div key={k.label} style={{ padding: '14px 20px', borderRight: i < 3 ? '1px solid var(--border2)' : 'none',
+            borderTop: `3px solid ${k.color}` }}>
+            <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabela */}
+      <div style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: 'var(--surface2)', borderBottom: '1px solid var(--border2)' }}>
+              <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                Projeto
+              </th>
+              <th style={{ textAlign: 'left', padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Fase
+              </th>
+              <Th col="contrato"  label="Contrato" />
+              <Th col="custo"     label="Custo real." />
+              <Th col="faturado"  label="Faturado" />
+              <Th col="margem"    label="Margem" />
+              <th style={{ textAlign: 'right', padding: '8px 12px', fontSize: 11, fontWeight: 700,
+                color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>% Mg</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r, i) => (
+              <tr key={r.prj.id} style={{ borderBottom: '1px solid var(--border2)',
+                background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+                <td style={{ padding: '10px 12px' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{r.prj.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{r.prj.company_nome}</div>
+                </td>
+                <td style={{ padding: '10px 12px' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+                    background: r.faseObj.bg, color: r.faseObj.text }}>{r.faseObj.label}</span>
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text)' }}>
+                  {r.contrato > 0 ? fmtBRL(r.contrato) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: '#3B82F6' }}>
+                  {fmtBRL(r.custo)}
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>{r.horasExe.toFixed(0)}h × R${r.custoHora}</div>
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12, color: '#10B981' }}>
+                  {r.faturado > 0 ? fmtBRL(r.faturado) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'var(--mono)', fontSize: 12,
+                  fontWeight: 700, color: r.margem >= 0 ? '#10B981' : '#EF4444' }}>
+                  {r.faturado > 0 ? fmtBRL(r.margem) : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </td>
+                <td style={{ padding: '10px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700,
+                  color: r.margemPct == null ? 'var(--text-muted)' : r.margemPct >= 30 ? '#10B981' : r.margemPct >= 0 ? '#F59E0B' : '#EF4444' }}>
+                  {r.margemPct != null ? `${r.margemPct.toFixed(0)}%` : '—'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+        * Custo realizado = horas apontadas no Timesheet × custo/hora configurado em cada projeto (padrão: R$ 150/h). Configure em Projeto → Financeiro.
+      </div>
+    </div>
   )
 }
 
@@ -1907,7 +2308,7 @@ export default function Projetos() {
 
         {/* Page header */}
         <div style={pg.pageHeader}>
-          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : 'Projetos de Implantação'}</h1>
+          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : 'Projetos de Implantação'}</h1>
           {tab === 'projetos' && (
             <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
           )}
@@ -1921,7 +2322,7 @@ export default function Projetos() {
           zIndex: 200, display: 'flex', gap: 2,
           background: 'var(--surface)', borderRadius: 10, padding: 3,
           border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: 'Recursos' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
+          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
                 fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
@@ -1936,7 +2337,8 @@ export default function Projetos() {
 
         {/* KPIs */}
         {tab === 'fechamento' && <FechamentoHoras embedded />}
-        {tab === 'recursos' && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
+        {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
+        {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
 
         {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
@@ -1947,7 +2349,7 @@ export default function Projetos() {
         </div>}
 
         {/* Toolbar — igual Pipeline */}
-        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos') ? 'none' : undefined }}>
+        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro') ? 'none' : undefined }}>
 
           {/* ── Esquerda ── */}
           <div style={pg.tbLeft}>
@@ -2032,7 +2434,7 @@ export default function Projetos() {
         </div>
 
         {/* Contagem */}
-        <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos') ? 'none' : undefined }}>
+        <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro') ? 'none' : undefined }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
             {filtered.length} projeto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
           </span>
@@ -2040,7 +2442,7 @@ export default function Projetos() {
       </div>
 
       {/* Kanban ou Lista */}
-      {tab !== 'fechamento' && tab !== 'recursos' && viewMode === 'kanban' ? (
+      {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && viewMode === 'kanban' ? (
         <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
           <div style={{ display: 'flex', gap: 12, height: '100%' }}>
             {FASES_MIT.map(fase => (
@@ -2059,7 +2461,7 @@ export default function Projetos() {
             ))}
           </div>
         </div>
-      ) : tab !== 'fechamento' && tab !== 'recursos' ? (
+      ) : tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
