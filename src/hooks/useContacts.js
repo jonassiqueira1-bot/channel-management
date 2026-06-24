@@ -33,6 +33,19 @@ function contatoToRow(c, tenantId, branchId) {
   }
 }
 
+const MOCK_STORAGE_KEY = 'contacts:mock_v1'
+
+function loadMockStore() {
+  try {
+    const raw = localStorage.getItem(MOCK_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch { return null }
+}
+
+function saveMockStore(list) {
+  try { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(list)) } catch {}
+}
+
 export function useContacts() {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -48,8 +61,9 @@ export function useContacts() {
     setLoading(true)
 
     if (!session?.user) {
-      setContacts(MOCK_CONTATOS)
+      const stored = loadMockStore()
       isMockMode.current = true
+      setContacts(stored ?? MOCK_CONTATOS)
       setLoading(false)
       return
     }
@@ -60,8 +74,9 @@ export function useContacts() {
       .order('nome')
 
     if (error) {
+      const stored = loadMockStore()
       isMockMode.current = true
-      setContacts(MOCK_CONTATOS)
+      setContacts(stored ?? MOCK_CONTATOS)
       setLoading(false)
       return
     }
@@ -80,8 +95,11 @@ export function useContacts() {
     if (isMockMode.current) {
       setContacts(prev => {
         const idx = prev.findIndex(x => x.id === c.id)
-        if (idx >= 0) { const n = [...prev]; n[idx] = c; return n }
-        return [...prev, { ...c, id: Date.now(), criado_em: new Date().toISOString().slice(0, 10) }]
+        const next = idx >= 0
+          ? prev.map((x, i) => i === idx ? c : x)
+          : [...prev, { ...c, id: String(Date.now()), criado_em: new Date().toISOString().slice(0, 10) }]
+        saveMockStore(next)
+        return next
       })
       return { ok: true }
     }
@@ -105,7 +123,11 @@ export function useContacts() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) {
-      setContacts(prev => prev.filter(c => c.id !== id))
+      setContacts(prev => {
+        const next = prev.filter(c => c.id !== id)
+        saveMockStore(next)
+        return next
+      })
       return { ok: true }
     }
     const { error } = await supabase.from('contacts').delete().eq('id', id)
