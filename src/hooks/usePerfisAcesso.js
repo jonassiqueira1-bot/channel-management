@@ -41,7 +41,7 @@ export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
       if (data && data.length > 0) {
         const permsMap = {}
         data.forEach(r => { permsMap[r.id] = r.permissions || {} })
-        setPerfis(data.map(({ permissions, ...rest }) => rest))
+        setPerfis(data.map(({ permissions, descricao, ...rest }) => ({ ...rest, desc: descricao })))
         setPerms(permsMap)
       } else {
         setPerfis(loadPerfis() ?? defaultPerfis)
@@ -66,7 +66,8 @@ export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
       }
       return { ok: true }
     }
-    const row = { ...perfil, tenant_id: tid.current, permissions: permsObj ?? perms[perfil.id] ?? {}, updated_at: new Date().toISOString() }
+    const { desc, ...perfilRest } = perfil
+    const row = { ...perfilRest, descricao: desc, tenant_id: tid.current, permissions: permsObj ?? perms[perfil.id] ?? {}, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('perfis_acesso').upsert(row, { onConflict: 'id' })
     if (error) return { ok: false, message: error.message }
     setPerfis(prev => {

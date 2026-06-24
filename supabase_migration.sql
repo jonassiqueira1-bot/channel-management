@@ -163,7 +163,7 @@ create table if not exists perfis_acesso (
   nativo        boolean     default false,
   cor           text,
   icon          text,
-  desc          text,
+  descricao     text,
   franquia_ids  jsonb       default '[]',
   permissions   jsonb       default '{}',
   created_at    timestamptz default now(),
@@ -208,10 +208,15 @@ do $$ declare tbl text; begin
     'commission_approvals','habilitacoes','tipos_acao','campanhas','parceiros','perfis_acesso']
   loop
     execute format('
-      create policy if not exists "%s_select" on %s for select to authenticated using (true);
-      create policy if not exists "%s_insert" on %s for insert to authenticated with check (true);
-      create policy if not exists "%s_update" on %s for update to authenticated using (true);
-      create policy if not exists "%s_delete" on %s for delete to authenticated using (true);
-    ', tbl, tbl, tbl, tbl, tbl, tbl, tbl, tbl);
+      drop policy if exists "%s_select" on %s;
+      drop policy if exists "%s_insert" on %s;
+      drop policy if exists "%s_update" on %s;
+      drop policy if exists "%s_delete" on %s;
+      create policy "%s_select" on %s for select to authenticated using (true);
+      create policy "%s_insert" on %s for insert to authenticated with check (true);
+      create policy "%s_update" on %s for update to authenticated using (true);
+      create policy "%s_delete" on %s for delete to authenticated using (true);
+    ', tbl, tbl, tbl, tbl, tbl, tbl, tbl, tbl,
+       tbl, tbl, tbl, tbl, tbl, tbl, tbl, tbl);
   end loop;
 end $$;
