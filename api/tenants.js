@@ -41,10 +41,8 @@ module.exports = async function handler(req, res) {
     const { error: companyError } = await supabase.from('companies').insert({
       id: tenantId,
       tenant_id: tenantId,
-      name: nome,
-      type: 'ISV',
-      status: 'active',
-      created_at: new Date().toISOString(),
+      nome_fantasia: nome,
+      razao_social: nome,
     })
 
     if (companyError) {
