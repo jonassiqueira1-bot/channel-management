@@ -4,6 +4,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 
+const MOCK_STORAGE_KEY = 'companies:mock_v1'
+function loadMockStore() { try { const r = localStorage.getItem(MOCK_STORAGE_KEY); return r ? JSON.parse(r) : null } catch { return null } }
+function saveMockStore(list) { try { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(list)) } catch {} }
+
 // Converte linha do Supabase → formato usado pelo componente Empresas
 function rowToEmpresa(row) {
   return {
@@ -102,8 +106,8 @@ export function useCompanies() {
 
     // Sem sessão autenticada: usa mock
     if (!session?.user) {
-      setCompanies(MOCK_EMPRESAS)
       isMockMode.current = true
+      setCompanies(loadMockStore() ?? MOCK_EMPRESAS)
       setLoading(false)
       return
     }
@@ -116,7 +120,7 @@ export function useCompanies() {
     if (fetchErr) {
       // Tabela não existe no Supabase demo → fallback para mock
       isMockMode.current = true
-      setCompanies(MOCK_EMPRESAS)
+      setCompanies(loadMockStore() ?? MOCK_EMPRESAS)
       setLoading(false)
       return
     }
@@ -131,8 +135,8 @@ export function useCompanies() {
   // ── Adicionar ───────────────────────────────────────────────
   const add = useCallback(async (form) => {
     if (isMockMode.current) {
-      const nova = { ...form, id: Date.now(), mrr: 0, contratos: 0, contatos: 0, criado: new Date().toISOString().slice(0, 10) }
-      setCompanies(prev => [...prev, nova])
+      const nova = { ...form, id: String(Date.now()), mrr: 0, contratos: 0, contatos: 0, criado: new Date().toISOString().slice(0, 10) }
+      setCompanies(prev => { const next = [...prev, nova]; saveMockStore(next); return next })
       return { ok: true, data: nova }
     }
 
@@ -147,7 +151,7 @@ export function useCompanies() {
   // ── Atualizar ───────────────────────────────────────────────
   const update = useCallback(async (id, patch) => {
     if (isMockMode.current) {
-      setCompanies(prev => prev.map(e => e.id === id ? { ...e, ...patch } : e))
+      setCompanies(prev => { const next = prev.map(e => e.id === id ? { ...e, ...patch } : e); saveMockStore(next); return next })
       return { ok: true }
     }
 
@@ -172,7 +176,7 @@ export function useCompanies() {
   // ── Remover ─────────────────────────────────────────────────
   const remove = useCallback(async (id) => {
     if (isMockMode.current) {
-      setCompanies(prev => prev.filter(e => e.id !== id))
+      setCompanies(prev => { const next = prev.filter(e => e.id !== id); saveMockStore(next); return next })
       return { ok: true }
     }
 
@@ -186,7 +190,7 @@ export function useCompanies() {
   // ── Remover vários ──────────────────────────────────────────
   const removeMany = useCallback(async (ids) => {
     if (isMockMode.current) {
-      setCompanies(prev => prev.filter(e => !ids.includes(e.id)))
+      setCompanies(prev => { const next = prev.filter(e => !ids.includes(e.id)); saveMockStore(next); return next })
       return { ok: true }
     }
 
@@ -200,7 +204,7 @@ export function useCompanies() {
   // ── Atualizar status em lote ────────────────────────────────
   const bulkSetStatus = useCallback(async (ids, status) => {
     if (isMockMode.current) {
-      setCompanies(prev => prev.map(e => ids.includes(e.id) ? { ...e, status } : e))
+      setCompanies(prev => { const next = prev.map(e => ids.includes(e.id) ? { ...e, status } : e); saveMockStore(next); return next })
       return { ok: true }
     }
 
