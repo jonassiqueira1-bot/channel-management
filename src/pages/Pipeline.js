@@ -1866,14 +1866,18 @@ function AddMembroForm({ pool, jaAdicionados, onAdd, onCancel, selectorLabel, se
 // OppEquipeTab: dois blocos independentes — Time Interno e Contatos Externos
 function OppEquipeTab({ oppId }) {
   const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
-  const { sellers }  = useSellers()
   const { contacts } = useContacts()
+  const [perfisStore] = useLocalState('settings:perfis_v2', [])
+  const { sellers }   = useSellers()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-  // Pool de usuários internos (ISV + canal)
-  const poolInternos = useMemo(() =>
-    sellers.map(s => ({ id: `s_${s.id}`, nome: s.nome, cargo: s.cargo || s.role || '', email: s.email })),
-  [sellers])
+  // Pool de usuários internos: preferencia para settings:perfis_v2; fallback para sellers
+  const poolInternos = useMemo(() => {
+    const base = perfisStore.length > 0 ? perfisStore : sellers
+    return base
+      .filter(u => u.status !== 'inativo')
+      .map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '' }))
+  }, [perfisStore, sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
   const poolContatos = useMemo(() =>
