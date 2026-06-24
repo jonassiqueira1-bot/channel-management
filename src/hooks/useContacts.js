@@ -5,6 +5,7 @@ import { useProfile } from './useProfile'
 import { MOCK_CONTATOS } from '../data/mockContatos'
 
 function rowToContato(row) {
+  const cf = row.custom_fields || {}
   return {
     id:           row.id,
     empresa_id:   row.company_id || null,
@@ -14,6 +15,8 @@ function rowToContato(row) {
     telefone:     row.phone || '',
     cargo:        row.cargo || '',
     notas:        row.notes || '',
+    linkedin_url: cf.linkedin_url || '',
+    whatsapp:     cf.whatsapp || '',
     tenant_id:    row.tenant_id || null,
     branch_id:    row.branch_id || null,
     criado_em:    row.created_at?.slice(0, 10) || '',
@@ -30,6 +33,10 @@ function contatoToRow(c, tenantId, branchId) {
     phone:      c.telefone || '',
     cargo:      c.cargo || '',
     notes:      c.notas || '',
+    custom_fields: {
+      linkedin_url: c.linkedin_url || '',
+      whatsapp:     c.whatsapp || '',
+    },
   }
 }
 
