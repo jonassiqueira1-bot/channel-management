@@ -1877,49 +1877,65 @@ function MapaRecursos({ projetos, members, timeLogs }) {
   const [expandido, setExpandido] = useState({})
   const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
   const [filtroStatus, setFiltroStatus] = useState('todos')
+  const [perfisStore] = useLocalState('settings:perfis_v2', [])
 
-  // Horas apontadas por analista no mês de referência
-  const horasPorAnalista = useMemo(() => {
+  // Pool de usuários: cadastro real > fallback MOCK
+  const usuariosCad = useMemo(() => {
+    const base = perfisStore.length > 0 ? perfisStore : MOCK_USUARIOS
+    return base.filter(u => u.status !== 'inativo')
+  }, [perfisStore])
+
+  // Horas apontadas por user_id (ou user_name como fallback) no mês de referência
+  const horasPorUser = useMemo(() => {
     const [ano, mes] = mesRef.split('-').map(Number)
-    const map = {} // name → { total, porProjeto: { prjId: { nome, horas, fase } } }
+    const map = {} // user_id → { total, porProjeto }
     timeLogs.forEach(l => {
       const d = new Date(l.logged_at)
       if (d.getFullYear() !== ano || d.getMonth() + 1 !== mes) return
-      const name = l.user_name || 'Sem nome'
-      if (!map[name]) map[name] = { total: 0, porProjeto: {} }
-      map[name].total += Number(l.hours_executed)
-      if (!map[name].porProjeto[l.project_id]) {
+      const key = l.user_id || l.user_name || 'sem_id'
+      if (!map[key]) map[key] = { total: 0, porProjeto: {} }
+      map[key].total += Number(l.hours_executed)
+      if (!map[key].porProjeto[l.project_id]) {
         const prj = projetos.find(p => p.id === l.project_id)
-        map[name].porProjeto[l.project_id] = { nome: prj?.name || l.project_id, horas: 0, fase: prj?.phase || '' }
+        map[key].porProjeto[l.project_id] = { nome: prj?.name || l.project_id, horas: 0, fase: prj?.phase || '' }
       }
-      map[name].porProjeto[l.project_id].horas += Number(l.hours_executed)
+      map[key].porProjeto[l.project_id].horas += Number(l.hours_executed)
     })
     return map
   }, [timeLogs, mesRef, projetos])
 
-  // Pool de analistas: union de members.name + timeLogs.user_name (evitar duplicatas)
+  // Pool de analistas: usuários cadastrados + quem lançou horas mas não está cadastrado
   const analistas = useMemo(() => {
-    const names = new Set()
-    members.forEach(m => { if (m.role !== 'Chave do Cliente') names.add(m.name) })
-    timeLogs.forEach(l => { if (l.user_name) names.add(l.user_name) })
-    return Array.from(names).sort((a, b) => a.localeCompare(b, 'pt-BR'))
-  }, [members, timeLogs])
+    const lista = usuariosCad.map(u => ({ id: u.id, name: u.nome, cargo: u.cargo || '', senioridade: u.senioridade || '', horas_semana: u.horas_semana || 40, habilidades: u.habilidades || [] }))
+    const ids = new Set(lista.map(u => String(u.id)))
+    timeLogs.forEach(l => {
+      const key = String(l.user_id || '')
+      if (!key || ids.has(key)) return
+      ids.add(key)
+      lista.push({ id: key, name: l.user_name || key, cargo: '', senioridade: '', horas_semana: 40, habilidades: [] })
+    })
+    return lista.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
+  }, [usuariosCad, timeLogs])
 
-  // Projetos ativos por analista (via members)
+  // Projetos ativos por analista (via members.user_id)
   const projetosPorAnalista = useMemo(() => {
     const map = {}
     members.forEach(m => {
       if (m.role === 'Chave do Cliente') return
       const prj = projetos.find(p => p.id === m.project_id)
       if (!prj || prj.status === 'concluido') return
-      if (!map[m.name]) map[m.name] = []
-      map[m.name].push({ ...prj, role: m.role })
+      const key = String(m.user_id || m.name)
+      if (!map[key]) map[key] = []
+      map[key].push({ ...prj, role: m.role })
     })
     return map
   }, [members, projetos])
 
-  function statusCarga(horas) {
-    const pct = (horas / CAPACIDADE_MENSAL) * 100
+  function horasDoUser(u) { return horasPorUser[String(u.id)]?.total || 0 }
+  function capacidade(u) { return (u.horas_semana || 40) * 4.33 } // semanas/mês
+
+  function statusCarga(horas, cap) {
+    const pct = (horas / (cap || CAPACIDADE_MENSAL)) * 100
     if (pct >= 95) return { label: 'Sobrecarregado', color: '#EF4444', bg: '#FEE2E2', pct }
     if (pct >= 70) return { label: 'Ocupado',         color: '#F59E0B', bg: '#FEF3C7', pct }
     if (pct >= 20) return { label: 'Alocado',         color: '#3B82F6', bg: '#DBEAFE', pct }
@@ -1931,8 +1947,8 @@ function MapaRecursos({ projetos, members, timeLogs }) {
   }
 
   const listaFiltrada = analistas.filter(name => {
-    const horas = horasPorAnalista[name]?.total || 0
-    const st = statusCarga(horas)
+    const horas = horasDoUser(u)
+    const st = statusCarga(horas, capacidade(u))
     if (filtroStatus === 'sobrecarregado') return st.pct >= 95
     if (filtroStatus === 'ocupado')        return st.pct >= 70 && st.pct < 95
     if (filtroStatus === 'disponivel')     return st.pct < 70
@@ -1941,9 +1957,9 @@ function MapaRecursos({ projetos, members, timeLogs }) {
 
   // KPIs do mapa
   const totalAnalistas = analistas.length
-  const sobrecarregados = analistas.filter(n => statusCarga(horasPorAnalista[n]?.total || 0).pct >= 95).length
-  const disponiveis = analistas.filter(n => statusCarga(horasPorAnalista[n]?.total || 0).pct < 70).length
-  const totalHoras = analistas.reduce((s, n) => s + (horasPorAnalista[n]?.total || 0), 0)
+  const sobrecarregados = analistas.filter(u => statusCarga(horasDoUser(u), capacidade(u)).pct >= 95).length
+  const disponiveis     = analistas.filter(u => statusCarga(horasDoUser(u), capacidade(u)).pct < 70).length
+  const totalHoras      = analistas.reduce((s, u) => s + horasDoUser(u), 0)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 0 24px' }}>
@@ -2009,17 +2025,18 @@ function MapaRecursos({ projetos, members, timeLogs }) {
           </div>
         )}
 
-        {listaFiltrada.map((name, i) => {
-          const horas = horasPorAnalista[name]?.total || 0
-          const prjsHora = horasPorAnalista[name]?.porProjeto || {}
-          const prjsAtivos = projetosPorAnalista[name] || []
-          const st = statusCarga(horas)
-          const isExpanded = expandido[name]
+        {listaFiltrada.map((u) => {
+          const horas = horasDoUser(u)
+          const cap   = capacidade(u)
+          const prjsHora   = horasPorUser[String(u.id)]?.porProjeto || {}
+          const prjsAtivos = projetosPorAnalista[String(u.id)] || []
+          const st = statusCarga(horas, cap)
+          const isExpanded = expandido[u.id]
           const numPrjs = prjsAtivos.length || Object.keys(prjsHora).length
 
           return (
-            <div key={name}>
-              <div onClick={() => setExpandido(e => ({ ...e, [name]: !e[name] }))}
+            <div key={u.id}>
+              <div onClick={() => setExpandido(e => ({ ...e, [u.id]: !e[u.id] }))}
                 style={{ display: 'grid', gridTemplateColumns: '36px 200px 1fr 100px 100px 90px',
                   padding: '12px 16px', gap: 12, alignItems: 'center', cursor: 'pointer',
                   borderBottom: '1px solid var(--border2)',
@@ -2031,14 +2048,15 @@ function MapaRecursos({ projetos, members, timeLogs }) {
                   background: `${st.color}22`, border: `2px solid ${st.color}44`,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 11, fontWeight: 700, color: st.color }}>
-                  {initials(name)}
+                  {initials(u.name)}
                 </div>
 
-                {/* Nome + role principal */}
+                {/* Nome + cargo */}
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{u.name}</div>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
-                    {prjsAtivos[0]?.role || 'Analista'}
+                    {u.cargo || prjsAtivos[0]?.role || 'Recurso'}
+                    {u.senioridade ? ` · ${u.senioridade}` : ''}
                   </div>
                 </div>
 
@@ -2050,7 +2068,7 @@ function MapaRecursos({ projetos, members, timeLogs }) {
                       background: st.color, borderRadius: 4, transition: 'width 0.4s ease' }} />
                   </div>
                   <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
-                    {Math.round(st.pct)}% de {CAPACIDADE_MENSAL}h
+                    {Math.round(st.pct)}% de {cap.toFixed(0)}h
                   </div>
                 </div>
 
@@ -2132,6 +2150,16 @@ function MapaRecursos({ projetos, members, timeLogs }) {
                     </div>
                   )}
 
+                  {u.habilidades?.length > 0 && (
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 4 }}>
+                      {u.habilidades.map(h => (
+                        <span key={h} style={{ fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+                          background: 'color-mix(in srgb, var(--accent) 10%, transparent)', color: 'var(--accent)',
+                          border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)' }}>{h}</span>
+                      ))}
+                    </div>
+                  )}
+
                   {prjsAtivos.length === 0 && Object.keys(prjsHora).length === 0 && (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
                       Sem projetos ativos nem apontamentos neste mês
@@ -2147,10 +2175,10 @@ function MapaRecursos({ projetos, members, timeLogs }) {
       {/* Legenda */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
         {[
-          { color: '#10B981', label: `Disponível (< 70% — menos de ${Math.round(CAPACIDADE_MENSAL * 0.7)}h)` },
-          { color: '#3B82F6', label: `Alocado (20–70%)` },
-          { color: '#F59E0B', label: `Ocupado (70–95% — ${Math.round(CAPACIDADE_MENSAL * 0.7)}–${Math.round(CAPACIDADE_MENSAL * 0.95)}h)` },
-          { color: '#EF4444', label: `Sobrecarregado (≥ 95% — ${Math.round(CAPACIDADE_MENSAL * 0.95)}h+)` },
+          { color: '#10B981', label: 'Disponível (< 70% da capacidade individual)' },
+          { color: '#3B82F6', label: 'Alocado (20–70%)' },
+          { color: '#F59E0B', label: 'Ocupado (70–95%)' },
+          { color: '#EF4444', label: 'Sobrecarregado (≥ 95%)' },
         ].map(l => (
           <div key={l.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
             <div style={{ width: 8, height: 8, borderRadius: '50%', background: l.color, flexShrink: 0 }} />
