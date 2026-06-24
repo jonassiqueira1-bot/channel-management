@@ -1997,7 +1997,7 @@ function MapaRecursos({ projetos, members, timeLogs }) {
     return name.split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
   }
 
-  const listaFiltrada = analistas.filter(name => {
+  const listaFiltrada = analistas.filter(u => {
     const horas = horasDoUser(u)
     const st = statusCarga(horas, capacidade(u))
     if (filtroStatus === 'sobrecarregado') return st.pct >= 95
