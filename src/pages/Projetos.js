@@ -3171,27 +3171,10 @@ function PropostasTab({ projetos, phases }) {
     }
 
     return (
-      <div style={{display:'flex',gap:20,height:'100%',minHeight:500}}>
-        {/* Sidebar */}
-        <div style={{width:240,flexShrink:0,display:'flex',flexDirection:'column',gap:8,overflowY:'auto'}}>
-          <button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',marginBottom:4}}>
-            ← Todas as propostas
-          </button>
-          {filtered.map(p=>{
-            const s=PROP_STATUS_CFG[p.status]||PROP_STATUS_CFG.rascunho
-            return (
-              <div key={p.id} onClick={()=>{setSelected(p);setPropTab('escopo')}} style={{padding:'10px 12px',borderRadius:9,border:`1px solid ${p.id===selected.id?'var(--accent)':'var(--border2)'}`,background:p.id===selected.id?'var(--accent-glow)':'var(--surface)',cursor:'pointer'}}>
-                <div style={{fontSize:12,fontWeight:600,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.titulo}</div>
-                <div style={{fontSize:10,color:'var(--text-muted)',marginTop:2}}>{p.empresa_nome}</div>
-                <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5}}>
-                  <span style={{width:6,height:6,borderRadius:'50%',background:s.dot,flexShrink:0}}/>
-                  <span style={{fontSize:10,color:s.color,fontWeight:700}}>{s.label}</span>
-                  <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:'auto',fontFamily:'var(--mono)'}}>v{p.version}</span>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+      <div style={{display:'flex',flexDirection:'column',gap:16,height:'100%',minHeight:500}}>
+        <button onClick={()=>setSelected(null)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',alignSelf:'flex-start'}}>
+          ← Todas as propostas
+        </button>
 
         {/* Editor */}
         <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
