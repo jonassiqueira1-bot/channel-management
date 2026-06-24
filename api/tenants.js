@@ -40,8 +40,10 @@ module.exports = async function handler(req, res) {
     // 2. Criar organização em companies
     const { error: companyError } = await supabase.from('companies').insert({
       id: tenantId,
-      nome,
-      status: 'ativo',
+      tenant_id: tenantId,
+      name: nome,
+      type: 'ISV',
+      status: 'active',
       created_at: new Date().toISOString(),
     })
 
