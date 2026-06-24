@@ -1873,17 +1873,15 @@ function OppEquipeTab({ oppId }) {
 
   // Internos: settings:perfis_v2 (usuários do sistema ISV)
   const poolInternos = useMemo(() => {
-    const base = perfisStore.length > 0
-      ? perfisStore.filter(u => u.status !== 'inativo')
-      : []
-    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '' }))
+    const base = perfisStore.length > 0 ? perfisStore.filter(u => u.status !== 'inativo') : []
+    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '' }))
   }, [perfisStore])
 
   // Canal: useSellers() = página "Contatos Canais"
   const poolCanais = useMemo(() =>
     sellers
       .filter(u => u.status !== 'inativo' && u.status !== 'afastado')
-      .map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', franquia: u.franquia_nome || '' })),
+      .map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '', franquia: u.franquia_nome || '' })),
   [sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
@@ -1968,7 +1966,19 @@ function OppEquipeTab({ oppId }) {
         </div>
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo}</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
+            {u.cargo && <span>{u.cargo}</span>}
+            {u.telefone && <span style={{ fontFamily:'var(--mono)' }}>{u.telefone}</span>}
+            {u.email && <a href={`mailto:${u.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{u.email}</a>}
+            {u.linkedin_url && (
+              <a href={u.linkedin_url} target="_blank" rel="noreferrer" title="Abrir LinkedIn"
+                style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                  width:18, height:18, borderRadius:4, background:'#0A66C2',
+                  color:'#fff', textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+                in
+              </a>
+            )}
+          </div>
         </div>
         <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
           background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
@@ -2045,8 +2055,9 @@ function OppEquipeTab({ oppId }) {
                   </div>
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
                       {c.cargo && <span>{c.cargo}</span>}
+                      {c.email && <a href={`mailto:${c.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{c.email}</a>}
                       {waTel && (
                         <a href={`https://wa.me/55${waTel}`} target="_blank" rel="noreferrer"
                           title={`WhatsApp: ${c.whatsapp}`}
