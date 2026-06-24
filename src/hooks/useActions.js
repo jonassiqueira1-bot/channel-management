@@ -26,12 +26,14 @@ function rowToAcao(row) {
   }
 }
 
+function isUUID(v) { return typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v) }
+
 function acaoToRow(a, tenantId, branchId) {
   return {
     tenant_id:      tenantId,
     branch_id:      branchId || null,
     company_id:     null, // franquias vêm do localStorage, não do Supabase companies
-    owner_id:       a.responsavel_id || null,
+    owner_id:       isUUID(a.responsavel_id) ? a.responsavel_id : null,
     titulo:         a.titulo,
     tipo:           a.tipo || 'outros',
     status:         a.status || 'agendado',
