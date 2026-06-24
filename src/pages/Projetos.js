@@ -2186,6 +2186,535 @@ function FiltrosPopover({ open, onClose, filtros, setFiltros, projetos }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
+// PROPOSTAS DE IMPLANTAÇÃO
+// ═══════════════════════════════════════════════════════════════════════════════
+const PROPOSTAS_KEY = 'projects:propostas_v1'
+
+const PROP_STATUS_CFG = {
+  rascunho: { label: 'Rascunho',  bg: '#F3F4F6', color: '#374151', border: '#9CA3AF', dot: '#9CA3AF' },
+  enviada:  { label: 'Enviada',   bg: '#EFF6FF', color: '#1D4ED8', border: '#3B82F6', dot: '#3B82F6' },
+  aceita:   { label: 'Aceita',    bg: '#D1FAE5', color: '#065F46', border: '#10B981', dot: '#10B981' },
+  recusada: { label: 'Recusada',  bg: '#FEE2E2', color: '#991B1B', border: '#EF4444', dot: '#EF4444' },
+}
+const ASSIN_STATUS_CFG = {
+  pendente:  { label: 'Aguardando assinatura', color: '#F59E0B' },
+  enviada:   { label: 'Enviada p/ assinatura', color: '#3B82F6' },
+  concluida: { label: 'Assinada',              color: '#10B981' },
+  cancelada: { label: 'Cancelada',             color: '#EF4444' },
+}
+const PROP_ESC_STATUS = {
+  incluido: { label: 'Incluído', bg: '#D1FAE5', color: '#065F46', border: '#10B981' },
+  excluido: { label: 'Excluído', bg: '#FEE2E2', color: '#991B1B', border: '#EF4444' },
+  opcional: { label: 'Opcional', bg: '#FEF3C7', color: '#92400E', border: '#F59E0B' },
+}
+const PROP_TEMPLATES = [
+  { id: 'mit_padrao', label: 'MIT Padrão (6 fases)', escopo: [
+    { nome: 'Iniciação e Planejamento',      descricao: 'TAP, kickoff, levantamento de requisitos', horas: 30, status: 'incluido' },
+    { nome: 'Modelagem de Processos',        descricao: 'Mapeamento AS-IS / TO-BE',                 horas: 50, status: 'incluido' },
+    { nome: 'Configuração e Parametrização', descricao: 'Setup do sistema conforme processos',      horas: 80, status: 'incluido' },
+    { nome: 'Testes e Homologação',          descricao: 'Testes integrados com usuários-chave',     horas: 40, status: 'incluido' },
+    { nome: 'Treinamento',                   descricao: 'Capacitação de usuários finais',           horas: 20, status: 'incluido' },
+    { nome: 'Go-live e Encerramento',        descricao: 'Suporte à entrada em produção e TAF',     horas: 10, status: 'incluido' },
+  ]},
+  { id: 'express', label: 'Implantação Express', escopo: [
+    { nome: 'Kickoff e Configuração Rápida', descricao: 'Setup acelerado com template pré-configurado', horas: 20, status: 'incluido' },
+    { nome: 'Treinamento e Go-live',          descricao: 'Treinamento prático e entrada em produção',    horas: 16, status: 'incluido' },
+    { nome: 'Suporte pós go-live (30 dias)',  descricao: 'Acompanhamento remoto',                        horas: 8,  status: 'incluido' },
+  ]},
+  { id: 'custom', label: 'Personalizado (escopo em branco)', escopo: [] },
+]
+function propUid() { return `prop-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
+function escUid()  { return `esc-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
+function equUid()  { return `equ-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
+
+function propToWord(prop) {
+  const inc = (prop.escopo||[]).filter(e=>e.status==='incluido')
+  const exc = (prop.escopo||[]).filter(e=>e.status==='excluido')
+  const opt = (prop.escopo||[]).filter(e=>e.status==='opcional')
+  const totH = inc.reduce((s,e)=>s+Number(e.horas||0),0)
+  let md = `# Proposta de Implantação\n\n**Cliente:** ${prop.empresa_nome||'—'}\n**Oportunidade:** ${prop.opp_titulo||'—'}\n**Versão:** v${prop.version} · **Status:** ${PROP_STATUS_CFG[prop.status]?.label||prop.status}\n**Data:** ${new Date().toLocaleDateString('pt-BR')}\n\n---\n\n`
+  if (inc.length) {
+    md += `## Escopo de Implantação\n\n| Fase / Entrega | Descrição | Horas |\n|---|---|---|\n`
+    inc.forEach(e => { md += `| ${e.nome} | ${e.descricao||'—'} | ${e.horas?e.horas+'h':'—'} |\n` })
+    md += `\n**Total estimado: ${totH}h**\n\n`
+  }
+  if (opt.length) { md += `### Atividades Opcionais\n\n`; opt.forEach(e=>{md+=`- **${e.nome}**${e.descricao?' — '+e.descricao:''}${e.horas?' ('+e.horas+'h)':''}\n`}); md+='\n' }
+  if (exc.length) { md += `### Fora do Escopo\n\n`; exc.forEach(e=>{md+=`- ${e.nome}${e.descricao?' — '+e.descricao:''}\n`}); md+='\n' }
+  if ((prop.equipe||[]).length) {
+    md += `## Equipe Proposta\n\n| Profissional | Papel | Dedicação |\n|---|---|---|\n`
+    prop.equipe.forEach(m=>{md+=`| ${m.nome} | ${m.papel||'—'} | ${m.horas_semana?m.horas_semana+'h/sem':'—'} |\n`})
+    md += '\n'
+  }
+  if (prop.obs) md += `## Observações\n\n${prop.obs}\n\n`
+  md += `---\n\n## Assinatura\n\n**${prop.empresa_nome||'—'}**\n\n_________________________________\nCliente · Data: ___/___/______\n\n**Fornecedor**\n\n_________________________________\nResponsável · Data: ___/___/______\n`
+  return md
+}
+
+function downloadProposta(prop) {
+  const md = propToWord(prop)
+  const body = md
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/^# (.+)$/gm,'<h1>$1</h1>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^---$/gm,'<hr/>')
+    .replace(/^\| (.+) \|$/gm,(_,row)=>{const c=row.split(' | ');return '<tr>'+c.map(x=>x.startsWith('---')?'':` <td style="border:1px solid #ccc;padding:4px 8px">${x}</td>`).filter(Boolean).join('')+'</tr>'})
+    .replace(/(<tr>[\s\S]*?<\/tr>)/g,'<table style="border-collapse:collapse;width:100%">$1</table>')
+    .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,s=>'<ul>'+s+'</ul>')
+    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br/>')
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"/><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:2cm;color:#111}h1{font-size:18pt;color:#1a1a2e;border-bottom:2px solid #e5e7eb;padding-bottom:4pt}h2{font-size:14pt;color:#374151;margin-top:14pt}table{border-collapse:collapse;width:100%;margin:8pt 0}td,th{border:1px solid #d1d5db;padding:4pt 8pt;font-size:10pt}ul{padding-left:16pt}li{margin-bottom:3pt}p{margin:6pt 0;line-height:1.5}strong{font-weight:bold}hr{border:none;border-top:1px solid #e5e7eb;margin:10pt 0}</style></head><body><p>${body}</p></body></html>`
+  const blob=new Blob([html],{type:'application/msword'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${(prop.titulo||'Proposta').replace(/[^a-zA-Z0-9À-ú\s-]/g,'').trim()}.doc`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
+}
+
+function PropostasTab({ projetos, phases }) {
+  const [propostas, setPropostas] = useLocalState(PROPOSTAS_KEY, [])
+  const [selected,  setSelected]  = useState(null)
+  const [criando,   setCriando]   = useState(false)
+  const [propTab,   setPropTab]   = useState('escopo')
+  const [filterOpp, setFilterOpp] = useState('')
+  const [filterSt,  setFilterSt]  = useState('')
+  const [wStep,     setWStep]     = useState(1)
+  const [wOppId,    setWOppId]    = useState('')
+  const [wTemplId,  setWTemplId]  = useState('mit_padrao')
+  const [wTitulo,   setWTitulo]   = useState('')
+
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const o = p.get('opp_id')
+    if (o) { setFilterOpp(o); setWOppId(o) }
+  }, [])
+
+  const oppOptions = useMemo(() => {
+    const seen=new Set(); const list=[]
+    ;[...MOCK_OPORTUNIDADES_LISTA, ...projetos.filter(p=>p.opportunity_id).map(p=>({ id:p.opportunity_id, titulo:p.name, empresa_nome:p.company_nome }))].forEach(o=>{
+      const k=String(o.id); if(!seen.has(k)){seen.add(k);list.push(o)}
+    })
+    return list
+  }, [projetos])
+
+  const filtered = useMemo(() =>
+    propostas.filter(p=>(!filterOpp||String(p.opp_id)===filterOpp)&&(!filterSt||p.status===filterSt))
+      .sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at))
+  , [propostas, filterOpp, filterSt])
+
+  function salvar(prop) {
+    const up = { ...prop, updated_at: new Date().toISOString() }
+    setPropostas(prev=>{ const i=prev.findIndex(x=>x.id===up.id); if(i>=0){const n=[...prev];n[i]=up;return n}; return [...prev,up] })
+    setSelected(up)
+  }
+  function excluir(id) {
+    if(!window.confirm('Excluir esta proposta?')) return
+    setPropostas(prev=>prev.filter(p=>p.id!==id)); setSelected(null)
+  }
+  function criarProposta() {
+    const opp   = oppOptions.find(o=>String(o.id)===wOppId)
+    const templ = PROP_TEMPLATES.find(t=>t.id===wTemplId)||PROP_TEMPLATES[0]
+    const now   = new Date().toISOString()
+    const nova  = {
+      id:propUid(), titulo:wTitulo||`Proposta de Implantação — ${opp?.empresa_nome||''}`,
+      opp_id:wOppId, opp_titulo:opp?.titulo||'', empresa_nome:opp?.empresa_nome||'',
+      status:'rascunho', version:1, created_at:now, updated_at:now,
+      enviada_em:null, aceita_em:null,
+      assinatura_status:null, assinatura_plataforma:null, assinatura_url:null,
+      assinatura_enviada_em:null, assinatura_concluida_em:null,
+      escopo:templ.escopo.map(e=>({...e,id:escUid()})), equipe:[], obs:'',
+      log:[{id:`l-${Date.now()}`, evento:'Proposta criada', usuario:'Você', data:now}],
+    }
+    setPropostas(prev=>[...prev,nova]); setCriando(false); setSelected(nova); setPropTab('escopo')
+    setWStep(1); setWOppId(filterOpp||''); setWTemplId('mit_padrao'); setWTitulo('')
+  }
+
+  // ── Escopo editor ──
+  function EscopoEditor({ prop }) {
+    const [adding, setAdding] = useState(false)
+    const [draft,  setDraftI] = useState({ nome:'', descricao:'', horas:'' })
+    const projeto      = projetos.find(p=>p.opportunity_id===prop.opp_id)
+    const projetoPhases = projeto ? phases.filter(ph=>ph.project_id===projeto.id) : []
+    const totH = (prop.escopo||[]).filter(e=>e.status==='incluido').reduce((s,e)=>s+Number(e.horas||0),0)
+
+    function addItem() {
+      if(!draft.nome.trim()) return
+      salvar({...prop, escopo:[...(prop.escopo||[]),{id:escUid(),nome:draft.nome.trim(),descricao:draft.descricao.trim(),horas:draft.horas?Number(draft.horas):'',status:'incluido'}]})
+      setDraftI({nome:'',descricao:'',horas:''}); setAdding(false)
+    }
+    function removeItem(id) { salvar({...prop,escopo:prop.escopo.filter(e=>e.id!==id)}) }
+    function toggleStatus(id) {
+      salvar({...prop, escopo:prop.escopo.map(e=>{
+        if(e.id!==id) return e
+        const cy={incluido:'excluido',excluido:'opcional',opcional:'incluido'}
+        return {...e,status:cy[e.status]||'incluido'}
+      })})
+    }
+    function importarFases() {
+      if(!projetoPhases.length){alert('Nenhuma fase encontrada no projeto vinculado.');return}
+      const nomes=new Set((prop.escopo||[]).map(e=>e.nome))
+      const novos=projetoPhases.filter(ph=>!nomes.has(ph.phase_name)).map(ph=>({id:escUid(),nome:ph.phase_name,descricao:ph.start_date_planned&&ph.end_date_planned?`${ph.start_date_planned} → ${ph.end_date_planned}`:'',horas:ph.hours_estimated||'',status:'incluido'}))
+      if(!novos.length){alert('Todas as fases já estão no escopo.');return}
+      salvar({...prop,escopo:[...(prop.escopo||[]),...novos]})
+    }
+
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:8}}>
+          <span style={{fontSize:11,color:'var(--text-muted)'}}>
+            {(prop.escopo||[]).filter(e=>e.status==='incluido').length} itens incluídos · <strong>{totH}h estimadas</strong>
+          </span>
+          {projetoPhases.length>0 && (
+            <button onClick={importarFases} style={{padding:'5px 12px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface2)',color:'var(--text-soft)',fontSize:11,cursor:'pointer',fontFamily:'var(--font)'}}>
+              Importar fases do Cronograma MIT
+            </button>
+          )}
+        </div>
+        {(prop.escopo||[]).map(item=>{
+          const sc=PROP_ESC_STATUS[item.status]||PROP_ESC_STATUS.incluido
+          return (
+            <div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--surface)',border:`1px solid ${sc.border}33`,borderRadius:8,borderLeft:`3px solid ${sc.border}`}}>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{item.nome}</div>
+                {item.descricao&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:1}}>{item.descricao}</div>}
+              </div>
+              {item.horas!==''&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{item.horas}h</span>}
+              <button onClick={()=>toggleStatus(item.id)} style={{fontSize:10,padding:'2px 8px',borderRadius:10,border:`1px solid ${sc.border}`,background:sc.bg,color:sc.color,cursor:'pointer',fontWeight:700,flexShrink:0,fontFamily:'var(--font)'}}>
+                {sc.label}
+              </button>
+              <button onClick={()=>removeItem(item.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,padding:'2px 4px',flexShrink:0}}
+                onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+            </div>
+          )
+        })}
+        {(prop.escopo||[]).length===0&&!adding&&<div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum item. Adicione manualmente ou importe as fases do projeto vinculado.</div>}
+        {adding&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 12px',background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:8}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 80px',gap:8}}>
+              <input autoFocus value={draft.nome} onChange={e=>setDraftI(d=>({...d,nome:e.target.value}))} onKeyDown={e=>{if(e.key==='Enter')addItem();if(e.key==='Escape')setAdding(false)}} placeholder="Nome da entrega / fase" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+              <input value={draft.horas} onChange={e=>setDraftI(d=>({...d,horas:e.target.value}))} placeholder="Horas" type="number" min="0" style={{padding:'6px 8px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+            </div>
+            <input value={draft.descricao} onChange={e=>setDraftI(d=>({...d,descricao:e.target.value}))} placeholder="Descrição (opcional)" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}/>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={addItem} style={{padding:'5px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Adicionar</button>
+              <button onClick={()=>setAdding(false)} style={{padding:'5px 12px',background:'none',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>Cancelar</button>
+            </div>
+          </div>
+        )}
+        {!adding&&<button onClick={()=>setAdding(true)} style={{alignSelf:'flex-start',padding:'5px 12px',background:'none',border:'1px dashed var(--border)',borderRadius:6,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>+ Adicionar item</button>}
+      </div>
+    )
+  }
+
+  // ── Equipe editor ──
+  function EquipeEditor({ prop }) {
+    const [adding, setAdding] = useState(false)
+    const [draft,  setDraftE] = useState({ nome:'', papel:'', horas_semana:'' })
+    function addM() {
+      if(!draft.nome.trim()) return
+      salvar({...prop, equipe:[...(prop.equipe||[]),{id:equUid(),nome:draft.nome.trim(),papel:draft.papel.trim(),horas_semana:draft.horas_semana?Number(draft.horas_semana):''}]})
+      setDraftE({nome:'',papel:'',horas_semana:''}); setAdding(false)
+    }
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:10}}>
+        {(prop.equipe||[]).map(m=>(
+          <div key={m.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:8}}>
+            <div style={{width:32,height:32,borderRadius:'50%',background:'var(--accent-glow)',border:'1px solid var(--accent)44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'var(--accent)',flexShrink:0}}>{m.nome.charAt(0).toUpperCase()}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{m.nome}</div>
+              {m.papel&&<div style={{fontSize:11,color:'var(--text-muted)'}}>{m.papel}</div>}
+            </div>
+            {m.horas_semana!==''&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{m.horas_semana}h/sem</span>}
+            <button onClick={()=>salvar({...prop,equipe:prop.equipe.filter(x=>x.id!==m.id)})} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,padding:'2px 4px',flexShrink:0}}
+              onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+          </div>
+        ))}
+        {(prop.equipe||[]).length===0&&!adding&&<div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum membro adicionado.</div>}
+        {adding&&(
+          <div style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 12px',background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:8}}>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 80px',gap:8}}>
+              <input autoFocus value={draft.nome} onChange={e=>setDraftE(d=>({...d,nome:e.target.value}))} placeholder="Nome" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+              <input value={draft.papel} onChange={e=>setDraftE(d=>({...d,papel:e.target.value}))} placeholder="Papel / cargo" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+              <input value={draft.horas_semana} onChange={e=>setDraftE(d=>({...d,horas_semana:e.target.value}))} placeholder="h/sem" type="number" min="0" style={{padding:'6px 8px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+            </div>
+            <div style={{display:'flex',gap:8}}>
+              <button onClick={addM} style={{padding:'5px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Adicionar</button>
+              <button onClick={()=>setAdding(false)} style={{padding:'5px 12px',background:'none',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>Cancelar</button>
+            </div>
+          </div>
+        )}
+        {!adding&&<button onClick={()=>setAdding(true)} style={{alignSelf:'flex-start',padding:'5px 12px',background:'none',border:'1px dashed var(--border)',borderRadius:6,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>+ Adicionar membro</button>}
+      </div>
+    )
+  }
+
+  // ── Painel de assinatura eletrônica ──
+  function AssinaturaPanel({ prop }) {
+    const [plat, setPlat] = useState(prop.assinatura_plataforma||'')
+    const [url,  setUrl]  = useState(prop.assinatura_url||'')
+    const st = prop.assinatura_status ? ASSIN_STATUS_CFG[prop.assinatura_status] : null
+
+    function salvarAssin() {
+      const now=new Date().toISOString()
+      salvar({...prop, assinatura_plataforma:plat||null, assinatura_url:url||null,
+        assinatura_status: url?'enviada':prop.assinatura_status,
+        assinatura_enviada_em: url&&!prop.assinatura_enviada_em?now:prop.assinatura_enviada_em,
+      })
+    }
+
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:14}}>
+        <div style={{padding:'12px 16px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:10}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#1D4ED8',marginBottom:4}}>Assinatura Eletrônica</div>
+          <div style={{fontSize:11,color:'#3B82F6',lineHeight:1.6}}>
+            Integre com D4Sign, ClickSign ou DocuSign. Cole o link de assinatura gerado na plataforma escolhida. Recomendamos D4Sign ou ClickSign para validade jurídica plena no Brasil (ICP-Brasil).
+          </div>
+        </div>
+        {st&&(
+          <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:st.color,flexShrink:0}}/>
+            <span style={{fontSize:12,fontWeight:600,color:st.color}}>{st.label}</span>
+            {prop.assinatura_concluida_em&&<span style={{fontSize:11,color:'var(--text-muted)',marginLeft:'auto'}}>Concluída em {new Date(prop.assinatura_concluida_em).toLocaleDateString('pt-BR')}</span>}
+          </div>
+        )}
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <div>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:4}}>Plataforma</div>
+            <select value={plat} onChange={e=>setPlat(e.target.value)} style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}>
+              <option value="">Selecionar plataforma…</option>
+              {[['d4sign','D4Sign'],['clicksign','ClickSign'],['docusign','DocuSign'],['adobe','Adobe Sign'],['outro','Outro']].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:4}}>URL do documento para assinatura</div>
+            <input value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://app.d4sign.com.br/desk/…" style={{width:'100%',padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}/>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <button onClick={salvarAssin} style={{padding:'7px 16px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Salvar</button>
+            {prop.assinatura_status==='enviada'&&(
+              <button onClick={()=>salvar({...prop,assinatura_status:'concluida',assinatura_concluida_em:new Date().toISOString()})} style={{padding:'7px 16px',background:'#10B981',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Marcar como Assinada</button>
+            )}
+            {prop.assinatura_url&&<a href={prop.assinatura_url} target="_blank" rel="noreferrer" style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,fontSize:12,color:'var(--text-soft)',textDecoration:'none',display:'flex',alignItems:'center'}}>Abrir link ↗</a>}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Detail view ──
+  if (selected) {
+    const sc = PROP_STATUS_CFG[selected.status]||PROP_STATUS_CFG.rascunho
+    const seqNext = {rascunho:'enviada',enviada:'aceita'}
+
+    function avancar() {
+      const next=seqNext[selected.status]; if(!next) return
+      const now=new Date().toISOString()
+      const log={id:`l-${Date.now()}`,evento:`Status → ${PROP_STATUS_CFG[next].label}`,usuario:'Você',data:now}
+      salvar({...selected,status:next,
+        enviada_em:next==='enviada'?now:selected.enviada_em,
+        aceita_em:next==='aceita'?now:selected.aceita_em,
+        version:selected.version+(next==='enviada'?1:0),
+        log:[...(selected.log||[]),log],
+      })
+    }
+    function recusar() {
+      if(!window.confirm('Marcar como Recusada?')) return
+      const now=new Date().toISOString()
+      salvar({...selected,status:'recusada',log:[...(selected.log||[]),{id:`l-${Date.now()}`,evento:'Status → Recusada',usuario:'Você',data:now}]})
+    }
+
+    return (
+      <div style={{display:'flex',gap:20,height:'100%',minHeight:500}}>
+        {/* Sidebar */}
+        <div style={{width:240,flexShrink:0,display:'flex',flexDirection:'column',gap:8,overflowY:'auto'}}>
+          <button onClick={()=>setSelected(null)} style={{display:'flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',marginBottom:4}}>
+            ← Todas as propostas
+          </button>
+          {filtered.map(p=>{
+            const s=PROP_STATUS_CFG[p.status]||PROP_STATUS_CFG.rascunho
+            return (
+              <div key={p.id} onClick={()=>{setSelected(p);setPropTab('escopo')}} style={{padding:'10px 12px',borderRadius:9,border:`1px solid ${p.id===selected.id?'var(--accent)':'var(--border2)'}`,background:p.id===selected.id?'var(--accent-glow)':'var(--surface)',cursor:'pointer'}}>
+                <div style={{fontSize:12,fontWeight:600,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{p.titulo}</div>
+                <div style={{fontSize:10,color:'var(--text-muted)',marginTop:2}}>{p.empresa_nome}</div>
+                <div style={{display:'flex',alignItems:'center',gap:5,marginTop:5}}>
+                  <span style={{width:6,height:6,borderRadius:'50%',background:s.dot,flexShrink:0}}/>
+                  <span style={{fontSize:10,color:s.color,fontWeight:700}}>{s.label}</span>
+                  <span style={{fontSize:10,color:'var(--text-muted)',marginLeft:'auto',fontFamily:'var(--mono)'}}>v{p.version}</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Editor */}
+        <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
+          <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+            <div style={{flex:1,minWidth:200}}>
+              <input value={selected.titulo} onChange={e=>salvar({...selected,titulo:e.target.value})}
+                style={{fontSize:18,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
+              <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>{selected.empresa_nome} · {selected.opp_titulo} · v{selected.version}</div>
+            </div>
+            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
+              <span style={{fontSize:11,padding:'4px 10px',borderRadius:20,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.label}</span>
+              {seqNext[selected.status]&&(
+                <button onClick={avancar} style={{padding:'6px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+                  {selected.status==='rascunho'?'Enviar →':'Marcar Aceita →'}
+                </button>
+              )}
+              {selected.status==='enviada'&&<button onClick={recusar} style={{padding:'6px 12px',background:'none',border:'1px solid #EF444455',color:'#EF4444',borderRadius:7,fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>Recusar</button>}
+              <button onClick={()=>downloadProposta(selected)} style={{padding:'6px 12px',border:'1px solid var(--border)',borderRadius:7,background:'none',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>↓ Word</button>
+              <button onClick={()=>excluir(selected.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16,padding:'4px 6px'}}
+                onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>🗑</button>
+            </div>
+          </div>
+
+          <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)',alignSelf:'flex-start'}}>
+            {['escopo','equipe','assinatura','historico'].map(t=>(
+              <button key={t} onClick={()=>setPropTab(t)} style={{padding:'6px 16px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:propTab===t?700:500,fontFamily:'var(--font)',background:propTab===t?'var(--surface)':'none',color:propTab===t?'var(--text)':'var(--text-muted)',boxShadow:propTab===t?'0 1px 3px rgba(0,0,0,0.12)':'none'}}>
+                {{escopo:'Escopo',equipe:'Equipe',assinatura:'Assinatura',historico:'Histórico'}[t]}
+              </button>
+            ))}
+          </div>
+
+          {propTab==='escopo'    && <EscopoEditor    prop={selected}/>}
+          {propTab==='equipe'    && <EquipeEditor    prop={selected}/>}
+          {propTab==='assinatura'&& <AssinaturaPanel prop={selected}/>}
+          {propTab==='historico' && (
+            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+              {!(selected.log||[]).length&&<div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum evento registrado.</div>}
+              {[...(selected.log||[])].reverse().map((l,i)=>(
+                <div key={l.id||i} style={{padding:'8px 12px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:8}}>
+                  <div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{l.evento}</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{l.usuario} · {l.data?new Date(l.data).toLocaleString('pt-BR'):''}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
+  // ── List view ──
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:16}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+          <select value={filterOpp} onChange={e=>setFilterOpp(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
+            <option value="">Todas as oportunidades</option>
+            {oppOptions.map(o=><option key={o.id} value={String(o.id)}>{o.empresa_nome} — {o.titulo}</option>)}
+          </select>
+          <select value={filterSt} onChange={e=>setFilterSt(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
+            <option value="">Todos os status</option>
+            {Object.entries(PROP_STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <button onClick={()=>setCriando(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+          + Nova Proposta
+        </button>
+      </div>
+
+      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+        {[
+          {label:'Total',    value:propostas.length,                                        color:'var(--border)'},
+          {label:'Enviadas', value:propostas.filter(p=>p.status==='enviada').length,        color:'#3B82F6'},
+          {label:'Aceitas',  value:propostas.filter(p=>p.status==='aceita').length,         color:'#10B981'},
+          {label:'Assinadas',value:propostas.filter(p=>p.assinatura_status==='concluida').length, color:'var(--accent)'},
+        ].map(m=>(
+          <div key={m.label} style={{background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'12px 16px',borderTop:`3px solid ${m.color}`}}>
+            <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:4}}>{m.label}</div>
+            <div style={{fontSize:22,fontWeight:800,color:'var(--text)'}}>{m.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {filtered.length===0?(
+        <div style={{textAlign:'center',padding:'60px 0',color:'var(--text-muted)'}}>
+          <div style={{fontSize:32,marginBottom:12}}>📋</div>
+          <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>Nenhuma proposta ainda</div>
+          <div style={{fontSize:12}}>Clique em "+ Nova Proposta" para começar</div>
+        </div>
+      ):(
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          {filtered.map(prop=>{
+            const sc=PROP_STATUS_CFG[prop.status]||PROP_STATUS_CFG.rascunho
+            const asst=prop.assinatura_status?ASSIN_STATUS_CFG[prop.assinatura_status]:null
+            const inclH=(prop.escopo||[]).filter(e=>e.status==='incluido').reduce((s,e)=>s+Number(e.horas||0),0)
+            return (
+              <div key={prop.id} onClick={()=>{setSelected(prop);setPropTab('escopo')}}
+                style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:10,cursor:'pointer',borderLeft:`4px solid ${sc.border}`,transition:'box-shadow 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow='0 2px 12px rgba(0,0,0,0.08)'}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{prop.titulo}</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:3}}>{prop.empresa_nome} · {prop.opp_titulo} · {inclH}h estimadas · v{prop.version}</div>
+                </div>
+                <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
+                  {asst&&<span style={{fontSize:10,padding:'2px 8px',borderRadius:10,background:'#EFF6FF',color:asst.color,fontWeight:600}}>{asst.label}</span>}
+                  <span style={{fontSize:11,padding:'3px 10px',borderRadius:10,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.label}</span>
+                  <span style={{fontSize:11,color:'var(--text-muted)',fontFamily:'var(--mono)'}}>{prop.updated_at?new Date(prop.updated_at).toLocaleDateString('pt-BR'):''}</span>
+                  <span style={{fontSize:12,color:'var(--accent)',fontWeight:600}}>Editar →</span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {criando&&(
+        <>
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:1199}} onClick={()=>setCriando(false)}/>
+          <div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1200,width:520,maxWidth:'95vw',background:'var(--surface)',borderRadius:14,boxShadow:'0 16px 56px rgba(0,0,0,0.22)',overflow:'hidden'}}>
+            <div style={{padding:'16px 20px 12px',borderBottom:'1px solid var(--border)'}}>
+              <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Nova Proposta de Implantação</div>
+              <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Passo {wStep} de 2</div>
+            </div>
+            <div style={{padding:'20px',display:'flex',flexDirection:'column',gap:14}}>
+              {wStep===1&&(
+                <>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Oportunidade vinculada *</div>
+                    <select value={wOppId} onChange={e=>setWOppId(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}>
+                      <option value="">Selecionar oportunidade…</option>
+                      {oppOptions.map(o=><option key={o.id} value={String(o.id)}>{o.empresa_nome} — {o.titulo}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Template de escopo</div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      {PROP_TEMPLATES.map(t=>(
+                        <label key={t.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',border:`1px solid ${wTemplId===t.id?'var(--accent)':'var(--border)'}`,borderRadius:8,cursor:'pointer',background:wTemplId===t.id?'var(--accent-glow)':'var(--surface)'}}>
+                          <input type="radio" checked={wTemplId===t.id} onChange={()=>setWTemplId(t.id)} style={{marginTop:2}}/>
+                          <div>
+                            <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{t.label}</div>
+                            {t.escopo.length>0&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{t.escopo.length} fases pré-definidas</div>}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+              {wStep===2&&(
+                <div>
+                  <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Título da proposta</div>
+                  <input autoFocus value={wTitulo} onChange={e=>setWTitulo(e.target.value)}
+                    placeholder={`Proposta de Implantação — ${oppOptions.find(o=>String(o.id)===wOppId)?.empresa_nome||''}`}
+                    style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}/>
+                </div>
+              )}
+            </div>
+            <div style={{padding:'12px 20px 16px',borderTop:'1px solid var(--border2)',display:'flex',justifyContent:'space-between'}}>
+              <button onClick={()=>wStep===1?setCriando(false):setWStep(1)} style={{padding:'7px 16px',background:'none',border:'1px solid var(--border)',borderRadius:7,fontSize:13,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
+                {wStep===1?'Cancelar':'← Voltar'}
+              </button>
+              {wStep===1?(
+                <button onClick={()=>wOppId?setWStep(2):alert('Selecione uma oportunidade.')} style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Próximo →</button>
+              ):(
+                <button onClick={criarProposta} style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Criar proposta</button>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
@@ -2197,6 +2726,14 @@ export default function Projetos() {
   const [filtrosOpen,  setFiltrosOpen] = useState(false)
   const [dragId,       setDragId]      = useState(null)
   const [tab,       setTab]       = useLocalState('projetos:tab', 'projetos')
+
+  // Handle ?tab=propostas URL param from Pipeline "Abrir em Projetos →" link
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search)
+    const t = p.get('tab')
+    if (t && ['propostas','recursos','financeiro','fechamento'].includes(t)) setTab(t)
+  }, []) // eslint-disable-line
+
   const [search,    setSearch]    = useLocalState('projetos:search', '')
   const [sortBy,    setSortBy]    = useLocalState('projetos:sortBy', 'recente')
   const [viewMode,  setViewMode]  = useLocalState('projetos:viewMode', 'kanban')
@@ -2342,7 +2879,7 @@ export default function Projetos() {
 
         {/* Page header */}
         <div style={pg.pageHeader}>
-          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : 'Projetos de Implantação'}</h1>
+          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}</h1>
           {tab === 'projetos' && (
             <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
           )}
@@ -2356,7 +2893,7 @@ export default function Projetos() {
           zIndex: 200, display: 'flex', gap: 2,
           background: 'var(--surface)', borderRadius: 10, padding: 3,
           border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-          {[{ id: 'projetos', label: 'Projetos' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
+          {[{ id: 'projetos', label: 'Projetos' }, { id: 'propostas', label: 'Propostas' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
                 fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
@@ -2373,6 +2910,7 @@ export default function Projetos() {
         {tab === 'fechamento' && <FechamentoHoras embedded />}
         {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
         {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
+        {tab === 'propostas'  && <PropostasTab projetos={projetos} phases={phases} />}
 
         {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
@@ -2383,7 +2921,7 @@ export default function Projetos() {
         </div>}
 
         {/* Toolbar — igual Pipeline */}
-        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro') ? 'none' : undefined }}>
+        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro' || tab === 'propostas') ? 'none' : undefined }}>
 
           {/* ── Esquerda ── */}
           <div style={pg.tbLeft}>
@@ -2468,7 +3006,7 @@ export default function Projetos() {
         </div>
 
         {/* Contagem */}
-        <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro') ? 'none' : undefined }}>
+        <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro' || tab === 'propostas') ? 'none' : undefined }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
             {filtered.length} projeto{filtered.length !== 1 ? 's' : ''} encontrado{filtered.length !== 1 ? 's' : ''}
           </span>
@@ -2476,7 +3014,7 @@ export default function Projetos() {
       </div>
 
       {/* Kanban ou Lista */}
-      {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && viewMode === 'kanban' ? (
+      {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' && viewMode === 'kanban' ? (
         <div style={{ flex: 1, overflowX: 'auto', overflowY: 'hidden', padding: '12px 28px 16px' }}>
           <div style={{ display: 'flex', gap: 12, height: '100%' }}>
             {FASES_MIT.map(fase => (
@@ -2495,7 +3033,7 @@ export default function Projetos() {
             ))}
           </div>
         </div>
-      ) : tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' ? (
+      ) : tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' ? (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
