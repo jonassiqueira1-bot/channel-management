@@ -324,8 +324,8 @@ export default function FechamentoHoras({ embedded = false }) {
                       <div key={log.id} style={{ display: 'flex', gap: 12, padding: '10px 16px',
                         borderBottom: i < logs.length - 1 ? '1px solid var(--border2)' : 'none',
                         background: isLocked ? '#D1FAE508' : 'transparent' }}>
-                        <div style={{ width: 36, flexShrink: 0, textAlign: 'center',
-                          fontSize: 11, color: 'var(--text-muted)', paddingTop: 2 }}>
+                        <div style={{ width: 72, flexShrink: 0,
+                          fontSize: 11, color: 'var(--text-muted)', paddingTop: 2, whiteSpace: 'nowrap' }}>
                           {fmtDate(log.logged_at)}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
