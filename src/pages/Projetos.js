@@ -397,9 +397,10 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const [saved, setSaved] = useState(false)
   const [oppSearch, setOppSearch] = useState('')
   const [showOppPicker, setShowOppPicker] = useState(false)
-  const [memberName, setMemberName] = useState('')
+  const [memberUserId, setMemberUserId] = useState('')
   const [memberRole, setMemberRole] = useState('Consultor')
   const oppPickerRef = useRef(null)
+  const [perfisStore] = useLocalState('settings:perfis_v2', [])
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
   const myMembers = members.filter(m => m.project_id === projeto.id)
@@ -436,9 +437,12 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
     onUpdateOpp(projeto.id, null)
   }
   function handleAddMember() {
-    if (!memberName.trim()) return
-    onAddMember({ id: 'mb_' + Date.now(), project_id: projeto.id, tenant_id: 't1', name: memberName.trim(), role: memberRole })
-    setMemberName('')
+    if (!memberUserId) return
+    const u = perfisStore.find(p => p.id === memberUserId) || MOCK_USUARIOS.find(p => p.id === memberUserId)
+    if (!u) return
+    if (myMembers.some(m => m.user_id === memberUserId)) return
+    onAddMember({ id: 'mb_' + Date.now(), project_id: projeto.id, tenant_id: 't1', user_id: memberUserId, name: u.nome, role: memberRole })
+    setMemberUserId('')
     setMemberRole('Consultor')
   }
 
@@ -455,7 +459,12 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
           </FormGrid>
           <FormGrid cols={2}>
             <FormField label="Empresa cliente">
-              <input className="so-field" value={form.company_nome || ''} onChange={set('company_nome')} placeholder="Nexus Tech" />
+              <EmpresaSearch
+                value={form.company_nome || ''}
+                label={form.company_nome || ''}
+                onChange={({ nome, id }) => setForm(f => ({ ...f, company_nome: nome, company_id: id }))}
+                placeholder="Buscar empresa cliente…"
+              />
             </FormField>
             <FormField label="Canal / Franquia">
               <input className="so-field" value={form.franchise_nome || ''} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
@@ -616,7 +625,12 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', paddingTop: 4 }}>
             <div style={{ ...ms.fg, flex: 2 }}>
               <label style={ms.lbl}>Nome</label>
-              <input style={{ ...ms.inp, fontSize: 12 }} value={memberName} onChange={e => setMemberName(e.target.value)} placeholder="Nome do membro" onKeyDown={e => e.key === 'Enter' && handleAddMember()} />
+              <select style={{ ...ms.inp, fontSize: 12 }} value={memberUserId} onChange={e => setMemberUserId(e.target.value)}>
+                <option value="">— Selecionar usuário —</option>
+                {(perfisStore.length > 0 ? perfisStore : MOCK_USUARIOS)
+                  .filter(u => u.status !== 'inativo' && !myMembers.some(m => m.user_id === u.id))
+                  .map(u => <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : ''}</option>)}
+              </select>
             </div>
             <div style={{ ...ms.fg, flex: 1.5 }}>
               <label style={ms.lbl}>Papel</label>
