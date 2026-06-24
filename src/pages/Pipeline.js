@@ -1997,13 +1997,15 @@ function OppEquipeTab({ oppId }) {
             {u.cargo && <span>{u.cargo}</span>}
             {u.telefone && <span style={{ fontFamily:'var(--mono)' }}>{u.telefone}</span>}
             {u.email && <a href={`mailto:${u.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{u.email}</a>}
+            {u.whatsapp && (
+              <CopyChip value={u.whatsapp} href={`https://wa.me/55${u.whatsapp.replace(/\D/g,'')}`} label={u.whatsapp} bg="#25D366">
+                💬
+              </CopyChip>
+            )}
             {u.linkedin_url && (
-              <a href={u.linkedin_url} target="_blank" rel="noreferrer" title="Abrir LinkedIn"
-                style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                  width:18, height:18, borderRadius:4, background:'#0A66C2',
-                  color:'#fff', textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+              <CopyChip value={u.linkedin_url} href={u.linkedin_url} label={u.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\//,'')} bg="#0A66C2">
                 in
-              </a>
+              </CopyChip>
             )}
           </div>
         </div>
