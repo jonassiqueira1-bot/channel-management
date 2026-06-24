@@ -1871,20 +1871,20 @@ function OppEquipeTab({ oppId }) {
   const { sellers }   = useSellers()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-  // Pool separado: ISV (sem franquia) e Canal (com franquia)
+  // Internos: settings:perfis_v2 (usuários do sistema ISV)
   const poolInternos = useMemo(() => {
     const base = perfisStore.length > 0
-      ? perfisStore.filter(u => u.status !== 'inativo' && !u.franquia_id)
-      : sellers.filter(u => u.status !== 'inativo' && !u.franquia_id && !u.franquia_nome)
-    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '' }))
-  }, [perfisStore, sellers])
+      ? perfisStore.filter(u => u.status !== 'inativo')
+      : []
+    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '' }))
+  }, [perfisStore])
 
-  const poolCanais = useMemo(() => {
-    const base = perfisStore.length > 0
-      ? perfisStore.filter(u => u.status !== 'inativo' && u.franquia_id)
-      : sellers.filter(u => u.status !== 'inativo' && (u.franquia_id || u.franquia_nome))
-    return base.map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', franquia: u.franquia_nome || '' }))
-  }, [perfisStore, sellers])
+  // Canal: useSellers() = página "Contatos Canais"
+  const poolCanais = useMemo(() =>
+    sellers
+      .filter(u => u.status !== 'inativo' && u.status !== 'afastado')
+      .map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', franquia: u.franquia_nome || '' })),
+  [sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
   const poolContatos = useMemo(() =>
