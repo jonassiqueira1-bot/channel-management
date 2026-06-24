@@ -2696,7 +2696,8 @@ function PropostasTab({ projetos, phases, opps = [] }) {
   const [wTitulo,      setWTitulo]      = useState('')
   const [wVars,        setWVars]        = useState({})      // regras variáveis wizard
   const [tmplTab,      setTmplTab]      = useState('wbs')
-  const [tmplSaved,    setTmplSaved]    = useState(false)   // feedback visual de salvo
+  const [tmplSaved,    setTmplSaved]    = useState(false)
+  const [propSaved,    setPropSaved]    = useState(false)
   const [importing,    setImporting]    = useState(false)
   const [importTmplId, setImportTmplId] = useState(null)
   const [collapsedPhases, setCollapsedPhases] = useState({})
@@ -2723,10 +2724,11 @@ function PropostasTab({ projetos, phases, opps = [] }) {
   , [propostas, filterOpp, filterSt])
 
   // ── Proposal CRUD ──
-  function salvar(prop) {
+  function salvar(prop, showFeedback = false) {
     const up = { ...prop, updated_at: new Date().toISOString() }
     setPropostas(prev=>{ const i=prev.findIndex(x=>x.id===up.id); if(i>=0){const n=[...prev];n[i]=up;return n}; return [...prev,up] })
     setSelected(up)
+    if (showFeedback) { setPropSaved(true); setTimeout(() => setPropSaved(false), 2000) }
   }
   function excluir(id) {
     if(!window.confirm('Excluir esta proposta?')) return
@@ -3253,16 +3255,16 @@ function PropostasTab({ projetos, phases, opps = [] }) {
     }
 
     return (
-      <div style={{display:'flex',flexDirection:'column',gap:16,height:'100%',minHeight:500}}>
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
         <button onClick={()=>setSelected(null)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',alignSelf:'flex-start'}}>
           ← Todas as propostas
         </button>
 
         {/* Editor */}
-        <div style={{flex:1,minWidth:0,display:'flex',flexDirection:'column',gap:16,overflowY:'auto'}}>
+        <div style={{minWidth:0,display:'flex',flexDirection:'column',gap:16}}>
           <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
             <div style={{flex:1,minWidth:200}}>
-              <input value={selected.titulo} onChange={e=>salvar({...selected,titulo:e.target.value})}
+              <input value={selected.titulo} onChange={e=>setSelected(s=>({...s,titulo:e.target.value}))}
                 style={{fontSize:18,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
               <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>{selected.empresa_nome} · {selected.opp_titulo} · v{selected.version}
                 {calcInvestimento(selected.itens||[], selected.tarifas||[]) > 0 && (
@@ -3272,8 +3274,12 @@ function PropostasTab({ projetos, phases, opps = [] }) {
             </div>
             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
               <span style={{fontSize:11,padding:'4px 10px',borderRadius:20,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.label}</span>
+              <button onClick={()=>salvar(selected,true)}
+                style={{padding:'6px 16px',background:propSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:72}}>
+                {propSaved ? '✓ Salvo' : 'Salvar'}
+              </button>
               {seqNext[selected.status]&&(
-                <button onClick={avancar} style={{padding:'6px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+                <button onClick={avancar} style={{padding:'6px 14px',background:'none',color:'var(--accent)',border:'1px solid var(--accent)55',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
                   {selected.status==='rascunho'?'Enviar →':'Marcar Aceita →'}
                 </button>
               )}
@@ -4169,7 +4175,6 @@ export default function Projetos() {
         {tab === 'fechamento' && <FechamentoHoras embedded />}
         {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
         {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
-        {tab === 'propostas'  && <PropostasTab projetos={projetos} phases={phases} opps={opps} />}
 
         {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
@@ -4271,6 +4276,13 @@ export default function Projetos() {
           </span>
         </div>
       </div>
+
+      {/* Propostas — área scrollável própria */}
+      {tab === 'propostas' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+          <PropostasTab projetos={projetos} phases={phases} opps={opps} />
+        </div>
+      )}
 
       {/* Kanban ou Lista */}
       {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' && viewMode === 'kanban' ? (
