@@ -3,10 +3,11 @@ import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-r
 import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
-  MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO, MOCK_OPORTUNIDADES_LISTA,
+  MOCK_PROJECT_ATTACHMENTS, MOCK_OPP_HISTORICO,
 } from '../data/mockProjetos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useProjects } from '../hooks/useProjects'
+import { useOpportunities } from '../hooks/useOpportunities'
 import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import Button from '../components/Button'
@@ -402,17 +403,19 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const oppPickerRef = useRef(null)
   const [perfisStore] = useLocalState('settings:perfis_v2', [])
 
+  const { opps: allOpps } = useOpportunities()
+
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
   const myMembers = members.filter(m => m.project_id === projeto.id)
-  const linkedOpp = MOCK_OPORTUNIDADES_LISTA.find(o => o.id === form.opportunity_id)
-  const oppDetail = form.opportunity_id ? MOCK_OPP_HISTORICO[form.opportunity_id] : null
+  const linkedOpp = allOpps.find(o => String(o.id) === String(form.opportunity_id))
+  const oppDetail = null // dados históricos não disponíveis via API real
 
   const filteredOpps = oppSearch.trim()
-    ? MOCK_OPORTUNIDADES_LISTA.filter(o =>
-        o.titulo.toLowerCase().includes(oppSearch.toLowerCase()) ||
-        o.empresa.toLowerCase().includes(oppSearch.toLowerCase())
+    ? allOpps.filter(o =>
+        (o.titulo||'').toLowerCase().includes(oppSearch.toLowerCase()) ||
+        (o.empresa_nome||'').toLowerCase().includes(oppSearch.toLowerCase())
       )
-    : MOCK_OPORTUNIDADES_LISTA
+    : allOpps
 
   useEffect(() => {
     if (!showOppPicker) return
@@ -536,7 +539,7 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
                     >
                       <div>
                         <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{opp.titulo}</div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{opp.empresa}</div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{opp.empresa_nome}</div>
                       </div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', flexShrink: 0 }}>
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 }).format(opp.valor_total)}
@@ -2597,7 +2600,7 @@ function downloadProposta(prop) {
   const blob=new Blob([html],{type:'application/msword'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${(prop.titulo||'Proposta').replace(/[^a-zA-Z0-9À-ú\s-]/g,'').trim()}.doc`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
 }
 
-function PropostasTab({ projetos, phases }) {
+function PropostasTab({ projetos, phases, opps = [] }) {
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
   const [subView,      setSubView]      = useState('propostas') // 'propostas' | 'templates'
@@ -2629,11 +2632,11 @@ function PropostasTab({ projetos, phases }) {
 
   const oppOptions = useMemo(() => {
     const seen=new Set(); const list=[]
-    ;[...MOCK_OPORTUNIDADES_LISTA, ...projetos.filter(p=>p.opportunity_id).map(p=>({ id:p.opportunity_id, titulo:p.name, empresa_nome:p.company_nome }))].forEach(o=>{
+    ;[...opps, ...projetos.filter(p=>p.opportunity_id).map(p=>({ id:p.opportunity_id, titulo:p.name, empresa_nome:p.company_nome }))].forEach(o=>{
       const k=String(o.id); if(!seen.has(k)){seen.add(k);list.push(o)}
     })
     return list
-  }, [projetos])
+  }, [opps, projetos])
 
   const filtered = useMemo(() =>
     propostas.filter(p=>(!filterOpp||String(p.opp_id)===filterOpp)&&(!filterSt||p.status===filterSt))
@@ -3836,6 +3839,7 @@ function PropostasTab({ projetos, phases }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
   const { projetos, phases, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
+  const { opps } = useOpportunities()
   const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
   const [modal,        setModal]       = useState(null)
   const [drawer,       setDrawer]      = useState(null)
@@ -4027,7 +4031,7 @@ export default function Projetos() {
         {tab === 'fechamento' && <FechamentoHoras embedded />}
         {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
         {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
-        {tab === 'propostas'  && <PropostasTab projetos={projetos} phases={phases} />}
+        {tab === 'propostas'  && <PropostasTab projetos={projetos} phases={phases} opps={opps} />}
 
         {tab === 'projetos' && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
