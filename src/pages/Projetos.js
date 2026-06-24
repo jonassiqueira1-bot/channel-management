@@ -1100,15 +1100,18 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
 }
 
 // ─── Tab 2: Timesheet ─────────────────────────────────────────────────────────
-function TabTimesheet({ projeto, phases, timeLogs, onAddLog }) {
+function TabTimesheet({ projeto, phases, timeLogs, members, onAddLog }) {
   const myPhases   = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
   const myLogs     = timeLogs.filter(l => l.project_id === projeto.id).sort((a, b) => b.logged_at.localeCompare(a.logged_at))
   const currentPhId = `ph_${projeto.id}_${projeto.current_phase_index}`
 
+  const myMembers = (members || []).filter(m => m.project_id === projeto.id)
+
   const [profiles] = useLocalState('usuarios:profiles', [])
-  const usuarios = profiles.length > 0
-    ? profiles.filter(p => p.status !== 'inativo')
-    : MOCK_USUARIOS
+  const todosUsuarios = profiles.length > 0 ? profiles.filter(p => p.status !== 'inativo') : MOCK_USUARIOS
+  const usuarios = myMembers.length > 0
+    ? myMembers.map(m => ({ id: m.user_id || m.id, nome: m.name, cargo: m.role, avatar: m.name?.[0] }))
+    : todosUsuarios
 
   const [form, setForm] = useState({
     phase_id: currentPhId,
@@ -1711,7 +1714,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
         {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
         {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} />}
-        {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} onAddLog={onAddLog} />}
+        {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} members={members} onAddLog={onAddLog} />}
         {tab === 'financeiro' && <TabFinanceiro projeto={projeto} timeLogs={timeLogs} onUpdate={onUpdate} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
