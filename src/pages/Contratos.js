@@ -1,8 +1,9 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useContracts } from '../hooks/useContracts'
+import { useAuditLog } from '../hooks/useAuditLog'
 import { useProducts } from '../hooks/useProducts'
-import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import EmpresaSearch from '../components/EmpresaSearch'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
@@ -531,14 +532,15 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         </FormGrid>
         <FormGrid cols={1}>
           <FormField label="Empresa" required error={errs.empresa_id}>
-            <select className="so-field" value={form.empresa_id || ''} onChange={e => {
-              const emp = MOCK_EMPRESAS.find(x => x.id === Number(e.target.value))
-              setForm(f => ({ ...f, empresa_id: e.target.value ? Number(e.target.value) : null, empresa_nome: emp ? (emp.fantasia || emp.razao) : '' }))
-              if (errs.empresa_id) setErrs(p => ({ ...p, empresa_id: '' }))
-            }} style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
-              <option value="">— Selecione —</option>
-              {MOCK_EMPRESAS.map(e => <option key={e.id} value={e.id}>{e.fantasia || e.razao}</option>)}
-            </select>
+            <EmpresaSearch
+              value={form.empresa_id}
+              label={form.empresa_nome}
+              onChange={(id, nome) => {
+                setForm(f => ({ ...f, empresa_id: id, empresa_nome: nome }))
+                if (errs.empresa_id) setErrs(p => ({ ...p, empresa_id: '' }))
+              }}
+              style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}
+            />
           </FormField>
           {form.opportunity_id && (
             <FormField label="Oportunidade de origem">
@@ -759,6 +761,7 @@ function getInadimplentesIds() {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
   const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts(MOCK_CONTRATOS)
+  const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const [search, setSearch]           = useState('')
   const [activeFilters, setActiveFilters] = useState({})
@@ -804,11 +807,15 @@ export default function Contratos() {
   )
 
   async function handleSave(data) {
+    const isNew = !contratos.find(c => c.id === data.id)
     await saveContrato(data)
+    log(isNew ? 'criar' : 'editar', 'contrato', data.id, { descricao: `Contrato ${isNew ? 'criado' : 'editado'}: ${data.numero || ''} — ${data.empresa_nome || ''}` })
   }
 
   async function handleDelete(id) {
+    const c = contratos.find(x => x.id === id)
     await removeContrato(id)
+    log('excluir', 'contrato', id, { descricao: `Contrato excluído: ${c?.numero || id}` })
     setEditando(null)
   }
 

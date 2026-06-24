@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useProducts } from '../hooks/useProducts'
+import { useAuditLog } from '../hooks/useAuditLog'
 import Button from '../components/Button'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
@@ -312,6 +313,7 @@ export default function Produtos() {
   const [search, setSearch] = useLocalState('produtos:search', '')
   const [categorias, setCategorias] = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
   const { produtos, save: saveProduto, remove: deleteProduto, importMany: importProdutos } = useProducts()
+  const { registrar: log } = useAuditLog()
   const { sections: pdSections, fieldById: pdFieldById } = useFormLayout('products')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
@@ -348,13 +350,18 @@ export default function Produtos() {
     }
     if (Object.keys(e).length) { setErrs(e); return }
     const codigo = form.codigo.trim().toUpperCase()
-    saveProduto({ ...form, codigo, id: editando === 'novo' ? Date.now() : editando.id })
+    const isNew = editando === 'novo'
+    const saved = { ...form, codigo, id: isNew ? Date.now() : editando.id }
+    saveProduto(saved)
+    log(isNew ? 'criar' : 'editar', 'produto', saved.id, { descricao: `Produto ${isNew ? 'criado' : 'editado'}: ${saved.nome} (${saved.codigo})` })
     setEditando(null)
     setErrs({})
   }
 
   function handleDelete(id) {
+    const p = produtos.find(x => x.id === id)
     deleteProduto(id)
+    log('excluir', 'produto', id, { descricao: `Produto excluído: ${p?.nome || id}` })
     setEditando(null)
   }
 

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
+import { useCampanhas } from '../../hooks/useCampanhas'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -562,25 +563,27 @@ const SEEDS = [
 ]
 
 export default function Campanhas() {
-  const [campanhas, setCampanhas] = useLocalState('settings:campanhas_v1', SEEDS)
+  const { campanhas, save: saveCampanha, remove: removeCampanha } = useCampanhas(SEEDS)
+  const { registrar: log } = useAuditLog()
   const [wizard, setWizard]       = useState(null)
   const [search, setSearch]       = useState('')
   const [importModal, setImportModal] = useState(false)
 
   function handleSave(c) {
-    setCampanhas(prev => {
-      const exists = prev.find(x => x.id === c.id)
-      return exists ? prev.map(x => x.id === c.id ? c : x) : [c, ...prev]
-    })
+    const isNew = !campanhas.find(x => x.id === c.id)
+    saveCampanha(c)
+    log(isNew ? 'criar' : 'editar', 'campanha', c.id, { descricao: `Campanha ${isNew ? 'criada' : 'editada'}: ${c.nome || c.titulo || ''}` })
     setWizard(null)
   }
 
   function handleDelete(id) {
-    setCampanhas(prev => prev.filter(c => c.id !== id))
+    const c = campanhas.find(x => x.id === id)
+    removeCampanha(id)
+    log('excluir', 'campanha', id, { descricao: `Campanha excluída: ${c?.nome || c?.titulo || id}` })
   }
 
   function handleImport(rows) {
-    setCampanhas(prev => [...prev, ...rows])
+    rows.forEach(r => saveCampanha(r))
   }
 
   function exportCSV() {

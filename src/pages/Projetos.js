@@ -17,6 +17,7 @@ import EmpresaSearch from '../components/EmpresaSearch'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import ActionFeedback from '../components/ActionFeedback'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 const ACCENT = 'var(--accent)'
 
@@ -3995,6 +3996,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
   const { projetos, phases, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
+  const { registrar: log } = useAuditLog()
   const { opps } = useOpportunities()
   const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
   const [modal,        setModal]       = useState(null)
@@ -4103,6 +4105,7 @@ export default function Projetos() {
   // CRUD
   async function handleCreate(form) {
     const np = { ...form, id: 'prj_' + Date.now(), tenant_id: 't1', company_id: null, franchise_id: null, created_at: new Date().toISOString().slice(0, 10) }
+    log('criar', 'projeto', np.id, { descricao: `Projeto criado: ${np.name || np.nome || ''}` })
 
     // tenta usar proposta vinculada à oportunidade
     const proposta   = propostaParaOpp(form.opportunity_id)
@@ -4180,7 +4183,9 @@ export default function Projetos() {
   }, [execTotals, savePhase, saveProjeto, setProjetos])
 
   async function handleDelete(id) {
+    const p = projetos.find(x => x.id === id)
     await removeProjeto(id)
+    log('excluir', 'projeto', id, { descricao: `Projeto excluído: ${p?.name || p?.nome || id}` })
     setDrawer(null)
   }
 

@@ -34,6 +34,7 @@ import SettingsEmpresa from './pages/settings/Empresa'
 import SettingsPerfis from './pages/Perfis'
 import SettingsForms from './pages/settings/Forms'
 import SettingsIntegracoes from './pages/settings/Integracoes'
+import SettingsLogs from './pages/settings/Logs'
 import MyAccount from './pages/MyAccount'
 import Produtos from './pages/Produtos'
 import Questionarios from './pages/Questionarios'
@@ -95,7 +96,7 @@ export default function App() {
               <Route path="tipos-acoes"  element={<SettingsTiposAcao />} />
               <Route path="integracoes"  element={<SettingsIntegracoes />} />
               <Route path="forms"        element={<SettingsForms />} />
-              <Route path="logs"         element={<SettingsPage title="Logs"                  description="Histórico de eventos e auditoria do sistema." />} />
+              <Route path="logs"         element={<SettingsLogs />} />
               <Route path="campanhas"    element={<SettingsCampanhas />} />
               <Route path="franquias"    element={<SettingsParceiros />} />
               <Route path="indicadores"  element={<SettingsIndicadores />} />

@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import { useAuditLog } from '../hooks/useAuditLog'
 import { useFunnels } from '../hooks/useFunnels'
 import { useProducts } from '../hooks/useProducts'
 import { useDocuments } from '../hooks/useDocuments'
@@ -325,7 +326,7 @@ function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
 }
 
 // ─── New / Edit Playbook SlideOver ───────────────────────────────────────────
-const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [] }
+const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [], tipo: 'vendas' }
 
 function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [], produtos = [] }) {
   const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
@@ -393,6 +394,12 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                 <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
                   placeholder="Ex: Boostly Pro — Vendas para SaaS/ISV"
                   style={{ borderColor: errs.title ? '#DC2626' : '' }} />
+              </FormField>
+              <FormField label="Tipo de uso" required>
+                <select className="so-field" value={form.tipo || 'vendas'} onChange={e => set('tipo', e.target.value)}>
+                  <option value="vendas">Vendas (Pipeline / Oportunidades)</option>
+                  <option value="sucesso">Sucesso do Cliente (Check-ins)</option>
+                </select>
               </FormField>
               <FormField label="Segmento">
                 <select className="so-field" value={form.segment} onChange={e => set('segment', e.target.value)}>
@@ -1166,6 +1173,7 @@ export default function Playbooks() {
   const isISV = USE_PROFILE === 'isv'
 
   const { playbooks, steps, refs, resources, save: savePb, remove: deletePb, setPlaybooks, setSteps, setRefs, setResources } = usePlaybooks()
+  const { registrar: log } = useAuditLog()
   const { funis }    = useFunnels()
   const { produtos } = useProducts()
 
@@ -1181,9 +1189,11 @@ export default function Playbooks() {
   const pbResources = useMemo(() => resources.filter(r => r.playbook_id === selectedPb?.id), [resources, selectedPb])
 
   async function savePlaybook(form) {
+    const isNew = !playbooks.find(p => p.id === form.id)
     const result = await savePb(form)
     if (result?.ok === false) { alert('Erro ao salvar playbook: ' + result.message); return }
     if (form.id && selectedPb?.id === form.id) setSelectedPb(p => ({ ...p, ...form }))
+    log(isNew ? 'criar' : 'editar', 'playbook', form.id, { descricao: `Playbook ${isNew ? 'criado' : 'editado'}: ${form.title || form.nome || ''}` })
     setModal(null)
   }
 
@@ -1310,7 +1320,9 @@ export default function Playbooks() {
         produtos={produtos || []}
         onDelete={modal?.data?.id ? (id) => {
           if (!window.confirm('Excluir este playbook? Esta ação não pode ser desfeita.')) return
+          const pb = playbooks.find(p => p.id === id)
           deletePb(id); setSelectedPb(null); setModal(null)
+          log('excluir', 'playbook', id, { descricao: `Playbook excluído: ${pb?.title || pb?.nome || id}` })
         } : undefined}
       />
       <StepSlideOver

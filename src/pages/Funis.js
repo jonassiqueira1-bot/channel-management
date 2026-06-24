@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFunnels } from '../hooks/useFunnels'
+import { useAuditLog } from '../hooks/useAuditLog'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
 
@@ -167,6 +168,7 @@ const EMPTY_FUNIL = {
 
 export default function Funis() {
   const { funis, save: saveFunil, remove: deleteFunil } = useFunnels()
+  const { registrar: log } = useAuditLog()
   const [search, setSearch] = useLocalState('funis:search', '')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
@@ -192,12 +194,17 @@ export default function Funis() {
     if (!form.nome.trim()) return
     if (form.etapas.length === 0) return alert('O funil precisa ter ao menos uma etapa')
     if (form.etapas.some(e => !e.nome.trim())) return alert('Todas as etapas precisam ter um nome')
-    saveFunil({ ...form, nome: form.nome.trim(), id: editando === 'novo' ? novoId() : editando.id })
+    const isNew = editando === 'novo'
+    const saved = { ...form, nome: form.nome.trim(), id: isNew ? novoId() : editando.id }
+    saveFunil(saved)
+    log(isNew ? 'criar' : 'editar', 'funil', saved.id, { descricao: `Funil ${isNew ? 'criado' : 'editado'}: ${saved.nome}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
+    const f = funis.find(x => x.id === id)
     deleteFunil(id)
+    log('excluir', 'funil', id, { descricao: `Funil excluído: ${f?.nome || id}` })
     setEditando(null)
   }
 

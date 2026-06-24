@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
+import { useHabilitacoes } from '../../hooks/useHabilitacoes'
 import { MOCK_PRODUTOS } from '../../data/mockProdutos'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
@@ -42,7 +43,8 @@ function ProdutoBadge({ produto }) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 export default function Habilitacoes() {
-  const [habilitacoes, setHabilitacoes] = useLocalState('settings:habilitacoes_v3', [])
+  const { habilitacoes, save: saveHab, remove: removeHab } = useHabilitacoes()
+  const { registrar: log } = useAuditLog()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
   const [search, setSearch]     = useState('')
@@ -77,21 +79,18 @@ export default function Habilitacoes() {
 
   function handleSave() {
     if (!form.nome.trim() || nomeErr) return
-    const data = {
-      ...form,
-      nome: form.nome.trim(),
-      produto_id: form.produto_id !== '' ? Number(form.produto_id) : null,
-    }
-    if (editando !== 'novo') {
-      setHabilitacoes(prev => prev.map(h => h.id === editando.id ? { ...h, ...data } : h))
-    } else {
-      setHabilitacoes(prev => [...prev, { ...data, id: uid() }])
-    }
+    const data = { ...form, nome: form.nome.trim(), produto_id: form.produto_id !== '' ? Number(form.produto_id) : null }
+    const isNew = editando === 'novo'
+    const id = isNew ? uid() : editando.id
+    saveHab({ ...data, id })
+    log(isNew ? 'criar' : 'editar', 'habilitacao', id, { descricao: `Habilitação ${isNew ? 'criada' : 'editada'}: ${data.nome}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
-    setHabilitacoes(prev => prev.filter(h => h.id !== id))
+    const h = habilitacoes.find(x => x.id === id)
+    removeHab(id)
+    log('excluir', 'habilitacao', id, { descricao: `Habilitação excluída: ${h?.nome || id}` })
     setEditando(null)
   }
 

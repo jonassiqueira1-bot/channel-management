@@ -22,6 +22,7 @@ import { useContracts } from '../hooks/useContracts'
 import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import Button from '../components/Button'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 // ─── Tipos de alvo ────────────────────────────────────────────────────────────
 const TIPOS_ALVO = {
@@ -1087,6 +1088,7 @@ function KpiCard({ label, value, accent, sub, mono }) {
 
 export default function Metas() {
   const { goals, save: saveGoals, remove: deleteGoal } = useGoals()
+  const { registrar: log } = useAuditLog()
   const { produtos: produtosStore } = useProducts()
   const { contratos: todosContratos } = useContracts()
 
@@ -1258,10 +1260,16 @@ export default function Metas() {
     : 'Responsável'
 
   // ── CRUD ────────────────────────────────────────────────────────────────
-  function handleSave(records) { saveGoals(records); setModal(null) }
+  function handleSave(records) {
+    saveGoals(records)
+    log('editar', 'meta', records[0]?.id || 'batch', { descricao: `Metas salvas (${records.length} registro${records.length !== 1 ? 's' : ''})` })
+    setModal(null)
+  }
   function handleDelete(id) {
     if (!window.confirm('Excluir esta meta?')) return
+    const g = goals.find(x => x.id === id)
     deleteGoal(id)
+    log('excluir', 'meta', id, { descricao: `Meta excluída: ${g?.titulo || id}` })
   }
 
   // Fechar popovers ao abrir outro

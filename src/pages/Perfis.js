@@ -1,5 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useAuditLog } from '../hooks/useAuditLog'
+import { usePerfisAcesso } from '../hooks/usePerfisAcesso'
 import {
   ShieldCheck, ShieldAlert, Eye, Pencil, Trash2, Download,
   Upload, Users, BarChart2, Target, Zap, Settings2, FileText,
@@ -342,8 +344,8 @@ function Toggle({ value, onChange, disabled }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Perfis() {
-  const [perfis, setPerfis]         = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [perms, setPerms]           = useLocalState('perfis:permissions', buildSeedPerms())
+  const { perfis, perms, savePerfil, savePerms, remove: removePerfil } = usePerfisAcesso(PERFIS_NATIVOS_SEED, buildSeedPerms())
+  const { registrar: log } = useAuditLog()
   const [editando, setEditando]     = useState(null)  // perfil obj | 'novo'
   const [formNovo, setFormNovo]     = useState({ nome: '', cor: PALETA[0], desc: '' })
   const [franquias]                 = useLocalState('settings:franquias_v2', [])
@@ -355,36 +357,36 @@ export default function Perfis() {
   const rolePerms = perfil ? (perms[perfil.id] || {}) : {}
 
   function toggle(modulo, acao) {
-    setPerms(prev => ({
-      ...prev,
-      [perfil.id]: { ...prev[perfil.id], [modulo]: { ...prev[perfil.id]?.[modulo], [acao]: !prev[perfil.id]?.[modulo]?.[acao] } },
-    }))
+    const cur = perms[perfil.id] || {}
+    const updated = { ...cur, [modulo]: { ...cur[modulo], [acao]: !cur[modulo]?.[acao] } }
+    savePerms(perfil.id, updated)
   }
 
   function setAllInModule(moduloId, value) {
     const mod = MODULOS.find(m => m.id === moduloId)
     if (!mod) return
     const next = {}; mod.acoes.forEach(a => { next[a.id] = value })
-    setPerms(prev => ({ ...prev, [perfil.id]: { ...prev[perfil.id], [moduloId]: next } }))
+    const cur = perms[perfil.id] || {}
+    savePerms(perfil.id, { ...cur, [moduloId]: next })
   }
 
   function setAll(value) {
     const next = {}
     MODULOS.forEach(mod => { next[mod.id] = {}; mod.acoes.forEach(a => { next[mod.id][a.id] = value }) })
-    setPerms(prev => ({ ...prev, [perfil.id]: next }))
+    savePerms(perfil.id, next)
   }
 
   function resetRole() {
     const seed = buildSeedPerms()
-    setPerms(prev => ({ ...prev, [perfil.id]: seed[perfil.id] || emptyPerms() }))
+    savePerms(perfil.id, seed[perfil.id] || emptyPerms())
   }
 
   function handleCriar() {
     if (!formNovo.nome.trim()) return
     const id = `custom_${Date.now()}`
     const novo = { id, slug: id, nome: formNovo.nome.trim(), nativo: false, cor: formNovo.cor, icon: 'Shield', desc: formNovo.desc.trim() || 'Perfil personalizado', franquia_ids: formNovo.franquia_ids || [] }
-    setPerfis(prev => [...prev, novo])
-    setPerms(prev => ({ ...prev, [id]: emptyPerms() }))
+    savePerfil(novo, emptyPerms())
+    log('criar', 'perfil_acesso', id, { descricao: `Perfil de acesso criado: ${novo.nome}` })
     setEditando(novo)
   }
 
@@ -399,14 +401,15 @@ export default function Perfis() {
     setEditando(prev => {
       const ids = prev.franquia_ids || []
       const next = { ...prev, franquia_ids: ids.includes(fid) ? ids.filter(x => x !== fid) : [...ids, fid] }
-      setPerfis(p => p.map(p2 => p2.id === next.id ? next : p2))
+      savePerfil(next, perms[next.id])
       return next
     })
   }
 
   function handleDeletar(id) {
-    setPerfis(prev => prev.filter(p => p.id !== id))
-    setPerms(prev => { const n = { ...prev }; delete n[id]; return n })
+    const p = perfis.find(x => x.id === id)
+    removePerfil(id)
+    log('excluir', 'perfil_acesso', id, { descricao: `Perfil de acesso excluído: ${p?.nome || id}` })
     setConfirmDel(null); setEditando(null)
   }
 
@@ -509,17 +512,17 @@ export default function Perfis() {
             <FPESection title="Identificação">
               <FPEField label="Nome" style={{ gridColumn: '1/-1' }}>
                 <input className="fpe-field" value={editando.nome}
-                  onChange={e => { const n = { ...editando, nome: e.target.value }; setEditando(n); setPerfis(prev => prev.map(p => p.id === n.id ? n : p)) }} />
+                  onChange={e => { const n = { ...editando, nome: e.target.value }; setEditando(n); savePerfil(n, perms[n.id]) }} />
               </FPEField>
               <FPEField label="Descrição" style={{ gridColumn: '1/-1' }}>
                 <input className="fpe-field" value={editando.desc || ''}
-                  onChange={e => { const n = { ...editando, desc: e.target.value }; setEditando(n); setPerfis(prev => prev.map(p => p.id === n.id ? n : p)) }} />
+                  onChange={e => { const n = { ...editando, desc: e.target.value }; setEditando(n); savePerfil(n, perms[n.id]) }} />
               </FPEField>
               <FPEField label="Cor" style={{ gridColumn: '1/-1' }}>
                 <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
                   {PALETA.map(c => (
                     <button key={c} type="button"
-                      onClick={() => { const n = { ...editando, cor: c }; setEditando(n); setPerfis(prev => prev.map(p => p.id === n.id ? n : p)) }}
+                      onClick={() => { const n = { ...editando, cor: c }; setEditando(n); savePerfil(n, perms[n.id]) }}
                       style={{ width: 28, height: 28, borderRadius: '50%', background: c, border: 'none', cursor: 'pointer', outline: editando.cor === c ? `3px solid ${c}` : '3px solid transparent', outlineOffset: 2 }} />
                   ))}
                 </div>

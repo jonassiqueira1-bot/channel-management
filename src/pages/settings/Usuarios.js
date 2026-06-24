@@ -1,5 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
+import { useUsuarios } from '../../hooks/useUsuarios'
 import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
@@ -918,7 +920,8 @@ function ImportModal({ onClose, onImport }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsUsuarios() {
-  const [perfis, setPerfis]      = useLocalState('settings:perfis_v2', [])
+  const { usuarios: perfis, save: saveUsuario, remove: removeUsuario } = useUsuarios()
+  const { registrar: log } = useAuditLog()
   const sessao                   = SESSOES_MOCK[0]
   const [modalConvite, setModalConvite] = useState(false)
   const [modalImport, setModalImport]   = useState(false)
@@ -931,15 +934,15 @@ export default function SettingsUsuarios() {
   const lista = perfisFiltradosSessao
 
   function salvarPerfil(novo) {
-    setPerfis(prev => {
-      const idx = prev.findIndex(p => p.id === novo.id)
-      if (idx >= 0) { const a = [...prev]; a[idx] = novo; return a }
-      return [...prev, novo]
-    })
+    const isNew = !perfis.find(p => p.id === novo.id)
+    saveUsuario(novo)
+    log(isNew ? 'criar' : 'editar', 'usuario', novo.id, { descricao: `Usuário ${isNew ? 'criado' : 'editado'}: ${novo.nome || novo.email || ''}` })
   }
 
   function deletarPerfil(id) {
-    setPerfis(prev => prev.filter(p => p.id !== id))
+    const p = perfis.find(x => x.id === id)
+    removeUsuario(id)
+    log('excluir', 'usuario', id, { descricao: `Usuário excluído: ${p?.nome || p?.email || id}` })
   }
 
   const podeCriar = sessao.papel === 'admin_isv' || sessao.papel === 'admin_franquia'
@@ -1006,7 +1009,7 @@ export default function SettingsUsuarios() {
       {modalImport && (
         <ImportModal
           onClose={() => setModalImport(false)}
-          onImport={novos => setPerfis(prev => [...prev, ...novos])}
+          onImport={novos => novos.forEach(u => saveUsuario(u))}
         />
       )}
       {modalConvite && (

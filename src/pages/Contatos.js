@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useContacts } from '../hooks/useContacts'
+import { useAuditLog } from '../hooks/useAuditLog'
 import { useCompanies } from '../hooks/useCompanies'
 import Button from '../components/Button'
 import EmpresaSearch from '../components/EmpresaSearch'
@@ -192,7 +193,18 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
 
 // ─── Página principal ──────────────────────────────────────────────────────────
 export default function Contatos() {
-  const { contacts: contatos, save: salvarContato, remove: deletarContato } = useContacts()
+  const { contacts: contatos, save: salvarContatoBase, remove: deletarContatoBase } = useContacts()
+  const { registrar: log } = useAuditLog()
+  function salvarContato(c) {
+    const isNew = !contatos.find(x => x.id === c.id)
+    salvarContatoBase(c)
+    log(isNew ? 'criar' : 'editar', 'contato', c.id, { descricao: `Contato ${isNew ? 'criado' : 'editado'}: ${c.nome || c.email || ''}` })
+  }
+  function deletarContato(id) {
+    const c = contatos.find(x => x.id === id)
+    deletarContatoBase(id)
+    log('excluir', 'contato', id, { descricao: `Contato excluído: ${c?.nome || c?.email || id}` })
+  }
   const { companies } = useCompanies()
   const [modal, setModal] = useState(null)   // null | 'novo' | contato-obj
 

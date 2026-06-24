@@ -9,7 +9,10 @@ import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import {
   MOCK_CUSTOMER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
-import { HeartPulse, Plus, Trash2, Circle, CheckCircle2, Paperclip, Download, X } from 'lucide-react'
+import { HeartPulse, Plus, Trash2, Circle, CheckCircle2, Paperclip, Download, X, AlertTriangle } from 'lucide-react'
+import { PB_STORAGE_KEY } from '../data/mockPlaybooks'
+import { useAuditLog } from '../hooks/useAuditLog'
+import { useCustomerHealth } from '../hooks/useCustomerHealth'
 
 const ACCENT = 'var(--accent)'
 
@@ -259,22 +262,37 @@ function ActionPlanBlock({ plans, onChange }) {
 }
 
 // ─── Check-in Timeline ────────────────────────────────────────────────────────
-function CheckinBlock({ checkins, onChange, produtos = [] }) {
+function CheckinBlock({ checkins, onChange, produtos = [], onAddActionPlans }) {
   const [form, setForm] = useState(null)
   const [dupErr, setDupErr] = useState('')
   const TYPES = ['Reunião', 'Ligação', 'E-mail', 'Visita', 'QBR']
+
+  const [allPlaybooks] = useLocalState(PB_STORAGE_KEY, [])
+  const csPlaybooks = useMemo(() => allPlaybooks.filter(p => p.tipo === 'sucesso'), [allPlaybooks])
 
   function addCheckin() {
     if (!form?.summary?.trim()) return
     const date = form.date || new Date().toISOString().slice(0, 10)
     const produto_id = form.produto_id || null
-    if (produto_id) {
-      const dup = checkins.find(c => c.produto_id === produto_id)
-      if (dup) { setDupErr(`Já existe um check-in para este produto neste cliente. Edite o existente ou escolha outro produto.`); return }
-    }
     setDupErr('')
-    onChange([{ id: cidFn(), date, type: form.type || 'Reunião', summary: form.summary,
-      produto_id, produto_nome: form.produto_nome || '' }, ...checkins])
+    const checkin = { id: cidFn(), date, type: form.type || 'Reunião', summary: form.summary,
+      produto_id, produto_nome: form.produto_nome || '',
+      playbook_id: form.playbook_id || null, playbook_nome: form.playbook_nome || '' }
+    onChange([checkin, ...checkins])
+    // gera Action Plans a partir dos steps do playbook selecionado
+    if (form.playbook_id && onAddActionPlans) {
+      const pb = csPlaybooks.find(p => String(p.id) === String(form.playbook_id))
+      const steps = pb?.steps || []
+      if (steps.length) {
+        const novos = steps.map(s => ({
+          id: aidFn(),
+          text: s.title || s.texto || String(s),
+          done: false,
+          origem: `Playbook: ${pb.title}`,
+        }))
+        onAddActionPlans(novos)
+      }
+    }
     setForm(null)
   }
 
@@ -311,6 +329,19 @@ function CheckinBlock({ checkins, onChange, produtos = [] }) {
                 }}>
                 <option value="">— Nenhum —</option>
                 {produtos.map(p => <option key={p.produto_id} value={p.produto_id}>{p.nome}</option>)}
+              </select>
+            </div>
+          )}
+          {csPlaybooks.length > 0 && (
+            <div>
+              <label style={LBL}>Playbook de CS (opcional — gera Action Plans)</label>
+              <select style={INPUT} value={form.playbook_id || ''}
+                onChange={e => {
+                  const pb = csPlaybooks.find(p => String(p.id) === e.target.value)
+                  setForm(f => ({ ...f, playbook_id: e.target.value || null, playbook_nome: pb?.title || '' }))
+                }}>
+                <option value="">— Nenhum —</option>
+                {csPlaybooks.map(p => <option key={p.id} value={String(p.id)}>{p.title}</option>)}
               </select>
             </div>
           )}
@@ -593,8 +624,10 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
               value={form.contract_id || ''}
               onChange={e => {
                 const c = contratos.find(c => String(c.id) === e.target.value)
-                patch('contract_id', e.target.value || null)
-                patch('contract_numero', c?.numero || '')
+                const updates = { contract_id: e.target.value || null, contract_numero: c?.numero || '' }
+                const next = { ...form, ...updates }
+                setForm(next)
+                if (!isNew) onSave({ ...next, id: item.id })
               }}>
               <option value="">— Nenhum —</option>
               {contratosEmpresa.map(c => (
@@ -644,6 +677,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
               checkins={form.checkins || []}
               onChange={checkins => patch('checkins', checkins)}
               produtos={produtosContrato}
+              onAddActionPlans={novos => patch('action_plans', [...(form.action_plans || []), ...novos])}
             />
           </FormSection>
 
@@ -725,7 +759,8 @@ const FILTERS = [
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function CustomerSuccess() {
-  const [records, setRecords]           = useLocalState(STORAGE_KEY, MOCK_CUSTOMER_HEALTH)
+  const { records, setRecords, save: saveHealth, remove: removeHealth } = useCustomerHealth()
+  const { registrar: log } = useAuditLog()
   const [search, setSearch]             = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [modal, setModal]               = useState(null)  // null | 'novo' | record-obj
@@ -748,15 +783,15 @@ export default function CustomerSuccess() {
   }, [records, search, activeFilters])
 
   function save(updated) {
-    setRecords(prev => {
-      const idx = prev.findIndex(r => r.id === updated.id)
-      if (idx >= 0) { const a = [...prev]; a[idx] = updated; return a }
-      return [...prev, updated]
-    })
+    const isNew = !records.find(r => r.id === updated.id)
+    saveHealth(updated)
+    log(isNew ? 'criar' : 'editar', 'customer_success', updated.id, { descricao: `CS ${isNew ? 'criado' : 'editado'}: ${updated.company_name || ''}` })
   }
 
   function remove(id) {
-    setRecords(prev => prev.filter(r => r.id !== id))
+    const r = records.find(x => x.id === id)
+    removeHealth(id)
+    log('excluir', 'customer_success', id, { descricao: `CS excluído: ${r?.company_name || id}` })
     setModal(null)
   }
 
@@ -825,6 +860,121 @@ export default function CustomerSuccess() {
     </div>
   )
 
+  // Renovações em risco (vencimento ≤ 90 dias e score < 70 OU qualquer vencimento ≤ 30 dias)
+  const renovacoesAlerta = useMemo(() => {
+    const hoje = new Date()
+    return records
+      .filter(r => {
+        if (!r.renewal_date) return false
+        const dias = Math.ceil((new Date(r.renewal_date) - hoje) / (1000 * 60 * 60 * 24))
+        return (dias >= 0 && dias <= 30) || (dias >= 0 && dias <= 90 && r.health_score < 70)
+      })
+      .sort((a, b) => new Date(a.renewal_date) - new Date(b.renewal_date))
+  }, [records])
+
+  // Score por produto (média dos health_scores de todos os check-ins vinculados a esse produto)
+  const scorePorProduto = useMemo(() => {
+    const map = {}
+    records.forEach(r => {
+      ;(r.checkins || []).forEach(ci => {
+        if (!ci.produto_id) return
+        if (!map[ci.produto_id]) map[ci.produto_id] = { nome: ci.produto_nome || ci.produto_id, scores: [], checkins: 0 }
+        map[ci.produto_id].scores.push(r.health_score)
+        map[ci.produto_id].checkins++
+      })
+    })
+    return Object.entries(map).map(([id, d]) => ({
+      produto_id: id,
+      nome: d.nome,
+      score: Math.round(d.scores.reduce((s, v) => s + v, 0) / d.scores.length),
+      total_checkins: d.checkins,
+    })).sort((a, b) => a.score - b.score)
+  }, [records])
+
+  const renovacoesNode = renovacoesAlerta.length > 0 && (
+    <div style={{ background: 'var(--surface)', border: '1px solid #FCA5A5', borderRadius: 10,
+      padding: '12px 16px', marginTop: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+        <AlertTriangle size={14} style={{ color: '#DC2626', flexShrink: 0 }} />
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#DC2626' }}>
+          Renovações em alerta ({renovacoesAlerta.length})
+        </span>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {renovacoesAlerta.map(r => {
+          const dias = Math.ceil((new Date(r.renewal_date) - new Date()) / (1000 * 60 * 60 * 24))
+          const { color } = healthColor(r.health_score)
+          const urgente = dias <= 30
+          return (
+            <div key={r.id} onClick={() => setModal(r)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 10px',
+                background: urgente ? '#FEF2F2' : 'var(--surface2)', borderRadius: 7,
+                border: `1px solid ${urgente ? '#FCA5A5' : 'var(--border)'}`, cursor: 'pointer' }}>
+              <HealthRing score={r.health_score} size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {r.company_name}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{r.csm || '—'}</div>
+              </div>
+              <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: urgente ? '#DC2626' : '#D97706', fontFamily: 'var(--mono)' }}>
+                  {fmtDate(r.renewal_date)}
+                </div>
+                <div style={{ fontSize: 10, color: urgente ? '#DC2626' : '#D97706', fontFamily: 'var(--mono)' }}>
+                  {dias}d restantes
+                </div>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const scoreProdutoNode = scorePorProduto.length > 0 && (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10,
+      padding: '12px 16px', marginTop: 0 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 10 }}>
+        Score por Produto
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {scorePorProduto.map(p => {
+          const { color, bg } = healthColor(p.score)
+          const pct = p.score
+          return (
+            <div key={p.produto_id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {p.nome}
+                </div>
+                <div style={{ height: 5, background: 'var(--border2)', borderRadius: 99, marginTop: 4, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 99, transition: 'width .3s' }} />
+                </div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 700, color, fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                {p.score}
+              </span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>
+                {p.total_checkins} ci
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+
+  const kpisComExtras = (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {kpisNode}
+      <div style={{ display: 'grid', gridTemplateColumns: scoreProdutoNode ? '1fr 1fr' : '1fr', gap: 12 }}>
+        {renovacoesNode}
+        {scoreProdutoNode}
+      </div>
+    </div>
+  )
+
   const isEditing  = modal && modal !== 'novo'
   const drawerTitle = modal === 'novo' ? 'Novo Check-in' : (isEditing ? modal.company_name : '')
 
@@ -845,7 +995,7 @@ export default function CustomerSuccess() {
         newLabel="+ Novo Check-in"
         onImport={importCSV}
         onExportCsv={exportCSV}
-        kpis={kpisNode}
+        kpis={kpisComExtras}
         renderCard={row => <CsCard row={row} />}
         bulkEditFields={[
           { key: 'laer_stage',  label: 'Estágio LAER',    type: 'select',

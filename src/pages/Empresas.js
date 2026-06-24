@@ -9,7 +9,9 @@ import { useContacts } from '../hooks/useContacts'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
+import { useSellers } from '../hooks/useSellers'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH, LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -238,6 +240,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const { opps: allOpps,         save: saveOpp,     remove: removeOpp }     = useOpportunities()
   const { contratos: allContratos, save: saveContrato, remove: removeContrato } = useContracts()
   const { projetos: allProjetos, save: saveProjeto } = useProjects()
+  const { sellers } = useSellers()
   const [franquias] = useLocalState('settings:franquias_v2', [])
   const [canal, setCanal] = useLocalState('empresa:canal:' + item?.id, {
     resp_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
@@ -520,8 +523,8 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             <FormField label="Responsável" style={{ gridColumn:'span 2' }}>
               <select className="so-field" value={form.responsavel_id || ''} onChange={e => {
                 const u = perfisStore.find(p => p.id === e.target.value)
-                patch('responsavel_id', e.target.value || null)
-                patch('responsavel_nome', u?.nome || '')
+                const next = { ...form, responsavel_id: e.target.value || null, responsavel_nome: u?.nome || '' }
+                setForm(next); if (!isNew) onSave(next, true)
               }}>
                 <option value="">— Selecionar usuário —</option>
                 {perfisStore.filter(p => p.status !== 'inativo').map(p => (
@@ -536,8 +539,9 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           <FormGrid cols={2}>
             <FormField label="Tipo de unidade">
               <select className="so-field" value={form.hierarquia_tipo || 'independente'} onChange={e => {
-                patch('hierarquia_tipo', e.target.value)
-                if (e.target.value !== 'filial') { patch('matriz_id', null); patch('matriz_nome', '') }
+                const extra = e.target.value !== 'filial' ? { matriz_id: null, matriz_nome: '' } : {}
+                const next = { ...form, hierarquia_tipo: e.target.value, ...extra }
+                setForm(next); if (!isNew) onSave(next, true)
               }}>
                 <option value="independente">Independente</option>
                 <option value="matriz">Matriz (possui filiais)</option>
@@ -550,7 +554,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                   value={form.matriz_id}
                   label={form.matriz_nome}
                   empresas={empresas.filter(e => e.id !== item?.id && (e.hierarquia_tipo === 'matriz' || !e.hierarquia_tipo))}
-                  onChange={(id, nome) => { patch('matriz_id', id); patch('matriz_nome', nome) }}
+                  onChange={(id, nome) => { const next = { ...form, matriz_id: id, matriz_nome: nome }; setForm(next); if (!isNew) onSave(next, true) }}
                 />
               </FormField>
             )}
@@ -1136,16 +1140,17 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           boxShadow:'0 1px 3px rgba(0,0,0,0.06)', border:'1px solid var(--border2)',
           display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', borderBottom:'1px solid var(--border)', paddingBottom:8, marginBottom:4 }}>
-            Franquia (AR)
+            Unidade de Atendimento
           </div>
           <div>
-            <label className="so-label">Franquia vinculada</label>
+            <label className="so-label">Unidade de Atendimento vinculada</label>
             <select className="so-field"
               value={form.franquia_ar_id || ''}
               onChange={e => {
                 const f = franquias.find(x => String(x.id) === e.target.value)
-                patch('franquia_ar_id',   f?.id   || null)
-                patch('franquia_ar_nome', f?.nome || '')
+                const next = { ...form, franquia_ar_id: f?.id || null, franquia_ar_nome: f?.nome || '' }
+                setForm(next)
+                if (!isNew) onSave(next, true)
               }}>
               <option value="">— Nenhuma —</option>
               {franquias.filter(f => f.situacao !== 'inativo').map(f => (
@@ -1175,9 +1180,16 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           </div>
           <div>
             <label className="so-label">Responsável AR</label>
-            <input className="so-field" value={canal.resp_ar || ''}
-              onChange={e => setCanal(p => ({ ...p, resp_ar:e.target.value }))}
-              placeholder="Nome do responsável" />
+            <select className="so-field" value={canal.resp_ar_id || ''}
+              onChange={e => {
+                const s = sellers.find(x => String(x.id) === e.target.value)
+                setCanal(p => ({ ...p, resp_ar_id: e.target.value || '', resp_ar: s?.nome || '' }))
+              }}>
+              <option value="">— Selecionar —</option>
+              {sellers.filter(s => s.status !== 'inativo').map(s => (
+                <option key={s.id} value={String(s.id)}>{s.nome}{s.regiao ? ` · ${s.regiao}` : ''}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="so-label">Código do Canal</label>
@@ -1231,6 +1243,7 @@ export default function Empresas() {
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
+  const { registrar: log } = useAuditLog()
   const [modal, setModal]               = useState(null)
   const [soTab, setSoTab]               = useState('dados')
   const [importModal, setImportModal]   = useState(false)
@@ -1317,14 +1330,18 @@ export default function Empresas() {
   function handleSave(form, keepOpen = false) {
     if (modal?.editing) {
       updateEmpresa(modal.editing.id, form)
+      log('editar', 'empresa', modal.editing.id, { descricao: `Empresa editada: ${form.razao || form.nome || ''}` })
     } else {
       addEmpresa(form)
+      log('criar', 'empresa', form.id || '', { descricao: `Empresa criada: ${form.razao || form.nome || ''}` })
     }
     if (!keepOpen) setModal(null)
   }
 
   function handleDelete(id) {
+    const emp = empresas.find(e => e.id === id)
     removeEmpresa(id)
+    log('excluir', 'empresa', id, { descricao: `Empresa excluída: ${emp?.razao || emp?.nome || id}` })
     setModal(null)
   }
 
@@ -1334,6 +1351,15 @@ export default function Empresas() {
   const totalMRR   = empresas.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
   const totalAtivo = empresas.filter(e => e.status === 'ativo').length
   const totalNegoc = empresas.filter(e => e.status === 'negociacao').length
+
+  // Mapa companyId → csRecord para exibir health score na lista
+  const csMap = useMemo(() => {
+    try {
+      const raw  = localStorage.getItem(CS_STORAGE_KEY)
+      const recs = raw ? JSON.parse(raw) : MOCK_CUSTOMER_HEALTH
+      return Object.fromEntries(recs.map(r => [String(r.company_id), r]))
+    } catch { return {} }
+  }, [])
 
   function handleSaveAndClose() {
     // salva o form atual via EmpresaDetail — não temos ref, então só fecha se edição inline já salvou
@@ -1367,6 +1393,17 @@ export default function Empresas() {
     { key: 'segmento', label: 'Segmento' },
     { key: 'cidade',   label: 'Cidade/UF', render: (val, row) => val ? `${val}/${row.uf}` : '—' },
     { key: 'mrr',      label: 'MRR',       render: val => val ? `R$ ${Number(val).toLocaleString('pt-BR')}` : '—' },
+    { key: 'id',        label: 'Health',    render: (_, row) => {
+      const cs = csMap[String(row.id)]
+      if (!cs) return <span style={{ fontSize:11, color:'var(--text-muted)' }}>—</span>
+      const { color } = healthColor(cs.health_score)
+      return (
+        <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
+          <span style={{ width:8, height:8, borderRadius:'50%', background:color, flexShrink:0 }} />
+          <span style={{ fontSize:12, fontWeight:700, color, fontFamily:'var(--mono)' }}>{cs.health_score}</span>
+        </span>
+      )
+    }},
   ]
 
   const FILTERS = [
@@ -1430,6 +1467,18 @@ export default function Empresas() {
               {row.segmento && <div style={{ fontSize:12, color:'var(--text-soft)' }}>{row.segmento}</div>}
               {(row.cidade || row.uf) && <div style={{ fontSize:11, color:'var(--text-muted)' }}>📍 {[row.cidade, row.uf].filter(Boolean).join('/')}</div>}
               {row.mrr > 0 && <div style={{ fontSize:12, fontFamily:'var(--mono)', color:'var(--text-soft)' }}>MRR: R$ {Number(row.mrr).toLocaleString('pt-BR')}</div>}
+              {(() => {
+                const cs = csMap[String(row.id)]
+                if (!cs) return null
+                const { color } = healthColor(cs.health_score)
+                return (
+                  <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:2 }}>
+                    <span style={{ width:8, height:8, borderRadius:'50%', background:color, flexShrink:0 }} />
+                    <span style={{ fontSize:12, fontWeight:700, color, fontFamily:'var(--mono)' }}>{cs.health_score}</span>
+                    <span style={{ fontSize:11, color:'var(--text-muted)' }}>Health Score</span>
+                  </div>
+                )
+              })()}
             </div>
           )
         }}

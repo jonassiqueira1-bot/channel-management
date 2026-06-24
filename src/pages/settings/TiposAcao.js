@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
+import { useTiposAcao } from '../../hooks/useTiposAcao'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
@@ -234,7 +235,8 @@ function ImportModal({ onClose, onImport, existingLabels }) {
 export const STORAGE_KEY = 'settings:tipos_acao_v1'
 
 export default function SettingsTiposAcao() {
-  const [tipos, setTipos] = useLocalState(STORAGE_KEY, DEFAULTS)
+  const { tipos, save: saveTipo, remove: removeTipo } = useTiposAcao(DEFAULTS)
+  const { registrar: log } = useAuditLog()
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
   const [busca, setBusca] = useState('')
@@ -242,7 +244,7 @@ export default function SettingsTiposAcao() {
 
   const filtered = tipos.filter(t => !busca || t.label.toLowerCase().includes(busca.toLowerCase()))
 
-  function handleImport(rows) { setTipos(prev => [...prev, ...rows]) }
+  function handleImport(rows) { rows.forEach(r => saveTipo(r)) }
 
   function exportCSV() {
     const header = IMPORT_COLS.join(';')
@@ -279,16 +281,18 @@ export default function SettingsTiposAcao() {
 
   function handleSave() {
     if (!form.label.trim()) return
-    if (editando !== 'novo') {
-      setTipos(prev => prev.map(t => t.id === editando.id ? { ...form, id: editando.id, slug: editando.slug } : t))
-    } else {
-      setTipos(prev => [...prev, { ...form, id: uid(), slug: slugify(form.label) }])
-    }
+    const isNew = editando === 'novo'
+    const id = isNew ? uid() : editando.id
+    const record = isNew ? { ...form, id, slug: slugify(form.label) } : { ...form, id, slug: editando.slug }
+    saveTipo(record)
+    log(isNew ? 'criar' : 'editar', 'tipo_acao', id, { descricao: `Tipo de ação ${isNew ? 'criado' : 'editado'}: ${form.label}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
-    setTipos(prev => prev.filter(t => t.id !== id))
+    const t = tipos.find(x => x.id === id)
+    removeTipo(id)
+    log('excluir', 'tipo_acao', id, { descricao: `Tipo de ação excluído: ${t?.label || id}` })
     setEditando(null)
   }
 

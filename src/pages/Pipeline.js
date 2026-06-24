@@ -48,6 +48,7 @@ import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown,
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -5461,6 +5462,7 @@ export default function Pipeline() {
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
+  const { registrar: log } = useAuditLog()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { console.log('[Pipeline opps]', opps.length, opps.map(o=>({id:o.id,funil:o.funil_id,etapa:o.etapa_id}))) }, [opps])
   // ── estado efêmero (não persiste) ────────────────────────────────────────
@@ -5595,9 +5597,18 @@ export default function Pipeline() {
   }
 
   // ── save/delete ───────────────────────────────────────────────────────────
-  function handleSave(data) { saveOpp({ ...data, funil_nome: funil?.nome || '' }) }
+  function handleSave(data) {
+    const isNew = !opps.find(o => o.id === data.id)
+    saveOpp({ ...data, funil_nome: funil?.nome || '' })
+    log(isNew ? 'criar' : 'editar', 'oportunidade', data.id, { descricao: `Oportunidade ${isNew ? 'criada' : 'editada'}: ${data.nome || data.titulo || ''}` })
+  }
   function handleFechamento(opp) { setFechamentoModal(opp) }
-  function handleDelete(id) { removeOpp(id); setModal(null) }
+  function handleDelete(id) {
+    const opp = opps.find(o => o.id === id)
+    removeOpp(id)
+    log('excluir', 'oportunidade', id, { descricao: `Oportunidade excluída: ${opp?.nome || opp?.titulo || id}` })
+    setModal(null)
+  }
 
   function handleSaveTarefa(tarefa) { saveTask(tarefa) }
   function handleToggleStatus(tarefaId, novoStatus) {

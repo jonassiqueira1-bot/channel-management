@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { useSellers } from '../hooks/useSellers'
+import { useAuditLog } from '../hooks/useAuditLog'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -342,6 +343,7 @@ export default function Vendedores() {
   const [companies]   = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
   const [franquiasCad] = useLocalState('settings:franquias_v2', [])
   const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany } = useSellers()
+  const { registrar: log } = useAuditLog()
 
   const franquiasOpts = useMemo(() =>
     franquiasCad.length > 0
@@ -378,12 +380,16 @@ export default function Vendedores() {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function handleSave(form) {
-    saveSeller(editing?.id ? { ...editing, ...form } : form)
+    const isNew = !editing?.id
+    saveSeller(isNew ? form : { ...editing, ...form })
+    log(isNew ? 'criar' : 'editar', 'vendedor', editing?.id || form.id, { descricao: `Vendedor ${isNew ? 'criado' : 'editado'}: ${form.nome || ''}` })
     setSlideOpen(false)
     setEditing(null)
   }
   function handleDelete(id) {
+    const s = sellers.find(x => x.id === id)
     deleteSeller(id)
+    log('excluir', 'vendedor', id, { descricao: `Vendedor excluído: ${s?.nome || id}` })
     setSlideOpen(false)
     setEditing(null)
   }

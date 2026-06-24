@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTasks } from '../hooks/useTasks'
+import { useAuditLog } from '../hooks/useAuditLog'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCompanies } from '../hooks/useCompanies'
 import { useLocalState } from '../hooks/useLocalState'
@@ -842,6 +843,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 
 export default function Tarefas() {
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
+  const { registrar: log } = useAuditLog()
   const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
   const tiposTarefa = useMemo(
     () => {
@@ -870,14 +872,16 @@ export default function Tarefas() {
     if (!form?.titulo?.trim()) { setErrs({ titulo: 'Título é obrigatório' }); return }
     setErrs({})
     const isNew = !!editItem?._new
-    saveTarefa(isNew
-      ? { ...form, id: novoId(), criado: new Date().toISOString().slice(0, 10) }
-      : { ...form })
+    const saved = isNew ? { ...form, id: novoId(), criado: new Date().toISOString().slice(0, 10) } : { ...form }
+    saveTarefa(saved)
+    log(isNew ? 'criar' : 'editar', 'tarefa', saved.id, { descricao: `Tarefa ${isNew ? 'criada' : 'editada'}: ${saved.titulo || ''}` })
     closeSlideOver()
   }
 
   function handleDelete() {
-    deleteTarefa(editItem.id || form.id)
+    const id = editItem.id || form.id
+    log('excluir', 'tarefa', id, { descricao: `Tarefa excluída: ${form?.titulo || id}` })
+    deleteTarefa(id)
     closeSlideOver()
   }
 

@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
+import { useParceiros } from '../../hooks/useParceiros'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 
@@ -272,7 +273,8 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Parceiros() {
-  const [franquias, setFranquias] = useLocalState('settings:franquias_v2', [])
+  const { parceiros: franquias, save: saveParceiro, remove: removeParceiro, bulkReclassify } = useParceiros()
+  const { registrar: log } = useAuditLog()
   const [editando, setEditando]   = useState(null)
   const [form, setForm]           = useState(null)
   const [search, setSearch]       = useState('')
@@ -315,16 +317,17 @@ export default function Parceiros() {
       franquia_id:   form.classificacao === 'unidade' ? form.franquia_id : null,
       tipo_parceiro: form.classificacao === 'franquia' ? form.tipo_parceiro : '',
     }
-    if (editando !== 'novo') {
-      setFranquias(prev => prev.map(f => f.id === editando.id ? { ...f, ...data } : f))
-    } else {
-      setFranquias(prev => [...prev, { ...data, id: uid() }])
-    }
+    const isNew = editando === 'novo'
+    const id = isNew ? uid() : editando.id
+    saveParceiro({ ...data, id })
+    log(isNew ? 'criar' : 'editar', 'parceiro', id, { descricao: `Parceiro ${isNew ? 'criado' : 'editado'}: ${data.nome}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
-    setFranquias(prev => prev.filter(f => f.id !== id))
+    const f = franquias.find(x => x.id === id)
+    removeParceiro(id)
+    log('excluir', 'parceiro', id, { descricao: `Parceiro excluído: ${f?.nome || id}` })
     setEditando(null)
   }
 
@@ -350,16 +353,12 @@ export default function Parceiros() {
   }
 
   function handleImport(rows) {
-    setFranquias(prev => [...prev, ...rows.map(r => ({ ...r, id: Date.now() + Math.random() }))])
+    rows.forEach(r => saveParceiro({ ...r, id: String(Date.now() + Math.random()) }))
   }
 
   function applyBulk({ classificacao, franquia_id }) {
-    const ids = new Set(bulkModal)
-    setFranquias(prev => prev.map(f =>
-      ids.has(f.id)
-        ? { ...f, classificacao, franquia_id: classificacao === 'unidade' ? franquia_id : null }
-        : f
-    ))
+    const ids = bulkModal
+    bulkReclassify(ids, { classificacao, franquia_id: classificacao === 'unidade' ? franquia_id : null })
     setBulkModal(null)
   }
 

@@ -11,6 +11,7 @@ import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
 import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -1121,6 +1122,7 @@ function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Pagamentos() {
   const { pagamentos, setPagamentos } = usePayments()
+  const { registrar: log } = useAuditLog()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1310,6 +1312,7 @@ export default function Pagamentos() {
   function handleSave(pag) {
     const anterior = pagamentos.find(p => p.id === pag.id)
     setPagamentos(prev => prev.map(p => p.id === pag.id ? pag : p))
+    log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
       gerarRepasses(pag)
     }
@@ -1317,6 +1320,7 @@ export default function Pagamentos() {
 
   function handleNovoPagamento(pag) {
     setPagamentos(prev=>[pag, ...prev])
+    log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
     // navega para o período do novo pagamento
     const ref = parsePeriodo(pag.reference_month)
     setPeriodo(ref)

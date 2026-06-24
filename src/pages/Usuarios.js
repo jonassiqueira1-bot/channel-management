@@ -43,6 +43,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { MoreHorizontal, Search } from 'lucide-react'
+import { useAuditLog } from '../hooks/useAuditLog'
 
 // ─── Mock de unidades ─────────────────────────────────────────────────────────
 const MOCK_UNIDADES = [
@@ -416,6 +417,7 @@ function AcoesGlobaisMenu({ onExport, onClose, anchorRef }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Usuarios() {
   const [profiles, setProfiles] = useLocalState('usuarios:profiles', MOCK_PROFILES_SEED)
+  const { registrar: log } = useAuditLog()
   const [search, setSearch]     = useLocalState('usuarios:search', '')
   const [filterRole, setFilterRole]     = useLocalState('usuarios:filterRole', '')
   const [filterStatus, setFilterStatus] = useLocalState('usuarios:filterStatus', '')
@@ -436,21 +438,27 @@ export default function Usuarios() {
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
   function handleSave(data) {
+    const isNew = !profiles.find(u => u.id === data.id)
     setProfiles(prev => {
       const idx = prev.findIndex(u => u.id === data.id)
       if (idx >= 0) { const n = [...prev]; n[idx] = data; return n }
       return [...prev, data]
     })
+    log(isNew ? 'criar' : 'editar', 'usuario', data.id, { descricao: `Usuário ${isNew ? 'criado' : 'editado'}: ${data.nome || data.email || ''}` })
     setModal(null)
   }
 
   function handleToggleStatus(id, novoStatus) {
+    const u = profiles.find(x => x.id === id)
     setProfiles(prev => prev.map(u => u.id === id ? { ...u, status: novoStatus } : u))
+    log('editar', 'usuario', id, { descricao: `Status alterado: ${u?.nome || id} → ${novoStatus}` })
   }
 
   function handleDelete(id) {
     if (!window.confirm('Excluir este usuário permanentemente?')) return
+    const u = profiles.find(x => x.id === id)
     setProfiles(prev => prev.filter(u => u.id !== id))
+    log('excluir', 'usuario', id, { descricao: `Usuário excluído: ${u?.nome || u?.email || id}` })
   }
 
   // ── Export ────────────────────────────────────────────────────────────────

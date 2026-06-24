@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useProfile } from '../hooks/useProfile'
 import { MOCK_TIME_LOGS } from '../data/mockProjetos'
+import { useAuditLog } from '../hooks/useAuditLog'
+import { useFechamentosHoras } from '../hooks/useFechamentosHoras'
 
 const TIMELOGS_KEY   = 'projetos:timeLogs_v1'
 const PROJETOS_KEY   = 'projetos:lista_v2'
@@ -43,6 +45,7 @@ function StatusBadge({ status }) {
 
 export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   const { profile } = useProfile()
+  const { registrar: log } = useAuditLog()
   const isGestor = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
   // Período de referência
@@ -53,7 +56,7 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   // Dados brutos
   const [timeLogs] = useLocalState(TIMELOGS_KEY, MOCK_TIME_LOGS)
   const [projetos]  = useLocalState(PROJETOS_KEY, [])
-  const [fechamentos, setFechamentos] = useLocalState(FECHAMENTOS_KEY, [])
+  const { fechamentos, upsert: upsertFecRemote } = useFechamentosHoras()
 
   // Logs do período
   const logsNoPeriodo = useMemo(() =>
@@ -77,23 +80,21 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   }
 
   function upsertFec(user_name, patch) {
-    setFechamentos(prev => {
-      const idx = prev.findIndex(f => f.periodo === periodo && f.user_name === user_name)
-      if (idx >= 0) {
-        const n = [...prev]; n[idx] = { ...n[idx], ...patch }; return n
-      }
-      const grupo = porAnalista.find(g => g.user_name === user_name)
-      const horas = grupo?.logs.reduce((s, l) => s + Number(l.hours_executed), 0) || 0
-      return [...prev, {
-        id: `fec_${periodo}_${user_name}_${Date.now()}`,
-        periodo, user_name,
-        status: 'aberto',
-        log_ids: grupo?.logs.map(l => l.id) || [],
-        horas_total: horas,
-        enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null,
-        ...patch,
-      }]
-    })
+    const existing = getFec(user_name)
+    const grupo = porAnalista.find(g => g.user_name === user_name)
+    const horas = grupo?.logs.reduce((s, l) => s + Number(l.hours_executed), 0) || 0
+    const record = existing
+      ? { ...existing, ...patch }
+      : {
+          id: `fec_${periodo}_${user_name}_${Date.now()}`,
+          periodo, user_name,
+          status: 'aberto',
+          log_ids: grupo?.logs.map(l => l.id) || [],
+          horas_total: horas,
+          enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null,
+          ...patch,
+        }
+    upsertFecRemote(record)
   }
 
   // Marcar logs como fechados no localStorage de timeLogs
@@ -113,12 +114,14 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
       horas_total: horas,
       enviado_em: new Date().toISOString().slice(0, 10),
     })
+    log('enviar', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento enviado: ${user_name} — ${periodo} (${horas.toFixed(1)}h)` })
   }
 
   function handleAprovar(user_name) {
     const fec = getFec(user_name)
     upsertFec(user_name, { status: 'aprovado', aprovado_em: new Date().toISOString().slice(0, 10) })
     if (fec?.log_ids?.length) marcarLogsAprovados(fec.log_ids)
+    log('aprovar', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento aprovado: ${user_name} — ${periodo}` })
   }
 
   function handleRejeitar(user_name, obs) {
@@ -127,11 +130,13 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
       rejeitado_em: new Date().toISOString().slice(0, 10),
       obs,
     })
+    log('rejeitar', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento rejeitado: ${user_name} — ${periodo}${obs ? ` (${obs})` : ''}` })
     setObsModal(null)
   }
 
   function handleReabrir(user_name) {
     upsertFec(user_name, { status: 'aberto', enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null })
+    log('reabrir', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento reaberto: ${user_name} — ${periodo}` })
   }
 
   // KPIs do período

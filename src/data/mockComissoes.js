@@ -42,6 +42,26 @@ export const TIPO_CALCULO_CFG = {
     desc:  'Faixas de atingimento de meta individual + bônus de equipe',
     color: '#F59E0B', bg: 'rgba(245,158,11,0.1)',
   },
+  split: {
+    label: 'Split de Comissão',
+    desc:  'Divide a comissão entre múltiplos beneficiários com % individuais',
+    color: '#10B981', bg: 'rgba(16,185,129,0.1)',
+  },
+  override: {
+    label: 'Override de Gestor',
+    desc:  'Gestor recebe % sobre a comissão paga aos subordinados da equipe',
+    color: '#8B5CF6', bg: 'rgba(139,92,246,0.1)',
+  },
+  draw: {
+    label: 'Draw (Adiantamento)',
+    desc:  'Valor fixo mensal adiantado, descontado da comissão apurada no período',
+    color: '#EF4444', bg: 'rgba(239,68,68,0.1)',
+  },
+  acelerador: {
+    label: 'Acelerador por Quota',
+    desc:  'Multiplicador sobre o % base quando atingimento supera threshold definido',
+    color: '#F97316', bg: 'rgba(249,115,22,0.1)',
+  },
 }
 
 // ─── Recorrência ──────────────────────────────────────────────────────────────
@@ -201,6 +221,23 @@ export const EMPTY_RULE = {
   escala_individual:     DEFAULT_ESCALA_INDIVIDUAL,
   escala_equipe:         DEFAULT_ESCALA_EQUIPE,
   condicao_bonus_equipe: 'Exige atingimento prévio da meta individual',
+
+  // Split de Comissão
+  split_participantes: [], // [{beneficiario_id, beneficiario_nome, persona, pct}]
+
+  // Override de Gestor
+  override_gestor_id:   null,
+  override_gestor_nome: '',
+  override_pct:         10, // % sobre a comissão dos subordinados
+
+  // Draw (Adiantamento)
+  draw_valor_mensal:  0,    // valor fixo adiantado por mês
+  draw_recuperavel:   true, // se deve ser descontado da comissão
+
+  // Acelerador por Quota
+  acelerador_threshold_pct: 100, // % de atingimento a partir do qual ativa
+  acelerador_multiplicador: 1.5, // ex: 1.5x sobre o percentual base
+  acelerador_teto_pct:      null, // limite máximo de atingimento (null = sem teto)
 
   // Elegibilidade aberta
   condicoes_elegibilidade: [],
