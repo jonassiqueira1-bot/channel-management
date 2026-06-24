@@ -2043,8 +2043,10 @@ function OppEquipeTab({ oppId }) {
             </div>
           ) : (
             contatosExt.map(c => {
+              const fresh   = poolContatos.find(p => String(p.id) === String(c.contato_id)) || {}
+              const merged  = { ...c, whatsapp: fresh.whatsapp || c.whatsapp || '', linkedin_url: fresh.linkedin_url || c.linkedin_url || '', email: fresh.email || c.email || '' }
               const persona = PERSONAS.find(p => p.value === c.persona) || PERSONAS[0]
-              const waTel   = (c.whatsapp || '').replace(/\D/g, '')
+              const waTel   = merged.whatsapp.replace(/\D/g, '')
               return (
                 <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 4px',
                   borderBottom:'1px solid var(--border2)', borderRadius:6 }}>
@@ -2056,19 +2058,19 @@ function OppEquipeTab({ oppId }) {
                   <div style={{ flex:1, minWidth:0 }}>
                     <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</div>
                     <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
-                      {c.cargo && <span>{c.cargo}</span>}
-                      {c.email && <a href={`mailto:${c.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{c.email}</a>}
+                      {merged.cargo && <span>{merged.cargo}</span>}
+                      {merged.email && <a href={`mailto:${merged.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{merged.email}</a>}
                       {waTel && (
                         <a href={`https://wa.me/55${waTel}`} target="_blank" rel="noreferrer"
-                          title={`WhatsApp: ${c.whatsapp}`}
+                          title={`WhatsApp: ${merged.whatsapp}`}
                           style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
                             width:20, height:20, borderRadius:5, background:'#25D366',
                             color:'#fff', textDecoration:'none', fontSize:12, flexShrink:0 }}>
                           💬
                         </a>
                       )}
-                      {c.linkedin_url && (
-                        <a href={c.linkedin_url} target="_blank" rel="noreferrer"
+                      {merged.linkedin_url && (
+                        <a href={merged.linkedin_url} target="_blank" rel="noreferrer"
                           title="Abrir LinkedIn"
                           style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
                             width:20, height:20, borderRadius:5, background:'#0A66C2',
