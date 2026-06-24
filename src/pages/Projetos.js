@@ -1791,7 +1791,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
 }
 
 // ─── Painel Financeiro Global ─────────────────────────────────────────────────
-function PainelFinanceiro({ projetos, timeLogs }) {
+function PainelFinanceiro({ projetos, timeLogs, showKpis = true }) {
   const [custoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
   const [milestonesMap] = useLocalState(MILESTONES_KEY, {})
   const [fechamentos] = useLocalState(FECHAMENTOS_KEY, [])
@@ -1841,7 +1841,7 @@ function PainelFinanceiro({ projetos, timeLogs }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingBottom: 24 }}>
 
       {/* KPIs globais */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
+      {showKpis && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
         border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
         {[
           { label: 'Portfólio (contratos)', value: fmtBRL(totalContrato), color: 'var(--accent)' },
@@ -1855,7 +1855,7 @@ function PainelFinanceiro({ projetos, timeLogs }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{k.label}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Tabela */}
       <div style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
@@ -1925,7 +1925,7 @@ function PainelFinanceiro({ projetos, timeLogs }) {
 // Capacidade padrão: 160h/mês (8h × 20 dias úteis)
 const CAPACIDADE_MENSAL = 160
 
-function MapaRecursos({ projetos, members, timeLogs }) {
+function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
   const [expandido, setExpandido] = useState({})
   const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
   const [filtroStatus, setFiltroStatus] = useState('todos')
@@ -2017,7 +2017,7 @@ function MapaRecursos({ projetos, members, timeLogs }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '0 0 24px' }}>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
+      {showKpis && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0,
         border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden',
         background: 'var(--surface)' }}>
         {[
@@ -2032,7 +2032,7 @@ function MapaRecursos({ projetos, members, timeLogs }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{k.label}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -4219,7 +4219,7 @@ export default function Projetos() {
           breadcrumb={['Projetos']}
           title={tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}
           showKpis={showKpis}
-          onToggleKpis={tab === 'projetos' ? () => setShowKpis(v => !v) : undefined}
+          onToggleKpis={() => setShowKpis(v => !v)}
           actions={
             tab === 'projetos' ? <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
             : tab === 'recursos' ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
@@ -4247,8 +4247,8 @@ export default function Projetos() {
 
         {/* KPIs */}
         {tab === 'fechamento' && <FechamentoHoras embedded />}
-        {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
-        {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
+        {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={showKpis} />}
+        {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={showKpis} />}
 
         {tab === 'projetos' && showKpis && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
