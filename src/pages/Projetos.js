@@ -4245,10 +4245,6 @@ export default function Projetos() {
           ))}
         </div>
 
-        {/* KPIs */}
-        {tab === 'fechamento' && <FechamentoHoras embedded showKpis={showKpis} />}
-        {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={showKpis} />}
-        {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={showKpis} />}
 
         {tab === 'projetos' && showKpis && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
@@ -4351,10 +4347,25 @@ export default function Projetos() {
         </div>
       </div>
 
-      {/* Propostas — área scrollável própria */}
+      {/* Abas com scroll próprio */}
       {tab === 'propostas' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
           <PropostasTab projetos={projetos} phases={phases} opps={opps} />
+        </div>
+      )}
+      {tab === 'fechamento' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+          <FechamentoHoras embedded showKpis={showKpis} />
+        </div>
+      )}
+      {tab === 'recursos' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+          <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={showKpis} />
+        </div>
+      )}
+      {tab === 'financeiro' && (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+          <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={showKpis} />
         </div>
       )}
 
