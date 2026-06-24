@@ -1760,34 +1760,12 @@ function UserAvatar({ usuario, size = 32 }) {
   )
 }
 
-// OppEquipeTab: gerencia oportunidade_membros para uma oportunidade
-// Carrega estado de localStorage (chave "opp_membros_v1") inicializado com os seeds.
-// Em produção, substituir por SELECT/INSERT/DELETE em oportunidade_membros via Supabase.
-function OppEquipeTab({ oppId }) {
-  const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
-  const { sellers }           = useSellers()
-  const { contacts }          = useContacts()
-
-  // Pool combinado: sellers (internos) + contacts (externos/canais)
-  const todosMembros = useMemo(() => [
-    ...sellers.map(s => ({ id:`s_${s.id}`, nome: s.nome, cargo: s.cargo || s.role || '', email: s.email, tipo: 'interno', avatar: (s.nome||'?').slice(0,2).toUpperCase() })),
-    ...contacts.map(c => ({ id:`c_${c.id}`, nome: c.nome || c.email || 'Sem nome', cargo: c.cargo || '', email: c.email, tipo: 'externo', avatar: (c.nome||c.email||'?').slice(0,2).toUpperCase(), linkedin_url: c.linkedin_url || '', whatsapp: c.whatsapp || '' })),
-  ], [sellers, contacts])
-
-  // Membros desta oportunidade enriquecidos
-  const equipe = useMemo(() => {
-    return membros
-      .filter(m => m.oportunidade_id === oppId)
-      .map(m => ({ ...m, usuario: todosMembros.find(u => u.id === m.user_id) }))
-      .filter(m => m.usuario)
-  }, [membros, oppId, todosMembros])
-
-  const [showAdd, setShowAdd]   = useState(false)
-  const [query,   setQuery]     = useState('')
-  const [selUser, setSelUser]   = useState(null)
-  const [papel,   setPapel]     = useState('vendedor')
+// ── Bloco reutilizável: formulário de busca inline ────────────────────────────
+function AddMembroForm({ pool, jaAdicionados, onAdd, onCancel, selectorLabel, selectorOptions, defaultPapel }) {
+  const [query,    setQuery]    = useState('')
+  const [selUser,  setSelUser]  = useState(null)
+  const [papel,    setPapel]    = useState(defaultPapel)
   const [dropOpen, setDropOpen] = useState(false)
-  const tipoSelecionado = selUser?.tipo || 'interno'
   const dropRef = useRef(null)
 
   useEffect(() => {
@@ -1796,190 +1774,263 @@ function OppEquipeTab({ oppId }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const jaAdicionados = new Set(equipe.map(m => m.user_id))
-
   const sugestoes = useMemo(() => {
     const q = query.toLowerCase()
-    return todosMembros.filter(u =>
+    return pool.filter(u =>
       !jaAdicionados.has(u.id) &&
       ((u.nome||'').toLowerCase().includes(q) || (u.cargo||'').toLowerCase().includes(q) || (u.email||'').toLowerCase().includes(q))
     ).slice(0, 8)
-  }, [query, jaAdicionados, todosMembros])
+  }, [query, jaAdicionados, pool])
 
   function handleAdd() {
     if (!selUser) return
-    const novoMembro = {
-      id:              `m_${Date.now()}`,
-      oportunidade_id: oppId,
-      user_id:         selUser.id,
-      tipo_membro:     selUser.tipo,
-      papel,
-      tenant_id:       't1',
-    }
-    addMembro(novoMembro)
-    setSelUser(null)
-    setQuery('')
-    setPapel('vendedor')
-    setShowAdd(false)
+    onAdd(selUser, papel)
+    setSelUser(null); setQuery(''); setPapel(defaultPapel); setDropOpen(false)
   }
-
-  function handleRemove(membroId) {
-    removeMembro(membroId)
-  }
-
-  const internos  = equipe.filter(m => m.tipo_membro === 'interno')
-  const externos  = equipe.filter(m => m.tipo_membro === 'externo')
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
-
-      {/* ── Cabeçalho com KPIs ── */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, paddingTop:10, paddingBottom:14,
-        borderBottom:'1px solid var(--border2)', flexShrink:0 }}>
-        <div style={tb.kpi}>
-          <span style={tb.kpiN}>{equipe.length}</span>
-          <span style={tb.kpiL}>Total</span>
-        </div>
-        <div style={tb.kpi}>
-          <span style={{ ...tb.kpiN, color:'#1E3A5F' }}>{internos.length}</span>
-          <span style={tb.kpiL}>ISV</span>
-        </div>
-        <div style={tb.kpi}>
-          <span style={{ ...tb.kpiN, color:'#D97706' }}>{externos.length}</span>
-          <span style={tb.kpiL}>Parceiros</span>
-        </div>
-        <div style={{ flex:1 }} />
-        {!showAdd && (
-          <button style={tb.addBtn} onClick={() => setShowAdd(true)}>
-            + Adicionar membro
-          </button>
-        )}
-      </div>
-
-      {/* ── Formulário de adição ── */}
-      {showAdd && (
-        <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8,
-          padding:14, marginBottom:12, flexShrink:0 }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 180px', gap:8, alignItems:'flex-end' }}>
-
-            {/* Autocomplete de usuário */}
-            <div ref={dropRef} style={{ position:'relative' }}>
-              <label style={tb.lbl}>Membro</label>
-              {selUser ? (
-                <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px',
-                  background:'var(--surface)', border:'1px solid var(--accent)', borderRadius:6 }}>
-                  <UserAvatar usuario={selUser} size={24} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden',
-                      textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selUser.nome}</div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)' }}>{selUser.cargo}</div>
+    <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8,
+      padding:12, marginTop:8 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 180px', gap:8, alignItems:'flex-end' }}>
+        <div ref={dropRef} style={{ position:'relative' }}>
+          <label style={tb.lbl}>Buscar</label>
+          {selUser ? (
+            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px',
+              background:'var(--surface)', border:'1px solid var(--accent)', borderRadius:6 }}>
+              <div style={{ width:24, height:24, borderRadius:'50%', background:'var(--accent-glow)',
+                display:'flex', alignItems:'center', justifyContent:'center', fontSize:10,
+                fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                {(selUser.nome||'?').slice(0,2).toUpperCase()}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden',
+                  textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selUser.nome}</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)' }}>{selUser.cargo}</div>
+              </div>
+              <button type="button" onClick={() => { setSelUser(null); setQuery('') }}
+                style={{ background:'none', border:'none', cursor:'pointer',
+                  color:'var(--text-muted)', fontSize:14, padding:'0 2px' }}>✕</button>
+            </div>
+          ) : (
+            <input style={m.input} placeholder="Nome, cargo ou e-mail…" value={query} autoFocus
+              onChange={e => { setQuery(e.target.value); setDropOpen(true) }}
+              onFocus={() => setDropOpen(true)} />
+          )}
+          {!selUser && dropOpen && sugestoes.length > 0 && (
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4,
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
+              boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
+              {sugestoes.map(u => (
+                <div key={u.id} onMouseDown={() => { setSelUser(u); setQuery(''); setDropOpen(false) }}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                    cursor:'pointer', borderBottom:'1px solid var(--border2)' }}
+                  onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
+                  onMouseLeave={e => e.currentTarget.style.background='transparent'}>
+                  <div style={{ width:28, height:28, borderRadius:'50%', background:'var(--surface2)',
+                    display:'flex', alignItems:'center', justifyContent:'center', fontSize:10,
+                    fontWeight:700, color:'var(--text-muted)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                    {(u.nome||'?').slice(0,2).toUpperCase()}
                   </div>
-                  <TipoMemboBadge tipo={selUser.tipo} />
-                  <button type="button" onClick={() => { setSelUser(null); setQuery('') }}
-                    style={{ background:'none', border:'none', cursor:'pointer',
-                      color:'var(--text-muted)', fontSize:14, padding:'0 2px', lineHeight:1 }}>
-                    ✕
-                  </button>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
+                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{u.nome}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo || u.email}</div>
+                  </div>
                 </div>
-              ) : (
-                <input
-                  style={m.input}
-                  placeholder="Buscar por nome, cargo ou e-mail…"
-                  value={query}
-                  autoFocus
-                  onChange={e => { setQuery(e.target.value); setDropOpen(true) }}
-                  onFocus={() => setDropOpen(true)}
-                />
-              )}
-              {!selUser && dropOpen && sugestoes.length > 0 && (
-                <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4,
-                  background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
-                  boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
-                  {sugestoes.map(u => (
-                    <div key={u.id}
-                      onMouseDown={() => { setSelUser(u); setQuery(''); setDropOpen(false); setPapel(u.tipo === 'externo' ? 'nao_informado' : 'vendedor') }}
-                      style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
-                        cursor:'pointer', borderBottom:'1px solid var(--border2)' }}
-                      onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-                      onMouseLeave={e => e.currentTarget.style.background='transparent'}>
-                      <UserAvatar usuario={u} size={28} />
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
-                          overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {u.nome}
-                        </div>
-                        <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo}</div>
-                      </div>
-                      <TipoMemboBadge tipo={u.tipo} />
-                    </div>
-                  ))}
-                </div>
-              )}
-              {!selUser && dropOpen && query.length > 1 && sugestoes.length === 0 && (
-                <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4,
-                  background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
-                  boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:300,
-                  padding:'14px 16px', fontSize:12, color:'var(--text-muted)' }}>
-                  Nenhum usuário encontrado
-                </div>
-              )}
+              ))}
             </div>
-
-            {/* Papel (interno) ou Persona (externo) */}
-            <div>
-              <label style={tb.lbl}>{tipoSelecionado === 'externo' ? 'Persona da negociação' : 'Papel'}</label>
-              <select style={m.input} value={papel} onChange={e => setPapel(e.target.value)}>
-                {(tipoSelecionado === 'externo' ? PERSONAS : PAPEIS).map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
+          )}
+          {!selUser && dropOpen && query.length > 1 && sugestoes.length === 0 && (
+            <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4,
+              background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
+              padding:'12px 16px', fontSize:12, color:'var(--text-muted)', zIndex:300 }}>
+              Nenhum resultado
             </div>
-          </div>
-
-          <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 }}>
-            <Button variant="secondary" onClick={() => { setShowAdd(false); setSelUser(null); setQuery('') }}>
-              Cancelar
-            </Button>
-            <Button onClick={handleAdd} disabled={!selUser}>
-              Adicionar à equipe
-            </Button>
-          </div>
+          )}
         </div>
-      )}
+        <div>
+          <label style={tb.lbl}>{selectorLabel}</label>
+          <select style={m.input} value={papel} onChange={e => setPapel(e.target.value)}>
+            {selectorOptions.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+          </select>
+        </div>
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:10 }}>
+        <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+        <Button onClick={handleAdd} disabled={!selUser}>Adicionar</Button>
+      </div>
+    </div>
+  )
+}
 
-      {/* ── Lista de membros ── */}
-      <div style={{ flex:1, overflowY:'auto', marginTop:4 }}>
-        {equipe.length === 0 && !showAdd && (
-          <div style={{ textAlign:'center', padding:'36px 0', color:'var(--text-muted)' }}>
-            <div style={{ fontSize:28, marginBottom:8 }}>👥</div>
-            <div style={{ fontSize:13, marginBottom:4 }}>Nenhum membro na equipe</div>
-            <div style={{ fontSize:12, opacity:0.7 }}>Adicione membros internos e externos envolvidos nesta oportunidade</div>
-          </div>
-        )}
+// OppEquipeTab: dois blocos independentes — Time Interno e Contatos Externos
+function OppEquipeTab({ oppId }) {
+  const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
+  const { sellers }  = useSellers()
+  const { contacts } = useContacts()
+  const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-        {/* Grupo: Internos */}
-        {internos.length > 0 && (
-          <div style={{ marginBottom:12 }}>
-            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em',
-              color:'var(--text-muted)', fontFamily:'var(--mono)', margin:'12px 0 6px', paddingBottom:4,
-              borderBottom:'1px solid var(--border2)' }}>
-              ⬡ Equipe ISV (interna)
+  // Pool de usuários internos (ISV + canal)
+  const poolInternos = useMemo(() =>
+    sellers.map(s => ({ id: `s_${s.id}`, nome: s.nome, cargo: s.cargo || s.role || '', email: s.email })),
+  [sellers])
+
+  // Pool de contatos externos (cadastro de Contatos)
+  const poolContatos = useMemo(() =>
+    contacts.map(c => ({
+      id:           c.id,
+      nome:         c.nome || c.email || 'Sem nome',
+      cargo:        c.cargo || '',
+      email:        c.email || '',
+      whatsapp:     c.whatsapp || '',
+      linkedin_url: c.linkedin_url || '',
+    })),
+  [contacts])
+
+  // Time interno: membros do opp_membros
+  const timeInterno = useMemo(() => {
+    return membros
+      .filter(m => m.oportunidade_id === oppId)
+      .map(m => ({ ...m, usuario: poolInternos.find(u => u.id === m.user_id) }))
+      .filter(m => m.usuario)
+  }, [membros, oppId, poolInternos])
+
+  const [showAddInterno,  setShowAddInterno]  = useState(false)
+  const [showAddExterno,  setShowAddExterno]  = useState(false)
+
+  const jaInternosIds  = useMemo(() => new Set(timeInterno.map(m => m.user_id)), [timeInterno])
+  const jaExternosIds  = useMemo(() => new Set(contatosExt.map(c => c.contato_id)), [contatosExt])
+
+  function handleAddInterno(usuario, papel) {
+    addMembro({ id:`m_${Date.now()}`, oportunidade_id: oppId, user_id: usuario.id, tipo_membro:'interno', papel, tenant_id:'t1' })
+    setShowAddInterno(false)
+  }
+
+  function handleAddExterno(contato, persona) {
+    const c = contacts.find(x => x.id === contato.id) || contato
+    setContatosExt(prev => [...prev, {
+      id:          `ce_${Date.now()}`,
+      contato_id:  contato.id,
+      nome:        contato.nome,
+      cargo:       contato.cargo,
+      email:       contato.email,
+      whatsapp:    c.whatsapp || '',
+      linkedin_url:c.linkedin_url || '',
+      persona,
+    }])
+    setShowAddExterno(false)
+  }
+
+  function removeExterno(id) { setContatosExt(prev => prev.filter(c => c.id !== id)) }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', gap:0 }}>
+      <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingTop:8 }}>
+
+        {/* ── Bloco 1: Time Interno ── */}
+        <div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+            paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Time Interno</div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>Usuários do sistema (ISV e canal)</div>
             </div>
-            {internos.map(m => <MembroRow key={m.id} membro={m} onRemove={handleRemove} />)}
+            {!showAddInterno && (
+              <button style={tb.addBtn} onClick={() => setShowAddInterno(true)}>+ Adicionar</button>
+            )}
           </div>
-        )}
 
-        {/* Grupo: Externos */}
-        {externos.length > 0 && (
-          <div>
-            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em',
-              color:'var(--text-muted)', fontFamily:'var(--mono)', margin:'12px 0 6px', paddingBottom:4,
-              borderBottom:'1px solid var(--border2)' }}>
-              ◉ Parceiros / Franquias (externos)
+          {showAddInterno && (
+            <AddMembroForm
+              pool={poolInternos} jaAdicionados={jaInternosIds}
+              selectorLabel="Papel" selectorOptions={PAPEIS} defaultPapel="vendedor"
+              onAdd={handleAddInterno} onCancel={() => setShowAddInterno(false)} />
+          )}
+
+          {timeInterno.length === 0 && !showAddInterno ? (
+            <div style={{ padding:'16px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
+              Nenhum membro interno adicionado
             </div>
-            {externos.map(m => <MembroRow key={m.id} membro={m} onRemove={handleRemove} />)}
+          ) : (
+            timeInterno.map(mb => <MembroRow key={mb.id} membro={mb} onRemove={() => removeMembro(mb.id)} />)
+          )}
+        </div>
+
+        {/* ── Bloco 2: Contatos Externos ── */}
+        <div>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+            paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Contatos Externos</div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>Contatos do cliente — decisores, influenciadores e outros</div>
+            </div>
+            {!showAddExterno && (
+              <button style={tb.addBtn} onClick={() => setShowAddExterno(true)}>+ Adicionar</button>
+            )}
           </div>
-        )}
+
+          {showAddExterno && (
+            <AddMembroForm
+              pool={poolContatos.filter(c => !jaExternosIds.has(c.id))} jaAdicionados={jaExternosIds}
+              selectorLabel="Persona da negociação" selectorOptions={PERSONAS} defaultPapel="nao_informado"
+              onAdd={handleAddExterno} onCancel={() => setShowAddExterno(false)} />
+          )}
+
+          {contatosExt.length === 0 && !showAddExterno ? (
+            <div style={{ padding:'16px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
+              Nenhum contato externo adicionado
+            </div>
+          ) : (
+            contatosExt.map(c => {
+              const persona = PERSONAS.find(p => p.value === c.persona) || PERSONAS[0]
+              const waTel   = (c.whatsapp || '').replace(/\D/g, '')
+              return (
+                <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 4px',
+                  borderBottom:'1px solid var(--border2)', borderRadius:6 }}>
+                  <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0,
+                    background:'#F3F4F6', display:'flex', alignItems:'center', justifyContent:'center',
+                    fontSize:11, fontWeight:800, color:'#6B7280', fontFamily:'var(--mono)' }}>
+                    {(c.nome||'?').slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
+                      {c.cargo && <span>{c.cargo}</span>}
+                      {waTel && (
+                        <a href={`https://wa.me/55${waTel}`} target="_blank" rel="noreferrer"
+                          title={`WhatsApp: ${c.whatsapp}`}
+                          style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                            width:20, height:20, borderRadius:5, background:'#25D366',
+                            color:'#fff', textDecoration:'none', fontSize:12, flexShrink:0 }}>
+                          💬
+                        </a>
+                      )}
+                      {c.linkedin_url && (
+                        <a href={c.linkedin_url} target="_blank" rel="noreferrer"
+                          title="Abrir LinkedIn"
+                          style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                            width:20, height:20, borderRadius:5, background:'#0A66C2',
+                            color:'#fff', textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+                          in
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+                    background:persona.bg, color:persona.color, whiteSpace:'nowrap',
+                    fontFamily:'var(--mono)', border:`1px solid ${persona.color}33` }}>
+                    {persona.label}
+                  </span>
+                  <button onClick={() => removeExterno(c.id)}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+                      fontSize:14, padding:'0 4px', flexShrink:0 }}
+                    onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                    onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                </div>
+              )
+            })
+          )}
+        </div>
       </div>
     </div>
   )
