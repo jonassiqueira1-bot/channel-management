@@ -2679,6 +2679,71 @@ function downloadProposta(prop) {
   const blob=new Blob([html],{type:'application/msword'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${(prop.titulo||'Proposta').replace(/[^a-zA-Z0-9À-ú\s-]/g,'').trim()}.doc`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
 }
 
+function OppSearch({ oppOptions, value, onChange }) {
+  const [query, setQuery] = useState('')
+  const [open,  setOpen]  = useState(false)
+  const ref = useRef(null)
+
+  const selected = oppOptions.find(o => String(o.id) === String(value))
+  const filtered = query.trim()
+    ? oppOptions.filter(o =>
+        (o.titulo||'').toLowerCase().includes(query.toLowerCase()) ||
+        (o.empresa_nome||'').toLowerCase().includes(query.toLowerCase()))
+    : oppOptions
+
+  useEffect(() => {
+    function onClickOut(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onClickOut)
+    return () => document.removeEventListener('mousedown', onClickOut)
+  }, [])
+
+  function pick(opp) {
+    onChange(String(opp.id))
+    setQuery('')
+    setOpen(false)
+  }
+  function clear() { onChange(''); setQuery(''); setOpen(false) }
+
+  return (
+    <div ref={ref} style={{position:'relative'}}>
+      <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Oportunidade vinculada *</div>
+      {selected && !open ? (
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',border:'1px solid var(--accent)55',borderRadius:7,background:'var(--accent-glow)'}}>
+          <span style={{flex:1,fontSize:13,color:'var(--text)',fontFamily:'var(--font)'}}><strong>{selected.empresa_nome}</strong> — {selected.titulo}</span>
+          <button onClick={clear} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:15,lineHeight:1,padding:'0 2px'}}>×</button>
+        </div>
+      ) : (
+        <div>
+          <input
+            autoFocus={open}
+            value={query}
+            onChange={e => { setQuery(e.target.value); setOpen(true) }}
+            onFocus={() => setOpen(true)}
+            placeholder="Buscar oportunidade…"
+            style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}
+          />
+          {open && (
+            <div style={{position:'absolute',top:'100%',left:0,right:0,zIndex:400,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,0.14)',maxHeight:220,overflowY:'auto',marginTop:4}}>
+              {filtered.length === 0
+                ? <div style={{padding:'10px 12px',fontSize:12,color:'var(--text-muted)'}}>Nenhuma oportunidade encontrada</div>
+                : filtered.slice(0,60).map(o => (
+                    <div key={o.id} onClick={() => pick(o)}
+                      style={{padding:'8px 12px',cursor:'pointer',fontSize:13,borderBottom:'1px solid var(--border)',transition:'background 0.1s'}}
+                      onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+                      onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                      <strong style={{color:'var(--text)'}}>{o.empresa_nome}</strong>
+                      <span style={{color:'var(--text-muted)'}}> — {o.titulo}</span>
+                    </div>
+                  ))
+              }
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PropostasTab({ projetos, phases, opps = [] }) {
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
@@ -3798,13 +3863,7 @@ function PropostasTab({ projetos, phases, opps = [] }) {
             <div style={{padding:'20px',display:'flex',flexDirection:'column',gap:14}}>
               {wStep===1&&(
                 <>
-                  <div>
-                    <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Oportunidade vinculada *</div>
-                    <select value={wOppId} onChange={e=>setWOppId(e.target.value)} style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}>
-                      <option value="">Selecionar oportunidade…</option>
-                      {oppOptions.map(o=><option key={o.id} value={String(o.id)}>{o.empresa_nome} — {o.titulo}</option>)}
-                    </select>
-                  </div>
+                  <OppSearch oppOptions={oppOptions} value={wOppId} onChange={setWOppId} />
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Template de escopo</div>
                     <div style={{display:'flex',flexDirection:'column',gap:8}}>
