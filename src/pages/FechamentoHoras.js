@@ -41,7 +41,7 @@ function StatusBadge({ status }) {
   )
 }
 
-export default function FechamentoHoras({ embedded = false }) {
+export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   const { profile } = useProfile()
   const isGestor = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
@@ -185,7 +185,7 @@ export default function FechamentoHoras({ embedded = false }) {
       </div>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
+      {showKpis && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
         {[
           { label: 'Analistas no período', value: totalAnalistas,       color: 'var(--accent)' },
           { label: 'Aguard. aprovação',    value: enviados,             color: '#F59E0B' },
@@ -199,7 +199,7 @@ export default function FechamentoHoras({ embedded = false }) {
               letterSpacing: '.05em', marginTop: 3 }}>{k.label}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {/* Fluxo visual */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20,

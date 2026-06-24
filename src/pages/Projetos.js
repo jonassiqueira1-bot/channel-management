@@ -4246,7 +4246,7 @@ export default function Projetos() {
         </div>
 
         {/* KPIs */}
-        {tab === 'fechamento' && <FechamentoHoras embedded />}
+        {tab === 'fechamento' && <FechamentoHoras embedded showKpis={showKpis} />}
         {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={showKpis} />}
         {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={showKpis} />}
 
