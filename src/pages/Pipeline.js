@@ -1865,6 +1865,32 @@ function AddMembroForm({ pool, jaAdicionados, onAdd, onCancel, selectorLabel, se
 }
 
 // OppEquipeTab: dois blocos independentes — Time Interno e Contatos Externos
+function CopyChip({ value, href, label, bg, children }) {
+  const [copied, setCopied] = useState(false)
+  function handleCopy(e) {
+    e.preventDefault()
+    navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500) })
+  }
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', gap:3, background:'var(--surface2)',
+      border:'1px solid var(--border)', borderRadius:6, overflow:'hidden', flexShrink:0 }}>
+      <a href={href} target="_blank" rel="noreferrer"
+        style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+          width:22, height:22, background:bg, color:'#fff', textDecoration:'none',
+          fontSize:11, fontWeight:800, flexShrink:0 }}>
+        {children}
+      </a>
+      <span style={{ fontSize:10, color:'var(--text-muted)', padding:'0 4px', maxWidth:110,
+        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{label}</span>
+      <button onClick={handleCopy} title="Copiar"
+        style={{ background:'none', border:'none', cursor:'pointer', padding:'0 4px',
+          color: copied ? '#10B981' : 'var(--text-muted)', fontSize:10, lineHeight:1 }}>
+        {copied ? '✓' : '⎘'}
+      </button>
+    </span>
+  )
+}
+
 function OppEquipeTab({ oppId }) {
   const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
   const { contacts } = useContacts()
@@ -2062,22 +2088,14 @@ function OppEquipeTab({ oppId }) {
                       {merged.cargo && <span>{merged.cargo}</span>}
                       {merged.email && <a href={`mailto:${merged.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{merged.email}</a>}
                       {waTel && (
-                        <a href={`https://wa.me/55${waTel}`} target="_blank" rel="noreferrer"
-                          title={`WhatsApp: ${merged.whatsapp}`}
-                          style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                            width:20, height:20, borderRadius:5, background:'#25D366',
-                            color:'#fff', textDecoration:'none', fontSize:12, flexShrink:0 }}>
+                        <CopyChip value={merged.whatsapp} href={`https://wa.me/55${waTel}`} label={merged.whatsapp} bg="#25D366">
                           💬
-                        </a>
+                        </CopyChip>
                       )}
                       {merged.linkedin_url && (
-                        <a href={merged.linkedin_url} target="_blank" rel="noreferrer"
-                          title="Abrir LinkedIn"
-                          style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                            width:20, height:20, borderRadius:5, background:'#0A66C2',
-                            color:'#fff', textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+                        <CopyChip value={merged.linkedin_url} href={merged.linkedin_url} label={merged.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\//,'')} bg="#0A66C2">
                           in
-                        </a>
+                        </CopyChip>
                       )}
                     </div>
                   </div>
@@ -2119,22 +2137,14 @@ function MembroRow({ membro, onRemove }) {
         <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, display:'flex', alignItems:'center', gap:8 }}>
           {u.cargo}
           {u.whatsapp && (
-            <a href={`https://wa.me/55${u.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
-              title={`WhatsApp: ${u.whatsapp}`}
-              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                width:20, height:20, borderRadius:5, background:'#25D366', color:'#fff',
-                textDecoration:'none', fontSize:11, flexShrink:0 }}>
+            <CopyChip value={u.whatsapp} href={`https://wa.me/55${u.whatsapp.replace(/\D/g,'')}`} label={u.whatsapp} bg="#25D366">
               💬
-            </a>
+            </CopyChip>
           )}
           {u.linkedin_url && (
-            <a href={u.linkedin_url} target="_blank" rel="noreferrer"
-              title="Abrir LinkedIn"
-              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
-                width:20, height:20, borderRadius:5, background:'#0A66C2', color:'#fff',
-                textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+            <CopyChip value={u.linkedin_url} href={u.linkedin_url} label={u.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\//,'')} bg="#0A66C2">
               in
-            </a>
+            </CopyChip>
           )}
         </div>
       </div>
