@@ -1,16 +1,14 @@
-<svg viewBox="0 0 200 52" xmlns="http://www.w3.org/2000/svg">
+<svg viewBox="0 0 160 40" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#4F7FE8"/>
       <stop offset="100%" stop-color="#2B52C8"/>
     </linearGradient>
   </defs>
-  <!-- Ícone -->
-  <rect x="0" y="0" width="48" height="48" rx="11" fill="url(#bg)"/>
-  <rect x="9"  y="30" width="8" height="12" rx="2" fill="white" opacity="0.5"/>
-  <rect x="20" y="21" width="8" height="21" rx="2" fill="white" opacity="0.75"/>
-  <rect x="31" y="12" width="8" height="30" rx="2" fill="white"/>
-  <!-- Texto -->
-  <text x="58" y="35" font-family="system-ui, -apple-system, sans-serif"
-    font-size="26" font-weight="700" fill="#1a2340" letter-spacing="-0.5">Boostly</text>
+  <rect x="0" y="0" width="40" height="40" rx="10" fill="url(#bg)"/>
+  <rect x="8"  y="26" width="6" height="10" rx="2" fill="white" opacity="0.5"/>
+  <rect x="17" y="18" width="6" height="18" rx="2" fill="white" opacity="0.75"/>
+  <rect x="26" y="10" width="6" height="26" rx="2" fill="white"/>
+  <text x="50" y="28" font-family="system-ui, -apple-system, sans-serif"
+    font-size="22" font-weight="700" fill="#f1f5f9" letter-spacing="-0.5">Boostly</text>
 </svg>
