@@ -1998,7 +1998,7 @@ function OppEquipeTab({ oppId }) {
 
         {/* ── Bloco 1: Time ISV (internos) ── */}
         <div>
-          <BlocoHeader titulo="Time ISV" subtitulo="Usuários internos da empresa"
+          <BlocoHeader titulo="Time Interno" subtitulo="Usuários internos da empresa"
             onAdd={() => setShowAddInterno(true)} showAdd={showAddInterno} />
           {showAddInterno && (
             <AddMembroForm pool={poolInternos} jaAdicionados={jaInternosIds}

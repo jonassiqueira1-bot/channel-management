@@ -358,6 +358,8 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     custo_hora:          perfil.custo_hora ?? '',
     horas_semana:        perfil.horas_semana ?? 40,
     habilidades:         perfil.habilidades || [],
+    linkedin_url:        perfil.linkedin_url || '',
+    whatsapp:            perfil.whatsapp || '',
   })
   const [novaHabilidade, setNovaHabilidade] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
@@ -415,6 +417,8 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       custo_hora:          form.custo_hora === '' ? null : Number(form.custo_hora),
       horas_semana:        Number(form.horas_semana) || 40,
       habilidades:         form.habilidades,
+      linkedin_url:        form.linkedin_url.trim(),
+      whatsapp:            form.whatsapp.trim(),
     })
     onClose()
   }
@@ -649,6 +653,18 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             <input className="fpe-field" type="number" min={0} step={0.01} value={form.custo_hora} disabled={!podeEditar}
               placeholder="0,00"
               onChange={e => set('custo_hora', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="LinkedIn">
+            <input className="fpe-field" value={form.linkedin_url} disabled={!podeEditar}
+              placeholder="https://linkedin.com/in/usuario"
+              onChange={e => set('linkedin_url', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="WhatsApp">
+            <input className="fpe-field" value={form.whatsapp} disabled={!podeEditar}
+              placeholder="(00) 00000-0000"
+              onChange={e => set('whatsapp', e.target.value)} />
           </FPEField>
         </FPEGrid>
 

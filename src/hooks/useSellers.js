@@ -34,6 +34,8 @@ function rowToSeller(row) {
     comissao_perc: row.comissao_perc || 0,
     observacoes:   row.observacoes || '',
     criado:        row.created_at?.slice(0, 10) || '',
+    linkedin_url:  cf.linkedin_url || '',
+    whatsapp:      cf.whatsapp || '',
   }
 }
 
@@ -55,6 +57,8 @@ function sellerToRow(s, tenantId, branchId) {
       role:          s.role,
       franquia_id:   s.franquia_id,
       franquia_nome: s.franquia_nome,
+      linkedin_url:  s.linkedin_url || '',
+      whatsapp:      s.whatsapp || '',
     },
   }
 }

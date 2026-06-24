@@ -50,6 +50,7 @@ const EMPTY_FORM = {
   company_id: null,
   franquia_id: null, franquia_nome: '',
   meta_mensal: '', observacoes: '',
+  linkedin_url: '', whatsapp: '',
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -184,6 +185,14 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
 
         <FormField label="Meta mensal (R$)">
           <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
+        </FormField>
+
+        <FormField label="LinkedIn">
+          <input className="so-field" value={form.linkedin_url} onChange={e => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/usuario" />
+        </FormField>
+
+        <FormField label="WhatsApp">
+          <input className="so-field" value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="(00) 00000-0000" />
         </FormField>
 
         <FormField label="Observações internas" style={{ gridColumn: 'span 2' }}>
