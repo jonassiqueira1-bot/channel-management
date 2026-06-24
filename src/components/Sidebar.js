@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import logoBoostly from '../assets/logo-boostly.svg'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalState } from '../hooks/useLocalState'
@@ -174,8 +175,10 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
       {/* ── Brand ── */}
       <div style={s.brand}>
-        <div style={s.logoMark}>CN</div>
-        {!collapsed && <span style={s.brandName}>Canais NG</span>}
+        {collapsed
+          ? <img src={logoBoostly} alt="Boostly" style={{ width: 32, height: 32, objectFit: 'contain' }} />
+          : <img src={logoBoostly} alt="Boostly" style={{ height: 32, width: 'auto', maxWidth: 140 }} />
+        }
         {isMobile && (
           <button style={s.closeBtn} onClick={onClose} aria-label="Fechar menu">
             <X size={14} />

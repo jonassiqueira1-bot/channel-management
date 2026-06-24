@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import logoBoostly from '../assets/logo-boostly.svg'
 
 const ROLES = [
   { id: 'isv', label: 'ISV Admin' },
@@ -36,19 +37,7 @@ export default function Login() {
       <div style={s.left}>
         <div style={s.leftInner}>
           <div style={s.brand}>
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <defs>
-                <linearGradient id="bly-login" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-                  <stop offset="0%" stopColor="#4F8EF7"/>
-                  <stop offset="100%" stopColor="#1E3A5F"/>
-                </linearGradient>
-              </defs>
-              <rect width="40" height="40" rx="10" fill="url(#bly-login)"/>
-              <rect x="11" y="24" width="5" height="8" rx="2.5" fill="white" fillOpacity="0.55"/>
-              <rect x="18" y="17" width="5" height="15" rx="2.5" fill="white" fillOpacity="0.78"/>
-              <rect x="25" y="10" width="5" height="22" rx="2.5" fill="white"/>
-            </svg>
-            <span style={s.brandName}>Boostly</span>
+            <img src={logoBoostly} alt="Boostly" style={{ height: 40, width: 'auto' }} />
           </div>
 
           <div style={s.heroText}>
