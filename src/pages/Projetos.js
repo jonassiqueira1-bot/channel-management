@@ -12,6 +12,7 @@ import SearchSelect from '../components/SearchSelect'
 import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
+import PageHeader from '../components/ui/PageHeader'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
@@ -4214,25 +4215,17 @@ export default function Projetos() {
       <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
         {/* Page header */}
-        <div style={pg.pageHeader}>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}</h1>
-            <button onClick={() => setShowKpis(v => !v)} title={showKpis ? 'Ocultar indicadores' : 'Mostrar indicadores'}
-              style={{ background:'none', border:'1px solid var(--border2)', borderRadius:6, cursor:'pointer',
-                padding:'2px 7px', fontSize:11, color:'var(--text-muted)', lineHeight:1.4,
-                transition:'all 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.color='var(--accent)' }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border2)'; e.currentTarget.style.color='var(--text-muted)' }}>
-              {showKpis ? '▲ indicadores' : '▼ indicadores'}
-            </button>
-          </div>
-          {tab === 'projetos' && (
-            <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
-          )}
-          {tab === 'recursos' && (
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
-          )}
-        </div>
+        <PageHeader
+          breadcrumb={['Projetos']}
+          title={tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}
+          showKpis={showKpis}
+          onToggleKpis={tab === 'projetos' ? () => setShowKpis(v => !v) : undefined}
+          actions={
+            tab === 'projetos' ? <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
+            : tab === 'recursos' ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
+            : undefined
+          }
+        />
 
         {/* Tab switcher — fixo centralizado */}
         <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',

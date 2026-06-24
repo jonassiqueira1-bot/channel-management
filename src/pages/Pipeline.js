@@ -47,6 +47,7 @@ import DynamicFormLayout from '../components/DynamicFormLayout'
 import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
+import PageHeader from '../components/ui/PageHeader'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -5625,26 +5626,14 @@ export default function Pipeline() {
     <div style={{ ...p.page, ...(view==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
 
       {/* ── Page header ── */}
-      <div style={p.pageHeader}>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <div>
-            <div style={p.breadcrumb}><span>Comercial</span><span style={p.sep}>›</span><span>Pipeline</span></div>
-            <h1 style={p.title}>Pipeline</h1>
-          </div>
-          {/* Toggle métricas */}
-          <button
-            onClick={() => setShowMetrics(v => !v)}
-            title={showMetrics ? 'Ocultar métricas' : 'Exibir métricas'}
-            style={{ display:'flex', alignItems:'center', justifyContent:'center', width:28, height:28,
-              borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)',
-              color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginTop:18 }}>
-            {showMetrics ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-          <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>+ Nova oportunidade</Button>
-        </div>
-      </div>
+      <PageHeader
+        breadcrumb={['Comercial', 'Pipeline']}
+        title="Pipeline"
+        showKpis={showMetrics}
+        onToggleKpis={() => setShowMetrics(v => !v)}
+        kpisLabel="métricas"
+        actions={<Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>+ Nova oportunidade</Button>}
+      />
 
       {/* ── KPIs retráteis ── */}
       <div style={{
