@@ -883,9 +883,51 @@ function ImportProjectModal({ projeto, myPhases, onApply, onClose }) {
 }
 
 // ─── Tab 1: Cronograma MIT ────────────────────────────────────────────────────
-function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhases }) {
+function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhases, onAddMember }) {
   const [showImport, setShowImport] = useState(false)
+  const [syncFeedback, setSyncFeedback] = useState(false)
+  const [propostas]   = useLocalState(PROPOSTAS_KEY, [])
   const myPhases = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
+
+  // proposta vinculada à oportunidade deste projeto
+  const propostaVinculada = useMemo(() => {
+    if (!projeto.opportunity_id) return null
+    const ranking = { aceita: 0, enviada: 1, rascunho: 2, recusada: 3 }
+    return propostas
+      .filter(p => String(p.opp_id) === String(projeto.opportunity_id))
+      .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
+  }, [propostas, projeto.opportunity_id])
+
+  function handleSyncFromProposta() {
+    if (!propostaVinculada) return
+    const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+    if (fases.length === 0) { alert('A proposta não tem escopo WBS definido.'); return }
+    const updated = fases.map((fase, i) => {
+      const existing = myPhases[i]
+      return {
+        id:                  existing?.id || `ph_${projeto.id}_${i + 1}`,
+        project_id:          projeto.id,
+        tenant_id:           't1',
+        phase_name:          fase.titulo,
+        phase_order:         i + 1,
+        start_date_planned:  existing?.start_date_planned || '',
+        end_date_planned:    existing?.end_date_planned   || '',
+        hours_estimated:     Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 20,
+        is_completed:        existing?.is_completed || false,
+        completed_at:        existing?.completed_at || null,
+      }
+    })
+    onUpdatePhases(updated)
+    // equipe da proposta → adicionar membros ausentes
+    if (onAddMember) {
+      const equipe = propostaVinculada.equipe || []
+      equipe.forEach(m => {
+        onAddMember({ id: 'mb_' + Date.now() + Math.random().toString(36).slice(2), project_id: projeto.id, tenant_id: 't1', user_id: m.user_id || null, name: m.nome || m.name || '', role: m.papel || m.role || 'Consultor' })
+      })
+    }
+    setSyncFeedback(true)
+    setTimeout(() => setSyncFeedback(false), 2500)
+  }
   const currentIdx = projeto.current_phase_index
 
   const execByPhase = useMemo(() => {
@@ -931,8 +973,17 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ── Cabeçalho com botão de importação ── */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      {/* ── Cabeçalho com botões ── */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        {propostaVinculada && (
+          <button onClick={handleSyncFromProposta}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+              borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
+              fontSize: 12, fontWeight: 700, transition: 'background 0.2s',
+              background: syncFeedback ? '#10B981' : 'var(--accent)', color: '#fff' }}>
+            {syncFeedback ? '✓ Sincronizado' : '⟳ Sincronizar com Proposta'}
+          </button>
+        )}
         <button onClick={() => setShowImport(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
             borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)',
@@ -1716,7 +1767,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
       {/* Conteúdo rolável por tab */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
         {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
-        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} />}
+        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} onAddMember={onAddMember} />}
         {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} members={members} onAddLog={onAddLog} />}
         {tab === 'financeiro' && <TabFinanceiro projeto={projeto} timeLogs={timeLogs} onUpdate={onUpdate} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
@@ -3929,18 +3980,77 @@ export default function Projetos() {
     setDragId(null)
   }
 
+  // ── helpers: proposta vinculada a uma opp ────────────────────────────────────
+  function propostaParaOpp(oppId) {
+    if (!oppId) return null
+    try {
+      const stored = localStorage.getItem(PROPOSTAS_KEY)
+      const lista  = stored ? JSON.parse(stored) : []
+      // prioriza a proposta aceita, depois enviada, depois qualquer uma
+      const ranking = { aceita: 0, enviada: 1, rascunho: 2, recusada: 3 }
+      return lista
+        .filter(p => String(p.opp_id) === String(oppId))
+        .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
+    } catch { return null }
+  }
+
+  function phasesFromProposta(proposta, projectId) {
+    const fases = (proposta.itens || []).filter(i => i.nivel === 1)
+    if (fases.length === 0) return null
+    return fases.map((fase, i) => ({
+      id:               `ph_${projectId}_${i + 1}`,
+      project_id:       projectId,
+      tenant_id:        't1',
+      phase_name:       fase.titulo,
+      phase_order:      i + 1,
+      start_date_planned:  '',
+      end_date_planned:    '',
+      hours_estimated:  Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 20,
+      is_completed:     false,
+      completed_at:     null,
+    }))
+  }
+
+  function membersFromProposta(proposta, projectId) {
+    return (proposta.equipe || []).map(m => ({
+      id:         'mb_' + Date.now() + Math.random().toString(36).slice(2),
+      project_id: projectId,
+      tenant_id:  't1',
+      user_id:    m.user_id || null,
+      name:       m.nome || m.name || '',
+      role:       m.papel || m.role || 'Consultor',
+    }))
+  }
+
   // CRUD
   async function handleCreate(form) {
     const np = { ...form, id: 'prj_' + Date.now(), tenant_id: 't1', company_id: null, franchise_id: null, created_at: new Date().toISOString().slice(0, 10) }
-    const newPhases = PHASE_NAMES.map((name, i) => ({
+
+    // tenta usar proposta vinculada à oportunidade
+    const proposta   = propostaParaOpp(form.opportunity_id)
+    const wbsPhases  = proposta ? phasesFromProposta(proposta, np.id) : null
+    const newPhases  = wbsPhases || PHASE_NAMES.map((name, i) => ({
       id: `ph_${np.id}_${i + 1}`, project_id: np.id, tenant_id: 't1',
       phase_name: name, phase_order: i + 1,
       start_date_planned: '', end_date_planned: '',
       hours_estimated: Math.round(Number(form.total_hours_estimated) / 6) || 20,
       is_completed: false, completed_at: null,
     }))
+
+    // ajusta total de horas estimadas se veio da proposta
+    if (wbsPhases) {
+      np.total_hours_estimated = wbsPhases.reduce((s, p) => s + p.hours_estimated, 0)
+    }
+
     await saveProjeto(np)
     await Promise.all(newPhases.map(ph => savePhase(ph)))
+
+    // adiciona membros da equipe da proposta
+    if (proposta) {
+      const novosMembers = membersFromProposta(proposta, np.id)
+      novosMembers.forEach(m => setMembers(prev => [...prev, m]))
+    }
+
     setModal(null)
   }
 
