@@ -2745,6 +2745,7 @@ function OppSearch({ oppOptions, value, onChange }) {
 }
 
 function PropostasTab({ projetos, phases, opps = [] }) {
+  const { save: saveOpp } = useOpportunities()
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
   const [subView,      setSubView]      = useState('propostas') // 'propostas' | 'templates'
@@ -2793,6 +2794,16 @@ function PropostasTab({ projetos, phases, opps = [] }) {
     const up = { ...prop, updated_at: new Date().toISOString() }
     setPropostas(prev=>{ const i=prev.findIndex(x=>x.id===up.id); if(i>=0){const n=[...prev];n[i]=up;return n}; return [...prev,up] })
     setSelected(up)
+    // sincroniza valor_servico da oportunidade vinculada
+    if (up.opp_id) {
+      const opp = opps.find(o => String(o.id) === String(up.opp_id))
+      if (opp) {
+        const valor = calcInvestimento(up.itens || [], up.tarifas || [])
+        if (valor > 0 && opp.valor_servico !== valor) {
+          saveOpp({ ...opp, valor_servico: valor })
+        }
+      }
+    }
     if (showFeedback) { setPropSaved(true); setTimeout(() => setPropSaved(false), 2000) }
   }
   function excluir(id) {

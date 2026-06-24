@@ -2359,9 +2359,20 @@ function mergeTemplate(content, opp) {
   return Object.entries(map).reduce((txt, [ph, val]) => txt.split(ph).join(val), content)
 }
 
+const PROP_STATUS_LABEL = { rascunho:'Rascunho', enviada:'Enviada', aceita:'Aceita', recusada:'Recusada' }
+const PROP_STATUS_COLOR = { rascunho:'#6B7280', enviada:'#3B82F6', aceita:'#10B981', recusada:'#EF4444' }
+
 function OppPropostaTab({ opp }) {
   const { docs: allDocs, linkToOpp, loading: loadingDocs } = useDocuments()
   const [proposals, setProposals] = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
+  // Propostas de Implantação (módulo Projetos)
+  const [implPropostas] = useLocalState('projects:propostas_v1', [])
+  const minhasImplantacoes = useMemo(
+    () => implPropostas.filter(p => String(p.opp_id) === String(opp.id))
+          .sort((a, b) => new Date(b.updated_at||0) - new Date(a.updated_at||0)),
+    [implPropostas, opp.id]
+  )
+
   const [pickerOpen,    setPickerOpen]    = useState(false)
   const [linkPickerOpen, setLinkPickerOpen] = useState(false)
   const [editing,       setEditing]       = useState(null)
@@ -2729,23 +2740,57 @@ function OppPropostaTab({ opp }) {
         )}
       </div>
 
-      {/* Banner Proposta de Implantação */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px',
-        background:'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)',
-        border:'1px solid var(--accent)33', borderRadius:10 }}>
-        <div>
-          <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:2 }}>Proposta de Implantação</div>
-          <div style={{ fontSize:11, color:'var(--text-soft)' }}>
-            Crie e gerencie propostas detalhadas em Projetos → aba Propostas
+      {/* Propostas de Implantação (Projetos) */}
+      <div style={{ border:'1px solid var(--accent)33', borderRadius:10, overflow:'hidden',
+        background:'linear-gradient(135deg, #EEF2FF 0%, #E0E7FF 100%)' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px' }}>
+          <div>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--accent)', marginBottom:2 }}>Propostas de Implantação</div>
+            <div style={{ fontSize:11, color:'var(--text-soft)' }}>
+              {minhasImplantacoes.length === 0
+                ? 'Nenhuma proposta criada — clique para acessar Projetos'
+                : `${minhasImplantacoes.length} proposta${minhasImplantacoes.length > 1 ? 's' : ''} vinculada${minhasImplantacoes.length > 1 ? 's' : ''}`}
+            </div>
           </div>
+          <a onClick={e => { e.preventDefault(); window.location.href = `/projetos?tab=propostas&opp_id=${opp.id}` }}
+            href={`/projetos?tab=propostas&opp_id=${opp.id}`}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
+              background:'var(--accent)', color:'#fff', borderRadius:7, fontSize:12,
+              fontWeight:600, textDecoration:'none', flexShrink:0 }}>
+            {minhasImplantacoes.length === 0 ? '+ Nova proposta' : 'Abrir em Projetos →'}
+          </a>
         </div>
-        <a href="/projetos?tab=propostas&opp_id={opp.id}"
-          onClick={e => { e.preventDefault(); window.location.href = `/projetos?tab=propostas&opp_id=${opp.id}` }}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px',
-            background:'var(--accent)', color:'#fff', borderRadius:7, fontSize:12,
-            fontWeight:600, textDecoration:'none', flexShrink:0 }}>
-          Abrir em Projetos →
-        </a>
+        {minhasImplantacoes.length > 0 && (
+          <div style={{ borderTop:'1px solid var(--accent)22' }}>
+            {minhasImplantacoes.map(p => {
+              const valor = (p.tarifas||[]).reduce((s,t)=>{
+                const hrs = (p.itens||[]).filter(i=>i.nivel===2&&i.tipo_hora===t.id).reduce((a,i)=>(a+(i.hr_analista||0)+(i.hr_coord||0)),0)
+                return s + hrs*(t.valor||0)
+              }, 0)
+              return (
+                <div key={p.id}
+                  onClick={() => { window.location.href = `/projetos?tab=propostas&opp_id=${opp.id}` }}
+                  style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 16px',
+                    borderBottom:'1px solid var(--accent)11', cursor:'pointer',
+                    transition:'background 0.12s' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='rgba(99,102,241,0.06)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                  <span style={{ width:8, height:8, borderRadius:'50%', flexShrink:0,
+                    background: PROP_STATUS_COLOR[p.status] || '#6B7280' }} />
+                  <span style={{ flex:1, fontSize:12, fontWeight:600, color:'var(--text)' }}>{p.titulo}</span>
+                  <span style={{ fontSize:11, color: PROP_STATUS_COLOR[p.status] || '#6B7280', fontWeight:600 }}>
+                    {PROP_STATUS_LABEL[p.status] || p.status}
+                  </span>
+                  {valor > 0 && (
+                    <span style={{ fontSize:12, fontFamily:'var(--mono)', fontWeight:700, color:'#10B981' }}>
+                      {valor.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ height:1, background:'var(--border2)' }} />
