@@ -1871,12 +1871,19 @@ function OppEquipeTab({ oppId }) {
   const { sellers }   = useSellers()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-  // Pool de usuários internos: preferencia para settings:perfis_v2; fallback para sellers
+  // Pool separado: ISV (sem franquia) e Canal (com franquia)
   const poolInternos = useMemo(() => {
-    const base = perfisStore.length > 0 ? perfisStore : sellers
-    return base
-      .filter(u => u.status !== 'inativo')
-      .map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '' }))
+    const base = perfisStore.length > 0
+      ? perfisStore.filter(u => u.status !== 'inativo' && !u.franquia_id)
+      : sellers.filter(u => u.status !== 'inativo' && !u.franquia_id && !u.franquia_nome)
+    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '' }))
+  }, [perfisStore, sellers])
+
+  const poolCanais = useMemo(() => {
+    const base = perfisStore.length > 0
+      ? perfisStore.filter(u => u.status !== 'inativo' && u.franquia_id)
+      : sellers.filter(u => u.status !== 'inativo' && (u.franquia_id || u.franquia_nome))
+    return base.map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', franquia: u.franquia_nome || '' }))
   }, [perfisStore, sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
@@ -1891,88 +1898,128 @@ function OppEquipeTab({ oppId }) {
     })),
   [contacts])
 
-  // Time interno: membros do opp_membros
-  const timeInterno = useMemo(() => {
-    return membros
-      .filter(m => m.oportunidade_id === oppId)
+  // Membros desta opp separados por tipo_membro
+  const timeInterno = useMemo(() =>
+    membros.filter(m => m.oportunidade_id === oppId && m.tipo_membro === 'interno')
       .map(m => ({ ...m, usuario: poolInternos.find(u => u.id === m.user_id) }))
-      .filter(m => m.usuario)
-  }, [membros, oppId, poolInternos])
+      .filter(m => m.usuario),
+  [membros, oppId, poolInternos])
 
-  const [showAddInterno,  setShowAddInterno]  = useState(false)
-  const [showAddExterno,  setShowAddExterno]  = useState(false)
+  const timeCanal = useMemo(() =>
+    membros.filter(m => m.oportunidade_id === oppId && m.tipo_membro === 'canal')
+      .map(m => ({ ...m, usuario: poolCanais.find(u => u.id === m.user_id) }))
+      .filter(m => m.usuario),
+  [membros, oppId, poolCanais])
 
-  const jaInternosIds  = useMemo(() => new Set(timeInterno.map(m => m.user_id)), [timeInterno])
-  const jaExternosIds  = useMemo(() => new Set(contatosExt.map(c => c.contato_id)), [contatosExt])
+  const [showAddInterno, setShowAddInterno] = useState(false)
+  const [showAddCanal,   setShowAddCanal]   = useState(false)
+  const [showAddExterno, setShowAddExterno] = useState(false)
+
+  const jaInternosIds = useMemo(() => new Set(timeInterno.map(m => m.user_id)), [timeInterno])
+  const jaCanaisIds   = useMemo(() => new Set(timeCanal.map(m => m.user_id)),   [timeCanal])
+  const jaExternosIds = useMemo(() => new Set(contatosExt.map(c => c.contato_id)), [contatosExt])
 
   function handleAddInterno(usuario, papel) {
     addMembro({ id:`m_${Date.now()}`, oportunidade_id: oppId, user_id: usuario.id, tipo_membro:'interno', papel, tenant_id:'t1' })
     setShowAddInterno(false)
   }
-
+  function handleAddCanal(usuario, papel) {
+    addMembro({ id:`m_${Date.now()}`, oportunidade_id: oppId, user_id: usuario.id, tipo_membro:'canal', papel, tenant_id:'t1' })
+    setShowAddCanal(false)
+  }
   function handleAddExterno(contato, persona) {
     const c = contacts.find(x => x.id === contato.id) || contato
     setContatosExt(prev => [...prev, {
-      id:          `ce_${Date.now()}`,
-      contato_id:  contato.id,
-      nome:        contato.nome,
-      cargo:       contato.cargo,
-      email:       contato.email,
-      whatsapp:    c.whatsapp || '',
-      linkedin_url:c.linkedin_url || '',
-      persona,
+      id: `ce_${Date.now()}`, contato_id: contato.id,
+      nome: contato.nome, cargo: contato.cargo, email: contato.email,
+      whatsapp: c.whatsapp || '', linkedin_url: c.linkedin_url || '', persona,
     }])
     setShowAddExterno(false)
   }
-
   function removeExterno(id) { setContatosExt(prev => prev.filter(c => c.id !== id)) }
 
+  function BlocoHeader({ titulo, subtitulo, onAdd, showAdd }) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
+        paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
+        <div>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{titulo}</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{subtitulo}</div>
+        </div>
+        {!showAdd && <button style={tb.addBtn} onClick={onAdd}>+ Adicionar</button>}
+      </div>
+    )
+  }
+
+  function MembroInternoRow({ mb }) {
+    const [hover, setHover] = useState(false)
+    const u = mb.usuario
+    const cfg = PAPEL_CFG[mb.papel] || PAPEL_CFG.outro
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 4px',
+        borderBottom:'1px solid var(--border2)', borderRadius:6,
+        background: hover ? 'var(--surface2)' : 'transparent', transition:'background 0.12s' }}
+        onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+        <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0, background:'var(--accent-glow)',
+          display:'flex', alignItems:'center', justifyContent:'center', fontSize:11,
+          fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)',
+          border:'1px solid var(--accent)33' }}>
+          {(u.nome||'?').slice(0,2).toUpperCase()}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo}</div>
+        </div>
+        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+          background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+          {cfg.label}
+        </span>
+        <button onClick={() => removeMembro(mb.id)}
+          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px', flexShrink:0 }}
+          onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+          onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+      </div>
+    )
+  }
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%', gap:0 }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
       <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingTop:8 }}>
 
-        {/* ── Bloco 1: Time Interno ── */}
+        {/* ── Bloco 1: Time ISV (internos) ── */}
         <div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-            paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Time Interno</div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>Usuários do sistema (ISV e canal)</div>
-            </div>
-            {!showAddInterno && (
-              <button style={tb.addBtn} onClick={() => setShowAddInterno(true)}>+ Adicionar</button>
-            )}
-          </div>
-
+          <BlocoHeader titulo="Time ISV" subtitulo="Usuários internos da empresa"
+            onAdd={() => setShowAddInterno(true)} showAdd={showAddInterno} />
           {showAddInterno && (
-            <AddMembroForm
-              pool={poolInternos} jaAdicionados={jaInternosIds}
+            <AddMembroForm pool={poolInternos} jaAdicionados={jaInternosIds}
               selectorLabel="Papel" selectorOptions={PAPEIS} defaultPapel="vendedor"
               onAdd={handleAddInterno} onCancel={() => setShowAddInterno(false)} />
           )}
-
-          {timeInterno.length === 0 && !showAddInterno ? (
-            <div style={{ padding:'16px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
-              Nenhum membro interno adicionado
-            </div>
-          ) : (
-            timeInterno.map(mb => <MembroRow key={mb.id} membro={mb} onRemove={() => removeMembro(mb.id)} />)
-          )}
+          {timeInterno.length === 0 && !showAddInterno
+            ? <div style={{ padding:'14px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhum membro ISV adicionado</div>
+            : timeInterno.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)
+          }
         </div>
 
-        {/* ── Bloco 2: Contatos Externos ── */}
+        {/* ── Bloco 2: Contatos Canal (parceiros/franquias) ── */}
         <div>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-            paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
-            <div>
-              <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Contatos Externos</div>
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>Contatos do cliente — decisores, influenciadores e outros</div>
-            </div>
-            {!showAddExterno && (
-              <button style={tb.addBtn} onClick={() => setShowAddExterno(true)}>+ Adicionar</button>
-            )}
-          </div>
+          <BlocoHeader titulo="Contatos Canal" subtitulo="Usuários de parceiros e franquias"
+            onAdd={() => setShowAddCanal(true)} showAdd={showAddCanal} />
+          {showAddCanal && (
+            <AddMembroForm pool={poolCanais} jaAdicionados={jaCanaisIds}
+              selectorLabel="Papel" selectorOptions={PAPEIS} defaultPapel="vendedor"
+              onAdd={handleAddCanal} onCancel={() => setShowAddCanal(false)} />
+          )}
+          {timeCanal.length === 0 && !showAddCanal
+            ? <div style={{ padding:'14px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhum contato de canal adicionado</div>
+            : timeCanal.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)
+          }
+        </div>
 
+        {/* ── Bloco 3: Contatos Externos (clientes) ── */}
+        <div>
+          <BlocoHeader titulo="Contatos Externos" subtitulo="Decisores e influenciadores do cliente"
+            onAdd={() => setShowAddExterno(true)} showAdd={showAddExterno} />
           {showAddExterno && (
             <AddMembroForm
               pool={poolContatos.filter(c => !jaExternosIds.has(c.id))} jaAdicionados={jaExternosIds}
