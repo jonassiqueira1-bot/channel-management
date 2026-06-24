@@ -81,12 +81,34 @@ const STATUS_MAP = {
 const SEGMENTOS = ['Agro','Construção','Distribuição','Educação','Energia','Financeiro','Indústria','Logística','Mineração','Saúde','Tecnologia','Turismo']
 const ORIGENS   = ['Inbound','Outbound','Canal','Indicação','Evento','Prospecção']
 
+const PORTES = [
+  { value: '',          label: '—' },
+  { value: 'micro',     label: 'Microempresa (até 9 func.)' },
+  { value: 'pequena',   label: 'Pequena (10–49 func.)' },
+  { value: 'media',     label: 'Média (50–249 func.)' },
+  { value: 'grande',    label: 'Grande (250–999 func.)' },
+  { value: 'enterprise',label: 'Enterprise (1.000+ func.)' },
+]
+const RECEITA_FAIXAS = [
+  { value: '',    label: '—' },
+  { value: 'ate500k',   label: 'Até R$ 500 mil/ano' },
+  { value: 'ate2m',     label: 'R$ 500 mil – R$ 2 mi/ano' },
+  { value: 'ate10m',    label: 'R$ 2 mi – R$ 10 mi/ano' },
+  { value: 'ate50m',    label: 'R$ 10 mi – R$ 50 mi/ano' },
+  { value: 'acima50m',  label: 'Acima de R$ 50 mi/ano' },
+]
+
 const EMPTY_FORM = {
   razao: '', fantasia: '', cnpj: '', tipo: 'cliente_final', segmento: '',
   cnae_codigo: '', cnae_descricao: '', inscricao_estadual: '',
   cep: '', logradouro: '', bairro: '', cidade: '', uf: '', numero: '', complemento: '',
-  status: 'negociacao', origem: '', responsavel: '', site: '', telefone: '', email: '',
+  status: 'negociacao', origem: '', responsavel_id: null, responsavel_nome: '',
+  site: '', telefone: '', email: '',
   franquia_ar_id: null, franquia_ar_nome: '',
+  // Porte
+  porte: '', receita_faixa: '',
+  // Hierarquia
+  matriz_id: null, matriz_nome: '',
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -206,6 +228,7 @@ const ACCENT = 'var(--accent)'
 function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados' }) {
   const isNew = !item?.id
   const [form, setForm]             = useState(item || EMPTY_FORM)
+  const [perfisStore]               = useLocalState('settings:perfis_v2', [])
   const [cnpjStatus, setCnpjStatus] = useState(null)
   const [cepStatus,  setCepStatus]  = useState(null)
   const [errs, setErrs]             = useState({})
@@ -386,6 +409,16 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 onBlur={e => patch('cnae_descricao', e.target.value)}
                 placeholder="Descrição da atividade" />
             </FormField>
+            <FormField label="Porte">
+              <select className="so-field" value={form.porte || ''} onChange={e => patch('porte', e.target.value)}>
+                {PORTES.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Faixa de Receita Anual">
+              <select className="so-field" value={form.receita_faixa || ''} onChange={e => patch('receita_faixa', e.target.value)}>
+                {RECEITA_FAIXAS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </FormField>
           </FormGrid>
         </FormSection>
 
@@ -485,10 +518,57 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               </select>
             </FormField>
             <FormField label="Responsável" style={{ gridColumn:'span 2' }}>
-              <input className="so-field" value={form.responsavel || ''}
-                onChange={e => setForm(f => ({ ...f, responsavel: e.target.value }))}
-                onBlur={e => patch('responsavel', e.target.value)} placeholder="Nome do responsável" />
+              <select className="so-field" value={form.responsavel_id || ''} onChange={e => {
+                const u = perfisStore.find(p => p.id === e.target.value)
+                patch('responsavel_id', e.target.value || null)
+                patch('responsavel_nome', u?.nome || '')
+              }}>
+                <option value="">— Selecionar usuário —</option>
+                {perfisStore.filter(p => p.status !== 'inativo').map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}{p.cargo ? ` — ${p.cargo}` : ''}</option>
+                ))}
+              </select>
             </FormField>
+          </FormGrid>
+        </FormSection>
+
+        <FormSection label="Hierarquia">
+          <FormGrid cols={2}>
+            <FormField label="Tipo de unidade">
+              <select className="so-field" value={form.hierarquia_tipo || 'independente'} onChange={e => {
+                patch('hierarquia_tipo', e.target.value)
+                if (e.target.value !== 'filial') { patch('matriz_id', null); patch('matriz_nome', '') }
+              }}>
+                <option value="independente">Independente</option>
+                <option value="matriz">Matriz (possui filiais)</option>
+                <option value="filial">Filial (vinculada a uma matriz)</option>
+              </select>
+            </FormField>
+            {form.hierarquia_tipo === 'filial' && (
+              <FormField label="Empresa Matriz">
+                <FranquiaARSearch
+                  value={form.matriz_id}
+                  label={form.matriz_nome}
+                  empresas={empresas.filter(e => e.id !== item?.id && (e.hierarquia_tipo === 'matriz' || !e.hierarquia_tipo))}
+                  onChange={(id, nome) => { patch('matriz_id', id); patch('matriz_nome', nome) }}
+                />
+              </FormField>
+            )}
+            {form.hierarquia_tipo === 'matriz' && (() => {
+              const filiais = empresas.filter(e => e.matriz_id === item?.id)
+              return filiais.length > 0 ? (
+                <FormField label={`Filiais (${filiais.length})`} style={{ gridColumn:'span 1' }}>
+                  <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                    {filiais.map(f => (
+                      <div key={f.id} style={{ fontSize:12, color:'var(--text-soft)', padding:'4px 8px',
+                        background:'var(--surface2)', borderRadius:6, border:'1px solid var(--border2)' }}>
+                        {f.fantasia || f.razao}
+                      </div>
+                    ))}
+                  </div>
+                </FormField>
+              ) : null
+            })()}
           </FormGrid>
         </FormSection>
 
