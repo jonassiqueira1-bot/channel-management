@@ -79,10 +79,10 @@ function PulseStyle() {
 // ─── Shared styles ────────────────────────────────────────────────────────────
 // ─── Page-level styles (espelho do Pipeline) ─────────────────────────────────
 const pg = {
-  pageHeader: { display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between' },
+  pageHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between' },
   breadcrumb: { display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)', marginBottom: 4 },
   sep:        { color: 'var(--border)' },
-  title:      { margin: 0, fontSize: 22, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.4px' },
+  title:      { margin: 0, fontSize: 15, fontWeight: 600, color: 'var(--text-muted)', letterSpacing: '-0.2px' },
   newBtn:     { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
   kpis:       { display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, paddingBottom: 4 },
   kpi:        { background: 'var(--surface)', borderRadius: 10, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)' },
@@ -4002,6 +4002,7 @@ export default function Projetos() {
   const [filtrosOpen,  setFiltrosOpen] = useState(false)
   const [dragId,       setDragId]      = useState(null)
   const [tab,       setTab]       = useLocalState('projetos:tab', 'projetos')
+  const [showKpis,  setShowKpis]  = useLocalState('projetos:showKpis', true)
 
   // Handle ?tab=propostas URL param from Pipeline "Abrir em Projetos →" link
   useEffect(() => {
@@ -4214,7 +4215,17 @@ export default function Projetos() {
 
         {/* Page header */}
         <div style={pg.pageHeader}>
-          <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}</h1>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <h1 style={pg.title}>{tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}</h1>
+            <button onClick={() => setShowKpis(v => !v)} title={showKpis ? 'Ocultar indicadores' : 'Mostrar indicadores'}
+              style={{ background:'none', border:'1px solid var(--border2)', borderRadius:6, cursor:'pointer',
+                padding:'2px 7px', fontSize:11, color:'var(--text-muted)', lineHeight:1.4,
+                transition:'all 0.15s' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='var(--accent)'; e.currentTarget.style.color='var(--accent)' }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border2)'; e.currentTarget.style.color='var(--text-muted)' }}>
+              {showKpis ? '▲ indicadores' : '▼ indicadores'}
+            </button>
+          </div>
           {tab === 'projetos' && (
             <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
           )}
@@ -4246,7 +4257,7 @@ export default function Projetos() {
         {tab === 'recursos'   && <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} />}
         {tab === 'financeiro' && <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} />}
 
-        {tab === 'projetos' && <div style={pg.kpis}>
+        {tab === 'projetos' && showKpis && <div style={pg.kpis}>
           <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
           <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
           <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
