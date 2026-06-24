@@ -2596,7 +2596,8 @@ function PropostasTab({ projetos, phases }) {
   const [wTemplId,     setWTemplId]     = useState('')
   const [wTitulo,      setWTitulo]      = useState('')
   const [wVars,        setWVars]        = useState({})      // regras variáveis wizard
-  const [tmplTab,      setTmplTab]      = useState('wbs')   // template editor sub-tab
+  const [tmplTab,      setTmplTab]      = useState('wbs')
+  const [tmplSaved,    setTmplSaved]    = useState(false)   // feedback visual de salvo
   const [importing,    setImporting]    = useState(false)
   const [importTmplId, setImportTmplId] = useState(null)
   const [collapsedPhases, setCollapsedPhases] = useState({})
@@ -3261,12 +3262,16 @@ function PropostasTab({ projetos, phases }) {
               placeholder="Descrição do template…"
               style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:3}}/>
           </div>
-          <div style={{display:'flex',gap:8,flexShrink:0}}>
+          <div style={{display:'flex',gap:8,flexShrink:0,alignItems:'center'}}>
             <button onClick={()=>setImporting(true)} style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
               ↑ Importar WBS
             </button>
             <button onClick={()=>excluirTemplate(st.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
               Excluir
+            </button>
+            <button onClick={()=>{salvarTemplate(selectedTmpl);setTmplSaved(true);setTimeout(()=>setTmplSaved(false),2000)}}
+              style={{padding:'7px 18px',background:tmplSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:80}}>
+              {tmplSaved ? '✓ Salvo' : 'Salvar'}
             </button>
           </div>
         </div>
