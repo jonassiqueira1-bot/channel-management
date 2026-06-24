@@ -38,7 +38,7 @@ function avatarColor(nome) {
 }
 
 // ─── ContatoDetail ─────────────────────────────────────────────────────────────
-const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'' }
+const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'', linkedin_url:'', whatsapp:'' }
 
 function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
   const isNew = !item?.id
@@ -128,6 +128,38 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
               onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
               onBlur={e => patch('telefone', e.target.value)}
               placeholder="(00) 00000-0000" />
+          </FormField>
+          <FormField label="WhatsApp">
+            <div style={{ display:'flex', gap:6 }}>
+              <input className="so-field" value={form.whatsapp || ''}
+                onChange={e => setForm(f => ({ ...f, whatsapp: e.target.value }))}
+                onBlur={e => patch('whatsapp', e.target.value)}
+                placeholder="(00) 00000-0000" style={{ flex:1 }} />
+              {form.whatsapp && (
+                <a href={`https://wa.me/55${form.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+                  style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36,
+                    borderRadius:8, background:'#25D366', color:'#fff', textDecoration:'none',
+                    fontSize:17, flexShrink:0 }}>
+                  💬
+                </a>
+              )}
+            </div>
+          </FormField>
+          <FormField label="LinkedIn" style={{ gridColumn:'span 2' }}>
+            <div style={{ display:'flex', gap:6 }}>
+              <input className="so-field" value={form.linkedin_url || ''}
+                onChange={e => setForm(f => ({ ...f, linkedin_url: e.target.value }))}
+                onBlur={e => patch('linkedin_url', e.target.value)}
+                placeholder="https://linkedin.com/in/nome" style={{ flex:1 }} />
+              {form.linkedin_url && (
+                <a href={form.linkedin_url} target="_blank" rel="noreferrer"
+                  style={{ display:'flex', alignItems:'center', justifyContent:'center', width:36, height:36,
+                    borderRadius:8, background:'#0A66C2', color:'#fff', textDecoration:'none',
+                    fontSize:13, fontWeight:800, flexShrink:0 }}>
+                  in
+                </a>
+              )}
+            </div>
           </FormField>
         </FormGrid>
       </FormSection>
