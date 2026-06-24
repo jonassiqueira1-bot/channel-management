@@ -2735,7 +2735,14 @@ function PropostasTab({ projetos, phases }) {
 
   // ── Escopo editor (in proposal — WBS when itens exist, simple fallback) ──
   function EscopoEditor({ prop }) {
+    // Hooks always first — before any conditional return
+    const [adding, setAdding] = useState(false)
+    const [draft,  setDraftI] = useState({ nome:'', descricao:'', horas:'' })
+
     const hasWBS = (prop.itens||[]).length > 0
+    const projeto       = projetos.find(p=>p.opportunity_id===prop.opp_id)
+    const projetoPhases = projeto ? phases.filter(ph=>ph.project_id===projeto.id) : []
+    const totH = (prop.escopo||[]).filter(e=>e.status==='incluido').reduce((s,e)=>s+Number(e.horas||0),0)
 
     // WBS mode (forked from template)
     if (hasWBS) {
@@ -2749,20 +2756,10 @@ function PropostasTab({ projetos, phases }) {
             <span style={{color:'var(--text-muted)'}}>Analista: <strong style={{color:'var(--accent)'}}>{decToHHMM(totalA)}</strong></span>
             <span style={{color:'var(--text-muted)'}}>Coord.: <strong style={{color:'var(--accent)'}}>{decToHHMM(totalC)}</strong></span>
           </div>
-          <WBSTable
-            itens={prop.itens||[]}
-            onChange={newItens=>salvar({...prop,itens:newItens})}
-          />
+          <WBSTable itens={prop.itens||[]} onChange={newItens=>salvar({...prop,itens:newItens})}/>
         </div>
       )
     }
-
-    // Simple legacy editor
-    const [adding, setAdding] = useState(false) // eslint-disable-line
-    const [draft,  setDraftI] = useState({ nome:'', descricao:'', horas:'' }) // eslint-disable-line
-    const projeto      = projetos.find(p=>p.opportunity_id===prop.opp_id)
-    const projetoPhases = projeto ? phases.filter(ph=>ph.project_id===projeto.id) : []
-    const totH = (prop.escopo||[]).filter(e=>e.status==='incluido').reduce((s,e)=>s+Number(e.horas||0),0)
 
     function addItem() {
       if(!draft.nome.trim()) return
