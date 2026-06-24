@@ -2745,7 +2745,7 @@ function OppSearch({ oppOptions, value, onChange }) {
   )
 }
 
-function PropostasTab({ projetos, phases, opps = [] }) {
+function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   const { save: saveOpp } = useOpportunities()
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
@@ -3810,7 +3810,7 @@ function PropostasTab({ projetos, phases, opps = [] }) {
         </button>
       </div>
 
-      <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
+      {showKpis && <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {[
           {label:'Total',    value:propostas.length,                                        color:'var(--border)'},
           {label:'Enviadas', value:propostas.filter(p=>p.status==='enviada').length,        color:'#3B82F6'},
@@ -3822,7 +3822,7 @@ function PropostasTab({ projetos, phases, opps = [] }) {
             <div style={{fontSize:22,fontWeight:800,color:'var(--text)'}}>{m.value}</div>
           </div>
         ))}
-      </div>
+      </div>}
 
       {filtered.length===0?(
         <div style={{textAlign:'center',padding:'60px 0',color:'var(--text-muted)'}}>
@@ -4350,7 +4350,7 @@ export default function Projetos() {
       {/* Abas com scroll próprio */}
       {tab === 'propostas' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <PropostasTab projetos={projetos} phases={phases} opps={opps} />
+          <PropostasTab projetos={projetos} phases={phases} opps={opps} showKpis={showKpis} />
         </div>
       )}
       {tab === 'fechamento' && (
