@@ -9,7 +9,7 @@ import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { useProducts } from '../hooks/useProducts'
 import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
 import { MOCK_ATIVIDADES } from '../data/mockAtividades'
-import { MOCK_MEMBROS_OPP, PAPEIS } from '../data/mockMembroOportunidade'
+import { MOCK_MEMBROS_OPP, PAPEIS, PERSONAS } from '../data/mockMembroOportunidade'
 import { useSellers } from '../hooks/useSellers'
 import { useContacts } from '../hooks/useContacts'
 import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
@@ -1713,7 +1713,17 @@ const PAPEL_CFG = {
   outro:          { label:'Outro',                 color:'#6B7280', bg:'#F3F4F6' },
 }
 
-function PapelBadge({ papel }) {
+function PapelBadge({ papel, tipoMembro }) {
+  if (tipoMembro === 'externo') {
+    const p = PERSONAS.find(x => x.value === papel) || PERSONAS[0]
+    return (
+      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+        background:p.bg, color:p.color, whiteSpace:'nowrap', fontFamily:'var(--mono)',
+        border:`1px solid ${p.color}33` }}>
+        {p.label}
+      </span>
+    )
+  }
   const cfg = PAPEL_CFG[papel] || PAPEL_CFG.outro
   return (
     <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
@@ -1777,6 +1787,7 @@ function OppEquipeTab({ oppId }) {
   const [selUser, setSelUser]   = useState(null)
   const [papel,   setPapel]     = useState('vendedor')
   const [dropOpen, setDropOpen] = useState(false)
+  const tipoSelecionado = selUser?.tipo || 'interno'
   const dropRef = useRef(null)
 
   useEffect(() => {
@@ -1886,7 +1897,7 @@ function OppEquipeTab({ oppId }) {
                   boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
                   {sugestoes.map(u => (
                     <div key={u.id}
-                      onMouseDown={() => { setSelUser(u); setQuery(''); setDropOpen(false) }}
+                      onMouseDown={() => { setSelUser(u); setQuery(''); setDropOpen(false); setPapel(u.tipo === 'externo' ? 'nao_informado' : 'vendedor') }}
                       style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
                         cursor:'pointer', borderBottom:'1px solid var(--border2)' }}
                       onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
@@ -1914,11 +1925,13 @@ function OppEquipeTab({ oppId }) {
               )}
             </div>
 
-            {/* Papel */}
+            {/* Papel (interno) ou Persona (externo) */}
             <div>
-              <label style={tb.lbl}>Papel</label>
+              <label style={tb.lbl}>{tipoSelecionado === 'externo' ? 'Persona da negociação' : 'Papel'}</label>
               <select style={m.input} value={papel} onChange={e => setPapel(e.target.value)}>
-                {PAPEIS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                {(tipoSelecionado === 'externo' ? PERSONAS : PAPEIS).map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -2009,7 +2022,7 @@ function MembroRow({ membro, onRemove }) {
           )}
         </div>
       </div>
-      <PapelBadge papel={membro.papel} />
+      <PapelBadge papel={membro.papel} tipoMembro={membro.tipo_membro} />
       <button type="button" onClick={() => onRemove(membro.id)} title="Remover da equipe"
         style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
           fontSize:14, padding:'4px 6px', borderRadius:4, opacity: hover ? 1 : 0,

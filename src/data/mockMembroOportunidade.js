@@ -65,3 +65,14 @@ export const PAPEIS = [
   { value: 'supervisor',     label: 'Supervisor' },
   { value: 'outro',          label: 'Outro' },
 ]
+
+export const PERSONAS = [
+  { value: 'nao_informado',       label: 'Não informado',        color: '#9CA3AF', bg: '#F3F4F6' },
+  { value: 'decisor',             label: 'Decisor',              color: '#DC2626', bg: '#FEF2F2' },
+  { value: 'influenciador',       label: 'Influenciador',        color: '#7C3AED', bg: '#F5F3FF' },
+  { value: 'usuario_final',       label: 'Usuário final',        color: '#2563EB', bg: '#EFF6FF' },
+  { value: 'gatekeeper',         label: 'Gatekeeper',           color: '#D97706', bg: '#FFFBEB' },
+  { value: 'campeao',             label: 'Campeão',              color: '#059669', bg: '#ECFDF5' },
+  { value: 'consultor_tecnico',   label: 'Consultor Técnico',    color: '#0891B2', bg: '#ECFEFF' },
+  { value: 'ti',                  label: 'TI',                   color: '#4F46E5', bg: '#EEF2FF' },
+]
