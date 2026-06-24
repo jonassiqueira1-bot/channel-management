@@ -3481,6 +3481,20 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   }
 
   const { playbooks } = usePlaybooks()
+  const [playbookHintOpen, setPlaybookHintOpen] = useState(true)
+
+  // Playbook contextual: steps da etapa atual
+  const playbookContextual = useMemo(() => {
+    const pb = playbooks.find(p => p.id === form.playbook_id) || playbooks[0] || null
+    if (!pb) return null
+    const etapa  = etapas.find(e => e.id === form.etapa_id)
+    const stage  = etapa ? mapEtapaToStage(etapa.nome) : null
+    const steps  = (pb.steps || []).filter(s =>
+      s.stage === stage || (form.etapa_id != null && String(s.stage) === String(form.etapa_id))
+    )
+    if (!steps.length) return null
+    return { pb, etapa, stage, steps }
+  }, [playbooks, form.playbook_id, form.etapa_id, etapas])
 
   const oppTarefasCount   = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id).length
   const oppTarefasAbertas = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id && (t.status==='pendente'||t.status==='em_andamento')).length
@@ -3738,6 +3752,50 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       {/* Aba: Dados */}
       {tab==='dados' && (
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0 }}>
+
+          {/* ── Playbook contextual — aparece automaticamente quando há steps para a etapa ── */}
+          {playbookContextual && (
+            <div style={{ flexShrink:0, borderBottom:'1px solid var(--border2)',
+              background:'linear-gradient(135deg,#EEF2FF 0%,#F5F3FF 100%)' }}>
+              <button onClick={() => setPlaybookHintOpen(o => !o)}
+                style={{ width:'100%', display:'flex', alignItems:'center', gap:8, padding:'10px 20px',
+                  background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textAlign:'left' }}>
+                <span style={{ fontSize:14 }}>📋</span>
+                <span style={{ flex:1, fontSize:12, fontWeight:700, color:'var(--accent)' }}>
+                  Playbook · {playbookContextual.etapa?.nome || playbookContextual.stage}
+                </span>
+                <span style={{ fontSize:11, color:'var(--text-muted)', marginRight:4 }}>
+                  {playbookContextual.steps.length} orientaç{playbookContextual.steps.length === 1 ? 'ão' : 'ões'}
+                </span>
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>{playbookHintOpen ? '▲' : '▼'}</span>
+              </button>
+              {playbookHintOpen && (
+                <div style={{ padding:'0 20px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+                  {playbookContextual.steps.map((s, i) => (
+                    <div key={s.id || i} style={{ background:'#fff', border:'1px solid var(--accent)22',
+                      borderRadius:8, padding:'10px 14px' }}>
+                      <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>
+                        {s.icone ? `${s.icone} ` : ''}{s.title}
+                      </div>
+                      {s.content && (
+                        <div style={{ fontSize:12, color:'var(--text-soft)', lineHeight:1.6,
+                          whiteSpace:'pre-wrap', maxHeight:120, overflow:'hidden',
+                          WebkitMaskImage:'linear-gradient(to bottom, black 70%, transparent 100%)' }}>
+                          {s.content.replace(/[#*`]/g, '').trim()}
+                        </div>
+                      )}
+                      <button onClick={() => setTab('playbook')}
+                        style={{ marginTop:6, fontSize:11, color:'var(--accent)', background:'none',
+                          border:'none', cursor:'pointer', fontFamily:'var(--font)', padding:0, fontWeight:600 }}>
+                        Ver playbook completo →
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={m.body}>{dadosFormBody}</div>
           <div style={m.footer}>
             <div style={{ flex:1 }}>{extraSlot}</div>
