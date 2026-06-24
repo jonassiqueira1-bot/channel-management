@@ -1761,7 +1761,7 @@ function OppEquipeTab({ oppId }) {
   // Pool combinado: sellers (internos) + contacts (externos/canais)
   const todosMembros = useMemo(() => [
     ...sellers.map(s => ({ id:`s_${s.id}`, nome: s.nome, cargo: s.cargo || s.role || '', email: s.email, tipo: 'interno', avatar: (s.nome||'?').slice(0,2).toUpperCase() })),
-    ...contacts.map(c => ({ id:`c_${c.id}`, nome: c.nome || c.email || 'Sem nome', cargo: c.cargo || '', email: c.email, tipo: 'externo', avatar: (c.nome||c.email||'?').slice(0,2).toUpperCase() })),
+    ...contacts.map(c => ({ id:`c_${c.id}`, nome: c.nome || c.email || 'Sem nome', cargo: c.cargo || '', email: c.email, tipo: 'externo', avatar: (c.nome||c.email||'?').slice(0,2).toUpperCase(), linkedin_url: c.linkedin_url || '', whatsapp: c.whatsapp || '' })),
   ], [sellers, contacts])
 
   // Membros desta oportunidade enriquecidos
@@ -1987,7 +1987,27 @@ function MembroRow({ membro, onRemove }) {
           {u.nome}
           <TipoMemboBadge tipo={membro.tipo_membro} />
         </div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{u.cargo}</div>
+        <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, display:'flex', alignItems:'center', gap:8 }}>
+          {u.cargo}
+          {u.whatsapp && (
+            <a href={`https://wa.me/55${u.whatsapp.replace(/\D/g,'')}`} target="_blank" rel="noreferrer"
+              title={`WhatsApp: ${u.whatsapp}`}
+              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                width:20, height:20, borderRadius:5, background:'#25D366', color:'#fff',
+                textDecoration:'none', fontSize:11, flexShrink:0 }}>
+              💬
+            </a>
+          )}
+          {u.linkedin_url && (
+            <a href={u.linkedin_url} target="_blank" rel="noreferrer"
+              title="Abrir LinkedIn"
+              style={{ display:'inline-flex', alignItems:'center', justifyContent:'center',
+                width:20, height:20, borderRadius:5, background:'#0A66C2', color:'#fff',
+                textDecoration:'none', fontSize:9, fontWeight:800, flexShrink:0 }}>
+              in
+            </a>
+          )}
+        </div>
       </div>
       <PapelBadge papel={membro.papel} />
       <button type="button" onClick={() => onRemove(membro.id)} title="Remover da equipe"
