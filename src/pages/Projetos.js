@@ -2360,7 +2360,7 @@ const DEFAULT_TEMPLATES = [
   {
     id:'tmpl-mit', nome:'MIT Padrão (6 fases)', descricao:'Template padrão de implantação baseado na metodologia MIT',
     itens: DEFAULT_TEMPLATE_ITENS,
-    produtos: [3],
+    produto_id: 3,
     tarifas: [
       { id:'tr1', papel:'analista',    label:'Analista',    valor_hora: 150 },
       { id:'tr2', papel:'coordenacao', label:'Coordenador', valor_hora: 220 },
@@ -2480,6 +2480,65 @@ const PROP_ESC_STATUS = {
   opcional: { label: 'Opcional', bg: '#FEF3C7', color: '#92400E', border: '#F59E0B' },
 }
 function tmplUid() { return `tmpl-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
+
+function ProdutoSearch({ produto_id, onChange }) {
+  const [query, setQuery] = useState('')
+  const [open,  setOpen]  = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const ativos     = MOCK_PRODUTOS.filter(p => p.status === 'ativo')
+  const sugestoes  = query ? ativos.filter(p => (p.nome + p.codigo + p.categoria).toLowerCase().includes(query.toLowerCase())) : ativos
+  const selecionado = MOCK_PRODUTOS.find(p => p.id === produto_id)
+  return (
+    <div style={{display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{fontSize:12,color:'var(--text-muted)'}}>Selecione o produto do catálogo que esta proposta cobre. Um produto por proposta.</div>
+      <div ref={ref} style={{position:'relative'}}>
+        <div style={{display:'flex',alignItems:'center',border:'1px solid var(--border)',borderRadius:8,background:'var(--surface)',overflow:'hidden'}}>
+          <input value={query} onChange={e=>{setQuery(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)}
+            placeholder="Buscar pelo nome ou código…"
+            style={{flex:1,padding:'9px 12px',border:'none',background:'none',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+          {produto_id && <button onClick={()=>{onChange(null);setQuery('')}} style={{padding:'0 12px',background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16,lineHeight:1}}>✕</button>}
+        </div>
+        {open && sugestoes.length > 0 && (
+          <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,right:0,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:8,boxShadow:'0 8px 24px rgba(0,0,0,0.14)',zIndex:300,maxHeight:240,overflowY:'auto'}}>
+            {sugestoes.map(p=>(
+              <div key={p.id} onClick={()=>{onChange(p.id);setQuery('');setOpen(false)}}
+                style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',cursor:'pointer',borderBottom:'1px solid var(--border2)'}}
+                onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+                onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{p.nome}</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)'}}>{p.codigo} · {p.categoria} · {p.tipo==='saas'?'SaaS':'Serviço'}</div>
+                </div>
+                {p.preco>0&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{fmtBRL2(p.preco)}{p.cobranca==='mensal'?'/mês':''}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      {selecionado ? (
+        <div style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--accent-glow)',border:'1px solid var(--accent)33',borderRadius:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{selecionado.nome}</div>
+            <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{selecionado.codigo} · {selecionado.categoria} · {selecionado.tipo==='saas'?'SaaS':'Serviço'}</div>
+            {selecionado.descricao&&<div style={{fontSize:11,color:'var(--text-soft)',marginTop:4,lineHeight:1.5}}>{selecionado.descricao}</div>}
+          </div>
+          {selecionado.preco>0&&(
+            <div style={{textAlign:'right',flexShrink:0}}>
+              <div style={{fontSize:18,fontWeight:800,color:'var(--accent)'}}>{fmtBRL2(selecionado.preco)}</div>
+              <div style={{fontSize:10,color:'var(--text-muted)'}}>{selecionado.cobranca==='mensal'?'/mês':'cobrança única'}</div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum produto vinculado</div>
+      )}
+    </div>
+  )
+}
 function propUid() { return `prop-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
 function escUid()  { return `esc-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
 function equUid()  { return `equ-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
@@ -2595,7 +2654,7 @@ function PropostasTab({ projetos, phases }) {
       itens: ajustados,
       tarifas: (templ?.tarifas||DEFAULT_TARIFAS).map(t=>({...t})),
       blocos:  (templ?.blocos||[]).map(b=>({...b,id:`b-${Date.now()}-${Math.random().toString(36).slice(2,5)}`})),
-      produtos: templ?.produtos||[],
+      produto_id: templ?.produto_id||null,
       variaveis_aplicadas: wVars,
       escopo:[], equipe:[], obs:'',
       log: logEntries,
@@ -3280,29 +3339,7 @@ function PropostasTab({ projetos, phases }) {
         )}
 
         {/* Produtos tab */}
-        {tmplTab==='produtos' && (
-          <div style={{display:'flex',flexDirection:'column',gap:12}}>
-            <div style={{fontSize:12,color:'var(--text-muted)'}}>Vincule os produtos do catálogo que esta proposta cobre. Aparecem no documento gerado e no histórico da oportunidade.</div>
-            {MOCK_PRODUTOS.filter(p=>p.status==='ativo').map(p=>{
-              const selecionado = (st.produtos||[]).includes(p.id)
-              return (
-                <div key={p.id} onClick={()=>{
-                  const novo = selecionado ? (st.produtos||[]).filter(x=>x!==p.id) : [...(st.produtos||[]), p.id]
-                  salvarTemplate({...st,produtos:novo})
-                }} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',border:`1px solid ${selecionado?'var(--accent)':'var(--border2)'}`,borderRadius:9,cursor:'pointer',background:selecionado?'var(--accent-glow)':'var(--surface)',transition:'all 0.12s'}}>
-                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selecionado?'var(--accent)':'var(--border)'}`,background:selecionado?'var(--accent)':'none',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                    {selecionado&&<span style={{color:'#fff',fontSize:11,lineHeight:1}}>✓</span>}
-                  </div>
-                  <div style={{flex:1,minWidth:0}}>
-                    <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{p.nome}</div>
-                    <div style={{fontSize:11,color:'var(--text-muted)',marginTop:1}}>{p.codigo} · {p.categoria} · {p.tipo==='saas'?'SaaS':'Serviço'}</div>
-                  </div>
-                  {p.preco>0&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{fmtBRL2(p.preco)}{p.cobranca==='mensal'?'/mês':''}</span>}
-                </div>
-              )
-            })}
-          </div>
-        )}
+        {tmplTab==='produtos' && <ProdutoSearch produto_id={st.produto_id} onChange={id=>salvarTemplate({...st,produto_id:id})}/>}
 
         {/* Blocos de texto tab */}
         {tmplTab==='blocos' && (
