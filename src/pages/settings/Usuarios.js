@@ -350,7 +350,16 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     branch_ids:          perfil.branch_ids || [],
     franquia_id:         perfil.franquia_id || null,
     regras_comissao_ids: perfil.regras_comissao_ids || [],
+    // Perfil de recurso (PSA)
+    cargo:               perfil.cargo || '',
+    senioridade:         perfil.senioridade || '',
+    tipo_recurso:        perfil.tipo_recurso || 'interno',
+    billing_rate:        perfil.billing_rate ?? '',
+    custo_hora:          perfil.custo_hora ?? '',
+    horas_semana:        perfil.horas_semana ?? 40,
+    habilidades:         perfil.habilidades || [],
   })
+  const [novaHabilidade, setNovaHabilidade] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
   const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const [regrasComiss] = useLocalState(RULES_STORAGE_KEY, MOCK_RULES)
@@ -399,6 +408,13 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       branch_ids:          form.branch_ids,
       franquia_id:         isAdminFranquia ? form.franquia_id : null,
       regras_comissao_ids: form.regras_comissao_ids,
+      cargo:               form.cargo.trim(),
+      senioridade:         form.senioridade,
+      tipo_recurso:        form.tipo_recurso,
+      billing_rate:        form.billing_rate === '' ? null : Number(form.billing_rate),
+      custo_hora:          form.custo_hora === '' ? null : Number(form.custo_hora),
+      horas_semana:        Number(form.horas_semana) || 40,
+      habilidades:         form.habilidades,
     })
     onClose()
   }
@@ -586,6 +602,97 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             })}
           </div>
         )}
+      </FPESection>
+
+      {/* Perfil de Recurso (PSA) */}
+      <FPESection title="Perfil de Recurso" description="Dados de alocação e capacidade usados em propostas e projetos.">
+        <FPEGrid>
+          <FPEField label="Cargo / Função">
+            <input className="fpe-field" value={form.cargo} disabled={!podeEditar}
+              placeholder="Ex: Consultor de Implantação"
+              onChange={e => set('cargo', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="Senioridade">
+            <select className="fpe-field" value={form.senioridade} disabled={!podeEditar}
+              onChange={e => set('senioridade', e.target.value)}>
+              <option value="">— Não informado —</option>
+              <option value="junior">Júnior</option>
+              <option value="pleno">Pleno</option>
+              <option value="senior">Sênior</option>
+              <option value="especialista">Especialista</option>
+              <option value="gestor">Gestor</option>
+            </select>
+          </FPEField>
+
+          <FPEField label="Tipo de recurso">
+            <select className="fpe-field" value={form.tipo_recurso} disabled={!podeEditar}
+              onChange={e => set('tipo_recurso', e.target.value)}>
+              <option value="interno">Interno (ISV)</option>
+              <option value="canal">Canal / Franquia</option>
+              <option value="subcontratado">Subcontratado</option>
+            </select>
+          </FPEField>
+
+          <FPEField label="Disponibilidade (h/semana)">
+            <input className="fpe-field" type="number" min={0} max={168} value={form.horas_semana} disabled={!podeEditar}
+              onChange={e => set('horas_semana', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="Preço/hora — billing (R$)">
+            <input className="fpe-field" type="number" min={0} step={0.01} value={form.billing_rate} disabled={!podeEditar}
+              placeholder="0,00"
+              onChange={e => set('billing_rate', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="Custo/hora (R$)">
+            <input className="fpe-field" type="number" min={0} step={0.01} value={form.custo_hora} disabled={!podeEditar}
+              placeholder="0,00"
+              onChange={e => set('custo_hora', e.target.value)} />
+          </FPEField>
+        </FPEGrid>
+
+        {/* Habilidades */}
+        <FPEField label="Habilidades" style={{ gridColumn:'1/-1', marginTop:8 }}>
+          <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom:8 }}>
+            {(form.habilidades || []).map(h => (
+              <span key={h} style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'3px 10px', borderRadius:20, background:'color-mix(in srgb, var(--accent) 10%, transparent)', color:'var(--accent)', border:'1px solid color-mix(in srgb, var(--accent) 25%, transparent)', fontSize:12, fontWeight:600 }}>
+                {h}
+                {podeEditar && (
+                  <button onClick={() => set('habilidades', form.habilidades.filter(x => x !== h))}
+                    style={{ background:'none', border:'none', color:'var(--accent)', cursor:'pointer', padding:0, fontSize:13, lineHeight:1, opacity:0.7 }}>×</button>
+                )}
+              </span>
+            ))}
+            {(form.habilidades || []).length === 0 && (
+              <span style={{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhuma habilidade adicionada</span>
+            )}
+          </div>
+          {podeEditar && (
+            <div style={{ display:'flex', gap:6 }}>
+              <input className="fpe-field" value={novaHabilidade} placeholder="Ex: SAP, SQL, Power BI…"
+                style={{ flex:1 }}
+                onChange={e => setNovaHabilidade(e.target.value)}
+                onKeyDown={e => {
+                  if ((e.key === 'Enter' || e.key === ',') && novaHabilidade.trim()) {
+                    e.preventDefault()
+                    const tag = novaHabilidade.trim()
+                    if (!form.habilidades.includes(tag)) set('habilidades', [...form.habilidades, tag])
+                    setNovaHabilidade('')
+                  }
+                }} />
+              <button type="button"
+                onClick={() => {
+                  const tag = novaHabilidade.trim()
+                  if (tag && !form.habilidades.includes(tag)) set('habilidades', [...form.habilidades, tag])
+                  setNovaHabilidade('')
+                }}
+                style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12, cursor:'pointer' }}>
+                + Adicionar
+              </button>
+            </div>
+          )}
+        </FPEField>
       </FPESection>
 
       {/* Zona de perigo */}
