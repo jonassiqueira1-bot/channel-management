@@ -13,6 +13,7 @@ import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
+import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import ActionFeedback from '../components/ActionFeedback'
 
 const ACCENT = 'var(--accent)'
@@ -2190,6 +2191,119 @@ function FiltrosPopover({ open, onClose, filtros, setFiltros, projetos }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 const PROPOSTAS_KEY      = 'projects:propostas_v1'
 const PROP_TEMPLATES_KEY = 'projects:prop_templates_v1'
+const PROP_ESTILO_KEY    = 'projects:prop_estilo_v1'
+
+const DEFAULT_ESTILO = {
+  logo_url:       '',
+  cor_primaria:   '#6366F1',
+  header_titulo:  'PROPOSTA DE IMPLANTAÇÃO',
+  header_sub:     '',
+  footer_texto:   'Documento confidencial · {{empresa_nome}} · {{ano}}',
+}
+
+const DEFAULT_TARIFAS = [
+  { id:'tr1', papel:'analista',    label:'Analista',     valor_hora: 0 },
+  { id:'tr2', papel:'coordenacao', label:'Coordenador',  valor_hora: 0 },
+  { id:'tr3', papel:'especialista',label:'Especialista', valor_hora: 0 },
+]
+
+const VARIAVEIS_CFG = [
+  { campo:'num_funcionarios', label:'Número de funcionários',    tipo:'number' },
+  { campo:'num_filiais',      label:'Número de filiais/unidades',tipo:'number' },
+  { campo:'num_usuarios',     label:'Usuários do sistema',       tipo:'number' },
+  { campo:'tem_integracao',   label:'Possui integração',         tipo:'bool'   },
+  { campo:'tem_migracao',     label:'Possui migração de dados',  tipo:'bool'   },
+]
+
+const REGRA_CAMPOS = VARIAVEIS_CFG.map(v => ({ value: v.campo, label: v.label, tipo: v.tipo }))
+
+const REGRA_OPERADORES = {
+  number: [{ v:'>',label:'maior que'},{v:'>=',label:'maior ou igual'},{v:'<',label:'menor que'},{v:'<=',label:'menor ou igual'},{v:'=',label:'igual a'}],
+  bool:   [{ v:'sim',label:'sim (ativo)'},{v:'nao',label:'não (inativo)'}],
+}
+
+const ACAO_TIPOS = [
+  { v:'acrescentar_pct',  label:'Acrescentar %'     },
+  { v:'reduzir_pct',      label:'Reduzir %'          },
+  { v:'acrescentar_horas',label:'Acrescentar horas'  },
+  { v:'reduzir_horas',    label:'Reduzir horas'      },
+]
+
+const CAMPO_HORA_OPTS = [
+  { v:'ambas',    label:'Analista + Coord.' },
+  { v:'analista', label:'Analista'          },
+  { v:'coord',    label:'Coordenador'       },
+]
+
+// ─── Rules engine ──────────────────────────────────────────────────────────────
+function evaluateRules(regras, variaveis, itens) {
+  let result = itens.map(i => ({ ...i }))
+  ;(regras || []).filter(r => r.ativo !== false).forEach(regra => {
+    const { campo, operador, valor } = regra.condicao || {}
+    const v = variaveis[campo]
+    let match = false
+    if (operador === '>')   match = Number(v) > Number(valor)
+    if (operador === '>=')  match = Number(v) >= Number(valor)
+    if (operador === '<')   match = Number(v) < Number(valor)
+    if (operador === '<=')  match = Number(v) <= Number(valor)
+    if (operador === '=')   match = String(v) === String(valor)
+    if (operador === 'sim') match = v === true || v === 'sim'
+    if (operador === 'nao') match = v === false || v === 'nao'
+    if (!match) return
+
+    const { fase_id, tipo, quantidade, campo_hora } = regra.acao || {}
+    const sign = tipo?.includes('acrescentar') ? 1 : -1
+    const isPct = tipo?.includes('pct')
+
+    result = result.map(item => {
+      if (item.nivel !== 2) return item
+      if (item.id !== fase_id && item.parent_id !== fase_id) return item
+      const n = { ...item }
+      function adj(h) {
+        if (!h) return h
+        const delta = isPct ? h * (quantidade / 100) : quantidade
+        return Math.max(0, h + sign * delta)
+      }
+      if (campo_hora === 'analista' || campo_hora === 'ambas') n.hr_analista = adj(n.hr_analista)
+      if (campo_hora === 'coord'    || campo_hora === 'ambas') n.hr_coord    = adj(n.hr_coord)
+      return n
+    })
+  })
+  return result
+}
+
+// Returns which rules matched given variáveis
+function evalRulesLog(regras, variaveis) {
+  return (regras || []).filter(r => r.ativo !== false).filter(regra => {
+    const { campo, operador, valor } = regra.condicao || {}
+    const v = variaveis[campo]
+    if (operador === '>')   return Number(v) > Number(valor)
+    if (operador === '>=')  return Number(v) >= Number(valor)
+    if (operador === '<')   return Number(v) < Number(valor)
+    if (operador === '<=')  return Number(v) <= Number(valor)
+    if (operador === '=')   return String(v) === String(valor)
+    if (operador === 'sim') return v === true || v === 'sim'
+    if (operador === 'nao') return v === false || v === 'nao'
+    return false
+  })
+}
+
+// Investment calculation
+function calcInvestimento(itens, tarifas) {
+  const tm = {}; (tarifas || []).forEach(t => { tm[t.papel] = Number(t.valor_hora || 0) })
+  return (itens || []).filter(i => i.nivel === 2).reduce((total, item) => {
+    const hA = Number(item.hr_analista || 0); const hC = Number(item.hr_coord || 0)
+    if (item.tipo_hora === 'analista')    return total + hA * (tm.analista || 0)
+    if (item.tipo_hora === 'coordenacao') return total + hC * (tm.coordenacao || 0)
+    if (item.tipo_hora === 'ana_coord')   return total + hA * (tm.analista || 0) + hC * (tm.coordenacao || 0)
+    if (item.tipo_hora === 'especialista')return total + hA * (tm.especialista || 0)
+    return total
+  }, 0)
+}
+
+function fmtBRL2(v) {
+  return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', minimumFractionDigits:2 }).format(v || 0)
+}
 
 // ─── WBS helpers ──────────────────────────────────────────────────────────────
 const TIPO_HORA_CFG = {
@@ -2243,7 +2357,26 @@ const DEFAULT_TEMPLATE_ITENS = [
 ]
 
 const DEFAULT_TEMPLATES = [
-  { id:'tmpl-mit', nome:'MIT Padrão (6 fases)', descricao:'Template padrão de implantação baseado na metodologia MIT', itens: DEFAULT_TEMPLATE_ITENS },
+  {
+    id:'tmpl-mit', nome:'MIT Padrão (6 fases)', descricao:'Template padrão de implantação baseado na metodologia MIT',
+    itens: DEFAULT_TEMPLATE_ITENS,
+    produtos: [3],
+    tarifas: [
+      { id:'tr1', papel:'analista',    label:'Analista',    valor_hora: 150 },
+      { id:'tr2', papel:'coordenacao', label:'Coordenador', valor_hora: 220 },
+      { id:'tr3', papel:'especialista',label:'Especialista',valor_hora: 350 },
+    ],
+    blocos: [
+      { id:'b1', ordem:1, titulo:'Apresentação', conteudo:'Este documento tem por objetivo apresentar a proposta de implantação elaborada pela nossa equipe, contendo o escopo detalhado, a equipe proposta, o investimento e as condições comerciais.' },
+      { id:'b2', ordem:2, titulo:'Metodologia',  conteudo:'A implantação segue a Metodologia MIT (Modelo de Implantação Técnica), estruturada em fases sequenciais com entregas validadas ao final de cada etapa.' },
+      { id:'b3', ordem:3, titulo:'Termos e Condições', conteudo:'O prazo de validade desta proposta é de 30 (trinta) dias corridos a partir da data de emissão. Os valores apresentados não incluem impostos aplicáveis.' },
+    ],
+    regras: [
+      { id:'r1', ativo:true, descricao:'Empresa com mais de 500 funcionários: +20% nas horas de treinamento', condicao:{ campo:'num_funcionarios', operador:'>', valor:500 }, acao:{ fase_id:'di17', tipo:'acrescentar_pct', quantidade:20, campo_hora:'ambas' } },
+      { id:'r2', ativo:true, descricao:'Possui migração de dados: +16h de analista na configuração', condicao:{ campo:'tem_migracao', operador:'sim', valor:null }, acao:{ fase_id:'di9', tipo:'acrescentar_horas', quantidade:16, campo_hora:'analista' } },
+      { id:'r3', ativo:true, descricao:'Possui integração: +8h de especialista na configuração', condicao:{ campo:'tem_integracao', operador:'sim', valor:null }, acao:{ fase_id:'di9', tipo:'acrescentar_horas', quantidade:8, campo_hora:'analista' } },
+    ],
+  },
 ]
 
 // Fork template → proposal itens with new IDs
@@ -2398,12 +2531,15 @@ function PropostasTab({ projetos, phases }) {
   const [propTab,      setPropTab]      = useState('escopo')
   const [filterOpp,    setFilterOpp]    = useState('')
   const [filterSt,     setFilterSt]     = useState('')
+  const [estilo,       setEstilo]       = useLocalState(PROP_ESTILO_KEY, DEFAULT_ESTILO)
   const [wStep,        setWStep]        = useState(1)
   const [wOppId,       setWOppId]       = useState('')
   const [wTemplId,     setWTemplId]     = useState('')
   const [wTitulo,      setWTitulo]      = useState('')
-  const [importing,    setImporting]    = useState(false)  // import modal for templates
-  const [importTmplId, setImportTmplId] = useState(null)   // which template to import into
+  const [wVars,        setWVars]        = useState({})      // regras variáveis wizard
+  const [tmplTab,      setTmplTab]      = useState('wbs')   // template editor sub-tab
+  const [importing,    setImporting]    = useState(false)
+  const [importTmplId, setImportTmplId] = useState(null)
   const [collapsedPhases, setCollapsedPhases] = useState({})
 
   useEffect(() => {
@@ -2438,22 +2574,34 @@ function PropostasTab({ projetos, phases }) {
     setPropostas(prev=>prev.filter(p=>p.id!==id)); setSelected(null)
   }
   function criarProposta() {
-    const opp   = oppOptions.find(o=>String(o.id)===wOppId)
-    const templ = templates.find(t=>t.id===wTemplId) || templates[0]
-    const now   = new Date().toISOString()
-    const nova  = {
+    const opp    = oppOptions.find(o=>String(o.id)===wOppId)
+    const templ  = templates.find(t=>t.id===wTemplId) || templates[0]
+    const now    = new Date().toISOString()
+    const forked = forkTemplateItens(templ?.itens||[])
+    const ajustados = Object.keys(wVars).length && templ?.regras?.length
+      ? evaluateRules(templ.regras, wVars, forked) : forked
+    const logEntries = [{ id:`l-${Date.now()}`, evento:'Proposta criada', usuario:'Você', data:now }]
+    if (Object.keys(wVars).length && templ?.regras?.length) {
+      const fired = evalRulesLog(templ.regras, wVars)
+      fired.forEach(r => logEntries.push({ id:`l-${Date.now()}-${r.id}`, evento:`Regra aplicada: ${r.descricao}`, usuario:'Sistema', data:now }))
+    }
+    const nova = {
       id:propUid(), titulo:wTitulo||`Proposta de Implantação — ${opp?.empresa_nome||''}`,
       opp_id:wOppId, opp_titulo:opp?.titulo||'', empresa_nome:opp?.empresa_nome||'',
       status:'rascunho', version:1, created_at:now, updated_at:now,
       enviada_em:null, aceita_em:null,
       assinatura_status:null, assinatura_plataforma:null, assinatura_url:null,
       assinatura_enviada_em:null, assinatura_concluida_em:null,
-      itens: templ ? forkTemplateItens(templ.itens||[]) : [],
+      itens: ajustados,
+      tarifas: (templ?.tarifas||DEFAULT_TARIFAS).map(t=>({...t})),
+      blocos:  (templ?.blocos||[]).map(b=>({...b,id:`b-${Date.now()}-${Math.random().toString(36).slice(2,5)}`})),
+      produtos: templ?.produtos||[],
+      variaveis_aplicadas: wVars,
       escopo:[], equipe:[], obs:'',
-      log:[{id:`l-${Date.now()}`, evento:'Proposta criada', usuario:'Você', data:now}],
+      log: logEntries,
     }
     setPropostas(prev=>[...prev,nova]); setCriando(false); setSelected(nova); setPropTab('escopo')
-    setWStep(1); setWOppId(filterOpp||''); setWTemplId(''); setWTitulo('')
+    setWStep(1); setWOppId(filterOpp||''); setWTemplId(''); setWTitulo(''); setWVars({})
   }
 
   // ── Template CRUD ──
@@ -2974,7 +3122,11 @@ function PropostasTab({ projetos, phases }) {
             <div style={{flex:1,minWidth:200}}>
               <input value={selected.titulo} onChange={e=>salvar({...selected,titulo:e.target.value})}
                 style={{fontSize:18,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
-              <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>{selected.empresa_nome} · {selected.opp_titulo} · v{selected.version}</div>
+              <div style={{fontSize:12,color:'var(--text-muted)',marginTop:4}}>{selected.empresa_nome} · {selected.opp_titulo} · v{selected.version}
+                {calcInvestimento(selected.itens||[], selected.tarifas||[]) > 0 && (
+                  <span style={{marginLeft:10,color:'#10B981',fontWeight:700}}>{fmtBRL2(calcInvestimento(selected.itens||[], selected.tarifas||[]))}</span>
+                )}
+              </div>
             </div>
             <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
               <span style={{fontSize:11,padding:'4px 10px',borderRadius:20,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.label}</span>
@@ -3019,49 +3171,356 @@ function PropostasTab({ projetos, phases }) {
 
   // ── Template detail view ──
   if (subView === 'templates' && selectedTmpl) {
+    const tmplTabs = [
+      { id:'wbs',     label:'WBS / Escopo'   },
+      { id:'tarifas', label:'Tarifas'         },
+      { id:'produtos',label:'Produtos'        },
+      { id:'blocos',  label:'Blocos de Texto' },
+      { id:'regras',  label:'Regras'          },
+      { id:'estilo',  label:'Estilo Doc.'     },
+    ]
+    const st = selectedTmpl
+    const totals = calcPhaseTotals(st.itens||[])
+    const tA = Object.values(totals).reduce((s,t)=>s+t.hr_analista,0)
+    const tC = Object.values(totals).reduce((s,t)=>s+t.hr_coord,0)
+    const invest = calcInvestimento(st.itens||[], st.tarifas||[])
+    const inpSt2 = { padding:'7px 10px', border:'1px solid var(--border)', borderRadius:7, background:'var(--surface)', color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)', width:'100%', boxSizing:'border-box' }
+
     return (
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
-        {importing && <ImportModal tmplId={selectedTmpl.id} onClose={()=>setImporting(false)}/>}
+        {importing && <ImportModal tmplId={st.id} onClose={()=>setImporting(false)}/>}
+
+        {/* Header */}
         <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button onClick={()=>setSelectedTmpl(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>
+          <button onClick={()=>{setSelectedTmpl(null);setTmplTab('wbs')}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>
             ← Templates
           </button>
           <div style={{flex:1,minWidth:0}}>
-            <input value={selectedTmpl.nome} onChange={e=>salvarTemplate({...selectedTmpl,nome:e.target.value})}
+            <input value={st.nome} onChange={e=>salvarTemplate({...st,nome:e.target.value})}
               style={{fontSize:17,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
-            <input value={selectedTmpl.descricao||''} onChange={e=>salvarTemplate({...selectedTmpl,descricao:e.target.value})}
+            <input value={st.descricao||''} onChange={e=>salvarTemplate({...st,descricao:e.target.value})}
               placeholder="Descrição do template…"
               style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:3}}/>
           </div>
           <div style={{display:'flex',gap:8,flexShrink:0}}>
             <button onClick={()=>setImporting(true)} style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
-              ↑ Importar CSV / Project
+              ↑ Importar WBS
             </button>
-            <button onClick={()=>excluirTemplate(selectedTmpl.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+            <button onClick={()=>excluirTemplate(st.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
               Excluir
             </button>
           </div>
         </div>
 
-        <div style={{display:'flex',gap:16,padding:'10px 14px',background:'var(--surface2)',borderRadius:9,fontSize:12,color:'var(--text-muted)'}}>
-          {(() => {
-            const totals=calcPhaseTotals(selectedTmpl.itens||[])
-            const tA=Object.values(totals).reduce((s,t)=>s+t.hr_analista,0)
-            const tC=Object.values(totals).reduce((s,t)=>s+t.hr_coord,0)
-            return <>
-              <span>{(selectedTmpl.itens||[]).filter(i=>i.nivel===1).length} fases</span>
-              <span>{(selectedTmpl.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
-              <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
-              <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
-              <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
-            </>
-          })()}
+        {/* KPI strip */}
+        <div style={{display:'flex',gap:16,padding:'10px 14px',background:'var(--surface2)',borderRadius:9,fontSize:12,color:'var(--text-muted)',flexWrap:'wrap'}}>
+          <span>{(st.itens||[]).filter(i=>i.nivel===1).length} fases · {(st.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
+          <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
+          <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
+          <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
+          {invest>0 && <span style={{marginLeft:'auto'}}>Investimento estimado: <strong style={{color:'#10B981'}}>{fmtBRL2(invest)}</strong></span>}
         </div>
 
-        <WBSTable
-          itens={selectedTmpl.itens||[]}
-          onChange={newItens=>salvarTemplate({...selectedTmpl,itens:newItens})}
-        />
+        {/* Sub-tabs */}
+        <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)',alignSelf:'flex-start',flexWrap:'wrap'}}>
+          {tmplTabs.map(({id,label})=>(
+            <button key={id} onClick={()=>setTmplTab(id)}
+              style={{padding:'5px 13px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:tmplTab===id?700:500,fontFamily:'var(--font)',background:tmplTab===id?'var(--surface)':'none',color:tmplTab===id?'var(--text)':'var(--text-muted)',boxShadow:tmplTab===id?'0 1px 3px rgba(0,0,0,0.1)':'none'}}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {/* WBS tab */}
+        {tmplTab==='wbs' && (
+          <WBSTable itens={st.itens||[]} onChange={newItens=>salvarTemplate({...st,itens:newItens})}/>
+        )}
+
+        {/* Tarifas tab */}
+        {tmplTab==='tarifas' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{padding:'10px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,fontSize:11,color:'#1D4ED8',lineHeight:1.6}}>
+              Defina o valor/hora por tipo de profissional. O investimento total é calculado automaticamente cruzando com as horas do WBS.
+            </div>
+            <div style={{border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
+              <table style={{width:'100%',borderCollapse:'collapse'}}>
+                <thead>
+                  <tr style={{background:'var(--surface2)'}}>
+                    {['Papel','Valor / hora'].map(h=><th key={h} style={{padding:'8px 14px',fontSize:11,fontWeight:600,color:'var(--text-muted)',textAlign:'left',borderBottom:'1px solid var(--border)'}}>{h}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {(st.tarifas||DEFAULT_TARIFAS).map((t,i)=>(
+                    <tr key={t.id||i} style={{borderBottom:'1px solid var(--border2)'}}>
+                      <td style={{padding:'10px 14px',fontSize:13,color:'var(--text)',fontWeight:600}}>{t.label}</td>
+                      <td style={{padding:'8px 14px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{fontSize:12,color:'var(--text-muted)'}}>R$</span>
+                          <input type="number" min="0" step="10" value={t.valor_hora||''} placeholder="0,00"
+                            onChange={e=>{
+                              const newTarifas=(st.tarifas||DEFAULT_TARIFAS).map((x,j)=>j===i?{...x,valor_hora:Number(e.target.value)}:x)
+                              salvarTemplate({...st,tarifas:newTarifas})
+                            }}
+                            style={{width:100,padding:'6px 8px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--mono)'}}/>
+                          <span style={{fontSize:11,color:'var(--text-muted)'}}>/hora</span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {invest>0 && (
+              <div style={{padding:'14px 16px',background:'linear-gradient(135deg,#ECFDF5,#D1FAE5)',border:'1px solid #10B98133',borderRadius:10}}>
+                <div style={{fontSize:11,color:'#065F46',marginBottom:4}}>Investimento estimado (horas WBS × tarifas)</div>
+                <div style={{fontSize:22,fontWeight:800,color:'#065F46'}}>{fmtBRL2(invest)}</div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Produtos tab */}
+        {tmplTab==='produtos' && (
+          <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            <div style={{fontSize:12,color:'var(--text-muted)'}}>Vincule os produtos do catálogo que esta proposta cobre. Aparecem no documento gerado e no histórico da oportunidade.</div>
+            {MOCK_PRODUTOS.filter(p=>p.status==='ativo').map(p=>{
+              const selecionado = (st.produtos||[]).includes(p.id)
+              return (
+                <div key={p.id} onClick={()=>{
+                  const novo = selecionado ? (st.produtos||[]).filter(x=>x!==p.id) : [...(st.produtos||[]), p.id]
+                  salvarTemplate({...st,produtos:novo})
+                }} style={{display:'flex',alignItems:'center',gap:12,padding:'10px 14px',border:`1px solid ${selecionado?'var(--accent)':'var(--border2)'}`,borderRadius:9,cursor:'pointer',background:selecionado?'var(--accent-glow)':'var(--surface)',transition:'all 0.12s'}}>
+                  <div style={{width:18,height:18,borderRadius:4,border:`2px solid ${selecionado?'var(--accent)':'var(--border)'}`,background:selecionado?'var(--accent)':'none',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {selecionado&&<span style={{color:'#fff',fontSize:11,lineHeight:1}}>✓</span>}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{p.nome}</div>
+                    <div style={{fontSize:11,color:'var(--text-muted)',marginTop:1}}>{p.codigo} · {p.categoria} · {p.tipo==='saas'?'SaaS':'Serviço'}</div>
+                  </div>
+                  {p.preco>0&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{fmtBRL2(p.preco)}{p.cobranca==='mensal'?'/mês':''}</span>}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Blocos de texto tab */}
+        {tmplTab==='blocos' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{fontSize:12,color:'var(--text-muted)'}}>Defina as seções de texto que compõem o documento da proposta. Ordem arrastável — use ↑↓ para reordenar.</div>
+            {(st.blocos||[]).sort((a,b)=>a.ordem-b.ordem).map((bloco,idx,arr)=>(
+              <div key={bloco.id} style={{border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
+                <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'var(--surface2)',borderBottom:'1px solid var(--border)'}}>
+                  <input value={bloco.titulo} onChange={e=>{
+                    const nb=(st.blocos||[]).map(b=>b.id===bloco.id?{...b,titulo:e.target.value}:b)
+                    salvarTemplate({...st,blocos:nb})
+                  }} style={{flex:1,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)',fontSize:13,fontWeight:600,outline:'none',fontFamily:'var(--font)'}}/>
+                  <div style={{display:'flex',gap:4}}>
+                    <button disabled={idx===0} onClick={()=>{
+                      const nb=[...(st.blocos||[])]; const prev=nb[idx-1]; nb[idx-1]={...bloco,ordem:prev.ordem}; nb[idx]={...prev,ordem:bloco.ordem}
+                      salvarTemplate({...st,blocos:nb})
+                    }} style={{padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:idx===0?'var(--border)':'var(--text-muted)',cursor:idx===0?'default':'pointer',fontSize:12,fontFamily:'var(--font)'}}>↑</button>
+                    <button disabled={idx===arr.length-1} onClick={()=>{
+                      const nb=[...(st.blocos||[])]; const next=nb[idx+1]; nb[idx+1]={...bloco,ordem:next.ordem}; nb[idx]={...next,ordem:bloco.ordem}
+                      salvarTemplate({...st,blocos:nb})
+                    }} style={{padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:idx===arr.length-1?'var(--border)':'var(--text-muted)',cursor:idx===arr.length-1?'default':'pointer',fontSize:12,fontFamily:'var(--font)'}}>↓</button>
+                    <button onClick={()=>salvarTemplate({...st,blocos:(st.blocos||[]).filter(b=>b.id!==bloco.id)})}
+                      style={{padding:'3px 8px',border:'1px solid #EF444433',borderRadius:5,background:'none',color:'#EF4444',cursor:'pointer',fontSize:12,fontFamily:'var(--font)'}}>✕</button>
+                  </div>
+                </div>
+                <textarea value={bloco.conteudo} rows={4}
+                  onChange={e=>{
+                    const nb=(st.blocos||[]).map(b=>b.id===bloco.id?{...b,conteudo:e.target.value}:b)
+                    salvarTemplate({...st,blocos:nb})
+                  }}
+                  placeholder="Conteúdo do bloco… (use {{empresa_nome}}, {{opp_titulo}}, {{data}} como variáveis)"
+                  style={{width:'100%',padding:'10px 14px',border:'none',background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)',resize:'vertical',boxSizing:'border-box',lineHeight:1.7}}/>
+              </div>
+            ))}
+            <button onClick={()=>{
+              const ordem=Math.max(0,...(st.blocos||[]).map(b=>b.ordem))+1
+              const nb=[...(st.blocos||[]),{id:`b-${Date.now()}`,ordem,titulo:'Nova seção',conteudo:''}]
+              salvarTemplate({...st,blocos:nb})
+            }} style={{alignSelf:'flex-start',padding:'6px 14px',background:'none',border:'1px dashed var(--border)',borderRadius:7,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
+              + Adicionar bloco
+            </button>
+          </div>
+        )}
+
+        {/* Regras tab */}
+        {tmplTab==='regras' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{padding:'10px 14px',background:'#FEF3C7',border:'1px solid #F59E0B33',borderRadius:8,fontSize:11,color:'#92400E',lineHeight:1.7}}>
+              <strong>Como funciona:</strong> ao criar uma proposta, o sistema pergunta os dados do cliente (funcionários, filiais, etc.). As regras que satisfazem as condições são aplicadas automaticamente — ajustando as horas de cada fase do WBS antes de gerar a proposta.
+            </div>
+            {(st.regras||[]).map((regra,idx)=>{
+              const campoCfg = REGRA_CAMPOS.find(c=>c.value===regra.condicao?.campo)
+              const ops = REGRA_OPERADORES[campoCfg?.tipo||'number']
+              const acaoTipo = ACAO_TIPOS.find(a=>a.v===regra.acao?.tipo)
+              const campoHora = CAMPO_HORA_OPTS.find(c=>c.v===regra.acao?.campo_hora)
+              const faseAlvo = (st.itens||[]).find(i=>i.id===regra.acao?.fase_id&&i.nivel===1)
+              return (
+                <div key={regra.id} style={{border:`1px solid ${regra.ativo!==false?'var(--accent)33':'var(--border)'}`,borderRadius:10,overflow:'hidden'}}>
+                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--surface2)',borderBottom:'1px solid var(--border)'}}>
+                    <input type="checkbox" checked={regra.ativo!==false} onChange={e=>{
+                      const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,ativo:e.target.checked}:r)
+                      salvarTemplate({...st,regras:nr})
+                    }} style={{accentColor:'var(--accent)'}}/>
+                    <input value={regra.descricao||''} onChange={e=>{
+                      const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,descricao:e.target.value}:r)
+                      salvarTemplate({...st,regras:nr})
+                    }} placeholder="Descrição da regra…" style={{flex:1,padding:'4px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}/>
+                    <button onClick={()=>salvarTemplate({...st,regras:(st.regras||[]).filter((_,j)=>j!==idx)})}
+                      style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:14,padding:'2px 4px'}}
+                      onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                  </div>
+                  <div style={{padding:'12px 14px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'var(--text-soft)',textTransform:'uppercase',letterSpacing:0.5}}>Condição SE</div>
+                      <select value={regra.condicao?.campo||''} onChange={e=>{
+                        const nc={...regra.condicao,campo:e.target.value,operador:'',valor:''}
+                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
+                        salvarTemplate({...st,regras:nr})
+                      }} style={{...inpSt2,fontSize:12}}>
+                        <option value="">Selecionar variável…</option>
+                        {REGRA_CAMPOS.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}
+                      </select>
+                      {campoCfg?.tipo==='number' && (
+                        <div style={{display:'flex',gap:6}}>
+                          <select value={regra.condicao?.operador||''} onChange={e=>{
+                            const nc={...regra.condicao,operador:e.target.value}
+                            const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
+                            salvarTemplate({...st,regras:nr})
+                          }} style={{...inpSt2,flex:1,fontSize:12}}>
+                            <option value="">Operador…</option>
+                            {(ops||[]).map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
+                          </select>
+                          <input type="number" value={regra.condicao?.valor||''} placeholder="Valor"
+                            onChange={e=>{
+                              const nc={...regra.condicao,valor:Number(e.target.value)}
+                              const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
+                              salvarTemplate({...st,regras:nr})
+                            }} style={{...inpSt2,width:80,fontSize:12}}/>
+                        </div>
+                      )}
+                      {campoCfg?.tipo==='bool' && (
+                        <select value={regra.condicao?.operador||''} onChange={e=>{
+                          const nc={...regra.condicao,operador:e.target.value}
+                          const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
+                          salvarTemplate({...st,regras:nr})
+                        }} style={{...inpSt2,fontSize:12}}>
+                          <option value="">Selecionar…</option>
+                          {(ops||[]).map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
+                        </select>
+                      )}
+                    </div>
+                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                      <div style={{fontSize:11,fontWeight:700,color:'var(--text-soft)',textTransform:'uppercase',letterSpacing:0.5}}>Ação ENTÃO</div>
+                      <select value={regra.acao?.fase_id||''} onChange={e=>{
+                        const na={...regra.acao,fase_id:e.target.value}
+                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
+                        salvarTemplate({...st,regras:nr})
+                      }} style={{...inpSt2,fontSize:12}}>
+                        <option value="">Fase alvo…</option>
+                        {(st.itens||[]).filter(i=>i.nivel===1).map(f=><option key={f.id} value={f.id}>{f.titulo}</option>)}
+                      </select>
+                      <select value={regra.acao?.tipo||''} onChange={e=>{
+                        const na={...regra.acao,tipo:e.target.value}
+                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
+                        salvarTemplate({...st,regras:nr})
+                      }} style={{...inpSt2,fontSize:12}}>
+                        <option value="">Tipo de ajuste…</option>
+                        {ACAO_TIPOS.map(a=><option key={a.v} value={a.v}>{a.label}</option>)}
+                      </select>
+                      <div style={{display:'flex',gap:6}}>
+                        <input type="number" min="0" value={regra.acao?.quantidade||''} placeholder="Quantidade"
+                          onChange={e=>{
+                            const na={...regra.acao,quantidade:Number(e.target.value)}
+                            const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
+                            salvarTemplate({...st,regras:nr})
+                          }} style={{...inpSt2,flex:1,fontSize:12}}/>
+                        <select value={regra.acao?.campo_hora||'ambas'} onChange={e=>{
+                          const na={...regra.acao,campo_hora:e.target.value}
+                          const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
+                          salvarTemplate({...st,regras:nr})
+                        }} style={{...inpSt2,flex:1,fontSize:12}}>
+                          {CAMPO_HORA_OPTS.map(c=><option key={c.v} value={c.v}>{c.label}</option>)}
+                        </select>
+                      </div>
+                      {regra.acao?.fase_id && regra.acao?.tipo && regra.acao?.quantidade > 0 && (
+                        <div style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>
+                          → {acaoTipo?.label} {regra.acao.quantidade}{regra.acao.tipo.includes('pct')?'%':'h'} em "{faseAlvo?.titulo||'?'}" ({campoHora?.label||'ambas'})
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+            <button onClick={()=>{
+              const nr=[...(st.regras||[]),{id:`r-${Date.now()}`,ativo:true,descricao:'',condicao:{campo:'',operador:'',valor:''},acao:{fase_id:'',tipo:'',quantidade:0,campo_hora:'ambas'}}]
+              salvarTemplate({...st,regras:nr})
+            }} style={{alignSelf:'flex-start',padding:'6px 14px',background:'none',border:'1px dashed var(--border)',borderRadius:7,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
+              + Adicionar regra
+            </button>
+          </div>
+        )}
+
+        {/* Estilo / papel de carta tab (global) */}
+        {tmplTab==='estilo' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{padding:'10px 14px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,fontSize:11,color:'var(--text-soft)',lineHeight:1.6}}>
+              Configuração global de estilo — aplicada em todas as propostas ao gerar o documento.
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>URL do Logo</div>
+                <input value={estilo.logo_url||''} onChange={e=>setEstilo(s=>({...s,logo_url:e.target.value}))}
+                  placeholder="https://empresa.com/logo.png" style={inpSt2}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Cor primária</div>
+                <div style={{display:'flex',gap:8,alignItems:'center'}}>
+                  <input type="color" value={estilo.cor_primaria||'#6366F1'} onChange={e=>setEstilo(s=>({...s,cor_primaria:e.target.value}))}
+                    style={{width:40,height:36,border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:2}}/>
+                  <input value={estilo.cor_primaria||''} onChange={e=>setEstilo(s=>({...s,cor_primaria:e.target.value}))}
+                    style={{...inpSt2,flex:1,fontFamily:'var(--mono)',fontSize:12}}/>
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Título do cabeçalho</div>
+                <input value={estilo.header_titulo||''} onChange={e=>setEstilo(s=>({...s,header_titulo:e.target.value}))}
+                  placeholder="PROPOSTA DE IMPLANTAÇÃO" style={inpSt2}/>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Subtítulo do cabeçalho</div>
+                <input value={estilo.header_sub||''} onChange={e=>setEstilo(s=>({...s,header_sub:e.target.value}))}
+                  placeholder="Documento confidencial" style={inpSt2}/>
+              </div>
+              <div style={{gridColumn:'1/-1'}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Rodapé</div>
+                <input value={estilo.footer_texto||''} onChange={e=>setEstilo(s=>({...s,footer_texto:e.target.value}))}
+                  placeholder="Confidencial · {{empresa_nome}} · {{ano}}" style={inpSt2}/>
+                <div style={{fontSize:10,color:'var(--text-muted)',marginTop:3}}>Variáveis disponíveis: {'{{empresa_nome}}'}, {'{{opp_titulo}}'}, {'{{data}}'}, {'{{ano}}'}</div>
+              </div>
+            </div>
+            {/* Preview */}
+            <div style={{border:`3px solid ${estilo.cor_primaria||'#6366F1'}`,borderRadius:8,overflow:'hidden',marginTop:4}}>
+              <div style={{background:estilo.cor_primaria||'#6366F1',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
+                {estilo.logo_url && <img src={estilo.logo_url} alt="logo" style={{height:32,objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>}
+                <div>
+                  <div style={{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:1}}>{estilo.header_titulo||'PROPOSTA DE IMPLANTAÇÃO'}</div>
+                  {estilo.header_sub&&<div style={{fontSize:11,color:'rgba(255,255,255,0.8)',marginTop:2}}>{estilo.header_sub}</div>}
+                </div>
+              </div>
+              <div style={{padding:'10px 20px',background:'var(--surface)',borderTop:'none'}}>
+                <div style={{fontSize:10,color:'var(--text-muted)',textAlign:'center'}}>
+                  {(estilo.footer_texto||'').replace('{{empresa_nome}}','Empresa Cliente').replace('{{ano}}',new Date().getFullYear()).replace('{{data}}',new Date().toLocaleDateString('pt-BR'))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -3195,10 +3654,17 @@ function PropostasTab({ projetos, phases }) {
         <>
           <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.4)',zIndex:1199}} onClick={()=>setCriando(false)}/>
           <div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1200,width:520,maxWidth:'95vw',background:'var(--surface)',borderRadius:14,boxShadow:'0 16px 56px rgba(0,0,0,0.22)',overflow:'hidden'}}>
-            <div style={{padding:'16px 20px 12px',borderBottom:'1px solid var(--border)'}}>
-              <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Nova Proposta de Implantação</div>
-              <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Passo {wStep} de 2</div>
-            </div>
+            {(() => {
+              const tmplSel = templates.find(t=>t.id===wTemplId)
+              const hasRules = tmplSel?.regras?.length > 0
+              const totalSteps = hasRules ? 3 : 2
+              return (
+                <div style={{padding:'16px 20px 12px',borderBottom:'1px solid var(--border)'}}>
+                  <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Nova Proposta de Implantação</div>
+                  <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Passo {wStep} de {totalSteps}{wStep===2&&hasRules?' — Variáveis do projeto':''}</div>
+                </div>
+              )
+            })()}
             <div style={{padding:'20px',display:'flex',flexDirection:'column',gap:14}}>
               {wStep===1&&(
                 <>
@@ -3231,7 +3697,61 @@ function PropostasTab({ projetos, phases }) {
                   </div>
                 </>
               )}
-              {wStep===2&&(
+              {wStep===2&&(()=>{
+                const tmplSel = templates.find(t=>t.id===wTemplId)
+                const hasRules = tmplSel?.regras?.length > 0
+                // Collect unique campos needed by this template's rules
+                const camposNeeded = [...new Set((tmplSel?.regras||[]).map(r=>r.condicao?.campo).filter(Boolean))]
+                if (!hasRules) {
+                  return (
+                    <div>
+                      <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Título da proposta</div>
+                      <input autoFocus value={wTitulo} onChange={e=>setWTitulo(e.target.value)}
+                        placeholder={`Proposta de Implantação — ${oppOptions.find(o=>String(o.id)===wOppId)?.empresa_nome||''}`}
+                        style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}/>
+                    </div>
+                  )
+                }
+                // Has rules — show variables form
+                const firedNow = evalRulesLog(tmplSel?.regras||[], wVars)
+                return (
+                  <div style={{display:'flex',flexDirection:'column',gap:14}}>
+                    <div style={{padding:'9px 12px',background:'#FEF3C7',border:'1px solid #F59E0B33',borderRadius:7,fontSize:11,color:'#92400E'}}>
+                      Este template tem <strong>{tmplSel.regras.length} regras de ajuste</strong>. Preencha os dados do cliente para aplicar automaticamente.
+                    </div>
+                    {camposNeeded.map(campo=>{
+                      const cfg = VARIAVEIS_CFG.find(v=>v.campo===campo)
+                      if (!cfg) return null
+                      return (
+                        <div key={campo}>
+                          <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>{cfg.label}</div>
+                          {cfg.tipo==='number' ? (
+                            <input type="number" min="0" value={wVars[campo]||''} onChange={e=>setWVars(v=>({...v,[campo]:Number(e.target.value)}))}
+                              placeholder="0"
+                              style={{width:'100%',padding:'8px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',boxSizing:'border-box'}}/>
+                          ) : (
+                            <div style={{display:'flex',gap:8}}>
+                              {[['sim','Sim'],['nao','Não']].map(([v,l])=>(
+                                <label key={v} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',border:`1px solid ${wVars[campo]===v?'var(--accent)':'var(--border)'}`,borderRadius:7,cursor:'pointer',background:wVars[campo]===v?'var(--accent-glow)':'var(--surface)'}}>
+                                  <input type="radio" checked={wVars[campo]===v} onChange={()=>setWVars(prev=>({...prev,[campo]:v}))} style={{accentColor:'var(--accent)'}}/>
+                                  <span style={{fontSize:13,color:'var(--text)'}}>{l}</span>
+                                </label>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                    {firedNow.length > 0 && (
+                      <div style={{padding:'10px 12px',background:'#D1FAE5',border:'1px solid #10B98133',borderRadius:7}}>
+                        <div style={{fontSize:11,fontWeight:700,color:'#065F46',marginBottom:5}}>Regras que serão aplicadas:</div>
+                        {firedNow.map(r=><div key={r.id} style={{fontSize:11,color:'#065F46'}}>• {r.descricao}</div>)}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+              {wStep===3&&(
                 <div>
                   <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Título da proposta</div>
                   <input autoFocus value={wTitulo} onChange={e=>setWTitulo(e.target.value)}
@@ -3240,16 +3760,28 @@ function PropostasTab({ projetos, phases }) {
                 </div>
               )}
             </div>
-            <div style={{padding:'12px 20px 16px',borderTop:'1px solid var(--border2)',display:'flex',justifyContent:'space-between'}}>
-              <button onClick={()=>wStep===1?setCriando(false):setWStep(1)} style={{padding:'7px 16px',background:'none',border:'1px solid var(--border)',borderRadius:7,fontSize:13,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
-                {wStep===1?'Cancelar':'← Voltar'}
-              </button>
-              {wStep===1?(
-                <button onClick={()=>wOppId?setWStep(2):alert('Selecione uma oportunidade.')} style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Próximo →</button>
-              ):(
-                <button onClick={criarProposta} style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Criar proposta</button>
-              )}
-            </div>
+            {(() => {
+              const tmplSel = templates.find(t=>t.id===wTemplId)
+              const hasRules = tmplSel?.regras?.length > 0
+              const lastStep = hasRules ? 3 : 2
+              return (
+                <div style={{padding:'12px 20px 16px',borderTop:'1px solid var(--border2)',display:'flex',justifyContent:'space-between'}}>
+                  <button onClick={()=>wStep===1?setCriando(false):setWStep(s=>s-1)} style={{padding:'7px 16px',background:'none',border:'1px solid var(--border)',borderRadius:7,fontSize:13,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
+                    {wStep===1?'Cancelar':'← Voltar'}
+                  </button>
+                  {wStep < lastStep ? (
+                    <button onClick={()=>{if(wStep===1&&!wOppId){alert('Selecione uma oportunidade.');return} setWStep(s=>s+1)}}
+                      style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+                      Próximo →
+                    </button>
+                  ) : (
+                    <button onClick={criarProposta} style={{padding:'7px 20px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+                      Criar proposta
+                    </button>
+                  )}
+                </div>
+              )
+            })()}
           </div>
         </>
       )}
