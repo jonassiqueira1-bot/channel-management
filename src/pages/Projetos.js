@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
 import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
 import {
@@ -2188,7 +2188,146 @@ function FiltrosPopover({ open, onClose, filtros, setFiltros, projetos }) {
 // ═══════════════════════════════════════════════════════════════════════════════
 // PROPOSTAS DE IMPLANTAÇÃO
 // ═══════════════════════════════════════════════════════════════════════════════
-const PROPOSTAS_KEY = 'projects:propostas_v1'
+const PROPOSTAS_KEY      = 'projects:propostas_v1'
+const PROP_TEMPLATES_KEY = 'projects:prop_templates_v1'
+
+// ─── WBS helpers ──────────────────────────────────────────────────────────────
+const TIPO_HORA_CFG = {
+  analista:    { label: 'Analista',     short: 'Analista'    },
+  coordenacao: { label: 'Coordenação',  short: 'Coord.'      },
+  ana_coord:   { label: 'Ana./Coord.',  short: 'Ana./Coord.' },
+  especialista:{ label: 'Especialista', short: 'Espec.'      },
+}
+
+function itemUid() { return `wi-${Date.now()}-${Math.random().toString(36).slice(2,6)}` }
+
+// HH:MM display for decimal hours
+function decToHHMM(h) {
+  if (h === null || h === undefined || h === '') return ''
+  const n = Number(h); if (isNaN(n)) return ''
+  const hh = Math.floor(n); const mm = Math.round((n - hh) * 60)
+  return `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}`
+}
+function hhmmToDec(s) {
+  if (!s) return null
+  const parts = String(s).split(':')
+  if (parts.length === 2) return Number(parts[0]) + Number(parts[1]) / 60
+  return Number(s) || null
+}
+
+// Flat array with { id, nivel, parent_id, ordem, titulo, tipo_hora, hr_analista, hr_coord, obrigatorio, mostrar }
+// Level 1 = fase, Level 2 = atividade
+const DEFAULT_TEMPLATE_ITENS = [
+  { id:'di1',  nivel:1, parent_id:null, ordem:1, titulo:'Iniciação e Planejamento',           tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di2',  nivel:2, parent_id:'di1',ordem:1, titulo:'Kickoff e apresentação ao cliente',  tipo_hora:'ana_coord',   hr_analista:1,    hr_coord:1,    obrigatorio:true,  mostrar:true  },
+  { id:'di3',  nivel:2, parent_id:'di1',ordem:2, titulo:'Levantamento inicial de requisitos', tipo_hora:'ana_coord',   hr_analista:4,    hr_coord:2,    obrigatorio:true,  mostrar:true  },
+  { id:'di4',  nivel:2, parent_id:'di1',ordem:3, titulo:'Elaboração do TAP',                  tipo_hora:'coordenacao', hr_analista:null, hr_coord:3,    obrigatorio:true,  mostrar:true  },
+  { id:'di5',  nivel:1, parent_id:null, ordem:2, titulo:'Modelagem de Processos',              tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di6',  nivel:2, parent_id:'di5',ordem:1, titulo:'Mapeamento AS-IS',                   tipo_hora:'coordenacao', hr_analista:null, hr_coord:8,    obrigatorio:true,  mostrar:true  },
+  { id:'di7',  nivel:2, parent_id:'di5',ordem:2, titulo:'Desenho TO-BE',                      tipo_hora:'ana_coord',   hr_analista:6,    hr_coord:4,    obrigatorio:true,  mostrar:true  },
+  { id:'di8',  nivel:2, parent_id:'di5',ordem:3, titulo:'Validação com usuários-chave',       tipo_hora:'coordenacao', hr_analista:null, hr_coord:4,    obrigatorio:true,  mostrar:true  },
+  { id:'di9',  nivel:1, parent_id:null, ordem:3, titulo:'Configuração e Parametrização',      tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di10', nivel:2, parent_id:'di9',ordem:1, titulo:'Setup do ambiente e configurações',  tipo_hora:'analista',    hr_analista:16,   hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di11', nivel:2, parent_id:'di9',ordem:2, titulo:'Parametrização conforme TO-BE',      tipo_hora:'analista',    hr_analista:24,   hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di12', nivel:2, parent_id:'di9',ordem:3, titulo:'Integração com sistemas legados',    tipo_hora:'especialista',hr_analista:16,   hr_coord:null, obrigatorio:false, mostrar:true  },
+  { id:'di13', nivel:1, parent_id:null, ordem:4, titulo:'Testes e Homologação',               tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di14', nivel:2, parent_id:'di13',ordem:1,titulo:'Testes unitários por módulo',        tipo_hora:'analista',    hr_analista:8,    hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di15', nivel:2, parent_id:'di13',ordem:2,titulo:'Testes integrados com usuários',     tipo_hora:'ana_coord',   hr_analista:8,    hr_coord:4,    obrigatorio:true,  mostrar:true  },
+  { id:'di16', nivel:2, parent_id:'di13',ordem:3,titulo:'Correções e ajustes pós-teste',      tipo_hora:'analista',    hr_analista:8,    hr_coord:null, obrigatorio:true,  mostrar:false },
+  { id:'di17', nivel:1, parent_id:null, ordem:5, titulo:'Treinamento',                        tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di18', nivel:2, parent_id:'di17',ordem:1,titulo:'Capacitação de usuários finais',     tipo_hora:'ana_coord',   hr_analista:8,    hr_coord:4,    obrigatorio:true,  mostrar:true  },
+  { id:'di19', nivel:2, parent_id:'di17',ordem:2,titulo:'Material didático e manuais',        tipo_hora:'analista',    hr_analista:4,    hr_coord:null, obrigatorio:false, mostrar:true  },
+  { id:'di20', nivel:1, parent_id:null, ordem:6, titulo:'Go-live e Encerramento',             tipo_hora:null,          hr_analista:null, hr_coord:null, obrigatorio:true,  mostrar:true  },
+  { id:'di21', nivel:2, parent_id:'di20',ordem:1,titulo:'Suporte ao go-live (operação paralela)',tipo_hora:'ana_coord',hr_analista:8,    hr_coord:4,    obrigatorio:true,  mostrar:true  },
+  { id:'di22', nivel:2, parent_id:'di20',ordem:2,titulo:'Assinatura do TAF',                  tipo_hora:'coordenacao', hr_analista:null, hr_coord:1,    obrigatorio:true,  mostrar:true  },
+]
+
+const DEFAULT_TEMPLATES = [
+  { id:'tmpl-mit', nome:'MIT Padrão (6 fases)', descricao:'Template padrão de implantação baseado na metodologia MIT', itens: DEFAULT_TEMPLATE_ITENS },
+]
+
+// Fork template → proposal itens with new IDs
+function forkTemplateItens(itens) {
+  const idMap = {}
+  const cloned = itens.map(it => {
+    const newId = itemUid(); idMap[it.id] = newId
+    return { ...it, id: newId }
+  })
+  return cloned.map(it => ({ ...it, parent_id: it.parent_id ? idMap[it.parent_id] || it.parent_id : null }))
+}
+
+// Compute phase totals from flat itens
+function calcPhaseTotals(itens) {
+  const totals = {}
+  itens.filter(i => i.nivel === 1).forEach(fase => { totals[fase.id] = { hr_analista: 0, hr_coord: 0 } })
+  itens.filter(i => i.nivel === 2).forEach(item => {
+    if (item.parent_id && totals[item.parent_id]) {
+      totals[item.parent_id].hr_analista += Number(item.hr_analista || 0)
+      totals[item.parent_id].hr_coord    += Number(item.hr_coord    || 0)
+    }
+  })
+  return totals
+}
+
+// ─── CSV import ───────────────────────────────────────────────────────────────
+// Expected columns: Nivel,Titulo,Tipo Hora,Hr Analista,Hr Coord,Obrigatorio,Mostrar
+function parseCSVtoItens(text) {
+  const lines = text.trim().split(/\r?\n/)
+  if (lines.length < 2) return []
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g,'_'))
+  const itens = []; let lastPhaseId = null; let ordem1 = 0; let ordem2 = 0
+
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split(',').map(c => c.trim().replace(/^"|"$/g,''))
+    if (!cols[0]) continue
+    const nivel = parseInt(cols[headers.indexOf('nivel')] || cols[0]) || 1
+    const titulo = cols[headers.indexOf('titulo') >= 0 ? headers.indexOf('titulo') : 1] || ''
+    if (!titulo) continue
+    const tipoRaw = (cols[headers.indexOf('tipo_hora')] || cols[headers.indexOf('tipo hora')] || '').toLowerCase()
+    const tipo = tipoRaw.includes('coord') && tipoRaw.includes('ana') ? 'ana_coord'
+      : tipoRaw.includes('coord') ? 'coordenacao'
+      : tipoRaw.includes('anal') ? 'analista'
+      : tipoRaw.includes('esp') ? 'especialista' : null
+    const hrA = hhmmToDec(cols[headers.indexOf('hr_analista') >= 0 ? headers.indexOf('hr_analista') : headers.indexOf('hr analista')] || '')
+    const hrC = hhmmToDec(cols[headers.indexOf('hr_coord') >= 0 ? headers.indexOf('hr_coord') : headers.indexOf('hr coord')] || '')
+    const obrig = (cols[headers.indexOf('obrigatorio') >= 0 ? headers.indexOf('obrigatorio') : 5] || 'true').toLowerCase() !== 'false'
+    const mostrar = (cols[headers.indexOf('mostrar') >= 0 ? headers.indexOf('mostrar') : 6] || 'true').toLowerCase() !== 'false'
+    const id = itemUid()
+    if (nivel === 1) { lastPhaseId = id; ordem1++; ordem2 = 0 }
+    else ordem2++
+    itens.push({ id, nivel, parent_id: nivel === 2 ? lastPhaseId : null, ordem: nivel === 1 ? ordem1 : ordem2, titulo, tipo_hora: nivel === 2 ? tipo : null, hr_analista: nivel === 2 ? hrA : null, hr_coord: nivel === 2 ? hrC : null, obrigatorio: obrig, mostrar })
+  }
+  return itens
+}
+
+// MS Project XML → WBS itens (reuses DOMParser)
+function parseMsProjectToItens(xmlText) {
+  try {
+    const parser = new DOMParser(); const doc = parser.parseFromString(xmlText, 'text/xml')
+    const tasks = Array.from(doc.getElementsByTagName('Task'))
+    function isoToHours(s) {
+      if (!s) return null
+      const m = s.match(/PT?(?:(\d+)D)?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/)
+      if (!m) return null
+      return (parseInt(m[1]||0)*8) + parseInt(m[2]||0) + parseInt(m[3]||0)/60 + parseInt(m[4]||0)/3600
+    }
+    const itens = []; let lastPhaseId = null; let ordem1 = 0; let ordem2 = 0
+    tasks.forEach(task => {
+      const uid = task.querySelector('UID')?.textContent
+      if (uid === '0') return
+      const name     = task.querySelector('Name')?.textContent || ''
+      const outline  = parseInt(task.querySelector('OutlineLevel')?.textContent || '1')
+      const workEl   = task.querySelector('Work') || task.querySelector('Duration')
+      const hours    = isoToHours(workEl?.textContent)
+      const nivel    = outline <= 1 ? 1 : 2
+      const id       = itemUid()
+      if (nivel === 1) { lastPhaseId = id; ordem1++; ordem2 = 0 }
+      else ordem2++
+      itens.push({ id, nivel, parent_id: nivel === 2 ? lastPhaseId : null, ordem: nivel === 1 ? ordem1 : ordem2, titulo: name, tipo_hora: nivel === 2 ? 'analista' : null, hr_analista: nivel === 2 ? hours : null, hr_coord: null, obrigatorio: true, mostrar: true })
+    })
+    return itens
+  } catch { return [] }
+}
 
 const PROP_STATUS_CFG = {
   rascunho: { label: 'Rascunho',  bg: '#F3F4F6', color: '#374151', border: '#9CA3AF', dot: '#9CA3AF' },
@@ -2207,22 +2346,7 @@ const PROP_ESC_STATUS = {
   excluido: { label: 'Excluído', bg: '#FEE2E2', color: '#991B1B', border: '#EF4444' },
   opcional: { label: 'Opcional', bg: '#FEF3C7', color: '#92400E', border: '#F59E0B' },
 }
-const PROP_TEMPLATES = [
-  { id: 'mit_padrao', label: 'MIT Padrão (6 fases)', escopo: [
-    { nome: 'Iniciação e Planejamento',      descricao: 'TAP, kickoff, levantamento de requisitos', horas: 30, status: 'incluido' },
-    { nome: 'Modelagem de Processos',        descricao: 'Mapeamento AS-IS / TO-BE',                 horas: 50, status: 'incluido' },
-    { nome: 'Configuração e Parametrização', descricao: 'Setup do sistema conforme processos',      horas: 80, status: 'incluido' },
-    { nome: 'Testes e Homologação',          descricao: 'Testes integrados com usuários-chave',     horas: 40, status: 'incluido' },
-    { nome: 'Treinamento',                   descricao: 'Capacitação de usuários finais',           horas: 20, status: 'incluido' },
-    { nome: 'Go-live e Encerramento',        descricao: 'Suporte à entrada em produção e TAF',     horas: 10, status: 'incluido' },
-  ]},
-  { id: 'express', label: 'Implantação Express', escopo: [
-    { nome: 'Kickoff e Configuração Rápida', descricao: 'Setup acelerado com template pré-configurado', horas: 20, status: 'incluido' },
-    { nome: 'Treinamento e Go-live',          descricao: 'Treinamento prático e entrada em produção',    horas: 16, status: 'incluido' },
-    { nome: 'Suporte pós go-live (30 dias)',  descricao: 'Acompanhamento remoto',                        horas: 8,  status: 'incluido' },
-  ]},
-  { id: 'custom', label: 'Personalizado (escopo em branco)', escopo: [] },
-]
+function tmplUid() { return `tmpl-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
 function propUid() { return `prop-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
 function escUid()  { return `esc-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
 function equUid()  { return `equ-${Date.now()}-${Math.random().toString(36).slice(2,5)}`  }
@@ -2265,21 +2389,29 @@ function downloadProposta(prop) {
 }
 
 function PropostasTab({ projetos, phases }) {
-  const [propostas, setPropostas] = useLocalState(PROPOSTAS_KEY, [])
-  const [selected,  setSelected]  = useState(null)
-  const [criando,   setCriando]   = useState(false)
-  const [propTab,   setPropTab]   = useState('escopo')
-  const [filterOpp, setFilterOpp] = useState('')
-  const [filterSt,  setFilterSt]  = useState('')
-  const [wStep,     setWStep]     = useState(1)
-  const [wOppId,    setWOppId]    = useState('')
-  const [wTemplId,  setWTemplId]  = useState('mit_padrao')
-  const [wTitulo,   setWTitulo]   = useState('')
+  const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
+  const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
+  const [subView,      setSubView]      = useState('propostas') // 'propostas' | 'templates'
+  const [selected,     setSelected]     = useState(null)
+  const [selectedTmpl, setSelectedTmpl] = useState(null)
+  const [criando,      setCriando]      = useState(false)
+  const [propTab,      setPropTab]      = useState('escopo')
+  const [filterOpp,    setFilterOpp]    = useState('')
+  const [filterSt,     setFilterSt]     = useState('')
+  const [wStep,        setWStep]        = useState(1)
+  const [wOppId,       setWOppId]       = useState('')
+  const [wTemplId,     setWTemplId]     = useState('')
+  const [wTitulo,      setWTitulo]      = useState('')
+  const [importing,    setImporting]    = useState(false)  // import modal for templates
+  const [importTmplId, setImportTmplId] = useState(null)   // which template to import into
+  const [collapsedPhases, setCollapsedPhases] = useState({})
 
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     const o = p.get('opp_id')
     if (o) { setFilterOpp(o); setWOppId(o) }
+    // default template to first available
+    setWTemplId(t => t || '')
   }, [])
 
   const oppOptions = useMemo(() => {
@@ -2295,6 +2427,7 @@ function PropostasTab({ projetos, phases }) {
       .sort((a,b)=>new Date(b.updated_at)-new Date(a.updated_at))
   , [propostas, filterOpp, filterSt])
 
+  // ── Proposal CRUD ──
   function salvar(prop) {
     const up = { ...prop, updated_at: new Date().toISOString() }
     setPropostas(prev=>{ const i=prev.findIndex(x=>x.id===up.id); if(i>=0){const n=[...prev];n[i]=up;return n}; return [...prev,up] })
@@ -2306,7 +2439,7 @@ function PropostasTab({ projetos, phases }) {
   }
   function criarProposta() {
     const opp   = oppOptions.find(o=>String(o.id)===wOppId)
-    const templ = PROP_TEMPLATES.find(t=>t.id===wTemplId)||PROP_TEMPLATES[0]
+    const templ = templates.find(t=>t.id===wTemplId) || templates[0]
     const now   = new Date().toISOString()
     const nova  = {
       id:propUid(), titulo:wTitulo||`Proposta de Implantação — ${opp?.empresa_nome||''}`,
@@ -2315,17 +2448,318 @@ function PropostasTab({ projetos, phases }) {
       enviada_em:null, aceita_em:null,
       assinatura_status:null, assinatura_plataforma:null, assinatura_url:null,
       assinatura_enviada_em:null, assinatura_concluida_em:null,
-      escopo:templ.escopo.map(e=>({...e,id:escUid()})), equipe:[], obs:'',
+      itens: templ ? forkTemplateItens(templ.itens||[]) : [],
+      escopo:[], equipe:[], obs:'',
       log:[{id:`l-${Date.now()}`, evento:'Proposta criada', usuario:'Você', data:now}],
     }
     setPropostas(prev=>[...prev,nova]); setCriando(false); setSelected(nova); setPropTab('escopo')
-    setWStep(1); setWOppId(filterOpp||''); setWTemplId('mit_padrao'); setWTitulo('')
+    setWStep(1); setWOppId(filterOpp||''); setWTemplId(''); setWTitulo('')
   }
 
-  // ── Escopo editor ──
+  // ── Template CRUD ──
+  function salvarTemplate(tmpl) {
+    setTemplates(prev=>{ const i=prev.findIndex(x=>x.id===tmpl.id); if(i>=0){const n=[...prev];n[i]=tmpl;return n}; return [...prev,tmpl] })
+    setSelectedTmpl(tmpl)
+  }
+  function excluirTemplate(id) {
+    if(!window.confirm('Excluir este template?')) return
+    setTemplates(prev=>prev.filter(t=>t.id!==id)); setSelectedTmpl(null)
+  }
+  function novoTemplate() {
+    const t = { id:tmplUid(), nome:'Novo Template', descricao:'', itens:[] }
+    setTemplates(prev=>[...prev,t]); setSelectedTmpl(t)
+  }
+
+  // ── WBS table (shared by template editor and proposal escopo) ──
+  function WBSTable({ itens, onChange, readOnly }) {
+    const [editId,  setEditId]  = useState(null)
+    const [editFld, setEditFld] = useState({})
+    const totals = useMemo(()=>calcPhaseTotals(itens),[itens])
+
+    function startEdit(item) { setEditId(item.id); setEditFld({...item}) }
+    function commitEdit() {
+      if(!editId) return
+      onChange(itens.map(i=>i.id===editId?{...i,...editFld}:i))
+      setEditId(null); setEditFld({})
+    }
+    function togglePhase(id) { setCollapsedPhases(p=>({...p,[id]:!p[id]})) }
+    function addPhase() {
+      const id=itemUid(); const ordem=itens.filter(i=>i.nivel===1).length+1
+      const n={id,nivel:1,parent_id:null,ordem,titulo:'Nova fase',tipo_hora:null,hr_analista:null,hr_coord:null,obrigatorio:true,mostrar:true}
+      onChange([...itens,n]); setTimeout(()=>startEdit(n),50)
+    }
+    function addActivity(phaseId) {
+      const siblings=itens.filter(i=>i.parent_id===phaseId); const ordem=siblings.length+1
+      const n={id:itemUid(),nivel:2,parent_id:phaseId,ordem,titulo:'Nova atividade',tipo_hora:'analista',hr_analista:null,hr_coord:null,obrigatorio:true,mostrar:true}
+      onChange([...itens,n]); setTimeout(()=>startEdit(n),50)
+    }
+    function removeItem(id) { onChange(itens.filter(i=>i.id!==id&&i.parent_id!==id)) }
+    function toggleObrig(id) { onChange(itens.map(i=>i.id===id?{...i,obrigatorio:!i.obrigatorio}:i)) }
+    function toggleMostra(id){ onChange(itens.map(i=>i.id===id?{...i,mostrar:!i.mostrar}:i)) }
+
+    const inpSt = { border:'1px solid var(--accent)', borderRadius:4, padding:'2px 5px', background:'var(--surface)', color:'var(--text)', fontSize:12, outline:'none', fontFamily:'var(--font)', width:'100%' }
+    const thSt  = { padding:'7px 10px', fontSize:11, fontWeight:600, color:'var(--text-muted)', textAlign:'left', background:'var(--surface2)', borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }
+    const tdSt  = { padding:'7px 10px', fontSize:12, color:'var(--text)', borderBottom:'1px solid var(--border2)', verticalAlign:'middle' }
+
+    const phases = itens.filter(i=>i.nivel===1).sort((a,b)=>a.ordem-b.ordem)
+
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:0,border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
+        <table style={{width:'100%',borderCollapse:'collapse',tableLayout:'fixed'}}>
+          <colgroup>
+            <col style={{width:'auto'}}/><col style={{width:110}}/><col style={{width:80}}/><col style={{width:80}}/><col style={{width:54}}/><col style={{width:54}}/>{!readOnly&&<col style={{width:36}}/>}
+          </colgroup>
+          <thead>
+            <tr>
+              <th style={thSt}>Título</th>
+              <th style={{...thSt,textAlign:'center'}}>Tipo Hora</th>
+              <th style={{...thSt,textAlign:'center'}}>Hr. Analista</th>
+              <th style={{...thSt,textAlign:'center'}}>Hr. Coord.</th>
+              <th style={{...thSt,textAlign:'center'}}>Obrig.</th>
+              <th style={{...thSt,textAlign:'center'}}>Mostra</th>
+              {!readOnly&&<th style={thSt}/>}
+            </tr>
+          </thead>
+          <tbody>
+            {phases.map(fase=>{
+              const tot=totals[fase.id]||{hr_analista:0,hr_coord:0}
+              const collapsed=collapsedPhases[fase.id]
+              const children=itens.filter(i=>i.parent_id===fase.id).sort((a,b)=>a.ordem-b.ordem)
+              const isEditing=editId===fase.id
+              return (
+                <React.Fragment key={fase.id}>
+                  <tr style={{background:'var(--surface2)'}}>
+                    <td style={{...tdSt,fontWeight:700,color:'var(--accent)'}}>
+                      {isEditing?(
+                        <input autoFocus value={editFld.titulo||''} onChange={e=>setEditFld(f=>({...f,titulo:e.target.value}))}
+                          onBlur={commitEdit} onKeyDown={e=>{if(e.key==='Enter')commitEdit();if(e.key==='Escape'){setEditId(null)}}}
+                          style={{...inpSt,fontWeight:700,color:'var(--accent)'}}/>
+                      ):(
+                        <span style={{display:'flex',alignItems:'center',gap:6,cursor:'pointer'}} onClick={()=>!readOnly&&startEdit(fase)}>
+                          <span onClick={e=>{e.stopPropagation();togglePhase(fase.id)}} style={{fontSize:10,color:'var(--text-muted)',cursor:'pointer',width:12}}>{collapsed?'▶':'▼'}</span>
+                          {fase.titulo}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{...tdSt,textAlign:'center'}}/>
+                    <td style={{...tdSt,textAlign:'center',fontWeight:700,color:'var(--accent)',fontFamily:'var(--mono)'}}>{tot.hr_analista>0?decToHHMM(tot.hr_analista):''}</td>
+                    <td style={{...tdSt,textAlign:'center',fontWeight:700,color:'var(--accent)',fontFamily:'var(--mono)'}}>{tot.hr_coord>0?decToHHMM(tot.hr_coord):''}</td>
+                    <td style={{...tdSt,textAlign:'center'}}/>
+                    <td style={{...tdSt,textAlign:'center'}}/>
+                    {!readOnly&&<td style={{...tdSt,textAlign:'center'}}>
+                      <button onClick={()=>removeItem(fase.id)} title="Remover fase" style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,lineHeight:1,padding:2}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                    </td>}
+                  </tr>
+                  {!collapsed && children.map(item=>{
+                    const isEditingItem=editId===item.id
+                    const tipoLabel=item.tipo_hora?TIPO_HORA_CFG[item.tipo_hora]?.short||item.tipo_hora:''
+                    return (
+                      <tr key={item.id} style={{background:item.mostrar?'var(--surface)':'var(--surface2)'}}>
+                        <td style={{...tdSt,paddingLeft:32}}>
+                          {isEditingItem?(
+                            <input autoFocus value={editFld.titulo||''} onChange={e=>setEditFld(f=>({...f,titulo:e.target.value}))}
+                              onBlur={commitEdit} onKeyDown={e=>{if(e.key==='Enter')commitEdit();if(e.key==='Escape')setEditId(null)}}
+                              style={inpSt}/>
+                          ):(
+                            <span style={{display:'flex',alignItems:'center',gap:6}}>
+                              <span style={{width:6,height:6,borderRadius:'50%',background:'var(--border)',flexShrink:0}}/>
+                              <span style={{cursor:readOnly?'default':'pointer',color:item.mostrar?'var(--text)':'var(--text-muted)'}} onClick={()=>!readOnly&&startEdit(item)}>{item.titulo}</span>
+                            </span>
+                          )}
+                        </td>
+                        <td style={{...tdSt,textAlign:'center'}}>
+                          {isEditingItem?(
+                            <select value={editFld.tipo_hora||''} onChange={e=>setEditFld(f=>({...f,tipo_hora:e.target.value||null}))} onBlur={commitEdit}
+                              style={{...inpSt,width:'auto'}}>
+                              <option value="">—</option>
+                              {Object.entries(TIPO_HORA_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                            </select>
+                          ):(
+                            <span style={{fontSize:11,color:'var(--text-soft)'}}>{tipoLabel}</span>
+                          )}
+                        </td>
+                        <td style={{...tdSt,textAlign:'center',fontFamily:'var(--mono)'}}>
+                          {isEditingItem?(
+                            <input type="text" value={editFld.hr_analista!==null?decToHHMM(editFld.hr_analista):''} placeholder="00:00"
+                              onChange={e=>setEditFld(f=>({...f,hr_analista:hhmmToDec(e.target.value)}))} onBlur={commitEdit} style={{...inpSt,textAlign:'center',width:60}}/>
+                          ):(
+                            <span style={{color:item.hr_analista?'var(--text)':'var(--text-muted)'}}>{item.hr_analista?decToHHMM(item.hr_analista):''}</span>
+                          )}
+                        </td>
+                        <td style={{...tdSt,textAlign:'center',fontFamily:'var(--mono)'}}>
+                          {isEditingItem?(
+                            <input type="text" value={editFld.hr_coord!==null?decToHHMM(editFld.hr_coord):''} placeholder="00:00"
+                              onChange={e=>setEditFld(f=>({...f,hr_coord:hhmmToDec(e.target.value)}))} onBlur={commitEdit} style={{...inpSt,textAlign:'center',width:60}}/>
+                          ):(
+                            <span style={{color:item.hr_coord?'var(--text)':'var(--text-muted)'}}>{item.hr_coord?decToHHMM(item.hr_coord):''}</span>
+                          )}
+                        </td>
+                        <td style={{...tdSt,textAlign:'center'}}>
+                          <input type="checkbox" checked={!!item.obrigatorio} onChange={()=>!readOnly&&toggleObrig(item.id)} disabled={readOnly} style={{cursor:readOnly?'default':'pointer',accentColor:'var(--accent)'}}/>
+                        </td>
+                        <td style={{...tdSt,textAlign:'center'}}>
+                          <span onClick={()=>!readOnly&&toggleMostra(item.id)} title={item.mostrar?'Visível na proposta':'Oculto na proposta'}
+                            style={{cursor:readOnly?'default':'pointer',fontSize:14,color:item.mostrar?'#10B981':'var(--border)',display:'inline-block'}}>
+                            {item.mostrar?'◉':'○'}
+                          </span>
+                        </td>
+                        {!readOnly&&<td style={{...tdSt,textAlign:'center'}}>
+                          <button onClick={()=>removeItem(item.id)} title="Remover" style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,lineHeight:1,padding:2}}
+                            onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                        </td>}
+                      </tr>
+                    )
+                  })}
+                  {!collapsed && !readOnly && (
+                    <tr>
+                      <td colSpan={7} style={{padding:'4px 32px',background:'var(--surface)'}}>
+                        <button onClick={()=>addActivity(fase.id)} style={{fontSize:11,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:'2px 0',fontFamily:'var(--font)'}}>
+                          + Adicionar atividade
+                        </button>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              )
+            })}
+          </tbody>
+        </table>
+        {!readOnly && (
+          <div style={{padding:'8px 12px',borderTop:'1px solid var(--border2)',background:'var(--surface2)'}}>
+            <button onClick={addPhase} style={{fontSize:12,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',fontWeight:600,fontFamily:'var(--font)'}}>
+              + Adicionar fase
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  // ── Import modal ──
+  function ImportModal({ tmplId, onClose }) {
+    const [mode, setMode] = useState('csv') // 'csv' | 'xml'
+    const [preview, setPreview] = useState(null)
+    const [error, setError]   = useState('')
+
+    function handleFile(e) {
+      const file = e.target.files[0]; if(!file) return; setError('')
+      const reader = new FileReader()
+      reader.onload = ev => {
+        try {
+          const text = ev.target.result
+          const itens = mode === 'xml' ? parseMsProjectToItens(text) : parseCSVtoItens(text)
+          if(!itens.length) { setError('Nenhum item encontrado. Verifique o formato do arquivo.'); return }
+          setPreview(itens)
+        } catch(ex) { setError('Erro ao processar arquivo: ' + ex.message) }
+      }
+      reader.readAsText(file)
+    }
+
+    function confirmar() {
+      if(!preview?.length) return
+      const tmpl = templates.find(t=>t.id===tmplId); if(!tmpl) return
+      salvarTemplate({...tmpl, itens: preview})
+      onClose()
+    }
+
+    return (
+      <>
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:1299}} onClick={onClose}/>
+        <div style={{position:'fixed',top:'50%',left:'50%',transform:'translate(-50%,-50%)',zIndex:1300,width:560,maxWidth:'95vw',background:'var(--surface)',borderRadius:14,boxShadow:'0 16px 56px rgba(0,0,0,0.25)',overflow:'hidden'}}>
+          <div style={{padding:'16px 20px 12px',borderBottom:'1px solid var(--border)'}}>
+            <div style={{fontSize:15,fontWeight:700,color:'var(--text)'}}>Importar Escopo</div>
+            <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>Substitui todos os itens do template pelo arquivo importado</div>
+          </div>
+          <div style={{padding:'20px',display:'flex',flexDirection:'column',gap:14}}>
+            {/* Tabs */}
+            <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:8,padding:3,border:'1px solid var(--border)',alignSelf:'flex-start'}}>
+              {[['csv','Excel (CSV)'],['xml','MS Project (XML)']].map(([k,l])=>(
+                <button key={k} onClick={()=>{setMode(k);setPreview(null);setError('')}}
+                  style={{padding:'5px 14px',borderRadius:6,border:'none',cursor:'pointer',fontSize:12,fontWeight:mode===k?700:500,fontFamily:'var(--font)',background:mode===k?'var(--surface)':'none',color:mode===k?'var(--text)':'var(--text-muted)'}}>
+                  {l}
+                </button>
+              ))}
+            </div>
+
+            {mode==='csv' && (
+              <div style={{padding:'10px 14px',background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,fontSize:11,color:'#166534',lineHeight:1.7}}>
+                <strong>Formato esperado (CSV):</strong><br/>
+                Colunas: <code>Nivel,Titulo,Tipo Hora,Hr Analista,Hr Coord,Obrigatorio,Mostrar</code><br/>
+                Nivel 1 = fase · Nivel 2 = atividade<br/>
+                Tipo Hora: Analista | Coordenação | Ana./Coord. | Especialista<br/>
+                Horas: formato HH:MM (ex: 01:30) ou decimal (ex: 1.5)<br/>
+                Obrigatorio/Mostrar: TRUE ou FALSE
+              </div>
+            )}
+            {mode==='xml' && (
+              <div style={{padding:'10px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,fontSize:11,color:'#1D4ED8',lineHeight:1.6}}>
+                <strong>MS Project XML:</strong> exporte o projeto como "XML do Project" (Arquivo → Salvar como → Formato XML do Project). As tarefas de nível 1 viram fases e as de nível 2+ viram atividades. As horas são lidas do campo "Trabalho".
+              </div>
+            )}
+
+            <div>
+              <label style={{display:'block',fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Selecionar arquivo</label>
+              <input type="file" accept={mode==='xml'?'.xml,application/xml':'.csv,text/csv'} onChange={handleFile}
+                style={{fontSize:12,color:'var(--text)',fontFamily:'var(--font)'}}/>
+            </div>
+
+            {error && <div style={{padding:'8px 12px',background:'#FEE2E2',border:'1px solid #EF4444',borderRadius:7,fontSize:12,color:'#991B1B'}}>{error}</div>}
+
+            {preview && (
+              <div style={{display:'flex',flexDirection:'column',gap:6}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)'}}>{preview.filter(i=>i.nivel===1).length} fases · {preview.filter(i=>i.nivel===2).length} atividades detectadas</div>
+                <div style={{maxHeight:180,overflowY:'auto',border:'1px solid var(--border)',borderRadius:7,padding:'8px 10px',background:'var(--surface2)',fontSize:11,color:'var(--text)',lineHeight:1.8}}>
+                  {preview.filter(i=>i.nivel===1).map(fase=>(
+                    <div key={fase.id}>
+                      <strong style={{color:'var(--accent)'}}>{fase.titulo}</strong>
+                      {preview.filter(i=>i.parent_id===fase.id).map(a=>(
+                        <div key={a.id} style={{paddingLeft:16,color:'var(--text-soft)'}}>• {a.titulo}{a.hr_analista||a.hr_coord?` (${decToHHMM(a.hr_analista||0)} / ${decToHHMM(a.hr_coord||0)})`:''}</div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{padding:'12px 20px 16px',borderTop:'1px solid var(--border2)',display:'flex',justifyContent:'space-between'}}>
+            <button onClick={onClose} style={{padding:'7px 16px',background:'none',border:'1px solid var(--border)',borderRadius:7,fontSize:13,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>Cancelar</button>
+            <button onClick={confirmar} disabled={!preview?.length} style={{padding:'7px 20px',background:preview?.length?'var(--accent)':'var(--border)',color:'#fff',border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:preview?.length?'pointer':'default',fontFamily:'var(--font)'}}>
+              Aplicar ao template
+            </button>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ── Escopo editor (in proposal — WBS when itens exist, simple fallback) ──
   function EscopoEditor({ prop }) {
-    const [adding, setAdding] = useState(false)
-    const [draft,  setDraftI] = useState({ nome:'', descricao:'', horas:'' })
+    const hasWBS = (prop.itens||[]).length > 0
+
+    // WBS mode (forked from template)
+    if (hasWBS) {
+      const totals = calcPhaseTotals(prop.itens||[])
+      const totalA = Object.values(totals).reduce((s,t)=>s+t.hr_analista,0)
+      const totalC = Object.values(totals).reduce((s,t)=>s+t.hr_coord,0)
+      return (
+        <div style={{display:'flex',flexDirection:'column',gap:10}}>
+          <div style={{display:'flex',alignItems:'center',gap:16,padding:'8px 12px',background:'var(--surface2)',borderRadius:8,fontSize:12}}>
+            <span style={{color:'var(--text-muted)'}}>Total: <strong style={{color:'var(--text)'}}>{decToHHMM(totalA+totalC)}</strong></span>
+            <span style={{color:'var(--text-muted)'}}>Analista: <strong style={{color:'var(--accent)'}}>{decToHHMM(totalA)}</strong></span>
+            <span style={{color:'var(--text-muted)'}}>Coord.: <strong style={{color:'var(--accent)'}}>{decToHHMM(totalC)}</strong></span>
+          </div>
+          <WBSTable
+            itens={prop.itens||[]}
+            onChange={newItens=>salvar({...prop,itens:newItens})}
+          />
+        </div>
+      )
+    }
+
+    // Simple legacy editor
+    const [adding, setAdding] = useState(false) // eslint-disable-line
+    const [draft,  setDraftI] = useState({ nome:'', descricao:'', horas:'' }) // eslint-disable-line
     const projeto      = projetos.find(p=>p.opportunity_id===prop.opp_id)
     const projetoPhases = projeto ? phases.filter(ph=>ph.project_id===projeto.id) : []
     const totH = (prop.escopo||[]).filter(e=>e.status==='incluido').reduce((s,e)=>s+Number(e.horas||0),0)
@@ -2372,15 +2806,13 @@ function PropostasTab({ projetos, phases }) {
                 {item.descricao&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:1}}>{item.descricao}</div>}
               </div>
               {item.horas!==''&&<span style={{fontSize:12,fontFamily:'var(--mono)',color:'var(--text-soft)',flexShrink:0}}>{item.horas}h</span>}
-              <button onClick={()=>toggleStatus(item.id)} style={{fontSize:10,padding:'2px 8px',borderRadius:10,border:`1px solid ${sc.border}`,background:sc.bg,color:sc.color,cursor:'pointer',fontWeight:700,flexShrink:0,fontFamily:'var(--font)'}}>
-                {sc.label}
-              </button>
+              <button onClick={()=>toggleStatus(item.id)} style={{fontSize:10,padding:'2px 8px',borderRadius:10,border:`1px solid ${sc.border}`,background:sc.bg,color:sc.color,cursor:'pointer',fontWeight:700,flexShrink:0,fontFamily:'var(--font)'}}>{sc.label}</button>
               <button onClick={()=>removeItem(item.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,padding:'2px 4px',flexShrink:0}}
                 onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
             </div>
           )
         })}
-        {(prop.escopo||[]).length===0&&!adding&&<div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum item. Adicione manualmente ou importe as fases do projeto vinculado.</div>}
+        {(prop.escopo||[]).length===0&&!adding&&<div style={{textAlign:'center',padding:'24px 0',color:'var(--text-muted)',fontSize:12}}>Nenhum item. Adicione manualmente ou importe fases.</div>}
         {adding&&(
           <div style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 12px',background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:8}}>
             <div style={{display:'grid',gridTemplateColumns:'1fr 80px',gap:8}}>
@@ -2588,11 +3020,119 @@ function PropostasTab({ projetos, phases }) {
     )
   }
 
-  // ── List view ──
+  // ── Template detail view ──
+  if (subView === 'templates' && selectedTmpl) {
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        {importing && <ImportModal tmplId={selectedTmpl.id} onClose={()=>setImporting(false)}/>}
+        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
+          <button onClick={()=>setSelectedTmpl(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>
+            ← Templates
+          </button>
+          <div style={{flex:1,minWidth:0}}>
+            <input value={selectedTmpl.nome} onChange={e=>salvarTemplate({...selectedTmpl,nome:e.target.value})}
+              style={{fontSize:17,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
+            <input value={selectedTmpl.descricao||''} onChange={e=>salvarTemplate({...selectedTmpl,descricao:e.target.value})}
+              placeholder="Descrição do template…"
+              style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:3}}/>
+          </div>
+          <div style={{display:'flex',gap:8,flexShrink:0}}>
+            <button onClick={()=>setImporting(true)} style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+              ↑ Importar CSV / Project
+            </button>
+            <button onClick={()=>excluirTemplate(selectedTmpl.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+              Excluir
+            </button>
+          </div>
+        </div>
+
+        <div style={{display:'flex',gap:16,padding:'10px 14px',background:'var(--surface2)',borderRadius:9,fontSize:12,color:'var(--text-muted)'}}>
+          {(() => {
+            const totals=calcPhaseTotals(selectedTmpl.itens||[])
+            const tA=Object.values(totals).reduce((s,t)=>s+t.hr_analista,0)
+            const tC=Object.values(totals).reduce((s,t)=>s+t.hr_coord,0)
+            return <>
+              <span>{(selectedTmpl.itens||[]).filter(i=>i.nivel===1).length} fases</span>
+              <span>{(selectedTmpl.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
+              <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
+              <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
+              <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
+            </>
+          })()}
+        </div>
+
+        <WBSTable
+          itens={selectedTmpl.itens||[]}
+          onChange={newItens=>salvarTemplate({...selectedTmpl,itens:newItens})}
+        />
+      </div>
+    )
+  }
+
+  // ── Templates list view ──
+  if (subView === 'templates') {
+    return (
+      <div style={{display:'flex',flexDirection:'column',gap:16}}>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+          <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
+            {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
+              <button key={k} onClick={()=>setSubView(k)}
+                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--surface)':'none',color:subView===k?'var(--text)':'var(--text-muted)'}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          <button onClick={novoTemplate} style={{display:'flex',alignItems:'center',gap:6,padding:'7px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+            + Novo Template
+          </button>
+        </div>
+
+        <div style={{display:'flex',flexDirection:'column',gap:8}}>
+          {templates.map(t=>{
+            const nFases = (t.itens||[]).filter(i=>i.nivel===1).length
+            const nAtiv  = (t.itens||[]).filter(i=>i.nivel===2).length
+            const totals = calcPhaseTotals(t.itens||[])
+            const tH = Object.values(totals).reduce((s,v)=>s+v.hr_analista+v.hr_coord,0)
+            return (
+              <div key={t.id} onClick={()=>setSelectedTmpl(t)}
+                style={{display:'flex',alignItems:'center',gap:14,padding:'14px 16px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:10,cursor:'pointer',borderLeft:'4px solid var(--accent)',transition:'box-shadow 0.15s'}}
+                onMouseEnter={e=>e.currentTarget.style.boxShadow='0 2px 12px rgba(0,0,0,0.08)'}
+                onMouseLeave={e=>e.currentTarget.style.boxShadow='none'}>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{t.nome}</div>
+                  {t.descricao&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{t.descricao}</div>}
+                </div>
+                <div style={{display:'flex',gap:12,fontSize:11,color:'var(--text-muted)',flexShrink:0}}>
+                  <span>{nFases} fases · {nAtiv} atividades</span>
+                  {tH>0&&<span style={{fontFamily:'var(--mono)',color:'var(--accent)',fontWeight:700}}>{decToHHMM(tH)} total</span>}
+                  <span style={{color:'var(--accent)',fontWeight:600}}>Editar →</span>
+                </div>
+              </div>
+            )
+          })}
+          {!templates.length&&<div style={{textAlign:'center',padding:'60px 0',color:'var(--text-muted)'}}>
+            <div style={{fontSize:32,marginBottom:12}}>📐</div>
+            <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>Nenhum template</div>
+            <div style={{fontSize:12}}>Crie o primeiro template de escopo para usar nas propostas</div>
+          </div>}
+        </div>
+      </div>
+    )
+  }
+
+  // ── List view (propostas) ──
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
+            {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
+              <button key={k} onClick={()=>setSubView(k)}
+                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--surface)':'none',color:subView===k?'var(--text)':'var(--text-muted)'}}>
+                {l}
+              </button>
+            ))}
+          </div>
           <select value={filterOpp} onChange={e=>setFilterOpp(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
             <option value="">Todas as oportunidades</option>
             {oppOptions.map(o=><option key={o.id} value={String(o.id)}>{o.empresa_nome} — {o.titulo}</option>)}
@@ -2675,15 +3215,21 @@ function PropostasTab({ projetos, phases }) {
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:6}}>Template de escopo</div>
                     <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                      {PROP_TEMPLATES.map(t=>(
-                        <label key={t.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',border:`1px solid ${wTemplId===t.id?'var(--accent)':'var(--border)'}`,borderRadius:8,cursor:'pointer',background:wTemplId===t.id?'var(--accent-glow)':'var(--surface)'}}>
-                          <input type="radio" checked={wTemplId===t.id} onChange={()=>setWTemplId(t.id)} style={{marginTop:2}}/>
-                          <div>
-                            <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{t.label}</div>
-                            {t.escopo.length>0&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{t.escopo.length} fases pré-definidas</div>}
-                          </div>
-                        </label>
-                      ))}
+                      {templates.map(t=>{
+                        const nF=(t.itens||[]).filter(i=>i.nivel===1).length
+                        const nA=(t.itens||[]).filter(i=>i.nivel===2).length
+                        return (
+                          <label key={t.id} style={{display:'flex',alignItems:'flex-start',gap:10,padding:'10px 12px',border:`1px solid ${wTemplId===t.id?'var(--accent)':'var(--border)'}`,borderRadius:8,cursor:'pointer',background:wTemplId===t.id?'var(--accent-glow)':'var(--surface)'}}>
+                            <input type="radio" checked={wTemplId===t.id} onChange={()=>setWTemplId(t.id)} style={{marginTop:2,accentColor:'var(--accent)'}}/>
+                            <div>
+                              <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{t.nome}</div>
+                              {t.descricao&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:1}}>{t.descricao}</div>}
+                              {(nF>0||nA>0)&&<div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{nF} fases · {nA} atividades</div>}
+                            </div>
+                          </label>
+                        )
+                      })}
+                      {!templates.length&&<div style={{fontSize:12,color:'var(--text-muted)',padding:'8px 12px'}}>Nenhum template disponível. <span style={{color:'var(--accent)',cursor:'pointer'}} onClick={()=>{setCriando(false);setSubView('templates')}}>Criar template →</span></div>}
                     </div>
                   </div>
                 </>
