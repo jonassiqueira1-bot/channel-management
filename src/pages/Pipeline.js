@@ -50,6 +50,7 @@ import SlideOver from '../components/ui/SlideOver'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
+const STORAGE_KEY_OPP_ESCOPO    = 'opp:escopo_v1'
 
 const ORIGEM_COLORS = {
   Inbound:    { color:'#10B981', bg:'rgba(16,185,129,0.10)', text:'#059669' },
@@ -2367,6 +2368,82 @@ function OppPropostaTab({ opp }) {
   const [editing,       setEditing]       = useState(null)
   const [linkSearch,    setLinkSearch]    = useState('')
 
+  // ── Escopo de implantação ──
+  const { phases, projetos } = useProjects()
+  const [escopo, setEscopo]       = useLocalState(STORAGE_KEY_OPP_ESCOPO, [])
+  const [escopoOpen, setEscopoOpen] = useState(true)
+  const [addingItem, setAddingItem] = useState(false)
+  const [newItem, setNewItem]     = useState({ nome: '', descricao: '', horas: '' })
+
+  const oppEscopo = useMemo(
+    () => escopo.filter(e => e.opp_id === String(opp.id)),
+    [escopo, opp.id]
+  )
+
+  function escopoUid() { return `esc-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
+
+  function addEscopoItem() {
+    if (!newItem.nome.trim()) return
+    setEscopo(prev => [...prev, { id: escopoUid(), opp_id: String(opp.id), nome: newItem.nome.trim(), descricao: newItem.descricao.trim(), horas: newItem.horas ? Number(newItem.horas) : '', status: 'incluido' }])
+    setNewItem({ nome: '', descricao: '', horas: '' })
+    setAddingItem(false)
+  }
+
+  function removeEscopoItem(id) {
+    setEscopo(prev => prev.filter(e => e.id !== id))
+  }
+
+  function toggleEscopoStatus(id) {
+    setEscopo(prev => prev.map(e => {
+      if (e.id !== id) return e
+      const cycle = { incluido: 'excluido', excluido: 'opcional', opcional: 'incluido' }
+      return { ...e, status: cycle[e.status] || 'incluido' }
+    }))
+  }
+
+  function importarFases() {
+    const projeto = projetos.find(p => p.opportunity_id === String(opp.id))
+    if (!projeto) { alert('Nenhum projeto vinculado a esta oportunidade.'); return }
+    const projetoPhases = phases.filter(ph => ph.project_id === projeto.id)
+    if (!projetoPhases.length) { alert('Projeto não possui fases definidas.'); return }
+    const existingNames = new Set(oppEscopo.map(e => e.nome))
+    const novos = projetoPhases
+      .filter(ph => !existingNames.has(ph.phase_name))
+      .map(ph => ({ id: escopoUid(), opp_id: String(opp.id), nome: ph.phase_name, descricao: ph.start_date_planned && ph.end_date_planned ? `${ph.start_date_planned} → ${ph.end_date_planned}` : '', horas: ph.hours_estimated || '', status: 'incluido' }))
+    if (!novos.length) { alert('Todas as fases já estão no escopo.'); return }
+    setEscopo(prev => [...prev, ...novos])
+  }
+
+  function gerarEscopoMd() {
+    const incluidos = oppEscopo.filter(e => e.status === 'incluido')
+    const excluidos = oppEscopo.filter(e => e.status === 'excluido')
+    const opcionais = oppEscopo.filter(e => e.status === 'opcional')
+    const totalH = incluidos.reduce((s, e) => s + Number(e.horas || 0), 0)
+    let md = `## Escopo de Implantação\n\n`
+    if (incluidos.length) {
+      md += `| Fase / Entrega | Descrição | Horas Est. |\n|---|---|---|\n`
+      incluidos.forEach(e => { md += `| ${e.nome} | ${e.descricao || '—'} | ${e.horas ? e.horas + 'h' : '—'} |\n` })
+      md += `\n**Total estimado: ${totalH}h**\n\n`
+    }
+    if (opcionais.length) {
+      md += `### Opcionais (sob consulta)\n\n`
+      opcionais.forEach(e => { md += `- **${e.nome}**${e.descricao ? ' — ' + e.descricao : ''}${e.horas ? ' (' + e.horas + 'h)' : ''}\n` })
+      md += '\n'
+    }
+    if (excluidos.length) {
+      md += `### Fora do Escopo\n\n`
+      excluidos.forEach(e => { md += `- ${e.nome}${e.descricao ? ' — ' + e.descricao : ''}\n` })
+      md += '\n'
+    }
+    return md
+  }
+
+  const STATUS_ESC = {
+    incluido: { label: 'Incluído',  bg: '#D1FAE5', color: '#065F46', border: '#10B981' },
+    excluido: { label: 'Excluído',  bg: '#FEE2E2', color: '#991B1B', border: '#EF4444' },
+    opcional: { label: 'Opcional',  bg: '#FEF3C7', color: '#92400E', border: '#F59E0B' },
+  }
+
   // Propostas geradas localmente (editor markdown)
   const linked = useMemo(
     () => proposals.filter(p => p.opp_id === String(opp.id))
@@ -2496,6 +2573,15 @@ function OppPropostaTab({ opp }) {
                 <span style={{ color: 'var(--text-muted)', opacity: 0.6 }}>→ {val.length > 14 ? val.slice(0,14)+'…' : val}</span>
               </button>
             ) : null)}
+            {oppEscopo.length > 0 && (
+              <button
+                onClick={() => setDraft(d => ({ ...d, content: d.content + '\n\n' + gerarEscopoMd() }))}
+                style={{ fontSize: 10, padding: '3px 10px', borderRadius: 5,
+                  border: '1px solid #10B98155', background: '#D1FAE5', color: '#065F46',
+                  cursor: 'pointer', fontFamily: 'var(--mono)', fontWeight: 600, flexShrink: 0 }}>
+                + Escopo ({oppEscopo.filter(e => e.status === 'incluido').length} itens)
+              </button>
+            )}
           </div>
 
           {/* Editor de conteúdo */}
@@ -2725,6 +2811,125 @@ function OppPropostaTab({ opp }) {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Escopo de Implantação ── */}
+      <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+        <button type="button"
+          onClick={() => setEscopoOpen(o => !o)}
+          style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between',
+            padding:'10px 14px', background:'var(--surface2)', border:'none', cursor:'pointer',
+            fontFamily:'var(--font)', borderBottom: escopoOpen ? '1px solid var(--border)' : 'none' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:14 }}>📋</span>
+            <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Escopo de Implantação</span>
+            {oppEscopo.length > 0 && (
+              <span style={{ fontSize:10, padding:'1px 7px', borderRadius:10, background:'var(--accent)', color:'#fff', fontWeight:700 }}>
+                {oppEscopo.filter(e=>e.status==='incluido').length} incluídos
+              </span>
+            )}
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            {projetos.find(p => p.opportunity_id === String(opp.id)) && (
+              <button type="button"
+                onClick={e => { e.stopPropagation(); importarFases() }}
+                style={{ fontSize:11, padding:'3px 10px', borderRadius:6, border:'1px solid var(--border)',
+                  background:'var(--surface)', color:'var(--text-soft)', cursor:'pointer', fontFamily:'var(--font)' }}>
+                Importar fases do projeto
+              </button>
+            )}
+            <span style={{ color:'var(--text-muted)', fontSize:12, transform: escopoOpen ? 'rotate(90deg)' : 'none', transition:'transform 0.15s' }}>›</span>
+          </div>
+        </button>
+
+        {escopoOpen && (
+          <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+            {oppEscopo.length === 0 && !addingItem && (
+              <div style={{ textAlign:'center', padding:'20px 0', color:'var(--text-muted)', fontSize:12 }}>
+                Nenhum item de escopo. Adicione manualmente ou importe as fases do projeto vinculado.
+              </div>
+            )}
+
+            {oppEscopo.map(item => {
+              const sc = STATUS_ESC[item.status] || STATUS_ESC.incluido
+              return (
+                <div key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                  background:'var(--surface)', border:`1px solid ${sc.border}33`, borderRadius:8,
+                  borderLeft:`3px solid ${sc.border}` }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{item.nome}</div>
+                    {item.descricao && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{item.descricao}</div>}
+                  </div>
+                  {item.horas !== '' && item.horas !== undefined && (
+                    <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-soft)', flexShrink:0 }}>
+                      {item.horas}h
+                    </span>
+                  )}
+                  <button type="button" onClick={() => toggleEscopoStatus(item.id)}
+                    style={{ fontSize:10, padding:'2px 8px', borderRadius:10, border:`1px solid ${sc.border}`,
+                      background:sc.bg, color:sc.color, cursor:'pointer', fontWeight:700, flexShrink:0, fontFamily:'var(--font)' }}>
+                    {sc.label}
+                  </button>
+                  <button type="button" onClick={() => removeEscopoItem(item.id)}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+                      fontSize:13, padding:'2px 4px', lineHeight:1, flexShrink:0 }}
+                    onMouseEnter={e=>e.currentTarget.style.color='#EF4444'}
+                    onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                </div>
+              )
+            })}
+
+            {addingItem && (
+              <div style={{ display:'flex', flexDirection:'column', gap:8, padding:'10px 12px',
+                background:'var(--surface2)', border:'1px dashed var(--border)', borderRadius:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr auto', gap:8 }}>
+                  <input
+                    autoFocus
+                    value={newItem.nome}
+                    onChange={e => setNewItem(d => ({ ...d, nome: e.target.value }))}
+                    onKeyDown={e => { if (e.key === 'Enter') addEscopoItem(); if (e.key === 'Escape') setAddingItem(false) }}
+                    placeholder="Nome da entrega / fase"
+                    style={{ padding:'6px 10px', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface)',
+                      color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)' }} />
+                  <input
+                    value={newItem.horas}
+                    onChange={e => setNewItem(d => ({ ...d, horas: e.target.value }))}
+                    placeholder="Horas"
+                    type="number" min="0"
+                    style={{ padding:'6px 10px', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface)',
+                      color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)', width:70 }} />
+                </div>
+                <input
+                  value={newItem.descricao}
+                  onChange={e => setNewItem(d => ({ ...d, descricao: e.target.value }))}
+                  placeholder="Descrição (opcional)"
+                  style={{ padding:'6px 10px', border:'1px solid var(--border)', borderRadius:6, background:'var(--surface)',
+                    color:'var(--text)', fontSize:12, outline:'none', fontFamily:'var(--font)' }} />
+                <div style={{ display:'flex', gap:8 }}>
+                  <button type="button" onClick={addEscopoItem}
+                    style={{ padding:'5px 14px', background:'var(--accent)', color:'#fff', border:'none',
+                      borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+                    Adicionar
+                  </button>
+                  <button type="button" onClick={() => setAddingItem(false)}
+                    style={{ padding:'5px 12px', background:'none', border:'1px solid var(--border)',
+                      borderRadius:6, fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {!addingItem && (
+              <button type="button" onClick={() => setAddingItem(true)}
+                style={{ alignSelf:'flex-start', padding:'5px 12px', background:'none',
+                  border:'1px dashed var(--border)', borderRadius:6, fontSize:12,
+                  color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>
+                + Adicionar item
+              </button>
+            )}
           </div>
         )}
       </div>
