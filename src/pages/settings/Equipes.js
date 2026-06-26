@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
@@ -48,6 +48,74 @@ function downloadText(content, filename, mime) {
 function toCSVValue(v) {
   const s = String(v ?? '')
   return s.includes(';') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+}
+
+// ─── SearchableMultiSelect ────────────────────────────────────────────────────
+function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…', disabled = false }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+  const selected = options.filter(o => value.includes(o.value))
+
+  function toggle(val) {
+    onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val])
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <button type="button" disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', minHeight: 38, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'var(--font)' }}>
+        {selected.length === 0
+          ? <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{placeholder}</span>
+          : selected.map(o => (
+            <span key={o.value} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: 'var(--accent-lite)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {o.label}
+              <span onClick={e => { e.stopPropagation(); toggle(o.value) }} style={{ cursor: 'pointer', opacity: 0.7 }}>×</span>
+            </span>
+          ))
+        }
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border2)' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar…" className="fpe-field" style={{ height: 30, fontSize: 12 }} />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>
+              : filtered.map(o => {
+                const checked = value.includes(o.value)
+                return (
+                  <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor: 'var(--accent)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{o.label}</span>
+                    {o.sub && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{o.sub}</span>}
+                  </label>
+                )
+              })
+            }
+          </div>
+          {value.length > 0 && (
+            <div style={{ padding: '6px 12px', borderTop: '1px solid var(--border2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{value.length} selecionado{value.length !== 1 ? 's' : ''}</span>
+              <button type="button" onClick={() => onChange([])} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>Limpar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Badge de status ──────────────────────────────────────────────────────────
@@ -339,38 +407,19 @@ export default function Equipes() {
 
         {/* Membros */}
         <FPESection
-          title={`Membros${membros.length ? ` (${membros.length})` : ''}`}
+          title={`Membros${form.membro_ids.length ? ` (${form.membro_ids.length})` : ''}`}
           description="Selecione os usuários que fazem parte desta equipe."
+          columns={1}
         >
-          {usuariosAtivos.length === 0 ? (
-            <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>
-              Nenhum usuário ativo cadastrado.
-            </div>
-          ) : (
-            <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-              {usuariosAtivos.map(u => {
-                const checked = form.membro_ids.includes(u.id)
-                const isLider = u.id === form.lider_id
-                return (
-                  <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor:'pointer', transition:'all 0.12s' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleMembro(u.id)}
-                      style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                    <div style={{ flex:1, minWidth:0 }}>
-                      <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                        {u.nome}
-                      </span>
-                      <span style={{ fontSize:11, color:'var(--text-muted)', marginLeft:8 }}>{u.papel}</span>
-                    </div>
-                    {isLider && (
-                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:4, background:'var(--accent)15', color:'var(--accent)', border:'1px solid var(--accent)30', whiteSpace:'nowrap' }}>
-                        Líder
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
-          )}
+          {usuariosAtivos.length === 0
+            ? <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum usuário ativo cadastrado.</div>
+            : <SearchableMultiSelect
+                options={usuariosAtivos.map(u => ({ value: u.id, label: u.nome, sub: u.papel }))}
+                value={form.membro_ids}
+                onChange={ids => set('membro_ids', ids)}
+                placeholder="Selecionar membros…"
+              />
+          }
         </FPESection>
 
         {/* Métricas e metas — informativo */}
