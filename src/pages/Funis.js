@@ -240,27 +240,32 @@ export default function Funis() {
           </FPEField>
         </FPESection>
 
-        {form.etapas.length > 0 && (
+        {form.etapas.some(e => e.nome.trim()) && (
           <FPESection title="Preview do pipeline">
-            <div style={{ display:'flex', alignItems:'stretch', gap:0, overflowX:'auto', paddingBottom:4, width:'100%' }}>
-              {form.etapas.map((e, i) => (
-                <div key={e.id} style={{ display:'flex', alignItems:'stretch', minWidth:0, flex:1 }}>
-                  <div style={{ flex:1, minWidth:120, padding:'10px 10px 8px',
-                    borderRadius: i===0 ? '8px 0 0 8px' : i===form.etapas.length-1 ? '0 8px 8px 0' : 0,
-                    background: e.cor + '18', borderTop:`3px solid ${e.cor}`,
-                    borderBottom:`1px solid ${e.cor}22`,
-                    borderLeft: i===0 ? `1px solid ${e.cor}33` : 'none',
-                    borderRight:`1px solid ${e.cor}22` }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:e.cor, fontFamily:'var(--mono)', marginBottom:3, wordBreak:'break-word' }}>{e.nome || '…'}</div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)' }}>{e.probabilidade}% prob.</div>
-                  </div>
-                  {i < form.etapas.length - 1 && (
-                    <div style={{ width:0, height:'100%', borderTop:'22px solid transparent', borderBottom:'22px solid transparent',
-                      borderLeft:`10px solid ${e.cor}33`, flexShrink:0, alignSelf:'center' }} />
-                  )}
+            {(() => {
+              const etapasComNome = form.etapas.filter(e => e.nome.trim())
+              return (
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${etapasComNome.length}, 1fr)`, alignItems:'stretch' }}>
+                  {etapasComNome.map((e, i) => (
+                    <div key={e.id} style={{ display:'flex', alignItems:'stretch' }}>
+                      <div style={{ flex:1, padding:'10px 10px 8px',
+                        borderRadius: i===0 ? '8px 0 0 8px' : i===etapasComNome.length-1 ? '0 8px 8px 0' : 0,
+                        background: e.cor + '18', borderTop:`3px solid ${e.cor}`,
+                        borderBottom:`1px solid ${e.cor}22`,
+                        borderLeft: i===0 ? `1px solid ${e.cor}33` : 'none',
+                        borderRight:`1px solid ${e.cor}22` }}>
+                        <div style={{ fontSize:11, fontWeight:700, color:e.cor, fontFamily:'var(--mono)', marginBottom:3, wordBreak:'break-word', overflowWrap:'break-word' }}>{e.nome}</div>
+                        <div style={{ fontSize:10, color:'var(--text-muted)' }}>{e.probabilidade}% prob.</div>
+                      </div>
+                      {i < etapasComNome.length - 1 && (
+                        <div style={{ width:0, height:'100%', borderTop:'22px solid transparent', borderBottom:'22px solid transparent',
+                          borderLeft:`10px solid ${e.cor}33`, flexShrink:0, alignSelf:'center' }} />
+                      )}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+            })()}
           </FPESection>
         )}
 
