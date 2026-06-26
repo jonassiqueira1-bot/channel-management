@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import {
   X, Check, AlertCircle, Clock,
   Copy, CheckCheck, ExternalLink, RefreshCw,
@@ -1337,8 +1338,9 @@ export default function Integracoes() {
   const [search, setSearch]               = useState('')
   const [editando, setEditando]           = useState(null)
   const [addModal, setAddModal]           = useState(false)
-  const [confirmExcluir, setConfirmExcluir] = useState(null) // provider a excluir
+  const [confirmExcluir, setConfirmExcluir] = useState(null)
   const toast = useToast()
+  const { registrar: log } = useAuditLog()
 
   function getSetting(providerId) {
     return settings.find(s => s.provider_name === providerId) || {
@@ -1350,14 +1352,18 @@ export default function Integracoes() {
 
   function handleSave(updatedSetting) {
     setSettings(prev => prev.map(s => s.provider_name === updatedSetting.provider_name ? { ...updatedSetting, updated_at: new Date().toISOString() } : s))
+    log('conectar', 'integracao', updatedSetting.provider_name, { descricao: `Integração configurada: ${updatedSetting.provider_name}` })
   }
 
   function handleDisconnect(settingId) {
+    const s = settings.find(s => s.id === settingId)
     setSettings(prev => prev.map(s => s.id === settingId ? { ...s, status:'inactive', credentials:{}, updated_at: new Date().toISOString() } : s))
+    log('desconectar', 'integracao', settingId, { descricao: `Integração desconectada: ${s?.provider_name || settingId}` })
   }
 
   function handleNovaIntegracao(provider) {
     setCustomProviders(prev => [...prev, provider])
+    log('criar', 'integracao', provider.id, { descricao: `Integração criada: ${provider.name}` })
     setAddModal(false)
     setEditando(provider)
   }

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
@@ -64,6 +65,7 @@ export default function BranchSharing() {
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
+  const { registrar: log } = useAuditLog()
 
   function abrirNovo() {
     setForm({ ...EMPTY })
@@ -89,17 +91,20 @@ export default function BranchSharing() {
     if (form.scope === 'perfis'   && form.perfil_ids.length  === 0) return
     if (form.scope === 'usuarios' && form.usuario_ids.length === 0) return
 
-    const record = { ...form, id: editando === 'novo' ? uid() : form.id }
-    if (editando === 'novo') {
+    const isNew = editando === 'novo'
+    const record = { ...form, id: isNew ? uid() : form.id }
+    if (isNew) {
       setRegras(prev => [...prev, record])
     } else {
       setRegras(prev => prev.map(r => r.id === form.id ? record : r))
     }
+    log(isNew ? 'criar' : 'editar', 'compartilhamento', record.id, { descricao: `Regra de compartilhamento ${isNew ? 'criada' : 'editada'}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
     setRegras(prev => prev.filter(r => r.id !== id))
+    log('excluir', 'compartilhamento', id, { descricao: 'Regra de compartilhamento excluída' })
     setEditando(null)
   }
 

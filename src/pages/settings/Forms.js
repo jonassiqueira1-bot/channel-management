@@ -6,6 +6,7 @@
 
 import { useState, useMemo, useRef } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import { FIELDS_SEED, LAYOUT_SEED } from '../../data/formSeeds'
 import {
   DndContext, DragOverlay, PointerSensor,
@@ -628,6 +629,7 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
   const [pendingSlot, setPendingSlot] = useState(null)
   const [savedFlash,  setSavedFlash]  = useState(false)
   const flashTimer = useRef(null)
+  const { registrar: log } = useAuditLog()
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
@@ -771,8 +773,10 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
 
   // ── CRUD de campos ─────────────────────────────────────────────────────────
   function handleSaveField(data) {
-    if (data.id && fields.some(f => f.id === data.id)) {
+    const isEdit = data.id && fields.some(f => f.id === data.id)
+    if (isEdit) {
       setFields(prev => prev.map(f => f.id === data.id ? { ...f, ...data } : f))
+      log('editar', 'config_campo', data.id, { descricao: `Campo editado: ${data.label} (${entity.label})` })
     } else {
       const newId = `cf_${uid()}`
       const newField = { ...data, id: newId }
@@ -780,6 +784,7 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
       if (pendingSlot) {
         updateLayout(secs => setSlotValue(secs, pendingSlot, newId))
       }
+      log('criar', 'config_campo', newId, { descricao: `Campo criado: ${data.label} (${entity.label})` })
     }
     setFieldModal(null)
     setPendingSlot(null)
@@ -787,8 +792,10 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
   }
 
   function handleDeleteField(id) {
+    const field = fields.find(f => f.id === id)
     setFields(prev => prev.filter(f => f.id !== id))
     updateLayout(secs => removeFieldFromLayout(secs, id))
+    log('excluir', 'config_campo', id, { descricao: `Campo excluído: ${field?.label || id} (${entity.label})` })
     setConfirmDel(null)
   }
 

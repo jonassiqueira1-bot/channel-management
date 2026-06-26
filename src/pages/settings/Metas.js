@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useFunnels } from '../../hooks/useFunnels'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 import { INDICADORES_KEY, calcValorIndicador } from './Indicadores'
@@ -38,16 +39,20 @@ export default function SettingsMetas() {
   const [form, setForm] = useState(null)
   const { funis } = useFunnels()
   const [perfis] = useLocalState('settings:perfis_v2', [])
+  const { registrar: log } = useAuditLog()
 
   function abrir(meta) { setEditando(meta); setForm({ ...meta }) }
   function fechar()    { setEditando(null); setForm(null) }
 
   function handleSave() {
     if (!form.nome || !form.indicador_id || !form.valor_alvo) return
+    const isNew = !form.id
+    const saved = isNew ? { ...form, id: uid() } : form
     setMetas(prev => {
-      if (form.id) return prev.map(m => m.id === form.id ? form : m)
-      return [...prev, { ...form, id: uid() }]
+      if (!isNew) return prev.map(m => m.id === form.id ? form : m)
+      return [...prev, saved]
     })
+    log(isNew ? 'criar' : 'editar', 'meta_kpi', saved.id, { descricao: `Meta/KPI ${isNew ? 'criada' : 'editada'}: ${form.nome}` })
     fechar()
   }
 
@@ -122,7 +127,7 @@ export default function SettingsMetas() {
         title={form.id ? form.nome : 'Nova meta'}
         onSave={podeGravar ? handleSave : undefined}
         onCancel={fechar}
-        onDelete={form.id ? () => { setMetas(prev => prev.filter(m => m.id !== form.id)); fechar() } : undefined}
+        onDelete={form.id ? () => { setMetas(prev => prev.filter(m => m.id !== form.id)); log('excluir', 'meta_kpi', form.id, { descricao: `Meta/KPI excluída: ${form.nome}` }); fechar() } : undefined}
       >
         <FPESection title="Identificação">
           <FPEField label="Nome" required>

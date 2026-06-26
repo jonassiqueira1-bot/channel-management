@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useProducts } from '../../hooks/useProducts'
 import { useFunnels } from '../../hooks/useFunnels'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
@@ -660,16 +661,20 @@ export default function SettingsIndicadores() {
   const [form, setForm] = useState(null)
   const { produtos } = useProducts()
   const { funis } = useFunnels()
+  const { registrar: log } = useAuditLog()
 
   function abrir(ind) { setEditando(ind); setForm({ ...ind }) }
   function fechar()   { setEditando(null); setForm(null) }
 
   function handleSave() {
     if (!form.nome || !form.modulo || !form.fonte_calculo) return
+    const isNew = !form.id
+    const saved = isNew ? { ...form, id: uid() } : form
     setIndicadores(prev => {
-      if (form.id) return prev.map(i => i.id === form.id ? form : i)
-      return [...prev, { ...form, id: uid() }]
+      if (!isNew) return prev.map(i => i.id === form.id ? form : i)
+      return [...prev, saved]
     })
+    log(isNew ? 'criar' : 'editar', 'indicador', saved.id, { descricao: `Indicador ${isNew ? 'criado' : 'editado'}: ${form.nome}` })
     fechar()
   }
 
@@ -724,7 +729,7 @@ export default function SettingsIndicadores() {
         title={form.id ? form.nome : 'Novo indicador'}
         onSave={podeGravar ? handleSave : undefined}
         onCancel={fechar}
-        onDelete={form.id ? () => { setIndicadores(prev => prev.filter(i => i.id !== form.id)); fechar() } : undefined}
+        onDelete={form.id ? () => { setIndicadores(prev => prev.filter(i => i.id !== form.id)); log('excluir', 'indicador', form.id, { descricao: `Indicador excluído: ${form.nome}` }); fechar() } : undefined}
       >
         <FPESection title="Identificação">
           <FPEField label="Nome" required>

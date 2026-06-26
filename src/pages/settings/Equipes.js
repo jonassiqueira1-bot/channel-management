@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import { MOCK_PERFIS } from '../../data/mockPerfis'
@@ -269,6 +270,7 @@ export default function Equipes() {
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
   const [importModal, setImportModal] = useState(false)
+  const { registrar: log } = useAuditLog()
 
   const usuariosAtivos = usuarios.filter(u => u.status !== 'inativo')
 
@@ -317,20 +319,27 @@ export default function Equipes() {
       membro_ids: form.membro_ids,
       meta_ids:   form.meta_ids,
     }
-    if (editando === 'novo') {
+    const isNew = editando === 'novo'
+    if (isNew) {
       setEquipes(prev => [...prev, record])
     } else {
       setEquipes(prev => prev.map(e => e.id === record.id ? record : e))
     }
+    log(isNew ? 'criar' : 'editar', 'equipe', record.id, { descricao: `Equipe ${isNew ? 'criada' : 'editada'}: ${record.nome}` })
     setEditando(null)
   }
 
   function handleDelete(id) {
+    const eq = equipes.find(e => e.id === id)
     setEquipes(prev => prev.filter(e => e.id !== id))
+    log('excluir', 'equipe', id, { descricao: `Equipe excluída: ${eq?.nome || id}` })
     setEditando(null)
   }
 
-  function handleImport(rows) { setEquipes(prev => [...prev, ...rows]) }
+  function handleImport(rows) {
+    setEquipes(prev => [...prev, ...rows])
+    log('importar', 'equipe', 'batch', { descricao: `${rows.length} equipe(s) importada(s)` })
+  }
 
   function exportCSV() {
     const header = IMPORT_COLS.join(';')
