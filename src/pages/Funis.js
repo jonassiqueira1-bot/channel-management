@@ -125,7 +125,7 @@ function EtapasEditor({ etapas, onChange }) {
               <input type="color" value={e.cor} onChange={ev => updateEtapa(e.id, 'cor', ev.target.value)}
                 style={{ position:'absolute', opacity:0, width:0, height:0 }} />
             </label>
-            <div style={{ display:'flex', flexWrap:'nowrap', gap:5, alignItems:'center' }}>
+            <div style={{ display:'flex', flexWrap:'nowrap', gap:5, alignItems:'center', overflowX:'auto', minWidth:0 }}>
               {CORES_ETAPA.map(c => (
                 <button key={c} type="button"
                   style={{ width:20, height:20, borderRadius:5, background:c, border:`2.5px solid ${e.cor===c ? 'var(--text)' : 'transparent'}`, cursor:'pointer', padding:0, flexShrink:0, outline: e.cor===c ? `2px solid ${c}` : 'none', outlineOffset:1 }}
