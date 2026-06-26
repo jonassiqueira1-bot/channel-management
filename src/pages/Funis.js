@@ -242,7 +242,7 @@ export default function Funis() {
 
         {form.etapas.length > 0 && (
           <FPESection title="Preview do pipeline">
-            <div style={{ display:'flex', alignItems:'stretch', gap:0, overflowX:'auto', paddingBottom:4 }}>
+            <div style={{ display:'flex', alignItems:'stretch', gap:0, overflowX:'auto', paddingBottom:4, width:'100%' }}>
               {form.etapas.map((e, i) => (
                 <div key={e.id} style={{ display:'flex', alignItems:'stretch', minWidth:0, flex:1 }}>
                   <div style={{ flex:1, minWidth:120, padding:'10px 10px 8px',
