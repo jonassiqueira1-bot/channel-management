@@ -320,7 +320,7 @@ export default function FullPageEdit({
           gridTemplateColumns: hasAside ? '1fr 300px' : '1fr',
           gap: 24,
           alignItems: 'start',
-          maxWidth: contentMaxWidth,
+          maxWidth: contentMaxWidth === Infinity ? 'none' : contentMaxWidth,
         }}>
 
           {/* Formulário principal */}
