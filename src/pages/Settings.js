@@ -3,7 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath } from 'react-router-dom'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -29,9 +29,10 @@ const SECTIONS = [
       { path: '/settings/habilitacoes', label: 'Habilitações',            Icon: ToggleRight },
       { path: '/settings/produtos',     label: 'Produtos',                Icon: Package     },
       { path: '/settings/funis',        label: 'Funis de Vendas',         Icon: Filter      },
+      { path: '/settings/comissoes',    label: 'Regras de Comissão',      Icon: DollarSign  },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
       { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
-      { path: '/settings/indicadores',   label: 'Indicadores',             Icon: Activity    },
+      { path: '/settings/indicadores',  label: 'Indicadores',             Icon: TrendingUp  },
       { path: '/settings/metas',        label: 'Metas e KPIs',            Icon: BarChart2   },
     ],
   },

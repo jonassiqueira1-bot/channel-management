@@ -92,7 +92,7 @@ export default function App() {
               <Route path="habilitacoes" element={<SettingsHabilitacoes />} />
               <Route path="funis"        element={<Funis />} />
               <Route path="produtos"     element={<Produtos />} />
-              <Route path="comissoes"    element={<SettingsPage title="Esteira de Comissões"  description="Configure a estrutura de comissionamento do canal." />} />
+              <Route path="comissoes"    element={<Comissoes />} />
               <Route path="tipos-acoes"  element={<SettingsTiposAcao />} />
               <Route path="integracoes"  element={<SettingsIntegracoes />} />
               <Route path="forms"        element={<SettingsForms />} />
