@@ -141,11 +141,11 @@ function GlobalMenu({ onExportCsv, onExportExcel, onImport }) {
   }, [open])
 
   const items = [
-    { label: 'Exportar CSV',   icon: <Download size={13} />,         onClick: onExportCsv },
-    { label: 'Exportar Excel', icon: <FileSpreadsheet size={13} />,  onClick: onExportExcel },
-    null, // divider
-    { label: 'Importar dados', icon: <Upload size={13} />,           onClick: onImport },
-  ]
+    onExportCsv   && { label: 'Exportar CSV',   icon: <Download size={13} />,        onClick: onExportCsv   },
+    onExportExcel && { label: 'Exportar Excel', icon: <FileSpreadsheet size={13} />, onClick: onExportExcel },
+    onImport      && null,
+    onImport      && { label: 'Importar dados', icon: <Upload size={13} />,          onClick: onImport },
+  ].filter(Boolean)
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>

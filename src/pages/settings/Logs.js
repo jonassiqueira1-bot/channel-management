@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Terminal, Trash2,
   Plus, Pencil, X, CheckCircle2, XCircle, DollarSign, Send, RotateCcw, Eye,
@@ -7,6 +7,79 @@ import { useLocalState } from '../../hooks/useLocalState'
 import { AUDIT_LOG_KEY } from '../../hooks/useAuditLog'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import Button from '../../components/Button'
+
+// ─── FilterMultiSelect ────────────────────────────────────────────────────────
+function FilterMultiSelect({ options, value = [], onChange, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+
+  function toggle(val) {
+    onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val])
+  }
+
+  const label = value.length === 0
+    ? placeholder
+    : value.length === 1
+      ? options.find(o => o.value === value[0])?.label
+      : `${value.length} selecionados`
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 10px', borderRadius:7,
+          border:'1px solid var(--border)', background: value.length ? 'color-mix(in srgb, var(--accent) 8%, var(--surface2))' : 'var(--surface2)',
+          color: value.length ? 'var(--accent)' : 'var(--text)', fontSize:12, cursor:'pointer',
+          fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+        {label}
+        {value.length > 0 && (
+          <span onClick={e => { e.stopPropagation(); onChange([]) }}
+            style={{ marginLeft:2, opacity:0.6, lineHeight:1, fontSize:13 }}>×</span>
+        )}
+        <span style={{ opacity:0.5, fontSize:10 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:300,
+          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
+          boxShadow:'0 8px 24px rgba(0,0,0,0.14)', minWidth:200, overflow:'hidden' }}>
+          <div style={{ padding:'8px 8px 6px' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar…" className="fpe-field" style={{ height:28, fontSize:12 }} />
+          </div>
+          <div style={{ maxHeight:220, overflowY:'auto' }}>
+            {filtered.map(o => {
+              const checked = value.includes(o.value)
+              return (
+                <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px',
+                  cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+                  <span style={{ fontSize:12, color:'var(--text)' }}>{o.label}</span>
+                </label>
+              )
+            })}
+            {filtered.length === 0 && <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)' }}>Sem resultados</div>}
+          </div>
+          {value.length > 0 && (
+            <div style={{ padding:'5px 12px 8px', borderTop:'1px solid var(--border2)', display:'flex', justifyContent:'flex-end' }}>
+              <button type="button" onClick={() => onChange([])}
+                style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>
+                Limpar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const ACAO_CFG = {
   criar:        { label: 'Criado',       color: '#10B981', Icon: Plus        },
@@ -92,16 +165,16 @@ const ENTIDADE_OPTIONS = Object.entries(ENTIDADE_LABEL).map(([k, v]) => ({ value
 
 export default function Logs() {
   const [logs, setLogs]         = useLocalState(AUDIT_LOG_KEY, [])
-  const [search, setSearch]     = useState('')
-  const [filterAcao, setFilterAcao]       = useState('')
-  const [filterEntidade, setFilterEntidade] = useState('')
-  const [detalhe, setDetalhe]   = useState(null)
+  const [search, setSearch]               = useState('')
+  const [filterAcoes, setFilterAcoes]     = useState([])
+  const [filterEntidades, setFilterEntidades] = useState([])
+  const [detalhe, setDetalhe]             = useState(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
     return logs.filter(l => {
-      if (filterAcao     && l.acao     !== filterAcao)     return false
-      if (filterEntidade && l.entidade !== filterEntidade) return false
+      if (filterAcoes.length     && !filterAcoes.includes(l.acao))         return false
+      if (filterEntidades.length && !filterEntidades.includes(l.entidade)) return false
       if (q && !(
         (l.usuario_nome || '').toLowerCase().includes(q) ||
         (l.descricao    || '').toLowerCase().includes(q) ||
@@ -110,7 +183,7 @@ export default function Logs() {
       )) return false
       return true
     })
-  }, [logs, search, filterAcao, filterEntidade])
+  }, [logs, search, filterAcoes, filterEntidades])
 
   function exportCSV() {
     const cols = ['timestamp','usuario_nome','acao','entidade','entidade_id','descricao']
@@ -173,16 +246,18 @@ export default function Logs() {
     <>
       {/* Filtros extras acima do SettingsLayout */}
       <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', marginBottom:8 }}>
-        <select value={filterAcao} onChange={e => setFilterAcao(e.target.value)}
-          style={{ padding:'5px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }}>
-          <option value="">Todas as ações</option>
-          {ACOES_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
-        <select value={filterEntidade} onChange={e => setFilterEntidade(e.target.value)}
-          style={{ padding:'5px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }}>
-          <option value="">Todos os módulos</option>
-          {ENTIDADE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-        </select>
+        <FilterMultiSelect
+          options={ACOES_OPTIONS}
+          value={filterAcoes}
+          onChange={setFilterAcoes}
+          placeholder="Todas as ações"
+        />
+        <FilterMultiSelect
+          options={ENTIDADE_OPTIONS}
+          value={filterEntidades}
+          onChange={setFilterEntidades}
+          placeholder="Todos os módulos"
+        />
         <div style={{ flex:1 }} />
         {logs.length > 0 && (
           <button onClick={limpar}
