@@ -241,7 +241,7 @@ export default function Funis() {
         </FPESection>
 
         {form.etapas.some(e => e.nome.trim()) && (
-          <FPESection title="Preview do pipeline">
+          <FPESection title="Preview do pipeline" columns={1}>
             {(() => {
               const etapasComNome = form.etapas.filter(e => e.nome.trim())
               return (
@@ -269,7 +269,7 @@ export default function Funis() {
           </FPESection>
         )}
 
-        <FPESection title={`Etapas do funil (${form.etapas.length})`}>
+        <FPESection title={`Etapas do funil (${form.etapas.length})`} columns={1}>
           <EtapasEditor etapas={form.etapas} onChange={val => set('etapas', val)} />
         </FPESection>
       </FullPageEdit>
