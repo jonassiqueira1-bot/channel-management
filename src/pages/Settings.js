@@ -29,7 +29,6 @@ const SECTIONS = [
       { path: '/settings/habilitacoes', label: 'Habilitações',            Icon: ToggleRight },
       { path: '/settings/produtos',     label: 'Produtos',                Icon: Package     },
       { path: '/settings/funis',        label: 'Funis de Vendas',         Icon: Filter      },
-      { path: '/settings/comissoes',    label: 'Regras de Comissão',      Icon: DollarSign  },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
       { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
       { path: '/settings/indicadores',  label: 'Indicadores',             Icon: TrendingUp  },
