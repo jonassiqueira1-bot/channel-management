@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { usePerfisAcesso } from '../hooks/usePerfisAcesso'
@@ -20,9 +20,18 @@ const MODULOS = [
     id: 'dashboard', label: 'Dashboard', icon: BarChart2, grupo: 'Visão Geral',
     desc: 'Indicadores e resumo executivo',
     acoes: [
-      { id: 'visualizar',     label: 'Acessar dashboard',         icon: Eye,        danger: false },
-      { id: 'ver_financeiro', label: 'Ver indicadores financeiros',icon: DollarSign, danger: false },
-      { id: 'exportar',       label: 'Exportar relatórios',        icon: Download,   danger: false },
+      { id: 'visualizar',     label: 'Acessar dashboard',          icon: Eye,        danger: false },
+      { id: 'ver_financeiro', label: 'Ver indicadores financeiros', icon: DollarSign, danger: false },
+      { id: 'exportar',       label: 'Exportar relatórios',         icon: Download,   danger: false },
+      ACAO_ESCOPO,
+    ],
+  },
+  {
+    id: 'relatorios', label: 'Relatórios', icon: BarChart2, grupo: 'Visão Geral',
+    desc: 'Relatórios analíticos e exportações',
+    acoes: [
+      { id: 'visualizar',   label: 'Acessar relatórios', icon: Eye,      danger: false },
+      { id: 'exportar',     label: 'Exportar dados',     icon: Download, danger: false },
       ACAO_ESCOPO,
     ],
   },
@@ -322,6 +331,74 @@ function countPerms(permsRole) {
   return { total, active, pct: total > 0 ? Math.round((active / total) * 100) : 0 }
 }
 
+// ─── SearchableMultiSelect ────────────────────────────────────────────────────
+function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…', disabled = false }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+  const selected = options.filter(o => value.includes(o.value))
+
+  function toggle(val) {
+    onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val])
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      <button type="button" disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', minHeight: 38, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, cursor: disabled ? 'not-allowed' : 'pointer', textAlign: 'left', fontFamily: 'var(--font)' }}>
+        {selected.length === 0
+          ? <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{placeholder}</span>
+          : selected.map(o => (
+            <span key={o.value} style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 20, background: 'var(--accent-lite)', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              {o.label}
+              <span onClick={e => { e.stopPropagation(); toggle(o.value) }} style={{ cursor: 'pointer', opacity: 0.7 }}>×</span>
+            </span>
+          ))
+        }
+        <span style={{ marginLeft: 'auto', fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border2)' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
+              placeholder="Pesquisar…" className="fpe-field"
+              style={{ height: 30, fontSize: 12 }} />
+          </div>
+          <div style={{ maxHeight: 200, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>
+              : filtered.map(o => {
+                const checked = value.includes(o.value)
+                return (
+                  <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor: 'var(--accent)', flexShrink: 0 }} />
+                    <span style={{ fontSize: 12, color: 'var(--text)' }}>{o.label}</span>
+                  </label>
+                )
+              })
+            }
+          </div>
+          {value.length > 0 && (
+            <div style={{ padding: '6px 12px', borderTop: '1px solid var(--border2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{value.length} selecionada{value.length !== 1 ? 's' : ''}</span>
+              <button type="button" onClick={() => onChange([])} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>Limpar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Toggle ───────────────────────────────────────────────────────────────────
 function Toggle({ value, onChange, disabled }) {
   return (
@@ -467,23 +544,13 @@ export default function Perfis() {
         </FPESection>
 
         {franquias.length > 0 && (
-          <FPESection title="Franquias" description="Restringe este perfil a franquias específicas. Sem seleção, o perfil vale para todo o tenant.">
-            <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-              {franquias.map(f => {
-                const checked = (formNovo.franquia_ids || []).includes(String(f.id))
-                return (
-                  <label key={f.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor:'pointer', transition:'all 0.12s' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggleFranquiaNovo(String(f.id))}
-                      style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                    <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                      {f.codigo ? <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', marginRight:6 }}>[{f.codigo}]</span> : null}
-                      {f.nome}
-                    </span>
-                    {f.classificacao === 'unidade' && <span style={{ fontSize:10, color:'var(--text-muted)', marginLeft:'auto' }}>Unidade</span>}
-                  </label>
-                )
-              })}
-            </div>
+          <FPESection title="Unidades" description="Restringe este perfil a unidades específicas. Sem seleção, o perfil vale para todo o tenant." columns={1}>
+            <SearchableMultiSelect
+              options={franquias.map(f => ({ value: String(f.id), label: f.codigo ? `[${f.codigo}] ${f.nome}` : f.nome }))}
+              value={formNovo.franquia_ids || []}
+              onChange={ids => setFormNovo(f => ({ ...f, franquia_ids: ids }))}
+              placeholder="Selecionar unidades…"
+            />
           </FPESection>
         )}
       </FullPageEdit>
@@ -531,25 +598,17 @@ export default function Perfis() {
           )}
 
           {franquias.length > 0 && (
-            <FPESection title="Franquias" description="Restringe este perfil a franquias específicas. Sem seleção, o perfil vale para todo o tenant.">
-              <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-                {franquias.map(f => {
-                  const checked = (editando.franquia_ids || []).includes(String(f.id))
-                  return (
-                    <label key={f.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor:'pointer', transition:'all 0.12s' }}>
-                      <input type="checkbox" checked={checked} onChange={() => toggleFranquiaPerfil(String(f.id))}
-                        style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                      <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)', flex:1 }}>
-                        {f.codigo ? <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', marginRight:6 }}>[{f.codigo}]</span> : null}
-                        {f.nome}
-                      </span>
-                      {f.classificacao === 'unidade' && (
-                        <span style={{ fontSize:10, color:'var(--text-muted)', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px' }}>Unidade</span>
-                      )}
-                    </label>
-                  )
-                })}
-              </div>
+            <FPESection title="Unidades" description="Restringe este perfil a unidades específicas. Sem seleção, o perfil vale para todo o tenant." columns={1}>
+              <SearchableMultiSelect
+                options={franquias.map(f => ({ value: String(f.id), label: f.codigo ? `[${f.codigo}] ${f.nome}` : f.nome }))}
+                value={editando.franquia_ids || []}
+                onChange={ids => {
+                  const n = { ...editando, franquia_ids: ids }
+                  setEditando(n)
+                  savePerfil(n, perms[n.id])
+                }}
+                placeholder="Selecionar unidades…"
+              />
             </FPESection>
           )}
 
@@ -606,17 +665,17 @@ export default function Perfis() {
                             </button>
                           </div>
                           <div style={{ height: 1, background: 'var(--border2)', marginBottom: 8 }} />
-                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 3 }}>
                             {mod.acoes.filter(a => !a.scope).map(acao => {
                               const AcaoIcon = acao.icon
                               const val = !!modPerms[acao.id]
                               const locked = editando.id === 'native_master' && acao.id === 'gerenciar_perfis'
                               return (
-                                <label key={acao.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, cursor: 'pointer', userSelect: 'none', background: val ? (acao.danger ? 'rgba(220,38,38,0.05)' : `${editando.cor}10`) : 'transparent', border: `1px solid ${val && acao.danger ? '#FECACA' : 'transparent'}`, transition: 'background 0.12s' }}>
-                                  <AcaoIcon size={12} color={val ? (acao.danger ? '#DC2626' : editando.cor) : '#94A3B8'} />
-                                  <span style={{ flex: 1, fontSize: 12, fontWeight: 500, color: 'var(--text)', lineHeight: 1.3 }}>
+                                <label key={acao.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', background: val ? (acao.danger ? 'rgba(220,38,38,0.05)' : `${editando.cor}10`) : 'transparent', border: `1px solid ${val && acao.danger ? '#FECACA' : 'transparent'}`, transition: 'background 0.12s' }}>
+                                  <AcaoIcon size={11} color={val ? (acao.danger ? '#DC2626' : editando.cor) : '#94A3B8'} />
+                                  <span style={{ flex: 1, fontSize: 11, fontWeight: 500, color: 'var(--text)', lineHeight: 1.25 }}>
                                     {acao.label}
-                                    {acao.danger && <span style={{ display: 'block', fontSize: 10, color: '#DC2626', fontWeight: 600 }}>⚠ Destrutiva</span>}
+                                    {acao.danger && <span style={{ display: 'block', fontSize: 9, color: '#DC2626', fontWeight: 600 }}>⚠ Destrutiva</span>}
                                   </span>
                                   <Toggle value={val} onChange={() => toggle(mod.id, acao.id)} disabled={locked} />
                                 </label>
@@ -710,7 +769,7 @@ export default function Perfis() {
 }
 
 const s = {
-  modCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', flexShrink: 0 },
+  modCard: { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 12px', flexShrink: 0 },
   microBtn: { padding: '5px 11px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', fontSize: 11, fontWeight: 700, color: 'var(--text-soft)', cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' },
   btnPrimary: { padding: '9px 20px', borderRadius: 9, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' },
   btnSecondary: { padding: '9px 18px', borderRadius: 9, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-soft)', fontSize: 13, fontWeight: 600, cursor: 'pointer' },
