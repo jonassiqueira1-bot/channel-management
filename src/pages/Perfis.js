@@ -428,7 +428,7 @@ export default function Perfis() {
   const [franquias]                 = useLocalState('settings:franquias_v2', [])
   const [confirmDel, setConfirmDel] = useState(null)
   const [search, setSearch]         = useState('')
-  const [grupoAberto, setGrupoAberto] = useState(null)
+  const [gruposFechados, setGruposFechados] = useState(new Set())
 
   const perfil = editando === 'novo' ? null : editando
   const rolePerms = perfil ? (perms[perfil.id] || {}) : {}
@@ -633,14 +633,19 @@ export default function Perfis() {
             {/* Grupos de módulos */}
             {GRUPOS.filter(g => gruposVisiveis[g]).map(grupo => (
               <div key={grupo} style={{ marginBottom: 8 }}>
-                <button type="button"
-                  onClick={() => setGrupoAberto(g => g === grupo ? null : grupo)}
-                  style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', marginBottom: grupoAberto === grupo || grupoAberto === null ? 8 : 0 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{grupo}</span>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{grupoAberto === grupo ? '▲' : '▼'}</span>
-                </button>
+                {(() => {
+                  const aberto = !gruposFechados.has(grupo)
+                  return (
+                    <button type="button"
+                      onClick={() => setGruposFechados(s => { const n = new Set(s); n.has(grupo) ? n.delete(grupo) : n.add(grupo); return n })}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', marginBottom: aberto ? 8 : 0 }}>
+                      <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', flex: 1, textAlign: 'left' }}>{grupo}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{aberto ? '▲' : '▼'}</span>
+                    </button>
+                  )
+                })()}
 
-                {(grupoAberto === grupo || grupoAberto === null) && (
+                {!gruposFechados.has(grupo) && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(gruposVisiveis[grupo] || []).map(mod => {
                       const ModIcon = mod.icon
