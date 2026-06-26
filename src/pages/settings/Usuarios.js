@@ -203,7 +203,6 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
                         boxShadow: ativo ? `0 0 0 3px ${cfg.color}22` : 'none',
                         transition: 'all 0.15s',
                       }}>
-                      <span style={{ fontSize: 14 }}>{cfg.icon}</span>
                       {cfg.label}
                     </button>
                   )
@@ -606,7 +605,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             onChange={e => set('papel', e.target.value)}>
             {papeisDisp.map(p => {
               const cfg = PAPEIS_CONFIG[p.value]
-              return <option key={p.value} value={p.value}>{cfg.icon} {cfg.label}</option>
+              return <option key={p.value} value={p.value}>{cfg.label}</option>
             })}
           </select>
         </FPEField>
