@@ -245,13 +245,13 @@ export default function Funis() {
             <div style={{ display:'flex', alignItems:'stretch', gap:0, overflowX:'auto', paddingBottom:4 }}>
               {form.etapas.map((e, i) => (
                 <div key={e.id} style={{ display:'flex', alignItems:'stretch', minWidth:0, flex:1 }}>
-                  <div style={{ flex:1, minWidth:80, padding:'10px 10px 8px',
+                  <div style={{ flex:1, minWidth:120, padding:'10px 10px 8px',
                     borderRadius: i===0 ? '8px 0 0 8px' : i===form.etapas.length-1 ? '0 8px 8px 0' : 0,
                     background: e.cor + '18', borderTop:`3px solid ${e.cor}`,
                     borderBottom:`1px solid ${e.cor}22`,
                     borderLeft: i===0 ? `1px solid ${e.cor}33` : 'none',
                     borderRight:`1px solid ${e.cor}22` }}>
-                    <div style={{ fontSize:11, fontWeight:700, color:e.cor, fontFamily:'var(--mono)', marginBottom:3, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{e.nome || '…'}</div>
+                    <div style={{ fontSize:11, fontWeight:700, color:e.cor, fontFamily:'var(--mono)', marginBottom:3, wordBreak:'break-word' }}>{e.nome || '…'}</div>
                     <div style={{ fontSize:10, color:'var(--text-muted)' }}>{e.probabilidade}% prob.</div>
                   </div>
                   {i < form.etapas.length - 1 && (
