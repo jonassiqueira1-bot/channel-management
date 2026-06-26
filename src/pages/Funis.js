@@ -245,7 +245,7 @@ export default function Funis() {
             {(() => {
               const etapasComNome = form.etapas.filter(e => e.nome.trim())
               return (
-                <div style={{ display:'grid', gridTemplateColumns:`repeat(${etapasComNome.length}, 1fr)`, alignItems:'stretch' }}>
+                <div style={{ display:'grid', gridTemplateColumns:`repeat(${etapasComNome.length}, 1fr)`, alignItems:'stretch', width:'100%', minWidth:0 }}>
                   {etapasComNome.map((e, i) => (
                     <div key={e.id} style={{ display:'flex', alignItems:'stretch' }}>
                       <div style={{ flex:1, padding:'10px 10px 8px',
