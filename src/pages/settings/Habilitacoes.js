@@ -1,13 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useHabilitacoes } from '../../hooks/useHabilitacoes'
-import { MOCK_PRODUTOS } from '../../data/mockProdutos'
+import { useProducts } from '../../hooks/useProducts'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 function uid() { return Date.now() + Math.floor(Math.random() * 999) }
-
-const PRODUTOS_ATIVOS = MOCK_PRODUTOS.filter(p => p.status === 'ativo')
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 function SituacaoBadge({ situacao }) {
@@ -45,6 +43,8 @@ function ProdutoBadge({ produto }) {
 export default function Habilitacoes() {
   const { habilitacoes, save: saveHab, remove: removeHab } = useHabilitacoes()
   const { registrar: log } = useAuditLog()
+  const { produtos } = useProducts()
+  const produtosAtivos = useMemo(() => produtos.filter(p => p.status === 'ativo'), [produtos])
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
   const [search, setSearch]     = useState('')
@@ -73,8 +73,8 @@ export default function Habilitacoes() {
   }, [form?.nome, habilitacoes, editando])
 
   const produtoSelecionado = useMemo(
-    () => PRODUTOS_ATIVOS.find(p => p.id === Number(form?.produto_id)) || null,
-    [form?.produto_id]
+    () => produtosAtivos.find(p => p.id === Number(form?.produto_id)) || null,
+    [form?.produto_id, produtosAtivos]
   )
 
   function handleSave() {
@@ -119,8 +119,8 @@ export default function Habilitacoes() {
               onChange={e => set('produto_id', e.target.value)}
             >
               <option value="">— Nenhum produto —</option>
-              {PRODUTOS_ATIVOS.map(p => (
-                <option key={p.id} value={p.id}>{p.nome} ({p.codigo})</option>
+              {produtosAtivos.map(p => (
+                <option key={p.id} value={p.id}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
               ))}
             </select>
             {produtoSelecionado && (
@@ -179,7 +179,7 @@ export default function Habilitacoes() {
       columns={[
         { key: 'nome', label: 'Nome' },
         { key: 'produto_id', label: 'Produto vinculado', render: (v) => {
-          const produto = PRODUTOS_ATIVOS.find(p => p.id === v) || null
+          const produto = produtosAtivos.find(p => p.id === v) || null
           return <ProdutoBadge produto={produto} />
         }},
         { key: 'situacao', label: 'Situação', render: (v) => <SituacaoBadge situacao={v} /> },
