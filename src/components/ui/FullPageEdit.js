@@ -313,8 +313,9 @@ export default function FullPageEdit({
 
       {/* ── Body scrollável ────────────────────────────────────────────────── */}
       <div style={{
-        flex: 1, overflowY: 'auto', overflowX: 'hidden',
+        flex: 1, overflowY: 'auto',
         padding: '28px 32px',
+        width: '100%', boxSizing: 'border-box',
       }}>
         <div style={{
           display: 'grid',
@@ -323,6 +324,7 @@ export default function FullPageEdit({
           alignItems: 'start',
           width: '100%',
           maxWidth: contentMaxWidth === Infinity ? 'none' : contentMaxWidth,
+          margin: contentMaxWidth !== Infinity ? '0 auto' : undefined,
         }}>
 
           {/* Formulário principal */}
