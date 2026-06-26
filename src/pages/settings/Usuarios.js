@@ -5,7 +5,7 @@ import { useUsuarios } from '../../hooks/useUsuarios'
 import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
-import { MOCK_RULES, RULES_STORAGE_KEY } from '../../data/mockComissoes'
+import { useCommissions } from '../../hooks/useCommissions'
 import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
@@ -503,7 +503,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const [novaHabilidade, setNovaHabilidade] = useState('')
   const [confirmDel, setConfirmDel] = useState(false)
   const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [regrasComiss] = useLocalState(RULES_STORAGE_KEY, MOCK_RULES)
+  const { rules: regrasComiss } = useCommissions()
   const [franquias]    = useLocalState('settings:franquias_v2', [])
   const { branches }  = useBranches()
 
