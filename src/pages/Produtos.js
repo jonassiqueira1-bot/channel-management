@@ -163,24 +163,40 @@ function ImportModal({ onClose, onImport, existingCodigos }) {
   const [errors, setErrors]     = useState({})
   const [dragging, setDragging] = useState(false)
 
+  function normalizeEnum(val) {
+    return (val || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim()
+  }
+
   function handleFile(file) {
     if (!file) return
     const reader = new FileReader()
     reader.onload = e => {
       const text = e.target.result
       const { rows: parsed } = parseCSV(text)
+      // Normalize tipo and status to match internal values
+      const normalized = parsed.map(row => {
+        const tipoNorm = normalizeEnum(row.tipo)
+        const statusNorm = normalizeEnum(row.status)
+        const matchedTipo = TIPOS_PRODUTO.find(t => normalizeEnum(t.value) === tipoNorm || normalizeEnum(t.label) === tipoNorm)
+        const matchedStatus = STATUS_PRODUTO.find(s => normalizeEnum(s.value) === statusNorm || normalizeEnum(s.label) === statusNorm)
+        return {
+          ...row,
+          tipo: matchedTipo ? matchedTipo.value : row.tipo,
+          status: matchedStatus ? matchedStatus.value : row.status,
+        }
+      })
       const errs = {}
-      parsed.forEach((row, i) => {
+      normalized.forEach((row, i) => {
         const rowErrs = []
         if (!row.nome?.trim()) rowErrs.push('Nome obrigatório')
         if (!row.codigo?.trim()) rowErrs.push('Código obrigatório')
         else if (existingCodigos.includes(row.codigo.trim().toUpperCase())) rowErrs.push('Código duplicado')
-        else if (parsed.slice(0,i).some(r => r.codigo?.trim().toUpperCase() === row.codigo?.trim().toUpperCase())) rowErrs.push('Código duplicado no arquivo')
+        else if (normalized.slice(0,i).some(r => r.codigo?.trim().toUpperCase() === row.codigo?.trim().toUpperCase())) rowErrs.push('Código duplicado no arquivo')
         if (row.tipo && !TIPOS_PRODUTO.find(t => t.value === row.tipo)) rowErrs.push(`Tipo inválido: ${row.tipo}`)
         if (row.status && !STATUS_PRODUTO.find(s => s.value === row.status)) rowErrs.push(`Status inválido: ${row.status}`)
         if (rowErrs.length) errs[i] = rowErrs
       })
-      setRows(parsed); setErrors(errs); setStep('preview')
+      setRows(normalized); setErrors(errs); setStep('preview')
     }
     reader.readAsText(file, 'UTF-8')
   }
