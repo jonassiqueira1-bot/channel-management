@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { NavLink, Outlet, Navigate, useMatch, useResolvedPath } from 'react-router-dom'
+import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } from 'react-router-dom'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
   ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp,
@@ -92,10 +92,45 @@ function NavItemCollapsed({ item }) {
   )
 }
 
+function SettingsOverview() {
+  const navigate = useNavigate()
+  return (
+    <div style={{ padding: '32px 40px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.3px' }}>Configurações</h1>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 32px' }}>Gerencie as configurações da plataforma, usuários, regras e integrações.</p>
+      {SECTIONS.map(sec => (
+        <div key={sec.label} style={{ marginBottom: 32 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>
+            {sec.label}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 12 }}>
+            {sec.items.map(item => (
+              <button key={item.path} onClick={() => navigate(item.path)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
+                  cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)',
+                  transition: 'border-color 0.15s, box-shadow 0.15s',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent)'; e.currentTarget.style.boxShadow = '0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent)' }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'none' }}
+              >
+                <div style={{ width: 34, height: 34, borderRadius: 8, background: 'color-mix(in srgb, var(--accent) 10%, transparent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <item.Icon size={16} strokeWidth={1.75} color='var(--accent)' />
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{item.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Settings() {
   const atRoot = useMatch('/settings')
   const [collapsed, setCollapsed] = useLocalState('settings:collapsed', false)
-  if (atRoot) return <Navigate to="/settings/empresa" replace />
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0, background: 'var(--surface)' }}>
@@ -156,7 +191,7 @@ export default function Settings() {
 
       {/* ── Right content ── */}
       <div style={s.content}>
-        <Outlet />
+        {atRoot ? <SettingsOverview /> : <Outlet />}
       </div>
     </div>
   )
