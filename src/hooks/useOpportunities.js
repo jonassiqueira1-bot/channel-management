@@ -144,7 +144,7 @@ export function useOpportunities() {
     }
 
     const { data, error } = await supabase
-      .from('opportunities')
+      .from('oportunidades')
       .select('*')
       .order('created_at', { ascending: false })
 
@@ -194,14 +194,14 @@ export function useOpportunities() {
     if (existeLocal) {
       // Atualiza local imediatamente
       setOpps(prev => prev.map(o => o.id === data.id ? { ...o, ...data } : o))
-      const { error } = await supabase.from('opportunities').update(row).eq('id', data.id)
+      const { error } = await supabase.from('oportunidades').update(row).eq('id', data.id)
       if (error) console.warn('[useOpportunities] update error:', error.message)
     } else {
       // Insere localmente com UUID temporário (com traço) para que edições subsequentes tomem o caminho UPDATE
       const tempId = crypto.randomUUID()
       const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
       setOpps(prev => [...prev, optimistic])
-      const { error } = await supabase.from('opportunities').insert(row)
+      const { error } = await supabase.from('oportunidades').insert(row)
       if (error) {
         console.warn('[useOpportunities] insert error:', error.message, 'row:', JSON.stringify(row).slice(0,200))
         // Mantém o opp otimístico — não chama load() para não sobrescrever
@@ -220,7 +220,7 @@ export function useOpportunities() {
       const opp = opps.find(o => o.id === id)
       const cf = { ...(opp?.custom_fields || {}), playbook_id: opp?.playbook_id ?? opp?.custom_fields?.playbook_id ?? null, etapa_id: etapaId, itens: opp?.itens || [] }
       const stage_id = isValidUuid(etapaId) ? etapaId : null
-      await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
+      await supabase.from('oportunidades').update({ stage_id, custom_fields: cf }).eq('id', id)
     }
   }, [opps])
 
@@ -232,7 +232,7 @@ export function useOpportunities() {
       for (const id of ids) {
         const opp = opps.find(o => o.id === id)
         const cf = { ...(opp?.custom_fields || {}), playbook_id: opp?.playbook_id ?? opp?.custom_fields?.playbook_id ?? null, etapa_id: etapaId, itens: opp?.itens || [] }
-        await supabase.from('opportunities').update({ stage_id, custom_fields: cf }).eq('id', id)
+        await supabase.from('oportunidades').update({ stage_id, custom_fields: cf }).eq('id', id)
       }
     }
   }, [opps])
@@ -243,7 +243,7 @@ export function useOpportunities() {
       setOpps(prev => prev.filter(o => o.id !== id))
       return { ok: true }
     }
-    const { error } = await supabase.from('opportunities').delete().eq('id', id)
+    const { error } = await supabase.from('oportunidades').delete().eq('id', id)
     if (error) return { ok: false, message: error.message }
     setOpps(prev => prev.filter(o => o.id !== id))
     return { ok: true }
@@ -253,7 +253,7 @@ export function useOpportunities() {
   const removeMany = useCallback(async (ids) => {
     setOpps(prev => prev.filter(o => !ids.includes(o.id)))
     if (!isMockMode.current) {
-      await supabase.from('opportunities').delete().in('id', ids)
+      await supabase.from('oportunidades').delete().in('id', ids)
     }
   }, [])
 
@@ -265,7 +265,7 @@ export function useOpportunities() {
       return { ok: true }
     }
     const dbRows = rows.map(r => oppToRow(r, tenantId, branchId))
-    const { data, error } = await supabase.from('opportunities').insert(dbRows).select()
+    const { data, error } = await supabase.from('oportunidades').insert(dbRows).select()
     if (error) return { ok: false, message: error.message }
     setOpps(prev => [...prev, ...(data || []).map(rowToOpp)])
     return { ok: true }

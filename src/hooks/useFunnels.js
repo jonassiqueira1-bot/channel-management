@@ -34,7 +34,7 @@ export function useFunnels() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [funis, setFunis] = useState(MOCK_FUNIS)
+  const [funis, setFunis] = useState([])
   const [loading, setLoading] = useState(true)
   const isMockMode = useRef(true)
 
@@ -42,20 +42,19 @@ export function useFunnels() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
-    // pipeline_stages armazena etapas individuais; usamos custom_fields para guardar funis completos
-    // por enquanto usamos a tabela pipeline_stages com um jsonb de funis agrupados
-    // alternativa simples: guardar funis em form_layouts com entity='funis'
+    if (!session?.user) { isMockMode.current = true; setFunis(MOCK_FUNIS); setLoading(false); return }
     const { data, error } = await supabase
       .from('form_layouts')
       .select('*')
       .eq('entity', 'funis')
       .limit(1)
-    if (error || !data || data.length === 0) { isMockMode.current = true; setLoading(false); return }
-    const stored = data[0].fields
-    if (Array.isArray(stored) && stored.length > 0) {
+    if (error) {
+      isMockMode.current = true
+      setFunis(MOCK_FUNIS)
+    } else {
       isMockMode.current = false
-      setFunis(stored)
+      const stored = data?.[0]?.fields
+      setFunis(Array.isArray(stored) && stored.length > 0 ? stored : [])
     }
     setLoading(false)
   }, [session])
@@ -67,15 +66,10 @@ export function useFunnels() {
     const { data: existing } = await supabase
       .from('form_layouts').select('id').eq('tenant_id', tenantId).eq('entity', 'funis').limit(1)
     if (existing && existing.length > 0) {
-      const { error } = await supabase
-        .from('form_layouts').update({ fields: list }).eq('tenant_id', tenantId).eq('entity', 'funis')
-      if (error) console.warn('[useFunnels] update error:', error.message)
+      await supabase.from('form_layouts').update({ fields: list }).eq('tenant_id', tenantId).eq('entity', 'funis')
     } else {
-      const { error } = await supabase
-        .from('form_layouts').insert({ tenant_id: tenantId, entity: 'funis', fields: list, layout: [] })
-      if (error) console.warn('[useFunnels] insert error:', error.message)
+      await supabase.from('form_layouts').insert({ tenant_id: tenantId, entity: 'funis', fields: list, layout: [] })
     }
-    isMockMode.current = false
   }, [tenantId])
 
   const save = useCallback(async (data) => {
@@ -86,15 +80,14 @@ export function useFunnels() {
       next = [...prev, { ...data, criado: new Date().toISOString().slice(0, 10) }]
       return next
     })
-    // pequeno delay para garantir que next foi setado
-    setTimeout(() => { if (next) persistAll(next) }, 0)
+    setTimeout(() => { if (next && !isMockMode.current) persistAll(next) }, 0)
     return { ok: true }
   }, [persistAll])
 
   const remove = useCallback(async (id) => {
     let next
     setFunis(prev => { next = prev.filter(f => f.id !== id); return next })
-    setTimeout(() => { if (next) persistAll(next) }, 0)
+    setTimeout(() => { if (next && !isMockMode.current) persistAll(next) }, 0)
     return { ok: true }
   }, [persistAll])
 
