@@ -77,7 +77,7 @@ function EtapasEditor({ etapas, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12, alignItems:'center',
+      <div style={{ display:'grid', gridTemplateColumns:'32px minmax(120px,1fr) 110px 1fr 32px', gap:12, alignItems:'center',
         padding:'0 8px 8px', borderBottom:'1px solid var(--border2)', marginBottom:8 }}>
         <div />
         <div style={ed.colLabel}>Nome da etapa</div>
@@ -93,7 +93,7 @@ function EtapasEditor({ etapas, onChange }) {
       )}
 
       {etapas.map((e, i) => (
-        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12,
+        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px minmax(120px,1fr) 110px 1fr 32px', gap:12,
           alignItems:'center', padding:'6px 8px', borderRadius:7, background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
@@ -125,7 +125,7 @@ function EtapasEditor({ etapas, onChange }) {
               <input type="color" value={e.cor} onChange={ev => updateEtapa(e.id, 'cor', ev.target.value)}
                 style={{ position:'absolute', opacity:0, width:0, height:0 }} />
             </label>
-            <div style={{ display:'flex', flexWrap:'nowrap', gap:5, alignItems:'center' }}>
+            <div style={{ display:'flex', flexWrap:'wrap', gap:5, alignItems:'center' }}>
               {CORES_ETAPA.map(c => (
                 <button key={c} type="button"
                   style={{ width:20, height:20, borderRadius:5, background:c, border:`2.5px solid ${e.cor===c ? 'var(--text)' : 'transparent'}`, cursor:'pointer', padding:0, flexShrink:0, outline: e.cor===c ? `2px solid ${c}` : 'none', outlineOffset:1 }}
