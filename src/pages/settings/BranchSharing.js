@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
-import { useParceiros } from '../../hooks/useParceiros'
+import { useBranches } from '../../hooks/useBranches'
 import { MOCK_PERFIS } from '../../data/mockPerfis'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
@@ -125,7 +125,7 @@ function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'S
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function BranchSharing() {
-  const { parceiros, loading: loadingFiliais } = useParceiros()
+  const { branches, loading: loadingFiliais } = useBranches()
   const [perfisRoles]        = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const [usuarios]           = useLocalState('settings:perfis_v2', MOCK_PERFIS)
   const [regras, setRegras]  = useLocalState('settings:compartilhamento_v3', [])
@@ -134,7 +134,7 @@ export default function BranchSharing() {
   const [busca, setBusca]       = useState('')
   const { registrar: log } = useAuditLog()
 
-  const filiais      = parceiros  // unidades e franquias cadastradas
+  const filiais = branches
   const usuariosAtivos = usuarios.filter(u => u.status !== 'inativo')
 
   function abrirNovo()      { setForm({ ...EMPTY }); setEditando('novo') }
@@ -163,7 +163,7 @@ export default function BranchSharing() {
     setEditando(null)
   }
 
-  const filialNome = id => filiais.find(f => String(f.id) === String(id))?.nome || id
+  const filialNome = id => filiais.find(f => String(f.id) === String(id))?.name || id
 
   const filtered = regras.filter(r => {
     if (!busca) return true
@@ -176,7 +176,7 @@ export default function BranchSharing() {
   })
 
   if (editando) {
-    const filiaisOpts = filiais.map(f => ({ value: String(f.id), label: f.nome, sub: f.classificacao === 'unidade' ? 'Unidade' : 'Parceiro' }))
+    const filiaisOpts = filiais.map(f => ({ value: String(f.id), label: f.name }))
 
     return (
       <FullPageEdit
@@ -202,7 +202,7 @@ export default function BranchSharing() {
             ? <div style={{ fontSize:13, color:'var(--text-muted)' }}>Carregando filiais…</div>
             : filiais.length === 0
               ? <div style={{ fontSize:13, color:'var(--text-muted)', padding:'12px', borderRadius:8, border:'1px dashed var(--border)', textAlign:'center' }}>
-                  Nenhuma filial cadastrada. Acesse <strong>Configurações → Parceiros</strong> para cadastrar unidades.
+                  Nenhuma filial cadastrada. Acesse <strong>Configurações → Multi-filial</strong> para cadastrar filiais.
                 </div>
               : <>
                   <SearchableMultiSelect
