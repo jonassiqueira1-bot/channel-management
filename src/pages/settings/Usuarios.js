@@ -281,6 +281,144 @@ function Toggle({ checked, onChange, disabled }) {
   )
 }
 
+// ─── SearchableMultiSelect ────────────────────────────────────────────────────
+function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…', disabled = false }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handleClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [])
+
+  const filtered = options.filter(o =>
+    o.label.toLowerCase().includes(search.toLowerCase()) ||
+    (o.desc || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  function toggle(v) {
+    if (disabled) return
+    onChange(value.includes(v) ? value.filter(x => x !== v) : [...value, v])
+  }
+
+  const selectedLabels = value.map(v => options.find(o => o.value === v)?.label).filter(Boolean)
+
+  return (
+    <div ref={ref} style={{ position: 'relative', width: '100%' }}>
+      {/* Trigger */}
+      <div
+        onClick={() => !disabled && setOpen(o => !o)}
+        style={{
+          minHeight: 36, padding: '6px 32px 6px 10px', border: '1px solid var(--border)',
+          borderRadius: 7, background: disabled ? 'var(--surface2)' : 'var(--surface)',
+          cursor: disabled ? 'not-allowed' : 'pointer', position: 'relative',
+          display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center',
+          boxSizing: 'border-box', width: '100%',
+        }}
+      >
+        {selectedLabels.length === 0 && (
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{placeholder}</span>
+        )}
+        {selectedLabels.map(label => (
+          <span key={label} style={{
+            display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600,
+            padding: '2px 8px', borderRadius: 20, background: 'color-mix(in srgb, var(--accent) 10%, transparent)',
+            color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
+          }}>{label}</span>
+        ))}
+        <span style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+          fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>
+          {open ? '▲' : '▼'}
+        </span>
+      </div>
+
+      {/* Dropdown */}
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300,
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden',
+        }}>
+          {/* Busca */}
+          <div style={{ padding: '8px 10px', borderBottom: '1px solid var(--border2)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 8px',
+              border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface2)' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>🔍</span>
+              <input
+                autoFocus
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Buscar…"
+                style={{ border: 'none', background: 'none', outline: 'none', fontSize: 12,
+                  color: 'var(--text)', fontFamily: 'var(--font)', flex: 1, minWidth: 0 }}
+              />
+              {search && (
+                <button onClick={() => setSearch('')}
+                  style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0, lineHeight: 1 }}>
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista */}
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
+              <div style={{ padding: '12px 14px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
+                Nenhum resultado
+              </div>
+            ) : filtered.map(opt => {
+              const sel = value.includes(opt.value)
+              return (
+                <div key={opt.value} onClick={() => toggle(opt.value)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px',
+                    cursor: 'pointer', background: sel ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent',
+                    borderBottom: '1px solid var(--border2)',
+                    transition: 'background 0.1s',
+                  }}
+                  onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface2)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = sel ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}
+                >
+                  <div style={{
+                    width: 15, height: 15, borderRadius: 4, flexShrink: 0,
+                    border: sel ? '2px solid var(--accent)' : '2px solid var(--border)',
+                    background: sel ? 'var(--accent)' : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {sel && <span style={{ width: 7, height: 7, background: '#fff', borderRadius: 2, display: 'block' }} />}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: sel ? 600 : 400, color: sel ? 'var(--accent)' : 'var(--text)' }}>
+                      {opt.label}
+                    </div>
+                    {opt.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{opt.desc}</div>}
+                  </div>
+                  {opt.badge && opt.badge}
+                </div>
+              )
+            })}
+          </div>
+
+          {/* Rodapé com contagem */}
+          {value.length > 0 && (
+            <div style={{ padding: '7px 12px', borderTop: '1px solid var(--border2)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{value.length} selecionado{value.length > 1 ? 's' : ''}</span>
+              <button onClick={() => onChange([])}
+                style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                Limpar
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── ChoiceList ───────────────────────────────────────────────────────────────
 // multi=false → radio (seleciona um); multi=true → checkbox (múltipla seleção)
 function ChoiceList({ options, value, onChange, multi = false, disabled = false }) {
@@ -511,102 +649,61 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       )}
 
       {/* Unidades */}
-      <FPESection title="Unidades com acesso" description="O usuário terá acesso aos dados de todas as unidades marcadas.">
+      <FPESection title="Unidades com acesso" description="O usuário terá acesso aos dados de todas as unidades marcadas." columns={1}>
         {branches.length === 0 ? (
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
           </div>
         ) : (
-          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-            {branches.map(b => {
+          <SearchableMultiSelect
+            options={branches.map(b => {
               const cf = b.custom_fields || {}
-              const checked = (form.branch_ids || []).includes(b.id)
-              return (
-                <label key={b.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
-                  <input type="checkbox" disabled={!podeEditar} checked={checked}
-                    onChange={() => {
-                      if (!podeEditar) return
-                      setForm(f => {
-                        const ids = f.branch_ids || []
-                        return { ...f, branch_ids: ids.includes(b.id) ? ids.filter(x => x !== b.id) : [...ids, b.id] }
-                      })
-                    }}
-                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                  <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                    {cf.is_matriz ? '★ ' : ''}{b.name}{cf.cidade ? ` — ${cf.cidade}` : ''}
-                  </span>
-                </label>
-              )
+              return { value: b.id, label: `${cf.is_matriz ? '★ ' : ''}${b.name}${cf.cidade ? ` — ${cf.cidade}` : ''}` }
             })}
-          </div>
+            value={form.branch_ids || []}
+            onChange={ids => set('branch_ids', ids)}
+            placeholder="Selecionar unidades…"
+            disabled={!podeEditar}
+          />
         )}
       </FPESection>
 
       {/* Perfis de acesso */}
-      <FPESection title="Perfis de acesso" description="Define as permissões do usuário no sistema. Pode ter mais de um perfil.">
+      <FPESection title="Perfis de acesso" description="Define as permissões do usuário no sistema. Pode ter mais de um perfil." columns={1}>
         {rolesStore.length === 0 ? (
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhum perfil configurado.</div>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>
         ) : (
-          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-            {rolesStore.map(r => {
-              const checked = (form.perfis_acesso_ids || []).includes(r.id)
-              return (
-                <label key={r.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
-                  <input type="checkbox" disabled={!podeEditar} checked={checked}
-                    onChange={() => {
-                      if (!podeEditar) return
-                      setForm(f => {
-                        const ids = f.perfis_acesso_ids || []
-                        return { ...f, perfis_acesso_ids: ids.includes(r.id) ? ids.filter(x => x !== r.id) : [...ids, r.id] }
-                      })
-                    }}
-                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                  <span style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                    {r.nome}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
+          <SearchableMultiSelect
+            options={rolesStore.map(r => ({ value: r.id, label: r.nome, desc: r.descricao }))}
+            value={form.perfis_acesso_ids || []}
+            onChange={ids => set('perfis_acesso_ids', ids)}
+            placeholder="Selecionar perfis de acesso…"
+            disabled={!podeEditar}
+          />
         )}
       </FPESection>
 
       {/* Regras de comissão */}
-      <FPESection title="Regras de comissão" description="Defina quais regras de comissão se aplicam a este usuário.">
+      <FPESection title="Regras de comissão" description="Defina quais regras de comissão se aplicam a este usuário." columns={1}>
         {regrasComiss.length === 0 ? (
-          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic', gridColumn:'1/-1' }}>Nenhuma regra de comissão cadastrada.</div>
+          <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhuma regra de comissão cadastrada.</div>
         ) : (
-          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:4 }}>
-            {regrasComiss.map(r => {
-              const checked = (form.regras_comissao_ids || []).includes(r.id)
-              return (
-                <label key={r.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:`1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`, background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'var(--surface)', cursor: podeEditar ? 'pointer' : 'default', transition:'all 0.12s' }}>
-                  <input type="checkbox" disabled={!podeEditar} checked={checked}
-                    onChange={() => {
-                      if (!podeEditar) return
-                      setForm(f => {
-                        const ids = f.regras_comissao_ids || []
-                        return { ...f, regras_comissao_ids: ids.includes(r.id) ? ids.filter(x => x !== r.id) : [...ids, r.id] }
-                      })
-                    }}
-                    style={{ accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight: checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>
-                      {r.nome}
-                    </div>
-                    {r.descricao && (
-                      <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{r.descricao}</div>
-                    )}
-                  </div>
-                  {r.tipos_calculo_arr?.length > 0 && (
-                    <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:4, background:'var(--surface2)', color:'var(--text-muted)', whiteSpace:'nowrap', flexShrink:0 }}>
-                      {r.tipos_calculo_arr.join(' · ')}
-                    </span>
-                  )}
-                </label>
-              )
-            })}
-          </div>
+          <SearchableMultiSelect
+            options={regrasComiss.map(r => ({
+              value: r.id,
+              label: r.nome,
+              desc: r.descricao,
+              badge: r.tipos_calculo_arr?.length > 0 ? (
+                <span style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:4, background:'var(--surface2)', color:'var(--text-muted)', whiteSpace:'nowrap', flexShrink:0 }}>
+                  {r.tipos_calculo_arr.join(' · ')}
+                </span>
+              ) : undefined,
+            }))}
+            value={form.regras_comissao_ids || []}
+            onChange={ids => set('regras_comissao_ids', ids)}
+            placeholder="Selecionar regras de comissão…"
+            disabled={!podeEditar}
+          />
         )}
       </FPESection>
 
