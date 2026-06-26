@@ -353,7 +353,13 @@ export default function Parceiros() {
   }
 
   function handleImport(rows) {
-    rows.forEach(r => saveParceiro({ ...r, id: String(Date.now() + Math.random()) }))
+    rows.forEach(r => {
+      const { franquia_mae, ...rest } = r
+      const franquia_id = franquia_mae
+        ? (franquias.find(f => f.nome?.toLowerCase() === franquia_mae.toLowerCase())?.id || null)
+        : null
+      saveParceiro({ ...rest, franquia_id, id: String(Date.now() + Math.random()) })
+    })
   }
 
   function applyBulk({ classificacao, franquia_id }) {
