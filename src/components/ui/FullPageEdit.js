@@ -170,9 +170,8 @@ export default function FullPageEdit({
 
   return (
     <div style={{
-      position: 'fixed', inset: 0, zIndex: 50,
       display: 'flex', flexDirection: 'column',
-      background: Z[50],
+      height: '100%', background: Z[50],
       fontFamily: 'var(--font, "Inter", sans-serif)',
     }}>
       <style>{FIELD_STYLES + SKELETON_CSS}</style>
