@@ -77,7 +77,7 @@ function EtapasEditor({ etapas, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12, alignItems:'center',
+      <div style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 90px minmax(180px,1fr) 32px', gap:8, alignItems:'center',
         padding:'0 8px 8px', borderBottom:'1px solid var(--border2)', marginBottom:8 }}>
         <div />
         <div style={ed.colLabel}>Nome da etapa</div>
@@ -93,7 +93,7 @@ function EtapasEditor({ etapas, onChange }) {
       )}
 
       {etapas.map((e, i) => (
-        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px 1fr 110px 240px 32px', gap:12,
+        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 90px minmax(180px,1fr) 32px', gap:8,
           alignItems:'center', padding:'6px 8px', borderRadius:7, background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>

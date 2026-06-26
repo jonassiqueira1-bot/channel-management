@@ -320,6 +320,7 @@ export default function FullPageEdit({
           gridTemplateColumns: hasAside ? '1fr 300px' : '1fr',
           gap: 24,
           alignItems: 'start',
+          width: '100%',
           maxWidth: contentMaxWidth === Infinity ? 'none' : contentMaxWidth,
         }}>
 
