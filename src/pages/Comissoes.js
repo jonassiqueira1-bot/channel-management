@@ -15,11 +15,11 @@ import {
   ENTIDADES_ELEGIBILIDADE, OPERADORES_POR_TIPO, JOIN_PARES,
   EMPTY_RULE,
 } from '../data/mockComissoes'
-import { MOCK_USUARIOS } from '../data/mockUsuarios'
-import { MOCK_CONTATOS, CONTATOS_STORAGE_KEY } from '../data/mockContatos'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
+import { useUsuarios } from '../hooks/useUsuarios'
+import { useContacts } from '../hooks/useContacts'
 import { useProfile } from '../hooks/useProfile'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissionApprovals } from '../hooks/useCommissionApprovals'
@@ -753,13 +753,12 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
       <FormSection label="Beneficiário">
         <FormGrid cols={2}>
           <FormField label="Beneficiário" required>
-            <select className="so-field" value={form.beneficiario_id||''} onChange={e => {
-              const u = usuarios.find(u => String(u.id) === e.target.value)
-              set('beneficiario_id', e.target.value); set('beneficiario_nome', u?.nome||'')
-            }}>
-              <option value="">— Selecionar usuário —</option>
-              {usuarios.map(u => <option key={u.id} value={String(u.id)}>{u.nome}{u.cargo ? ` · ${u.cargo}` : ''}</option>)}
-            </select>
+            <ComissaoSearchSelect
+              options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.role || '' }))}
+              value={form.beneficiario_id || ''}
+              onChange={(val, opt) => { set('beneficiario_id', val); set('beneficiario_nome', opt?.label || '') }}
+              placeholder="Selecionar usuário…"
+            />
           </FormField>
           <FormField label="Persona">
             <select className="so-field" value={form.persona} onChange={e=>set('persona',e.target.value)}>
@@ -889,6 +888,104 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
   )
 }
 
+// ─── SearchSelect helpers ──────────────────────────────────────────────────────
+function ComissaoSearchSelect({ options, value, onChange, placeholder = 'Selecionar…' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selected = options.find(o => o.value === value)
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()) || (o.sub||'').toLowerCase().includes(search.toLowerCase()))
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
+        style={{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }}>
+        <span style={{ color: selected ? 'var(--text)' : 'var(--text-muted)', fontSize:13 }}>
+          {selected ? <>{selected.label}{selected.sub && <span style={{ color:'var(--text-muted)', fontWeight:400 }}> · {selected.sub}</span>}</> : placeholder}
+        </span>
+        <ChevronDown size={13} style={{ flexShrink:0, opacity:0.5 }} />
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.14)', overflow:'hidden' }}>
+          <div style={{ padding:'8px 8px 6px' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar…" className="so-field" style={{ height:30, fontSize:12 }} />
+          </div>
+          <div style={{ maxHeight:220, overflowY:'auto' }}>
+            {filtered.length === 0 ? <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)' }}>Sem resultados</div>
+              : filtered.map(o => (
+                <div key={o.value} onClick={() => { onChange(o.value, o); setOpen(false); setSearch('') }}
+                  style={{ padding:'8px 12px', cursor:'pointer', background: o.value === value ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', display:'flex', flexDirection:'column', gap:1 }}>
+                  <span style={{ fontSize:13, color:'var(--text)', fontWeight: o.value === value ? 600 : 400 }}>{o.label}</span>
+                  {o.sub && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.sub}</span>}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ComissaoMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selected = options.filter(o => value.includes(o.value))
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()) || (o.sub||'').toLowerCase().includes(search.toLowerCase()))
+  function toggle(val) { onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val]) }
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
+        style={{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', flexWrap:'wrap', gap:4, cursor:'pointer', minHeight:36 }}>
+        {selected.length === 0
+          ? <span style={{ color:'var(--text-muted)', fontSize:13, flex:1 }}>{placeholder}</span>
+          : selected.map(o => (
+            <span key={o.value} style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:20, background:'var(--accent)20', color:'var(--accent)', display:'inline-flex', alignItems:'center', gap:3 }}>
+              {o.label}
+              <span onClick={e => { e.stopPropagation(); toggle(o.value) }} style={{ cursor:'pointer', opacity:0.7 }}>×</span>
+            </span>
+          ))}
+        <ChevronDown size={13} style={{ marginLeft:'auto', flexShrink:0, opacity:0.5 }} />
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.14)', overflow:'hidden' }}>
+          <div style={{ padding:'8px 8px 6px' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar…" className="so-field" style={{ height:30, fontSize:12 }} />
+          </div>
+          <div style={{ maxHeight:220, overflowY:'auto' }}>
+            {filtered.length === 0 ? <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)' }}>Sem resultados</div>
+              : filtered.map(o => {
+                const checked = value.includes(o.value)
+                return (
+                  <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+                    <div>
+                      <div style={{ fontSize:13, color:'var(--text)', fontWeight: checked ? 600 : 400 }}>{o.label}</div>
+                      {o.sub && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{o.sub}</div>}
+                    </div>
+                  </label>
+                )
+              })}
+          </div>
+          {value.length > 0 && (
+            <div style={{ padding:'5px 12px 8px', borderTop:'1px solid var(--border2)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>{value.length} selecionado{value.length !== 1 ? 's' : ''}</span>
+              <button type="button" onClick={() => onChange([])} style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>Limpar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── RuleForm (SlideOver content) ─────────────────────────────────────────────
 function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [] }) {
   const [saving, setSaving] = useState(false)
@@ -949,87 +1046,59 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Escopo">
-        <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Selecione um ou ambos os escopos — podem ser aplicados simultaneamente.</div>
-        <div style={{ display:'flex', gap:10 }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
           {[
-            { key:'escopo_interno', label:'Individual', desc:'Vinculada a um usuário do sistema', color:'var(--accent)' },
-            { key:'escopo_equipe',  label:'Equipe',     desc:'Múltiplos usuários do sistema',     color:'#F59E0B'      },
-            { key:'escopo_externo', label:'Externa',    desc:'Vinculada a Contato Canal',         color:'#10B981'      },
+            { key:'escopo_interno', label:'Individual', color:'var(--accent)' },
+            { key:'escopo_equipe',  label:'Equipe',     color:'#F59E0B'      },
+            { key:'escopo_externo', label:'Externa',    color:'#10B981'      },
           ].map(opt => {
             const active = !!form[opt.key]
             return (
               <button key={opt.key} type="button" onClick={() => set(opt.key, !active)}
-                style={{ flex:1, padding:'12px 14px', borderRadius:10, cursor:'pointer', textAlign:'left', border: active ? `2px solid ${opt.color}` : '2px solid var(--border)', background: active ? `${opt.color}12` : 'var(--surface2)', transition:'all 0.15s', position:'relative', fontFamily:'var(--font)' }}>
-                {active && <div style={{ position:'absolute', top:8, right:8, width:16, height:16, borderRadius:'50%', background:opt.color, display:'flex', alignItems:'center', justifyContent:'center' }}><CheckCircle2 size={10} strokeWidth={3} color="#fff" /></div>}
-                <div style={{ fontSize:13, fontWeight:700, color: active ? opt.color : 'var(--text)', marginBottom:3 }}>{opt.label}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
+                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: active ? `1.5px solid ${opt.color}` : '1.5px solid var(--border)', background: active ? `${opt.color}15` : 'var(--surface2)', color: active ? opt.color : 'var(--text-muted)', transition:'all 0.15s' }}>
+                {active && <CheckCircle2 size={11} strokeWidth={2.5} />}
+                {opt.label}
               </button>
             )
           })}
         </div>
 
-        {/* Escopo Individual */}
         {form.escopo_interno && (
-          <FormGrid cols={1}>
-            <FormField label="Usuário do sistema" required>
-              <select className="so-field" value={form.beneficiario_id||''} onChange={e => { const u = usuarios.find(u=>String(u.id)===e.target.value); set('beneficiario_id',e.target.value); set('beneficiario_nome',u?.nome||'') }}>
-                <option value="">— Selecionar usuário —</option>
-                {usuarios.map(u=><option key={u.id} value={String(u.id)}>{u.nome}{u.cargo ? ` · ${u.cargo}` : ''}</option>)}
-              </select>
-            </FormField>
-          </FormGrid>
+          <FormField label="Usuário do sistema" required>
+            <ComissaoSearchSelect
+              options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.role || '' }))}
+              value={form.beneficiario_id || ''}
+              onChange={(val, opt) => { set('beneficiario_id', val); set('beneficiario_nome', opt?.label || '') }}
+              placeholder="Selecionar usuário…"
+            />
+          </FormField>
         )}
 
-        {/* Escopo Equipe */}
         {form.escopo_equipe && (
-          <div>
+          <>
             <FormField label="Nome da equipe">
               <input className="so-field" value={form.equipe_nome||''} onChange={e => set('equipe_nome', e.target.value)} placeholder="Ex: Time de Inside Sales" />
             </FormField>
-            <div style={{ marginTop:10 }}>
-              <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', display:'block', marginBottom:6 }}>Membros da equipe</label>
-              <div style={{ display:'flex', flexDirection:'column', gap:4, maxHeight:200, overflowY:'auto', border:'1px solid var(--border)', borderRadius:8, padding:'8px' }}>
-                {usuarios.length === 0 && <div style={{ fontSize:12, color:'var(--text-muted)', padding:'4px 8px' }}>Nenhum usuário disponível</div>}
-                {usuarios.map(u => {
-                  const checked = (form.equipe_ids||[]).includes(String(u.id))
-                  return (
-                    <label key={u.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'6px 8px', borderRadius:7, cursor:'pointer', background: checked ? 'var(--accent-glow)' : 'transparent', transition:'background 0.12s' }}>
-                      <input type="checkbox" checked={checked}
-                        onChange={e => {
-                          const ids = form.equipe_ids || []
-                          set('equipe_ids', e.target.checked
-                            ? [...ids, String(u.id)]
-                            : ids.filter(id => id !== String(u.id))
-                          )
-                        }}
-                        style={{ accentColor:'var(--accent)', width:14, height:14, flexShrink:0 }} />
-                      <div>
-                        <div style={{ fontSize:13, fontWeight:checked ? 600 : 400, color: checked ? 'var(--accent)' : 'var(--text)' }}>{u.nome}</div>
-                        {u.cargo && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{u.cargo}</div>}
-                      </div>
-                    </label>
-                  )
-                })}
-              </div>
-              {(form.equipe_ids||[]).length > 0 && (
-                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5 }}>
-                  {(form.equipe_ids||[]).length} membro{(form.equipe_ids||[]).length !== 1 ? 's' : ''} selecionado{(form.equipe_ids||[]).length !== 1 ? 's' : ''}
-                </div>
-              )}
-            </div>
-          </div>
+            <FormField label="Membros da equipe">
+              <ComissaoMultiSelect
+                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.role || '' }))}
+                value={form.equipe_ids || []}
+                onChange={ids => set('equipe_ids', ids)}
+                placeholder="Selecionar membros…"
+              />
+            </FormField>
+          </>
         )}
 
-        {/* Escopo Externo */}
         {form.escopo_externo && (
-          <FormGrid cols={1}>
-            <FormField label="Contato Canal" required>
-              <select className="so-field" value={form.contato_id||''} onChange={e => { const c = contatos.find(c=>c.id===e.target.value); set('contato_id',e.target.value); set('contato_nome',c?.nome||''); set('contato_empresa',c?.empresa_nome||'') }}>
-                <option value="">— Selecionar contato —</option>
-                {contatos.map(c=><option key={c.id} value={c.id}>{c.nome} · {c.empresa_nome}</option>)}
-              </select>
-            </FormField>
-          </FormGrid>
+          <FormField label="Contato Canal" required>
+            <ComissaoSearchSelect
+              options={contatos.map(c => ({ value: c.id, label: c.nome, sub: c.empresa_nome || '' }))}
+              value={form.contato_id || ''}
+              onChange={(val, opt) => { set('contato_id', val); set('contato_nome', opt?.label || ''); set('contato_empresa', opt?.sub || '') }}
+              placeholder="Selecionar contato…"
+            />
+          </FormField>
         )}
       </FormSection>
 
@@ -1901,9 +1970,10 @@ export default function Comissoes() {
   const { rules, payments, personas, setRules, setPayments, setPersonas } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
-  const [contatos]                            = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
-  const [profilesLS]                          = useLocalState('usuarios:profiles', [])
-  const usuarios = profilesLS.length > 0 ? profilesLS.filter(p => p.status !== 'inativo') : MOCK_USUARIOS
+  const { contacts: contatosRaw } = useContacts()
+  const contatos = contatosRaw.map(c => ({ ...c, empresa_nome: c.empresa_nome || c.company_name || '' }))
+  const { usuarios: usuariosRaw } = useUsuarios()
+  const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
   const { profile } = useProfile()
   const { registrar } = useAuditLog()
   const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
