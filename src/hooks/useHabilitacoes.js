@@ -48,13 +48,17 @@ export function useHabilitacoes() {
       })
       return { ok: true }
     }
+    const isNew = !record.id
     const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
-    const { error } = await supabase.from('habilitacoes').upsert(row, { onConflict: 'id' })
+    if (isNew) {
+      const { data, error } = await supabase.from('habilitacoes').insert(row).select().single()
+      if (error) return { ok: false, message: error.message }
+      setHabilitacoes(prev => [...prev, data])
+      return { ok: true }
+    }
+    const { error } = await supabase.from('habilitacoes').update(row).eq('id', record.id)
     if (error) return { ok: false, message: error.message }
-    setHabilitacoes(prev => {
-      const idx = prev.findIndex(h => h.id === record.id)
-      return idx >= 0 ? prev.map(h => h.id === record.id ? record : h) : [...prev, record]
-    })
+    setHabilitacoes(prev => prev.map(h => h.id === record.id ? { ...h, ...record } : h))
     return { ok: true }
   }, [])
 

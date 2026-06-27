@@ -5,8 +5,6 @@ import { useProducts } from '../../hooks/useProducts'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
-function uid() { return Date.now() + Math.floor(Math.random() * 999) }
-
 // ─── Badges ───────────────────────────────────────────────────────────────────
 function SituacaoBadge({ situacao }) {
   const ativo = situacao === 'ativo'
@@ -24,43 +22,62 @@ function SituacaoBadge({ situacao }) {
   )
 }
 
-function ProdutoBadge({ produto }) {
-  if (!produto) return <span style={{ fontSize: 12, color: 'var(--border2)' }}>—</span>
+function VinculoBadge({ text, muted }) {
+  if (!text) return <span style={{ fontSize: 12, color: 'var(--border2)' }}>—</span>
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 6,
       padding: '3px 9px', borderRadius: 7, fontSize: 11.5, fontWeight: 600,
-      background: 'var(--accent-glow)', color: 'var(--accent)',
-      border: '1px solid rgba(99,102,241,0.18)', whiteSpace: 'nowrap',
+      background: muted ? 'var(--surface2)' : 'var(--accent-glow)',
+      color: muted ? 'var(--text-muted)' : 'var(--accent)',
+      border: muted ? '1px solid var(--border)' : '1px solid rgba(99,102,241,0.18)',
+      whiteSpace: 'nowrap',
     }}>
-      <span style={{ fontFamily: 'var(--mono)', fontSize: 10, opacity: 0.7 }}>{produto.codigo}</span>
-      {produto.nome}
+      {muted && <span style={{ fontSize: 10, opacity: 0.6 }}>cat.</span>}
+      {text}
     </span>
   )
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Habilitacoes() {
   const { habilitacoes, save: saveHab, remove: removeHab } = useHabilitacoes()
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
+
   const produtosAtivos = useMemo(() => produtos.filter(p => p.status === 'ativo'), [produtos])
+
+  // categorias únicas extraídas dos produtos
+  const categorias = useMemo(() => {
+    const set = new Set(produtosAtivos.map(p => p.categoria).filter(Boolean))
+    return [...set].sort()
+  }, [produtosAtivos])
+
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
   const [search, setSearch]     = useState('')
+  const [saving, setSaving]     = useState(false)
+  const [erro, setErro]         = useState(null)
 
   const filtered = habilitacoes.filter(h =>
-    h.nome.toLowerCase().includes(search.toLowerCase())
+    (h.nome || '').toLowerCase().includes(search.toLowerCase())
   )
 
   function abrirNovo() {
-    setForm({ nome: '', situacao: 'ativo', produto_id: '' })
+    setForm({ nome: '', situacao: 'ativo', tipo_vinculo: 'produto', produto_id: '', categoria_produto: '' })
     setEditando('novo')
+    setErro(null)
   }
 
   function abrirEdicao(hab) {
-    setForm({ ...hab, produto_id: hab.produto_id ?? '' })
+    setForm({
+      ...hab,
+      tipo_vinculo: hab.categoria_produto ? 'categoria' : 'produto',
+      produto_id: hab.produto_id ?? '',
+      categoria_produto: hab.categoria_produto ?? '',
+    })
     setEditando(hab)
+    setErro(null)
   }
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
@@ -72,18 +89,34 @@ export default function Habilitacoes() {
     ) ? 'Já existe uma habilitação com este nome' : null
   }, [form?.nome, habilitacoes, editando])
 
-  const produtoSelecionado = useMemo(
-    () => produtosAtivos.find(p => p.id === Number(form?.produto_id)) || null,
-    [form?.produto_id, produtosAtivos]
-  )
-
-  function handleSave() {
+  async function handleSave() {
     if (!form.nome.trim() || nomeErr) return
-    const data = { ...form, nome: form.nome.trim(), produto_id: form.produto_id !== '' ? Number(form.produto_id) : null }
+    setSaving(true)
+    setErro(null)
+
     const isNew = editando === 'novo'
-    const id = isNew ? uid() : editando.id
-    saveHab({ ...data, id })
-    log(isNew ? 'criar' : 'editar', 'habilitacao', id, { descricao: `Habilitação ${isNew ? 'criada' : 'editada'}: ${data.nome}` })
+    const data = {
+      nome:              form.nome.trim(),
+      situacao:          form.situacao,
+      // envia apenas o campo do tipo de vínculo selecionado
+      produto_id:        form.tipo_vinculo === 'produto' && form.produto_id ? form.produto_id : null,
+      categoria_produto: form.tipo_vinculo === 'categoria' && form.categoria_produto ? form.categoria_produto : null,
+    }
+
+    // Para novo: sem id (Supabase gera UUID). Para edição: usa o id existente.
+    const record = isNew ? data : { ...data, id: editando.id }
+
+    const result = await saveHab(record)
+    setSaving(false)
+
+    if (!result?.ok) {
+      setErro(result?.message || 'Erro ao salvar')
+      return
+    }
+
+    log(isNew ? 'criar' : 'editar', 'habilitacao', editando?.id || 'novo', {
+      descricao: `Habilitação ${isNew ? 'criada' : 'editada'}: ${data.nome}`,
+    })
     setEditando(null)
   }
 
@@ -94,6 +127,16 @@ export default function Habilitacoes() {
     setEditando(null)
   }
 
+  // ─── Vinculo label para o browse ─────────────────────────────────────────────
+  function vinculoLabel(row) {
+    if (row.categoria_produto) return { text: row.categoria_produto, muted: true }
+    if (row.produto_id) {
+      const p = produtosAtivos.find(x => x.id === row.produto_id)
+      return { text: p ? `${p.nome}${p.codigo ? ` (${p.codigo})` : ''}` : row.produto_id, muted: false }
+    }
+    return { text: null }
+  }
+
   if (editando) {
     return (
       <FullPageEdit
@@ -102,6 +145,7 @@ export default function Habilitacoes() {
         onSave={handleSave}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(editando.id) : undefined}
+        saving={saving}
       >
         <FPESection title="Identificação">
           <FPEField label="Nome da Habilitação" required error={nomeErr}>
@@ -113,26 +157,57 @@ export default function Habilitacoes() {
             />
           </FPEField>
 
-          <FPEField label="Produto vinculado">
-            <select className="fpe-field"
-              value={form.produto_id}
-              onChange={e => set('produto_id', e.target.value)}
-            >
-              <option value="">— Nenhum produto —</option>
-              {produtosAtivos.map(p => (
-                <option key={p.id} value={p.id}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
+          {/* Tipo de vínculo */}
+          <FPEField label="Vínculo">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              {[
+                { key: 'produto',   label: 'Produto específico'   },
+                { key: 'categoria', label: 'Categoria de produto'  },
+                { key: 'nenhum',    label: 'Nenhum'               },
+              ].map(opt => (
+                <button key={opt.key} type="button"
+                  onClick={() => set('tipo_vinculo', opt.key)}
+                  style={{
+                    flex: 1, padding: '8px 12px', borderRadius: 8, cursor: 'pointer',
+                    fontSize: 12, fontWeight: 600, fontFamily: 'var(--font)',
+                    border: form.tipo_vinculo === opt.key ? '2px solid var(--accent)' : '2px solid var(--border)',
+                    background: form.tipo_vinculo === opt.key ? 'var(--accent-glow)' : 'var(--surface)',
+                    color: form.tipo_vinculo === opt.key ? 'var(--accent)' : 'var(--text-muted)',
+                    transition: 'all 0.15s',
+                  }}>
+                  {opt.label}
+                </button>
               ))}
-            </select>
-            {produtoSelecionado && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6, padding: '8px 10px', background: 'var(--accent-glow)', borderRadius: 8, border: '1px solid rgba(99,102,241,0.15)' }}>
-                <span style={{ fontSize: 11, color: 'var(--accent)', fontFamily: 'var(--mono)' }}>
-                  produto_id: <strong>{produtoSelecionado.id}</strong>
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>·</span>
-                <span style={{ fontSize: 11, color: 'var(--text-soft)' }}>
-                  R$ {produtoSelecionado.preco?.toLocaleString('pt-BR')} / {produtoSelecionado.cobranca}
-                </span>
-              </div>
+            </div>
+
+            {form.tipo_vinculo === 'produto' && (
+              <select className="fpe-field"
+                value={form.produto_id}
+                onChange={e => set('produto_id', e.target.value)}
+              >
+                <option value="">— Selecione um produto —</option>
+                {produtosAtivos.map(p => (
+                  <option key={p.id} value={p.id}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
+                ))}
+              </select>
+            )}
+
+            {form.tipo_vinculo === 'categoria' && (
+              categorias.length > 0
+                ? <select className="fpe-field"
+                    value={form.categoria_produto}
+                    onChange={e => set('categoria_produto', e.target.value)}
+                  >
+                    <option value="">— Selecione uma categoria —</option>
+                    {categorias.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                : <input className="fpe-field"
+                    value={form.categoria_produto}
+                    onChange={e => set('categoria_produto', e.target.value)}
+                    placeholder="Nome da categoria…"
+                  />
             )}
           </FPEField>
 
@@ -159,12 +234,9 @@ export default function Habilitacoes() {
             </div>
           </FPEField>
 
-          {editando !== 'novo' && (
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', padding: '8px 12px', background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)' }}>
-              habilitacao.id: <span style={{ color: 'var(--accent)' }}>{editando.id}</span>
-              {editando.produto_id && (
-                <> · produto_id: <span style={{ color: 'var(--accent)' }}>{editando.produto_id}</span></>
-              )}
+          {erro && (
+            <div style={{ padding: '8px 12px', background: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 7, fontSize: 12, color: '#DC2626' }}>
+              {erro}
             </div>
           )}
         </FPESection>
@@ -177,10 +249,10 @@ export default function Habilitacoes() {
       title="Habilitações"
       description="Defina os tipos de habilitação e vincule-os aos produtos do tenant."
       columns={[
-        { key: 'nome', label: 'Nome' },
-        { key: 'produto_id', label: 'Produto vinculado', render: (v) => {
-          const produto = produtosAtivos.find(p => p.id === v) || null
-          return <ProdutoBadge produto={produto} />
+        { key: 'nome',      label: 'Nome' },
+        { key: 'produto_id', label: 'Vínculo', render: (_, row) => {
+          const v = vinculoLabel(row)
+          return <VinculoBadge text={v.text} muted={v.muted} />
         }},
         { key: 'situacao', label: 'Situação', render: (v) => <SituacaoBadge situacao={v} /> },
       ]}
