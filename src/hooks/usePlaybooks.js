@@ -41,8 +41,8 @@ function rowToPlaybook(row) {
 
 function playbookToRow(pb, tenantId, branchId) {
   const { id, titulo, title, descricao, description, status, owner_id, criado, atualizado, steps, refs, resources, ...rest } = pb
-  const tit = titulo || title || ''
-  const desc = descricao || description || null
+  const tit = title || titulo || ''
+  const desc = description || descricao || null
   // Tudo que não é coluna de sistema vai para custom_fields (JSONB)
   const customFields = Object.fromEntries(
     Object.entries(rest).filter(([k]) => !['title', 'description', 'id', 'is_active'].includes(k))
