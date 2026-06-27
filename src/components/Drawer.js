@@ -340,6 +340,7 @@ const s = {
     zIndex: 201,
     transition: 'width 0.22s ease',
     overflow: 'hidden',
+    maxWidth: '100vw',
   },
   drawerFullscreen: {
     left: 0, borderLeft: 'none',

@@ -1,3 +1,15 @@
+import { useState, useEffect } from 'react'
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    function onResize() { setIsMobile(window.innerWidth < 768) }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return isMobile
+}
+
 /**
  * DynamicFormLayout
  * Renderiza o formulário de uma entidade com base no layout salvo em Conf. de Campos.
@@ -11,6 +23,7 @@
  *   labelStyle    — override de estilo para o label de campo (opcional)
  */
 export default function DynamicFormLayout({ sections, fieldById, renderField, sectionStyle, labelStyle }) {
+  const isMobile = useIsMobile()
   const defSec = {
     background: 'var(--surface)', border: '1px solid var(--border2)',
     borderRadius: 12, padding: '18px 20px', display: 'flex', flexDirection: 'column', gap: 14,
@@ -58,7 +71,7 @@ export default function DynamicFormLayout({ sections, fieldById, renderField, se
               return (
                 <div key={ri} style={{
                   display: 'grid',
-                  gridTemplateColumns: showLeft && showRight ? '1fr 1fr' : '1fr',
+                  gridTemplateColumns: !isMobile && showLeft && showRight ? '1fr 1fr' : '1fr',
                   gap: 14,
                 }}>
                   {showLeft  && <FieldSlot field={left}  preRendered={leftNode}  labelStyle={defLabel} />}
