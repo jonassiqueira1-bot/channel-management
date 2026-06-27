@@ -3,7 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } from 'react-router-dom'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -45,6 +45,7 @@ const SECTIONS = [
     label: 'Sistema',
     items: [
       { path: '/settings/forms',       label: 'Config. de Campos', Icon: Layout   },
+      { path: '/settings/alertas',     label: 'Alertas',     Icon: Bell     },
       { path: '/settings/integracoes', label: 'Integrações', Icon: Plug     },
       { path: '/settings/logs',        label: 'Logs',        Icon: Terminal },
     ],
