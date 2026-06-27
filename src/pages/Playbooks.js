@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
@@ -14,6 +14,62 @@ import EmpresaSearch from '../components/EmpresaSearch'
 import { useCompanies } from '../hooks/useCompanies'
 
 const STEP_ICONS = ['📋','✅','🎯','💡','🔍','📞','🤝','📊','⚡','🏆','📝','🔧','💬','🚀','⚙️','📌','🔑','💰','📅','🌟']
+
+// ─── Multi-select com pesquisa ────────────────────────────────────────────────
+function MultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selected = options.filter(o => value.includes(o.value))
+  const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+  function toggle(val) { onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val]) }
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
+        style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 4, cursor: 'pointer', minHeight: 36 }}>
+        {selected.length === 0
+          ? <span style={{ color: 'var(--text-muted)', fontSize: 13, flex: 1 }}>{placeholder}</span>
+          : selected.map(o => (
+            <span key={o.value} style={{ fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 20, background: 'var(--accent)20', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              {o.label}
+              <span onClick={e => { e.stopPropagation(); toggle(o.value) }} style={{ cursor: 'pointer', opacity: 0.7 }}>×</span>
+            </span>
+          ))}
+        <span style={{ marginLeft: 'auto', flexShrink: 0, opacity: 0.5, fontSize: 10 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 8px 6px' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar…" className="so-field" style={{ height: 30, fontSize: 12 }} />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Sem resultados</div>
+              : filtered.map(o => {
+                  const checked = value.includes(o.value)
+                  return (
+                    <label key={o.value} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+                      <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor: 'var(--accent)', flexShrink: 0 }} />
+                      <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: checked ? 600 : 400 }}>{o.label}</span>
+                    </label>
+                  )
+                })}
+          </div>
+          {value.length > 0 && (
+            <div style={{ padding: '5px 12px 8px', borderTop: '1px solid var(--border2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{value.length} selecionado{value.length !== 1 ? 's' : ''}</span>
+              <button type="button" onClick={() => onChange([])} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontWeight: 600 }}>Limpar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const USE_PROFILE = 'isv' // 'isv' | 'franquia'
 
@@ -434,54 +490,33 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                   {funis.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Nenhum funil cadastrado.</span>}
                 </div>
               </FormField>
-              <FormField label="Produto / Categoria (opcional)" span={2}>
-                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
-                  {[
-                    { v:'',         l:'Nenhum'    },
-                    { v:'produto',  l:'Produto específico' },
-                    { v:'categoria',l:'Categoria' },
-                  ].map(opt => {
-                    const sel = (form.produto_filtro_tipo||'') === opt.v
-                    return (
-                      <button key={opt.v} type="button"
-                        onClick={() => set('produto_filtro_tipo', opt.v)}
-                        style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
-                        {opt.l}
-                      </button>
-                    )
-                  })}
-                </div>
-                {form.produto_filtro_tipo === 'produto' && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                    {produtos.filter(p => p.status === 'ativo').map(p => {
-                      const sel = (form.produto_ids||[]).includes(String(p.id))
-                      return (
-                        <button key={p.id} type="button"
-                          onClick={() => { const ids = form.produto_ids||[]; set('produto_ids', sel ? ids.filter(x=>x!==String(p.id)) : [...ids,String(p.id)]) }}
-                          style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel?700:500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
-                          {p.nome}
-                        </button>
-                      )
-                    })}
-                    {produtos.filter(p=>p.status==='ativo').length===0 && <span style={{fontSize:12,color:'var(--text-muted)'}}>Nenhum produto ativo.</span>}
-                  </div>
-                )}
-                {form.produto_filtro_tipo === 'categoria' && (
-                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                    {categoriasProduto.map(cat => {
-                      const sel = (form.produto_categorias||[]).includes(cat)
-                      return (
-                        <button key={cat} type="button"
-                          onClick={() => { const cats = form.produto_categorias||[]; set('produto_categorias', sel ? cats.filter(c=>c!==cat) : [...cats,cat]) }}
-                          style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel?700:500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
-                          {cat}
-                        </button>
-                      )
-                    })}
-                    {categoriasProduto.length===0 && <span style={{fontSize:12,color:'var(--text-muted)'}}>Nenhuma categoria cadastrada.</span>}
-                  </div>
-                )}
+              <FormField label="Filtrar por" span={2}>
+                <select className="so-field" value={form.produto_filtro_tipo || ''} onChange={e => set('produto_filtro_tipo', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  <option value="produto">Produto específico</option>
+                  <option value="categoria">Categoria de produto</option>
+                </select>
               </FormField>
+              {form.produto_filtro_tipo === 'produto' && (
+                <FormField label="Produtos" span={2}>
+                  <MultiSelect
+                    options={produtos.filter(p => p.status === 'ativo').map(p => ({ value: String(p.id), label: p.nome }))}
+                    value={form.produto_ids || []}
+                    onChange={v => set('produto_ids', v)}
+                    placeholder="Pesquisar produto…"
+                  />
+                </FormField>
+              )}
+              {form.produto_filtro_tipo === 'categoria' && (
+                <FormField label="Categorias" span={2}>
+                  <MultiSelect
+                    options={categoriasProduto.map(c => ({ value: c, label: c }))}
+                    value={form.produto_categorias || []}
+                    onChange={v => set('produto_categorias', v)}
+                    placeholder="Pesquisar categoria…"
+                  />
+                </FormField>
+              )}
               <FormField label="Descrição" span={2}>
                 <textarea className="so-field" value={form.description} onChange={e => set('description', e.target.value)}
                   rows={4} placeholder="Descreva o objetivo e público-alvo deste playbook…" />
