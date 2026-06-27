@@ -1054,34 +1054,38 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Escopo">
-        <ComissaoMultiSelect
-          options={[
-            { value:'escopo_interno', label:'Individual', sub:'Usuário interno do sistema' },
-            { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários internos'  },
-            { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo'        },
-          ]}
-          value={[
-            ...(form.escopo_interno ? ['escopo_interno'] : []),
-            ...(form.escopo_equipe  ? ['escopo_equipe']  : []),
-            ...(form.escopo_externo ? ['escopo_externo'] : []),
-          ]}
-          onChange={vals => {
-            set('escopo_interno', vals.includes('escopo_interno'))
-            set('escopo_equipe',  vals.includes('escopo_equipe'))
-            set('escopo_externo', vals.includes('escopo_externo'))
-          }}
-          placeholder="Selecionar escopos…"
-        />
+        <div style={{ gridColumn: '1/-1' }}>
+          <ComissaoMultiSelect
+            options={[
+              { value:'escopo_interno', label:'Individual', sub:'Usuário interno do sistema' },
+              { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários internos'  },
+              { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo'        },
+            ]}
+            value={[
+              ...(form.escopo_interno ? ['escopo_interno'] : []),
+              ...(form.escopo_equipe  ? ['escopo_equipe']  : []),
+              ...(form.escopo_externo ? ['escopo_externo'] : []),
+            ]}
+            onChange={vals => {
+              set('escopo_interno', vals.includes('escopo_interno'))
+              set('escopo_equipe',  vals.includes('escopo_equipe'))
+              set('escopo_externo', vals.includes('escopo_externo'))
+            }}
+            placeholder="Selecionar escopos…"
+          />
+        </div>
 
         {form.escopo_interno && (
-          <FormField label="Usuário do sistema" required>
-            <ComissaoSearchSelect
-              options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.role || '' }))}
-              value={form.beneficiario_id || ''}
-              onChange={(val, opt) => { set('beneficiario_id', val); set('beneficiario_nome', opt?.label || '') }}
-              placeholder="Selecionar usuário…"
-            />
-          </FormField>
+          <div style={{ gridColumn: '1/-1' }}>
+            <FormField label="Usuário vinculado (Individual)" required>
+              <ComissaoSearchSelect
+                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.papel || '' }))}
+                value={form.beneficiario_id || ''}
+                onChange={(val, opt) => { set('beneficiario_id', val); set('beneficiario_nome', opt?.label || '') }}
+                placeholder="Selecionar usuário do sistema…"
+              />
+            </FormField>
+          </div>
         )}
 
         {form.escopo_equipe && (
@@ -1089,26 +1093,30 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             <FormField label="Nome da equipe">
               <input className="so-field" value={form.equipe_nome||''} onChange={e => set('equipe_nome', e.target.value)} placeholder="Ex: Time de Inside Sales" />
             </FormField>
-            <FormField label="Membros da equipe">
-              <ComissaoMultiSelect
-                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.role || '' }))}
-                value={form.equipe_ids || []}
-                onChange={ids => set('equipe_ids', ids)}
-                placeholder="Selecionar membros…"
-              />
-            </FormField>
+            <div style={{ gridColumn: '1/-1' }}>
+              <FormField label="Membros da equipe">
+                <ComissaoMultiSelect
+                  options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.papel || '' }))}
+                  value={form.equipe_ids || []}
+                  onChange={ids => set('equipe_ids', ids)}
+                  placeholder="Selecionar membros…"
+                />
+              </FormField>
+            </div>
           </>
         )}
 
         {form.escopo_externo && (
-          <FormField label="Contato Canal" required>
-            <ComissaoSearchSelect
-              options={contatos.map(c => ({ value: c.id, label: c.nome, sub: c.empresa_nome || '' }))}
-              value={form.contato_id || ''}
-              onChange={(val, opt) => { set('contato_id', val); set('contato_nome', opt?.label || ''); set('contato_empresa', opt?.sub || '') }}
-              placeholder="Selecionar contato…"
-            />
-          </FormField>
+          <div style={{ gridColumn: '1/-1' }}>
+            <FormField label="Contato Canal" required>
+              <ComissaoSearchSelect
+                options={contatos.map(c => ({ value: c.id, label: c.nome, sub: c.empresa_nome || '' }))}
+                value={form.contato_id || ''}
+                onChange={(val, opt) => { set('contato_id', val); set('contato_nome', opt?.label || ''); set('contato_empresa', opt?.sub || '') }}
+                placeholder="Selecionar contato…"
+              />
+            </FormField>
+          </div>
         )}
       </FormSection>
 
@@ -2033,8 +2041,12 @@ export default function Comissoes() {
 
   async function saveRule(updated) {
     const isNew = !rules.find(r => r.id === updated.id)
-    await persistRule(updated)
-    registrar(isNew ? 'criar' : 'editar', 'comissao_regra', updated.id, {
+    const res = await persistRule(updated)
+    if (res && !res.ok) {
+      alert(`Erro ao salvar regra: ${res.message}`)
+      return
+    }
+    registrar(isNew ? 'criar' : 'editar', 'comissao_regra', updated.id || 'new', {
       descricao: `Regra ${isNew ? 'criada' : 'editada'}: ${updated.nome || ''}`,
     })
     setEditandoRule(null)
