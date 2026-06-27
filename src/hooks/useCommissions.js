@@ -106,11 +106,11 @@ export function useCommissions() {
       supabase.from('commission_payments').select('*').order('created_at', { ascending: false }),
       supabase.from('commission_personas').select('*').order('ordem'),
     ])
-    if (r.error || p.error || pe.error) { isMockMode.current = false; setRules([]); setPayments([]); setLoading(false); return }
+    if (r.error) { isMockMode.current = false; setRules([]); setPayments([]); setLoading(false); return }
     isMockMode.current = false
     setRules((r.data || []).map(rowToRule))
     setPayments((p.data || []).map(rowToPayment))
-    setPersonas((pe.data || []).map(rowToPersona))
+    if (!pe.error) setPersonas((pe.data || []).map(rowToPersona))
     setLoading(false)
   }, [session])
 
