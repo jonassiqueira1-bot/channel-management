@@ -914,9 +914,9 @@ function ComissaoSearchSelect({ options, value, onChange, placeholder = 'Selecio
   return (
     <div ref={ref} style={{ position:'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
-        style={{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer' }}>
-        <span style={{ color: selected ? 'var(--text)' : 'var(--text-muted)', fontSize:13 }}>
-          {selected ? <>{selected.label}{selected.sub && <span style={{ color:'var(--text-muted)', fontWeight:400 }}> · {selected.sub}</span>}</> : placeholder}
+        style={{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', gap:6 }}>
+        <span style={{ color: selected ? 'var(--text)' : 'var(--text-muted)', fontSize:13, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>
+          {selected ? selected.label : placeholder}
         </span>
         <ChevronDown size={13} style={{ flexShrink:0, opacity:0.5 }} />
       </button>
