@@ -1103,19 +1103,18 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Produto / Categoria">
-        <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:4 }}>Restrinja a regra a um produto específico ou a uma categoria de produtos.</div>
-        <div style={{ display:'flex', gap:10 }}>
+        <div style={{ display:'flex', gap:6 }}>
           {[
-            { id: null,        label:'Todos',    desc:'Sem restrição' },
-            { id: 'produto',   label:'Produto',  desc:'Produto específico' },
-            { id: 'categoria', label:'Categoria',desc:'Categoria de produtos' },
+            { id: null,        label:'Todos'     },
+            { id: 'produto',   label:'Produto'   },
+            { id: 'categoria', label:'Categoria' },
           ].map(opt => {
             const active = form.produto_filtro_tipo === opt.id
             return (
               <button key={String(opt.id)} type="button" onClick={() => set('produto_filtro_tipo', active ? null : opt.id)}
-                style={{ flex:1, padding:'10px 12px', borderRadius:10, cursor:'pointer', textAlign:'left', border: active ? '2px solid #F59E0B' : '2px solid var(--border)', background: active ? 'rgba(245,158,11,0.08)' : 'var(--surface2)', transition:'all 0.15s', fontFamily:'var(--font)' }}>
-                <div style={{ fontSize:13, fontWeight:700, color: active ? '#B45309' : 'var(--text)', marginBottom:3 }}>{opt.label}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)' }}>{opt.desc}</div>
+                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: active ? '1.5px solid #F59E0B' : '1.5px solid var(--border)', background: active ? 'rgba(245,158,11,0.12)' : 'var(--surface2)', color: active ? '#B45309' : 'var(--text-muted)', transition:'all 0.15s' }}>
+                {active && <CheckCircle2 size={11} strokeWidth={2.5} />}
+                {opt.label}
               </button>
             )
           })}
@@ -1142,18 +1141,15 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Tipos de Cálculo">
-        <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:4 }}>Selecione um ou mais tipos — todos os marcados serão aplicados simultaneamente.</div>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
           {Object.entries(TIPO_CALCULO_CFG).map(([id, cfg]) => {
             const Icon = TIPO_ICON[id] || Percent
             const sel = tipos.includes(id)
             return (
               <button key={id} type="button" onClick={() => toggleTipo(id)}
-                style={{ padding:'14px 12px', borderRadius:10, cursor:'pointer', textAlign:'left', border: sel ? `2px solid ${cfg.color}` : '2px solid var(--border)', background: sel ? cfg.bg : 'var(--surface2)', transition:'all 0.15s', position:'relative', fontFamily:'var(--font)' }}>
-                {sel && <div style={{ position:'absolute', top:8, right:8, width:16, height:16, borderRadius:'50%', background:cfg.color, display:'flex', alignItems:'center', justifyContent:'center' }}><CheckCircle2 size={10} strokeWidth={3} color="#fff" /></div>}
-                <Icon size={18} strokeWidth={1.75} style={{ color:cfg.color, marginBottom:8, display:'block' }} />
-                <div style={{ fontSize:12, fontWeight:700, color: sel ? cfg.color : 'var(--text)', marginBottom:4 }}>{cfg.label}</div>
-                <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.45 }}>{cfg.desc}</div>
+                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: sel ? `1.5px solid ${cfg.color}` : '1.5px solid var(--border)', background: sel ? cfg.bg : 'var(--surface2)', color: sel ? cfg.color : 'var(--text-muted)', transition:'all 0.15s' }}>
+                <Icon size={11} strokeWidth={2.5} />
+                {cfg.label}
               </button>
             )
           })}
