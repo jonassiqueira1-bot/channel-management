@@ -1987,7 +1987,8 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
 export default function Comissoes() {
   const [tab, setTab]       = useLocalState('comissoes:tab', 'repasses')
   const [period, setPeriod] = useState('this_month')
-  const { rules, payments, personas, setRules, setPayments, setPersonas } = useCommissions()
+  const { rules, payments, personas, setRules, setPayments, setPersonas,
+          saveRule: persistRule, removeRule: deleteRule } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
   const { contacts: contatosRaw } = useContacts()
@@ -2030,9 +2031,9 @@ export default function Comissoes() {
     setEditandoPayment(null)
   }
 
-  function saveRule(updated) {
+  async function saveRule(updated) {
     const isNew = !rules.find(r => r.id === updated.id)
-    setRules(prev => isNew ? [...prev, updated] : prev.map(r => r.id===updated.id?updated:r))
+    await persistRule(updated)
     registrar(isNew ? 'criar' : 'editar', 'comissao_regra', updated.id, {
       descricao: `Regra ${isNew ? 'criada' : 'editada'}: ${updated.nome || ''}`,
     })

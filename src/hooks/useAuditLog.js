@@ -34,7 +34,6 @@ export function useAuditLog() {
 
   const registrar = useCallback(async (acao, entidade, entidade_id, dados = {}) => {
     const entrada = {
-      id:           `log_${Date.now()}_${Math.random().toString(36).slice(2,7)}`,
       timestamp:    new Date().toISOString(),
       tenant_id:    tid.current || null,
       usuario_id:   profile?.id   || null,

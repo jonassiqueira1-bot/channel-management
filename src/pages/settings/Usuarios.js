@@ -14,6 +14,57 @@ import { useBranches } from '../../hooks/useBranches'
 
 const ACCENT = 'var(--accent)'
 
+// ── Seletor de Papel com pesquisa ─────────────────────────────────────────────
+function PapelSelect({ options, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  const selected = options.find(o => o.value === value)
+  const filtered = options.filter(o => (PAPEIS_CONFIG[o.value]?.label || o.label || o.value).toLowerCase().includes(search.toLowerCase()))
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', fontFamily: 'var(--font)', fontSize: 13, color: 'var(--text)', cursor: 'pointer', gap: 8 }}>
+        <span>{selected ? (PAPEIS_CONFIG[selected.value]?.label || selected.label) : 'Selecionar papel…'}</span>
+        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
+          <div style={{ padding: '8px 8px 6px' }}>
+            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar papel…"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, fontFamily: 'var(--font)', outline: 'none', background: 'var(--surface2)' }} />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {filtered.length === 0
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Sem resultados</div>
+              : filtered.map(o => {
+                const cfg = PAPEIS_CONFIG[o.value] || {}
+                const isActive = o.value === value
+                return (
+                  <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
+                    style={{ padding: '8px 12px', cursor: 'pointer', background: isActive ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', display: 'flex', alignItems: 'center', gap: 8 }}
+                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface2)' }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
+                    <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--accent)' : 'var(--text)' }}>
+                      {cfg.label || o.label || o.value}
+                    </span>
+                    {cfg.descricao && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— {cfg.descricao}</span>}
+                  </div>
+                )
+              })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function uid() { return 'u_' + Date.now() + Math.floor(Math.random() * 999) }
 
 function fmtDate(iso) {
@@ -185,35 +236,11 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
 
             {/* Papel */}
             <Field label="Papel / Nível de acesso *">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {papeisDisp.map(p => {
-                  const cfg = PAPEIS_CONFIG[p.value]
-                  const ativo = form.papel === p.value
-                  return (
-                    <button key={p.value} type="button"
-                      onClick={() => set('papel', p.value)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 7,
-                        padding: '8px 14px', borderRadius: 8, cursor: 'pointer',
-                        fontFamily: 'var(--font)', fontSize: 12.5, fontWeight: ativo ? 700 : 500,
-                        border: `1.5px solid ${ativo ? cfg.color : 'var(--border)'}`,
-                        background: ativo ? cfg.bg : 'none',
-                        color: ativo ? cfg.text : 'var(--text-soft)',
-                        boxShadow: ativo ? `0 0 0 3px ${cfg.color}22` : 'none',
-                        transition: 'all 0.15s',
-                      }}>
-                      {cfg.label}
-                    </button>
-                  )
-                })}
-              </div>
-              {/* Descrição do papel */}
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6, lineHeight: 1.5 }}>
-                {form.papel === 'admin_isv'      && '★ Acesso total ao tenant: gerencia usuários, configurações e todos os dados.'}
-                {form.papel === 'gestor_canais'  && '◈ Gerencia canais, oportunidades e campanhas do tenant.'}
-                {form.papel === 'admin_franquia' && '⬡ Administra usuários e dados da própria franquia/empresa.'}
-                {form.papel === 'vendedor'       && '◉ Acesso operacional: pipeline, tarefas e oportunidades vinculadas.'}
-              </div>
+              <PapelSelect
+                options={papeisDisp}
+                value={form.papel}
+                onChange={v => set('papel', v)}
+              />
             </Field>
 
 
