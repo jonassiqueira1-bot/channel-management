@@ -1326,19 +1326,23 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
           <ComissaoMultiSelect
             options={[
-              { value:'escopo_interno', label:'Individual', sub:'Usuário interno' },
-              { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários' },
-              { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo' },
+              { value:'escopo_interno',   label:'Individual',  sub:'Usuário interno' },
+              { value:'escopo_equipe',    label:'Equipe',      sub:'Grupo de usuários' },
+              { value:'escopo_externo',   label:'Canal',       sub:'Contato canal externo' },
+              { value:'escopo_parceiro',  label:'Parceiro',    sub:'Empresa parceira' },
             ]}
             value={[
-              ...(form.escopo_interno?['escopo_interno']:[]),
-              ...(form.escopo_equipe ?['escopo_equipe'] :[]),
-              ...(form.escopo_externo?['escopo_externo']:[]),
+              ...(form.escopo_interno  ?['escopo_interno']  :[]),
+              ...(form.escopo_equipe   ?['escopo_equipe']   :[]),
+              ...(form.escopo_externo  ?['escopo_externo']  :[]),
+              ...(form.escopo_parceiro ?['escopo_parceiro'] :[]),
             ]}
             onChange={vals => {
-              set('escopo_interno', vals.includes('escopo_interno'))
-              set('escopo_equipe',  vals.includes('escopo_equipe'))
-              set('escopo_externo', vals.includes('escopo_externo'))
+              set('escopo_interno',  vals.includes('escopo_interno'))
+              set('escopo_equipe',   vals.includes('escopo_equipe'))
+              set('escopo_externo',  vals.includes('escopo_externo'))
+              set('escopo_parceiro', vals.includes('escopo_parceiro'))
+              if (!vals.includes('escopo_parceiro')) { set('parceiro_id', null); set('parceiro_nome', '') }
             }}
             placeholder="Selecionar escopos…"
           />
@@ -1377,10 +1381,10 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
               />
             </FormField>
           )}
-          {parceiros.length > 0 && (
-            <FormField label="Parceiro vinculado (opcional)">
+          {form.escopo_parceiro && (
+            <FormField label="Parceiro" required>
               <ComissaoSearchSelect
-                options={[{ value:'', label:'— Nenhum —', sub:'' }, ...parceiros.map(p=>({ value:String(p.id), label:p.nome, sub:p.classificacao||'' }))]}
+                options={parceiros.map(p=>({ value:String(p.id), label:p.nome, sub:p.classificacao||'' }))}
                 value={form.parceiro_id||''}
                 onChange={(val,opt)=>{ set('parceiro_id',val||null); set('parceiro_nome',opt?.label||'') }}
                 placeholder="Selecionar parceiro…"
