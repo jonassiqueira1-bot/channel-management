@@ -177,20 +177,27 @@ export function useDashboard(period = 'this_month') {
     }
 
     try {
-      const [analyticsData, alertsRes] = await Promise.all([
+      const isAdmin = profile?.role === 'admin_isv'
+      const alertsQuery = supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('resolvido', false)
+      const myAlertsQuery = supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('resolvido', false)
+
+      const [analyticsData, alertsRes, totalAlertsRes, myAlertsRes] = await Promise.all([
         fetchAnalytics(period),
         supabase.from('dashboard_alerts')
           .select('*')
           .eq('is_resolved', false)
           .order('created_at', { ascending: false })
           .limit(10),
+        isAdmin ? alertsQuery : Promise.resolve({ count: 0 }),
+        !isAdmin ? myAlertsQuery : Promise.resolve({ count: 0 }),
       ])
       isMockMode.current = false
-      setAnalytics(analyticsData)
+      const alertasPendentes = isAdmin ? (totalAlertsRes.count || 0) : (myAlertsRes.count || 0)
+      setAnalytics({ ...analyticsData, alertas_pendentes: alertasPendentes })
       setAlerts(alertsRes.error ? [] : (alertsRes.data || []))
     } catch {
       isMockMode.current = false
-      setAnalytics({ cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, por_franquia:[], pipeline:[], questionarios:0, atividades_recentes:[] })
+      setAnalytics({ cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, alertas_pendentes:0, por_franquia:[], pipeline:[], questionarios:0, atividades_recentes:[] })
       setAlerts([])
     }
     setLoading(false)

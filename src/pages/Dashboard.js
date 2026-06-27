@@ -11,7 +11,7 @@ import {
   TrendingUp, Users, FileText, Target, FolderKanban,
   MessageSquare, ExternalLink, Plus, LayoutGrid,
   PieChart, BarChart2, List, Percent, Ticket, FileCheck,
-  Settings, Search, Filter, Layers, ChevronDown,
+  Settings, Search, Filter, Layers, ChevronDown, Bell,
 } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
@@ -55,6 +55,7 @@ const WIDGET_CATALOG_ISV = [
   { id:'isv_contratos',  title:'Contratos Ativos',      desc:'Total de contratos vigentes',       type:'kpi',   Icon:FileCheck,     defaultSettings:{} },
   { id:'isv_inadimpl',   title:'Contratos Inadimplentes', desc:'Contratos com provisão vencida D+1', type:'kpi', Icon:AlertTriangle,  defaultSettings:{} },
   { id:'isv_val_inadimpl',title:'Valor Inadimplência',  desc:'Soma dos contratos inadimplentes',  type:'kpi',   Icon:AlertTriangle,  defaultSettings:{} },
+  { id:'isv_alertas',    title:'Alertas Pendentes',     desc:'Alertas ativos — todos os usuários', type:'kpi',  Icon:Bell,           defaultSettings:{} },
   { id:'isv_chart_bar',  title:'Receita por Franquia',  desc:'Comparativo CDU/SMS/Serviços',      type:'chart', Icon:BarChart2,     defaultSettings:{ chartType:'bar'   } },
   { id:'isv_chart_pie',  title:'Distribuição de Receita',desc:'Proporção CDU × SMS × Serviços',  type:'chart', Icon:PieChart,      defaultSettings:{ chartType:'donut' } },
   { id:'isv_pipeline',   title:'Pipeline por Etapa',    desc:'Oportunidades e valor por fase',    type:'chart', Icon:BarChart2,     defaultSettings:{} },
@@ -71,6 +72,7 @@ const WIDGET_CATALOG_FRANCHISE = [
   { id:'fr_taxa_conv',title:'Taxa de Conversão',     desc:'% de oportunidades convertidas',   type:'kpi',   Icon:Percent,      defaultSettings:{} },
   { id:'fr_ticket',   title:'Ticket Médio',          desc:'Ticket médio por contrato',        type:'kpi',   Icon:Ticket,       defaultSettings:{} },
   { id:'fr_contratos',title:'Contratos Ativos',      desc:'Contratos vigentes na unidade',    type:'kpi',   Icon:FileCheck,    defaultSettings:{} },
+  { id:'fr_alertas',  title:'Meus Alertas',          desc:'Alertas pendentes para você',      type:'kpi',   Icon:Bell,         defaultSettings:{} },
   { id:'fr_pipeline', title:'Pipeline por Etapa',   desc:'Oportunidades e valor por fase',   type:'chart', Icon:BarChart2,    defaultSettings:{} },
   { id:'fr_atv',      title:'Atividades Recentes',  desc:'Últimas movimentações',            type:'list',  Icon:List,         defaultSettings:{} },
 ]
@@ -680,11 +682,13 @@ function WidgetPreview({ entry, analytics }) {
     isv_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' },
     isv_inadimpl:{ value:analytics.contratos_inadimplentes, unit:'', color:'#EF4444' },
     isv_val_inadimpl:{ value:analytics.valor_inadimplencia, unit:'R$', color:'#EF4444' },
+    isv_alertas:{ value:analytics.alertas_pendentes, unit:'', color:'#F59E0B' },
     fr_oport:{ value:analytics.oportunidades, unit:'', color:'var(--accent)' },
     fr_projetos:{ value:analytics.projetos_ativos, unit:'', color:'#0EA5E9' }, fr_quest:{ value:analytics.questionarios, unit:'', color:'#F59E0B' },
     fr_cdu:{ value:analytics.cdu_receita, unit:'R$', color:'#10B981' }, fr_sms:{ value:analytics.sms_receita, unit:'R$', color:'#0EA5E9' },
     fr_servicos:{ value:analytics.servicos_receita, unit:'R$', color:'#10B981' }, fr_taxa_conv:{ value:analytics.taxa_conversao, unit:'%', color:'#14B8A6' },
     fr_ticket:{ value:analytics.ticket_medio, unit:'R$', color:'#F59E0B' }, fr_contratos:{ value:analytics.contratos_ativos, unit:'', color:'var(--accent)' },
+    fr_alertas:{ value:analytics.alertas_pendentes, unit:'', color:'#F59E0B' },
   }
   const kv = kpiMap[entry.id]
   if (kv) {
