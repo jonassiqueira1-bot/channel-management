@@ -182,17 +182,20 @@ export function useCommissions() {
     const isUuid = (id) => typeof id === 'string' && id.includes('-') && id.length > 20
 
     const toDelete = personas.filter(p => !list.find(n => n.id === p.id))
-    const toUpsert = list.map(p => ({
-      id:          isUuid(p.id) ? p.id : undefined,
-      tenant_id:   tenantId,
-      slug:        p.slug,
-      label:       p.label,
-      descricao:   p.descricao || null,
-      cor:         p.cor || '#6366F1',
-      ordem:       p.ordem ?? 0,
-      ativo:       p.ativo ?? true,
-      usuario_id:  p.usuario_id || null,
-    }))
+    const toUpsert = list.map(p => {
+      const row = {
+        tenant_id:  tenantId,
+        slug:       p.slug,
+        label:      p.label,
+        descricao:  p.descricao || null,
+        cor:        p.cor || '#6366F1',
+        ordem:      p.ordem ?? 0,
+        ativo:      p.ativo ?? true,
+        usuario_id: p.usuario_id || null,
+      }
+      if (isUuid(p.id)) row.id = p.id
+      return row
+    })
 
     const ops = []
     if (toDelete.length) {
