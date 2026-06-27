@@ -12,7 +12,7 @@ import { useProfile } from '../../hooks/useProfile'
 import { useFunnels } from '../../hooks/useFunnels'
 import { supabase } from '../../lib/supabase'
 import {
-  PROVIDERS, DEFAULT_SETTINGS, MOCK_LOGS,
+  PROVIDERS, DEFAULT_SETTINGS,
   INTEGRATIONS_STORAGE_KEY,
 } from '../../data/mockIntegrations'
 import Button from '../../components/Button'
@@ -359,9 +359,98 @@ function PayloadModal({ log, onClose }) {
   )
 }
 
-// ─── Aba: Logs de Eventos ─────────────────────────────────────────────────────
+// ─── Logs reais da rd_leads_queue ────────────────────────────────────────────
+function LogsReais({ tenantId, nomeIntegracao }) {
+  const [logs, setLogs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [payloadLog, setPayloadLog] = useState(null)
+
+  useEffect(() => {
+    if (!tenantId) { setLoading(false); return }
+    supabase.from('rd_leads_queue')
+      .select('id, payload, processed, created_at')
+      .eq('tenant_id', tenantId)
+      .order('created_at', { ascending: false })
+      .limit(90)
+      .then(({ data }) => { setLogs(data || []); setLoading(false) })
+  }, [tenantId])
+
+  function exportCSV() {
+    const rows = [['Data/Hora', 'Status', 'Lead'].join(','),
+      ...logs.map(l => [l.created_at, l.processed ? 'Processado' : 'Pendente',
+        JSON.stringify(l.payload?.leads?.[0]?.email || l.payload?.lead?.email || '')].join(','))]
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' })
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+    a.download = `logs-${nomeIntegracao}.csv`; a.click()
+  }
+
+  const secLabel = { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 18, display: 'block' }
+
+  return (
+    <>
+      {payloadLog && <PayloadModal log={payloadLog} onClose={() => setPayloadLog(null)} />}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+        <span style={secLabel}>Leads recebidos via webhook ({logs.length})</span>
+        {logs.length > 0 && (
+          <button onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            <Download size={12} strokeWidth={2}/> Exportar CSV
+          </button>
+        )}
+      </div>
+      <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+        {loading ? (
+          <div style={{ padding: '32px', textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>Carregando…</div>
+        ) : logs.length === 0 ? (
+          <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            <Clock size={32} strokeWidth={1} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }}/>
+            Nenhum lead recebido ainda.
+          </div>
+        ) : (
+          <div style={{ overflowY: 'auto', maxHeight: 380 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead style={{ position: 'sticky', top: 0 }}>
+                <tr>
+                  {['Data / Hora', 'Lead', 'Status', 'Payload'].map(h => (
+                    <th key={h} style={{ padding: '10px 16px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', whiteSpace: 'nowrap' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {logs.map((log, i) => {
+                  const lead = log.payload?.leads?.[0] || log.payload?.lead || {}
+                  const nome = lead.name || lead.email || '—'
+                  return (
+                    <tr key={log.id} style={{ borderBottom: i < logs.length - 1 ? '1px solid var(--border2)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
+                      <td style={{ padding: '11px 16px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{new Date(log.created_at).toLocaleString('pt-BR')}</td>
+                      <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--text)' }}>{nome}</td>
+                      <td style={{ padding: '11px 16px' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 99,
+                          background: log.processed ? '#D1FAE5' : '#FEF9C3',
+                          color: log.processed ? '#065F46' : '#92400E' }}>
+                          {log.processed ? 'Processado' : 'Pendente'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '11px 16px', textAlign: 'right' }}>
+                        <button onClick={() => setPayloadLog(log)}
+                          style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '1px solid rgba(99,102,241,0.2)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <ExternalLink size={11} strokeWidth={2}/> Ver payload
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+// ─── Aba: Logs de Eventos (legado — mantido para outras integrações) ──────────
 function LogsTab({ providerId }) {
-  const logs = MOCK_LOGS[providerId] || []
+  const logs = []
   const [payloadLog, setPayloadLog] = useState(null)
 
   if (!logs.length) {
@@ -475,9 +564,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   const [campanhaId, setCampanhaId]   = useState('')
   const [campanhas]                   = useLocalState('settings:campanhas_v1', [])
 
-  // Bloco 3 — Logs
   const [payloadLog, setPayloadLog] = useState(null)
-  const logs90 = MOCK_LOGS[provider.id] || []
 
   useEffect(() => {
     if (!profile?.tenant_id) return
@@ -819,52 +906,9 @@ function RdStationFullEdit({ provider, onClose, toast }) {
         </div>
       </div>
 
-      {/* ── Bloco 3: Logs ───────────────────────────────────────────────────── */}
+      {/* ── Bloco 3: Logs (leads recebidos via webhook) ─────────────────────── */}
       <div style={{ ...bloco, flex: 1, borderBottom: 'none' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <span style={secLabel}>Logs dos últimos 90 dias ({logs90.length})</span>
-          {logs90.length > 0 && (
-            <button onClick={() => exportarLogsCSV(logs90, nomeIntegracao)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              <Download size={12} strokeWidth={2}/> Exportar CSV
-            </button>
-          )}
-        </div>
-        <div style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-          {logs90.length === 0 ? (
-            <div style={{ padding: '48px 24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-              <Clock size={32} strokeWidth={1} style={{ opacity: 0.3, display: 'block', margin: '0 auto 12px' }}/>
-              Nenhum evento registrado ainda.
-            </div>
-          ) : (
-            <div style={{ overflowY: 'auto', maxHeight: 380 }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ position: 'sticky', top: 0 }}>
-                  <tr>
-                    {['Data / Hora', 'Evento', 'Status', 'Payload'].map(h => (
-                      <th key={h} style={{ padding: '10px 16px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', whiteSpace: 'nowrap' }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {logs90.map((log, i) => (
-                    <tr key={log.id} style={{ borderBottom: i < logs90.length - 1 ? '1px solid var(--border2)' : 'none', background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
-                      <td style={{ padding: '11px 16px', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>{fmtDate(log.created_at)}</td>
-                      <td style={{ padding: '11px 16px', fontSize: 13, color: 'var(--text)', fontWeight: 500 }}>{log.event_type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</td>
-                      <td style={{ padding: '11px 16px' }}><LogBadge status={log.status}/></td>
-                      <td style={{ padding: '11px 16px', textAlign: 'right' }}>
-                        <button onClick={() => setPayloadLog(log)}
-                          style={{ fontSize: 12, fontWeight: 600, color: ACCENT, background: 'none', border: `1px solid ${ACCENT}30`, borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <ExternalLink size={11} strokeWidth={2}/> Ver payload
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        <LogsReais providerId={provider.id} tenantId={profile?.tenant_id} nomeIntegracao={nomeIntegracao} />
       </div>
 
       {payloadLog && <PayloadModal log={payloadLog} onClose={() => setPayloadLog(null)}/>}
@@ -1403,7 +1447,7 @@ export default function Integracoes() {
     const provider = editando
     const setting  = getSetting(provider.id)
     const isWebhook = provider.id === 'webhook'
-    const logCount  = (MOCK_LOGS[provider.id] || []).length
+    const logCount  = 0
 
     if (provider.supabase) {
       return (
