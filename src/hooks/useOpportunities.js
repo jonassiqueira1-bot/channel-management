@@ -42,6 +42,7 @@ function rowToOpp(row) {
     situacao:              row.situacao || 'em_andamento',
     descricao:             row.descricao || '',
     motivo_perda:          row.motivo_perda || '',
+    proxima_acao_data:     cf.proxima_acao_data || '',
     tenant_id:             row.tenant_id || null,
     branch_id:             row.branch_id || null,
     custom_fields: {
@@ -98,6 +99,7 @@ function oppToRow(opp, tenantId, branchId) {
       segmento_industria:    opp.custom_fields?.segmento_industria || '',
       exige_integracao:      opp.custom_fields?.exige_integracao || false,
       itens:                 opp.itens || [],
+      proxima_acao_data:     opp.proxima_acao_data || null,
     },
   }
 }
@@ -271,5 +273,13 @@ export function useOpportunities() {
     return { ok: true }
   }, [tenantId, branchId])
 
-  return { opps, loading, reload: load, save, remove, removeMany, moveToStage, bulkMoveToStage, importMany }
+  const updateProximaAcao = useCallback(async (oppId, dataHora) => {
+    if (!oppId || isMockMode.current) return
+    const { data: cur } = await supabase.from('oportunidades').select('custom_fields').eq('id', oppId).single()
+    const cf = cur?.custom_fields || {}
+    await supabase.from('oportunidades').update({ custom_fields: { ...cf, proxima_acao_data: dataHora } }).eq('id', oppId)
+    setOpps(prev => prev.map(o => o.id === oppId ? { ...o, proxima_acao_data: dataHora } : o))
+  }, [])
+
+  return { opps, loading, reload: load, save, remove, removeMany, moveToStage, bulkMoveToStage, importMany, updateProximaAcao }
 }

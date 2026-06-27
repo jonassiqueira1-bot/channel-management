@@ -137,7 +137,7 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
   const [query, setQuery] = useState(label||'')
   const [open, setOpen]   = useState(false)
   const ref               = useRef(null)
-  const { opps }          = useOpportunities()
+  const { opps } = useOpportunities()
   const { companies }     = useCompanies()
   const { contratos }     = useContracts()
   const { projetos }      = useProjects()
@@ -299,8 +299,10 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
           </select>
         </FormField>
 
-        <FormField label="Prazo">
-          <input className="so-field" type="date" value={form.prazo || ''} onChange={e => set('prazo', e.target.value)} />
+        <FormField label="Data e Hora de Início *">
+          <input className="so-field" type="datetime-local" value={form.data_inicio || ''}
+            onChange={e => set('data_inicio', e.target.value)}
+            required />
         </FormField>
       </FormSection>
 
@@ -835,6 +837,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 
 export default function Tarefas() {
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
+  const { updateProximaAcao } = useOpportunities()
   const { registrar: log } = useAuditLog()
   const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
   const tiposTarefa = useMemo(
@@ -861,12 +864,16 @@ export default function Tarefas() {
   function closeSlideOver() { setEditItem(null); setForm(null) }
 
   function handleSave() {
-    if (!form?.titulo?.trim()) { setErrs({ titulo: 'Título é obrigatório' }); return }
+    if (!form?.titulo?.trim())    { setErrs({ titulo: 'Título é obrigatório' }); return }
+    if (!form?.data_inicio?.trim()) { setErrs({ data_inicio: 'Data e Hora de Início é obrigatória' }); return }
     setErrs({})
     const isNew = !!editItem?._new
     const saved = isNew ? { ...form, id: novoId(), criado: new Date().toISOString().slice(0, 10) } : { ...form }
     saveTarefa(saved)
     log(isNew ? 'criar' : 'editar', 'tarefa', saved.id, { descricao: `Tarefa ${isNew ? 'criada' : 'editada'}: ${saved.titulo || ''}` })
+    if (isNew && saved.entidade_tipo === 'oportunidade' && saved.entidade_id && saved.data_inicio) {
+      updateProximaAcao(saved.entidade_id, saved.data_inicio)
+    }
     closeSlideOver()
   }
 

@@ -14,6 +14,7 @@ function rowToTask(row) {
     status:        row.status || 'pendente',
     prioridade:    row.prioridade || 'media',
     prazo:         row.prazo || '',
+    data_inicio:   row.custom_fields?.data_inicio || '',
     responsavel:   row.responsavel || '',
     entidade_tipo: row.entidade_tipo || null,
     entidade_id:   row.entidade_id || null,
@@ -38,7 +39,7 @@ function taskToRow(t, tenantId, branchId) {
     entidade_id:   t.entidade_id ? String(t.entidade_id) : null,
     entidade_nome: t.entidade_nome || null,
     concluida_em:  t.concluida_em || null,
-    custom_fields: {},
+    custom_fields: { data_inicio: t.data_inicio || null },
   }
 }
 

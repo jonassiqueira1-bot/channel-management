@@ -3783,7 +3783,16 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       case 'campanha_id':
         return <CampanhaField value={form.campanha_id} onChange={v => set('campanha_id', v)} />
       case 'prazo':
-        return <input type="date" style={m.input} value={form.prazo || ''} onChange={e => set('prazo', e.target.value)} />
+        return (
+          <div>
+            <input type="date" style={m.input} value={form.prazo || ''} onChange={e => set('prazo', e.target.value)} />
+            {form.proxima_acao_data && (
+              <div style={{ marginTop: 4, fontSize: 11, color: 'var(--text-muted)' }}>
+                Próxima ação agendada: {new Date(form.proxima_acao_data).toLocaleString('pt-BR', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' })}
+              </div>
+            )}
+          </div>
+        )
       case 'playbook_id':
         return <select style={m.input} value={form.playbook_id || ''} onChange={e => set('playbook_id', e.target.value || null)}>
           <option value="">— Nenhum —</option>

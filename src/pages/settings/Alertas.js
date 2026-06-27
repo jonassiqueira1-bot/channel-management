@@ -3,8 +3,9 @@ import { supabase } from '../../lib/supabase'
 import { useProfile } from '../../hooks/useProfile'
 import { useUsuarios } from '../../hooks/useUsuarios'
 import { useContacts } from '../../hooks/useContacts'
+import { useCustomFields } from '../../hooks/useCustomFields'
 import SettingsLayout from '../../components/ui/SettingsLayout'
-import { X, Plus, Trash2, ChevronDown } from 'lucide-react'
+import { X, Plus, Trash2 } from 'lucide-react'
 
 // ─── Origens do sistema ───────────────────────────────────────────────────────
 const ORIGENS = [
@@ -16,36 +17,60 @@ const ORIGENS = [
   { key: 'companies',           label: 'Empresas',      link: '/empresas'   },
 ]
 
-// ─── Campos por origem com tipo ───────────────────────────────────────────────
-const CAMPOS = {
+// ─── Campos padrão por origem ─────────────────────────────────────────────────
+const CAMPOS_PADRAO = {
   commission_payments: [
-    { key: 'data_vencimento', label: 'Data de vencimento', tipo: 'date'  },
-    { key: 'valor_comissao',  label: 'Valor da comissão',  tipo: 'money' },
-    { key: 'status',          label: 'Status',             tipo: 'enum', opts: ['pendente','pago','cancelado'] },
+    { key: 'data_vencimento', label: 'Data de vencimento',  tipo: 'date'  },
+    { key: 'valor_comissao',  label: 'Valor da comissão',   tipo: 'money' },
+    { key: 'status',          label: 'Status',              tipo: 'enum', opts: ['pendente','pago','cancelado'] },
+    { key: 'beneficiario_nome', label: 'Beneficiário',      tipo: 'text'  },
   ],
   contracts: [
-    { key: 'data_fim',     label: 'Data de término',   tipo: 'date'  },
-    { key: 'valor_total',  label: 'Valor total',        tipo: 'money' },
-    { key: 'status',       label: 'Status',             tipo: 'enum', opts: ['ativo','encerrado','cancelado'] },
+    { key: 'data_inicio',  label: 'Início da vigência',   tipo: 'date'  },
+    { key: 'data_fim',     label: 'Fim da vigência',      tipo: 'date'  },
+    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['ativo','encerrado','cancelado'] },
+    { key: 'responsavel',  label: 'Responsável',          tipo: 'text'  },
+    { key: 'origem',       label: 'Origem',               tipo: 'text'  },
   ],
   oportunidades: [
-    { key: 'updated_at',   label: 'Última atualização', tipo: 'date'  },
-    { key: 'valor',        label: 'Valor estimado',     tipo: 'money' },
-    { key: 'situacao',     label: 'Situação',           tipo: 'enum', opts: ['em_andamento','ganho','perdido'] },
-    { key: 'prazo',        label: 'Prazo',              tipo: 'date'  },
+    { key: 'updated_at',   label: 'Última atualização',   tipo: 'date'  },
+    { key: 'prazo',        label: 'Prazo',                tipo: 'date'  },
+    { key: 'valor',        label: 'Valor estimado',       tipo: 'money' },
+    { key: 'valor_cdu',    label: 'Valor CDU',            tipo: 'money' },
+    { key: 'valor_sms',    label: 'Valor SMS',            tipo: 'money' },
+    { key: 'valor_servico',label: 'Valor Serviço',        tipo: 'money' },
+    { key: 'situacao',     label: 'Situação',             tipo: 'enum', opts: ['em_andamento','ganho','perdido'] },
+    { key: 'origem',       label: 'Origem',               tipo: 'enum', opts: ['Inbound','Outbound','Canal','Indicação'] },
+    { key: 'responsavel',  label: 'Responsável',          tipo: 'text'  },
   ],
   projetos: [
-    { key: 'data_fim',  label: 'Data de entrega', tipo: 'date'  },
-    { key: 'status',    label: 'Status',          tipo: 'enum', opts: ['em_andamento','concluido','cancelado'] },
+    { key: 'data_inicio',  label: 'Data de início',       tipo: 'date'  },
+    { key: 'data_fim',     label: 'Data de entrega',      tipo: 'date'  },
+    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['em_andamento','concluido','cancelado'] },
+    { key: 'phase',        label: 'Fase',                 tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
+    { key: 'total_hours_estimated', label: 'Horas estimadas', tipo: 'number' },
+    { key: 'total_hours_executed',  label: 'Horas executadas', tipo: 'number' },
   ],
   tarefas: [
-    { key: 'prazo',    label: 'Prazo',   tipo: 'date' },
-    { key: 'status',   label: 'Status',  tipo: 'enum', opts: ['pendente','em_andamento','concluida'] },
+    { key: 'prazo',        label: 'Prazo',                tipo: 'date'  },
+    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['pendente','em_andamento','concluida'] },
+    { key: 'prioridade',   label: 'Prioridade',           tipo: 'enum', opts: ['alta','media','baixa'] },
+    { key: 'tipo',         label: 'Tipo',                 tipo: 'enum', opts: ['ligação','reunião','email','visita','tarefa'] },
+    { key: 'responsavel',  label: 'Responsável',          tipo: 'text'  },
   ],
   companies: [
-    { key: 'updated_at', label: 'Última atualização', tipo: 'date' },
-    { key: 'status',     label: 'Status',             tipo: 'enum', opts: ['ativo','inativo'] },
+    { key: 'updated_at',   label: 'Última atualização',   tipo: 'date'  },
+    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['ativo','inativo'] },
+    { key: 'tipo',         label: 'Tipo',                 tipo: 'enum', opts: ['cliente','parceiro','prospect'] },
   ],
+}
+
+// converte tipo de campo customizado para tipo de operador
+function cfTipoToTipo(type) {
+  if (type === 'date')   return 'date'
+  if (type === 'number') return 'number'
+  if (type === 'select') return 'enum'
+  return 'text'
 }
 
 // ─── Operadores por tipo de campo ─────────────────────────────────────────────
@@ -126,7 +151,16 @@ function emptyRule() {
 
 // ─── Editor de Condições ──────────────────────────────────────────────────────
 function CondicoesEditor({ origem, condicoes, onChange }) {
-  const campos = CAMPOS[origem] || []
+  const [cfDefs] = useCustomFields(origem || 'oportunidades')
+  const camposPadrao = CAMPOS_PADRAO[origem] || []
+  const camposCustom = (cfDefs || []).map(f => ({
+    key:   `cf.${f.key}`,
+    label: `${f.label} ✦`,
+    tipo:  cfTipoToTipo(f.type),
+    opts:  f.options || [],
+    custom: true,
+  }))
+  const campos = [...camposPadrao, ...camposCustom]
 
   function update(id, patch) {
     onChange(condicoes.map(c => c.id === id ? { ...c, ...patch, ...(patch.campo ? { operador: '', valor: '' } : {}) } : c))
@@ -391,7 +425,7 @@ function ruleToRow(f, tenantId) {
 export default function SettingsAlertas() {
   const { profile } = useProfile()
   const { usuarios } = useUsuarios()
-  const { contatos } = useContacts()
+  const { contacts: contatos } = useContacts()
 
   const [rules,   setRules]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -408,7 +442,10 @@ export default function SettingsAlertas() {
     setLoading(false)
   }, [tenantId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    if (tenantId) load()
+    else setLoading(false)
+  }, [load, tenantId])
 
   async function save(form) {
     const row = ruleToRow(form, tenantId)
