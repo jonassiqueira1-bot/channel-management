@@ -45,20 +45,29 @@ const s = {
   kpiBar: { borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 },
   kpiToggle: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 20px', cursor: 'pointer', userSelect: 'none',
+    padding: '9px 20px', cursor: 'pointer', userSelect: 'none',
     background: 'none', border: 'none', width: '100%', fontFamily: 'var(--font)',
   },
   kpiToggleLabel: {
+    display: 'flex', alignItems: 'center', gap: 7,
     fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.07em',
     textTransform: 'uppercase', color: 'var(--text-muted)',
+  },
+  kpiAccentBar: {
+    width: 3, height: 12, borderRadius: 2, background: 'var(--accent)', flexShrink: 0,
   },
   kpiContent: { padding: '0 20px 16px' },
 
   // Action bar
   actionBar: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '10px 20px', borderBottom: '1px solid var(--border)',
+    padding: '8px 16px', borderBottom: '1px solid var(--border)',
     background: 'var(--surface)', flexShrink: 0, flexWrap: 'wrap',
+    transition: 'background 0.18s',
+  },
+  actionBarBulk: {
+    background: 'var(--accent)',
+    borderBottomColor: 'var(--accent2)',
   },
   actionLeft:   { display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 180 },
   actionCenter: { display: 'flex', alignItems: 'center', gap: 6 },
@@ -67,9 +76,9 @@ const s = {
   // search
   searchWrap: {
     display: 'flex', alignItems: 'center', gap: 7,
-    background: 'var(--surface2)', border: '1px solid var(--border)',
+    background: '#fff', border: '1.5px solid var(--border)',
     borderRadius: 'var(--radius-md)', padding: '0 10px',
-    height: 32, minWidth: 200, maxWidth: 300, transition: 'border-color 0.15s',
+    height: 34, minWidth: 220, maxWidth: 320, transition: 'border-color 0.15s, box-shadow 0.15s',
   },
   searchInput: {
     border: 'none', outline: 'none', background: 'transparent',
@@ -86,66 +95,81 @@ const s = {
   // ghost btn
   ghostBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
-    height: 32, padding: '0 10px', borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
+    height: 34, padding: '0 12px', borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text-soft)',
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
   ghostBtnActive: { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-lite)' },
   iconBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 32, height: 32, borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
+    width: 34, height: 34, borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
     cursor: 'pointer', color: 'var(--text-soft)',
   },
 
   // primary btn
   primaryBtn: {
-    display: 'flex', alignItems: 'center', gap: 5,
-    height: 32, padding: '0 14px', borderRadius: 'var(--radius-md)',
+    display: 'flex', alignItems: 'center', gap: 6,
+    height: 34, padding: '0 16px', borderRadius: 'var(--radius-md)',
     border: 'none', background: 'var(--accent)', color: '#fff',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', fontWeight: 600,
     cursor: 'pointer', whiteSpace: 'nowrap',
+    boxShadow: '0 1px 4px rgba(37,99,235,0.30)',
   },
 
-  // bulk bar
-  bulkBar: { display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'flex-end' },
-  bulkCount: { fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)', marginRight: 4 },
+  // bulk bar — white-on-blue when action bar turns accent
+  bulkBar: { display: 'flex', alignItems: 'center', gap: 8, flex: 1 },
+  bulkCount: {
+    fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff',
+    background: 'rgba(255,255,255,0.18)', borderRadius: 'var(--radius-pill)',
+    padding: '2px 10px', marginRight: 4,
+  },
   bulkBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
     height: 30, padding: '0 12px', borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
-    fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text-soft)',
+    border: '1.5px solid rgba(255,255,255,0.35)', background: 'rgba(255,255,255,0.12)',
+    fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: '#fff',
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
-  bulkBtnDanger: { borderColor: 'var(--red)', color: 'var(--red)' },
+  bulkBtnDanger: {
+    border: '1.5px solid rgba(252,165,165,0.5)', background: 'rgba(220,38,38,0.20)',
+    color: '#FCA5A5',
+  },
+  bulkCancelBtn: {
+    display: 'flex', alignItems: 'center', gap: 5,
+    height: 30, padding: '0 12px', borderRadius: 'var(--radius-md)',
+    border: 'none', background: 'rgba(255,255,255,0.15)',
+    fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'rgba(255,255,255,0.7)',
+    cursor: 'pointer', whiteSpace: 'nowrap', marginLeft: 'auto',
+  },
 
   // Dropdown
   dropdownWrap: { position: 'relative' },
   dropdown: {
-    position: 'absolute', top: 'calc(100% + 4px)', zIndex: 50,
+    position: 'absolute', top: 'calc(100% + 6px)', zIndex: 50,
     background: 'var(--surface)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
-    padding: '4px 0', minWidth: 180,
+    borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
+    padding: '6px 0', minWidth: 180,
   },
   dropdownItem: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '7px 12px', cursor: 'pointer',
+    padding: '8px 14px', cursor: 'pointer',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text)',
   },
-  dropdownDivider: { height: 1, background: 'var(--border)', margin: '4px 0' },
+  dropdownDivider: { height: 1, background: 'var(--border2)', margin: '4px 0' },
   dropdownLabel: {
-    padding: '5px 12px 3px',
+    padding: '6px 14px 4px',
     fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase',
     letterSpacing: '0.07em', color: 'var(--text-muted)',
   },
   checkMark: { color: 'var(--accent)', flexShrink: 0 },
 
   // View toggle
-  viewToggle: { display: 'flex', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' },
+  viewToggle: { display: 'flex', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' },
   viewBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    width: 32, height: 32, background: 'var(--surface)', border: 'none',
+    width: 34, height: 34, background: 'var(--surface)', border: 'none',
     cursor: 'pointer', color: 'var(--text-muted)',
   },
   viewBtnActive: { background: 'var(--accent)', color: '#fff' },
@@ -153,18 +177,18 @@ const s = {
   // Table
   tableWrap: { flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0 },
   table: { width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font)', fontSize: 'var(--text-sm)' },
-  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '1px solid var(--border)' },
+  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '2px solid var(--border)' },
   th: {
-    padding: '9px 12px', textAlign: 'left', fontWeight: 700,
+    padding: '10px 12px', textAlign: 'left', fontWeight: 700,
     fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.06em',
     color: 'var(--text-muted)', whiteSpace: 'nowrap', userSelect: 'none',
   },
   thSortable: { cursor: 'pointer' },
   thInner: { display: 'flex', alignItems: 'center', gap: 4 },
   thCheck: { width: 40, paddingLeft: 16 },
-  tr: { borderBottom: '1px solid var(--border2)', transition: 'background 0.1s' },
-  trSelected: { background: 'var(--accent-lite)' },
-  td: { padding: '10px 12px', color: 'var(--text)', verticalAlign: 'middle' },
+  tr: { borderBottom: '1px solid var(--border2)', transition: 'background 0.1s, box-shadow 0.1s' },
+  trSelected: { background: 'var(--accent-lite)', boxShadow: 'inset 3px 0 0 var(--accent)' },
+  td: { padding: '11px 12px', color: 'var(--text)', verticalAlign: 'middle' },
   tdCheck: { width: 40, paddingLeft: 16 },
   checkbox: { width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 },
 
@@ -194,8 +218,8 @@ const s = {
   footerPages: { display: 'flex', alignItems: 'center', gap: 4 },
   pageBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
-    minWidth: 28, height: 28, borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
+    minWidth: 30, height: 30, borderRadius: 'var(--radius-md)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
     fontFamily: 'var(--mono)', fontSize: 'var(--text-xs)',
     color: 'var(--text-soft)', cursor: 'pointer',
   },
@@ -205,7 +229,7 @@ const s = {
   // Columns dropdown drag item
   colDragItem: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '6px 12px', cursor: 'default',
+    padding: '7px 14px', cursor: 'default',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text)',
     userSelect: 'none',
   },
@@ -492,7 +516,10 @@ export default function BrowseLayout({
       {kpis && (
         <div style={s.kpiBar}>
           <button type="button" style={s.kpiToggle} onClick={() => setKpisOpen(o => !o)}>
-            <span style={s.kpiToggleLabel}>{kpisLabel}</span>
+            <span style={s.kpiToggleLabel}>
+              <div style={s.kpiAccentBar} />
+              {kpisLabel}
+            </span>
             {kpisOpen
               ? <ChevronUp   size={13} color="var(--text-muted)" />
               : <ChevronDown size={13} color="var(--text-muted)" />}
@@ -502,34 +529,32 @@ export default function BrowseLayout({
       )}
 
       {/* ── Action Bar ──────────────────────────────────────────────────── */}
-      <div style={s.actionBar}>
+      <div style={{ ...s.actionBar, ...(someSelected ? s.actionBarBulk : {}) }}>
 
-        {/* Busca */}
-        <div style={s.actionLeft}>
-          <div style={s.searchWrap}>
-            <Search size={13} color="var(--text-muted)" />
-            <input
-              ref={searchRef}
-              style={s.searchInput}
-              placeholder="Buscar…"
-              value={search}
-              onChange={e => { onSearchChange?.(e.target.value); setPage(1) }}
-            />
+        {/* Busca — oculta quando bulk selecionado */}
+        {!someSelected && (
+          <div style={s.actionLeft}>
+            <div style={s.searchWrap}>
+              <Search size={13} color="var(--text-muted)" />
+              <input
+                ref={searchRef}
+                style={s.searchInput}
+                placeholder="Buscar…"
+                value={search}
+                onChange={e => { onSearchChange?.(e.target.value); setPage(1) }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Bulk bar ou controles normais */}
+        {/* Bulk bar — fundo azul quando items selecionados */}
         {someSelected ? (
           <div style={s.bulkBar}>
             <span style={s.bulkCount}>{selected.size} selecionado{selected.size > 1 ? 's' : ''}</span>
 
-            {/* Editar em lote — só aparece se bulkEditFields foi fornecido */}
+            {/* Editar em lote */}
             {bulkEditFields?.length > 0 && onBulkEdit && (
-              <button
-                type="button"
-                style={{ ...s.bulkBtn, color: 'var(--accent)', borderColor: 'var(--accent)', fontWeight: 600 }}
-                onClick={openBulkEdit}
-              >
+              <button type="button" style={s.bulkBtn} onClick={openBulkEdit}>
                 <PencilLine size={13} />
                 Editar em lote
               </button>
@@ -548,10 +573,10 @@ export default function BrowseLayout({
             ))}
             <button
               type="button"
-              style={{ ...s.bulkBtn, color: 'var(--text-muted)' }}
+              style={s.bulkCancelBtn}
               onClick={() => { setSelected(new Set()); setBulkEditOpen(false) }}
             >
-              Cancelar
+              <X size={13} /> Cancelar seleção
             </button>
           </div>
         ) : (
@@ -799,8 +824,8 @@ export default function BrowseLayout({
                     key={id}
                     style={{ ...s.tr, ...(sel ? s.trSelected : {}), ...(onRowClick ? { cursor: 'pointer' } : {}) }}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface2)' }}
-                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = '' }}
+                    onMouseEnter={e => { if (!sel) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--accent)' } }}
+                    onMouseLeave={e => { if (!sel) { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' } }}
                   >
                     <td style={{ ...s.td, ...s.tdCheck }}>
                       <input
