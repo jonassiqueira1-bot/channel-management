@@ -1270,6 +1270,9 @@ export default function Playbooks() {
   const now = () => new Date().toISOString()
   const tid = 't1'
 
+  // Sempre usa a versão mais recente do playbook (atualizada após cada save)
+  const currentPb = useMemo(() => playbooks.find(p => p.id === selectedPb?.id) || selectedPb, [playbooks, selectedPb])
+
   // Filtered by selected playbook
   const pbSteps     = useMemo(() => steps.filter(s => s.playbook_id === selectedPb?.id),    [steps, selectedPb])
   const pbRefs      = useMemo(() => refs.filter(r => r.playbook_id === selectedPb?.id),      [refs, selectedPb])
@@ -1285,7 +1288,7 @@ export default function Playbooks() {
   }
 
   async function updateObjecoes(objecoes) {
-    const updated = { ...selectedPb, objecoes }
+    const updated = { ...currentPb, objecoes }
     setSelectedPb(updated)
     await savePb(updated)
   }
@@ -1297,11 +1300,11 @@ export default function Playbooks() {
       newPbSteps = pbSteps.map(s => s.id === form.id ? { ...s, ...form, updated_at: t } : s)
       setSteps(prev => prev.map(s => s.id === form.id ? { ...s, ...form, updated_at: t } : s))
     } else {
-      const ns = { ...form, id: `fs-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: pbSteps.length + 1, created_at: t, updated_at: t }
+      const ns = { ...form, id: `fs-${Date.now()}`, playbook_id: currentPb.id, tenant_id: tid, sort_order: pbSteps.length + 1, created_at: t, updated_at: t }
       newPbSteps = [...pbSteps, ns]
       setSteps(prev => [...prev, ns])
     }
-    savePb({ ...selectedPb, steps: newPbSteps })
+    savePb({ ...currentPb, steps: newPbSteps })
     setModal(null)
   }
 
@@ -1313,11 +1316,11 @@ export default function Playbooks() {
       newPbRefs = pbRefs.map(r => r.id === form.id ? { ...r, ...form, results: cleanResults, updated_at: t } : r)
       setRefs(prev => prev.map(r => r.id === form.id ? { ...r, ...form, results: cleanResults, updated_at: t } : r))
     } else {
-      const nr = { ...form, id: `ref-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, results: cleanResults, created_at: t, updated_at: t }
+      const nr = { ...form, id: `ref-${Date.now()}`, playbook_id: currentPb.id, tenant_id: tid, results: cleanResults, created_at: t, updated_at: t }
       newPbRefs = [...pbRefs, nr]
       setRefs(prev => [...prev, nr])
     }
-    savePb({ ...selectedPb, refs: newPbRefs })
+    savePb({ ...currentPb, refs: newPbRefs })
     setModal(null)
   }
 
@@ -1325,7 +1328,7 @@ export default function Playbooks() {
     if (window.confirm('Remover este cliente de referência?')) {
       const newPbRefs = pbRefs.filter(r => r.id !== id)
       setRefs(prev => prev.filter(r => r.id !== id))
-      savePb({ ...selectedPb, refs: newPbRefs })
+      savePb({ ...currentPb, refs: newPbRefs })
     }
   }
 
@@ -1336,11 +1339,11 @@ export default function Playbooks() {
       newPbResources = pbResources.map(r => r.id === form.id ? { ...r, ...form, updated_at: t } : r)
       setResources(prev => prev.map(r => r.id === form.id ? { ...r, ...form, updated_at: t } : r))
     } else {
-      const nr = { ...form, id: `res-${Date.now()}`, playbook_id: selectedPb.id, tenant_id: tid, sort_order: pbResources.length + 1, created_at: t, updated_at: t }
+      const nr = { ...form, id: `res-${Date.now()}`, playbook_id: currentPb.id, tenant_id: tid, sort_order: pbResources.length + 1, created_at: t, updated_at: t }
       newPbResources = [...pbResources, nr]
       setResources(prev => [...prev, nr])
     }
-    savePb({ ...selectedPb, resources: newPbResources })
+    savePb({ ...currentPb, resources: newPbResources })
     setModal(null)
   }
 
@@ -1348,7 +1351,7 @@ export default function Playbooks() {
     if (window.confirm('Remover esta atividade?')) {
       const newPbSteps = pbSteps.filter(s => s.id !== id)
       setSteps(prev => prev.filter(s => s.id !== id))
-      savePb({ ...selectedPb, steps: newPbSteps })
+      savePb({ ...currentPb, steps: newPbSteps })
     }
   }
 
@@ -1356,7 +1359,7 @@ export default function Playbooks() {
     if (window.confirm('Remover este material?')) {
       const newPbResources = pbResources.filter(r => r.id !== id)
       setResources(prev => prev.filter(r => r.id !== id))
-      savePb({ ...selectedPb, resources: newPbResources })
+      savePb({ ...currentPb, resources: newPbResources })
     }
   }
 
