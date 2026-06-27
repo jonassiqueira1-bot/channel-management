@@ -999,72 +999,328 @@ function ComissaoMultiSelect({ options, value = [], onChange, placeholder = 'Sel
 }
 
 // ─── RuleForm (SlideOver content) ─────────────────────────────────────────────
+// ─── ElegibilidadeFields ─────────────────────────────────────────────────────
+function ElegibilidadeFields({ form, set }) {
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+      <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+        <Toggle value={form.exige_participacao_venda} onChange={v=>set('exige_participacao_venda',v)} label="Exige participação na venda" />
+        <Toggle value={form.cessa_no_cancelamento}    onChange={v=>set('cessa_no_cancelamento',v)}    label="Cessa no cancelamento" />
+      </div>
+      <textarea className="so-field" rows={2} value={form.notas_elegibilidade||''} onChange={e=>set('notas_elegibilidade',e.target.value)} placeholder="Notas de elegibilidade…" style={{ resize:'vertical', fontSize:12 }} />
+    </div>
+  )
+}
+
+// ─── PercTable ────────────────────────────────────────────────────────────────
+function PercTable({ percCols, personas, usuarios, percs, onChange }) {
+  const active = personas.filter(p => p.ativo)
+  if (!percCols.length || !active.length) return (
+    <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 0' }}>
+      {!percCols.length ? 'Selecione produto ou categoria acima.' : 'Nenhuma persona ativa.'}
+    </div>
+  )
+  return (
+    <div style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden', fontSize:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:`130px repeat(${percCols.length},1fr)`, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+        <div style={{ padding:'6px 10px', fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', fontSize:10, letterSpacing:'0.06em' }}>Persona</div>
+        {percCols.map(c => <div key={c.key} style={{ padding:'6px 10px', fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', fontSize:10, letterSpacing:'0.06em', textAlign:'center' }}>{c.label}</div>)}
+      </div>
+      {active.map((p, pi) => {
+        const lu = p.usuario_id ? usuarios.find(u => String(u.id) === String(p.usuario_id)) : null
+        return (
+          <div key={p.id} style={{ display:'grid', gridTemplateColumns:`130px repeat(${percCols.length},1fr)`, borderBottom:pi<active.length-1?'1px solid var(--border)':'none', alignItems:'center' }}>
+            <div style={{ padding:'8px 10px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                <span style={{ width:7, height:7, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
+                <span style={{ fontWeight:600, color:'var(--text)' }}>{p.label}</span>
+              </div>
+              {lu && <div style={{ fontSize:10, color:'var(--accent)', paddingLeft:12 }}>{lu.nome}</div>}
+            </div>
+            {percCols.map(col => (
+              <div key={col.key} style={{ padding:'6px 8px', display:'flex', alignItems:'center', gap:3 }}>
+                <input type="number" min={0} max={100} step={0.5} className="so-field"
+                  value={getPerc(percs, p.id, col.key)}
+                  onChange={e => onChange(setPerc(percs, p.id, col.key, e.target.value))}
+                  style={{ textAlign:'right', padding:'4px 6px' }} />
+                <span style={{ color:'var(--text-muted)', flexShrink:0 }}>%</span>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── CombinacaoItem ───────────────────────────────────────────────────────────
+function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios, elegibilidadePorCombinacao, index }) {
+  const [open, setOpen] = useState(true)
+  const setComb = (k, v) => onChange({ ...comb, [k]: v })
+
+  const produtosMensais = useMemo(() => {
+    if (comb.produto_filtro_tipo !== 'produto') return false
+    return (comb.produto_ids || []).some(id => {
+      const p = produtos.find(x => String(x.id) === String(id))
+      return p?.cobranca === 'mensal'
+    })
+  }, [comb.produto_ids, comb.produto_filtro_tipo, produtos])
+
+  const percCols = comb.produto_filtro_tipo === 'produto'
+    ? (comb.produto_ids || []).map(id => { const p = produtos.find(x => String(x.id) === String(id)); return { key: `prod_${id}`, label: p?.nome || id } })
+    : comb.produto_filtro_tipo === 'categoria'
+      ? (comb.produto_categorias || []).map(cat => ({ key: `cat_${cat}`, label: cat }))
+      : RECEITA_TIPOS.map(t => ({ key: t, label: t }))
+
+  const tipoLabel = TIPO_CALCULO_CFG[comb.tipo_calculo]?.label || comb.tipo_calculo || 'Tipo'
+  const prodLabel = comb.produto_filtro_tipo === 'produto'
+    ? (comb.produto_ids||[]).length ? `${(comb.produto_ids||[]).length} produto(s)` : 'Todos'
+    : comb.produto_filtro_tipo === 'categoria'
+      ? (comb.produto_categorias||[]).length ? `${(comb.produto_categorias||[]).length} categ.` : 'Todas'
+      : 'Todos'
+
+  const isFixo   = comb.tipo_calculo === 'percentual_fixo'
+  const isCadeia = comb.tipo_calculo === 'cadeia_repasse'
+  const isEscal  = comb.tipo_calculo === 'escalonado'
+
+  return (
+    <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+      {/* Header */}
+      <div onClick={() => setOpen(o => !o)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', cursor:'pointer', background:'var(--surface2)', userSelect:'none' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px' }}>#{index+1}</span>
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{prodLabel}</span>
+          <span style={{ fontSize:11, color:'var(--text-muted)' }}>×</span>
+          <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)' }}>{tipoLabel}</span>
+          {produtosMensais && comb.prazo_meses && <span style={{ fontSize:11, color:'#10B981', background:'#D1FAE5', borderRadius:4, padding:'1px 6px' }}>{comb.prazo_meses}m</span>}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <button type="button" onClick={e=>{e.stopPropagation();onRemove()}}
+            style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2, display:'flex', alignItems:'center' }}>
+            <Trash2 size={13} strokeWidth={2} />
+          </button>
+          <ChevronDown size={14} strokeWidth={2} style={{ color:'var(--text-muted)', transform:open?'rotate(180deg)':'none', transition:'transform 0.15s' }} />
+        </div>
+      </div>
+
+      {open && (
+        <div style={{ padding:'14px', display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Produto / Tipo em linha */}
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <FormField label="Produto / Categoria">
+              <ComissaoSearchSelect
+                options={[
+                  { value:'',         label:'Todos',     sub:'Sem restrição' },
+                  { value:'produto',  label:'Produto',   sub:'Produto específico' },
+                  { value:'categoria',label:'Categoria', sub:'Categoria de produtos' },
+                ]}
+                value={comb.produto_filtro_tipo || ''}
+                onChange={val => setComb('produto_filtro_tipo', val || null)}
+              />
+            </FormField>
+            <FormField label="Tipo de Cálculo">
+              <ComissaoSearchSelect
+                options={Object.entries(TIPO_CALCULO_CFG).map(([id,cfg])=>({ value:id, label:cfg.label, sub:cfg.desc }))}
+                value={comb.tipo_calculo || 'percentual_fixo'}
+                onChange={val => setComb('tipo_calculo', val || 'percentual_fixo')}
+              />
+            </FormField>
+          </div>
+
+          {/* Seletor de produtos */}
+          {comb.produto_filtro_tipo === 'produto' && (
+            <FormField label="Produtos">
+              <MultiSearchSelect values={comb.produto_ids||[]} onChange={ids=>setComb('produto_ids',ids)}
+                options={produtos.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo||''} · ${p.categoria||''}` }))}
+                placeholder="Buscar produto…" />
+            </FormField>
+          )}
+          {comb.produto_filtro_tipo === 'categoria' && (
+            <FormField label="Categorias">
+              <MultiSearchSelect values={comb.produto_categorias||[]} onChange={cats=>setComb('produto_categorias',cats)}
+                options={[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
+                placeholder="Buscar categoria…" />
+            </FormField>
+          )}
+
+          {/* Prazo meses — só quando produto mensal */}
+          {produtosMensais && (
+            <FormField label="Prazo de comissão (meses)" hint="Produto com cobrança mensal">
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <input type="number" min={1} max={120} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 12" style={{ maxWidth:120 }} />
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>meses</span>
+              </div>
+            </FormField>
+          )}
+
+          {/* Percentual Fixo: tabela persona × produto */}
+          {isFixo && (
+            <div>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Percentuais por Persona</div>
+              <PercTable percCols={percCols} personas={personas} usuarios={usuarios}
+                percs={comb.persona_percentuais||[]}
+                onChange={pp => setComb('persona_percentuais', pp)} />
+            </div>
+          )}
+
+          {/* Cadeia de repasse */}
+          {isCadeia && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+                {[
+                  { key:'repasse_origem_pct',  label:'Repasse dist. (%)',     placeholder:'50' },
+                  { key:'base_calculo_pct',    label:'Base s/ líquido NG (%)',placeholder:'39' },
+                  { key:'percentual_comissao', label:'% sobre a base',        placeholder:'5'  },
+                ].map(f => (
+                  <FormField key={f.key} label={f.label}>
+                    <input type="number" min={0} max={100} step={0.5} className="so-field" value={comb[f.key]??''} onChange={e=>setComb(f.key,e.target.value)} placeholder={f.placeholder} />
+                  </FormField>
+                ))}
+              </div>
+              <FormulaPreview repasse={comb.repasse_origem_pct} base={comb.base_calculo_pct} pct={comb.percentual_comissao} />
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                <FormField label="Recorrência">
+                  <select className="so-field" value={comb.tipo_recorrencia||'indefinida'} onChange={e=>setComb('tipo_recorrencia',e.target.value)}>
+                    {Object.entries(TIPO_RECORRENCIA_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </FormField>
+                {comb.tipo_recorrencia === 'prazo_fixo' && (
+                  <FormField label="Prazo (meses)">
+                    <input type="number" min={1} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 18" />
+                  </FormField>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Escalonado */}
+          {isEscal && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Escala Individual</div>
+              <EscalaEditor rows={comb.escala_individual||DEFAULT_ESCALA_INDIVIDUAL} onChange={v=>setComb('escala_individual',v)} valueKey="comissao_pct" valueLabel="Comissão (%)" accentColor="#F59E0B" />
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Bônus de Equipe</div>
+              <EscalaEditor rows={comb.escala_equipe||DEFAULT_ESCALA_EQUIPE} onChange={v=>setComb('escala_equipe',v)} valueKey="bonus_pct" valueLabel="Bônus (%)" accentColor="#10B981" />
+              <FormField label="Condição bônus equipe">
+                <input className="so-field" value={comb.condicao_bonus_equipe||''} onChange={e=>setComb('condicao_bonus_equipe',e.target.value)} placeholder="Ex: Exige meta individual atingida" />
+              </FormField>
+            </div>
+          )}
+
+          {/* Elegibilidade por combinação */}
+          {elegibilidadePorCombinacao && (
+            <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', flex:1 }}>Elegibilidade</div>
+                <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--text-soft)', cursor:'pointer' }}>
+                  <input type="checkbox" checked={comb.elegibilidade_propria||false} onChange={e=>setComb('elegibilidade_propria',e.target.checked)} />
+                  Específica
+                </label>
+              </div>
+              {comb.elegibilidade_propria && (
+                <ElegibilidadeFields
+                  form={{ exige_participacao_venda: comb.exige_participacao_venda, cessa_no_cancelamento: comb.cessa_no_cancelamento??true, notas_elegibilidade: comb.notas_elegibilidade }}
+                  set={(k,v) => setComb(k, v)}
+                />
+              )}
+              {!comb.elegibilidade_propria && <div style={{ fontSize:11, color:'var(--text-muted)' }}>Herda elegibilidade global da regra.</div>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── RuleForm ─────────────────────────────────────────────────────────────────
 function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [] }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const { produtos } = useProducts()
   const isNew = !form.id
-  const tipos = form.tipos_calculo_arr || ['percentual_fixo']
-  const isFixo = tipos.includes('percentual_fixo'); const isCadeia = tipos.includes('cadeia_repasse'); const isEscal = tipos.includes('escalonado')
-  const isSplit = tipos.includes('split'); const isOverride = tipos.includes('override'); const isDraw = tipos.includes('draw'); const isAcelerador = tipos.includes('acelerador')
 
-  function toggleTipo(id) {
-    if (tipos.includes(id)) { if (tipos.length === 1) return; set('tipos_calculo_arr', tipos.filter(t => t !== id)) }
-    else { set('tipos_calculo_arr', [...tipos, id]) }
+  const combinacoes = form.combinacoes || []
+  const setCombinacoes = v => set('combinacoes', v)
+
+  function addCombinacao() {
+    const nova = {
+      id: `c${Date.now()}`,
+      produto_filtro_tipo: null,
+      produto_ids: [],
+      produto_categorias: [],
+      tipo_calculo: 'percentual_fixo',
+      prazo_meses: null,
+      elegibilidade_propria: false,
+      exige_participacao_venda: false,
+      cessa_no_cancelamento: true,
+      notas_elegibilidade: '',
+      persona_percentuais: [],
+      repasse_origem_pct: 50, base_calculo_pct: 100, percentual_comissao: 5,
+      tipo_recorrencia: 'indefinida',
+      escala_individual: DEFAULT_ESCALA_INDIVIDUAL,
+      escala_equipe: DEFAULT_ESCALA_EQUIPE,
+      condicao_bonus_equipe: '',
+    }
+    setCombinacoes([...combinacoes, nova])
   }
 
+  const isSplit    = (form.tipos_calculo_arr||[]).includes('split')
+  const isOverride = (form.tipos_calculo_arr||[]).includes('override')
+  const isDraw     = (form.tipos_calculo_arr||[]).includes('draw')
+  const isAcelerador = (form.tipos_calculo_arr||[]).includes('acelerador')
+
   async function submit() {
-    if (!form.nome.trim()) { setErr('Informe o nome da regra.'); return }
-    if (form.escopo_interno && !form.beneficiario_id)                       { setErr('Selecione o usuário do sistema para o escopo Individual.'); return }
-    if (form.escopo_equipe  && !(form.equipe_ids||[]).length)              { setErr('Selecione ao menos um membro para o escopo Equipe.'); return }
-    if (form.escopo_externo && !form.contato_id)                           { setErr('Selecione o Contato Canal para o escopo Externo.'); return }
-    if (!form.escopo_interno && !form.escopo_equipe && !form.escopo_externo) { setErr('Selecione ao menos um escopo (Individual, Equipe ou Externo).'); return }
+    if (!form.nome?.trim()) { setErr('Informe o nome da regra.'); return }
+    if (form.escopo_interno && !form.beneficiario_id)              { setErr('Selecione o usuário para o escopo Individual.'); return }
+    if (form.escopo_equipe  && !(form.equipe_ids||[]).length)      { setErr('Selecione membros para o escopo Equipe.'); return }
+    if (form.escopo_externo && !form.contato_id)                   { setErr('Selecione o Contato Canal.'); return }
+    if (!form.escopo_interno && !form.escopo_equipe && !form.escopo_externo) { setErr('Selecione ao menos um escopo.'); return }
     setSaving(true); setErr(null)
     try {
-      await new Promise(r => setTimeout(r, 300))
       onSave({ ...form, id: form.id || `r${Date.now()}` })
-      onClose()
-    } catch(e) { setErr(e.message||'Erro ao salvar regra.') }
-    finally { setSaving(false) }
+    } catch(e) { setErr(e.message||'Erro ao salvar regra.'); setSaving(false) }
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
+      {/* ── Identificação ──────────────────────────────────────────────── */}
       <FormSection label="Identificação">
-        <FormField label="Nome da regra" required>
-          <input className="so-field" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
-        </FormField>
-        <FormGrid cols={3}>
-          <FormField label="Descrição curta" style={{ gridColumn:'1/3' }}>
+        <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+          <FormField label="Nome" required style={{ gridColumn:'1/-1' }}>
+            <input className="so-field" value={form.nome||''} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
+          </FormField>
+          <FormField label="Descrição">
             <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Resumo em uma linha" />
           </FormField>
-          <FormField label="Vigência início">
-            <input type="date" className="so-field" value={form.vigencia_inicio||''} onChange={e=>set('vigencia_inicio',e.target.value||null)} />
-          </FormField>
-          <FormField label="Vigência fim" style={{ gridColumn:'span 2' }}>
-            <input type="date" className="so-field" value={form.vigencia_fim||''} onChange={e=>set('vigencia_fim',e.target.value||null)} />
-          </FormField>
-          <div style={{ display:'flex', gap:20, alignItems:'center', paddingTop:20 }}>
-            <Toggle value={form.ativo}        onChange={v=>set('ativo',v)}        label="Ativa" />
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+            <FormField label="Vigência início">
+              <input type="date" className="so-field" value={form.vigencia_inicio||''} onChange={e=>set('vigencia_inicio',e.target.value||null)} />
+            </FormField>
+            <FormField label="Vigência fim">
+              <input type="date" className="so-field" value={form.vigencia_fim||''} onChange={e=>set('vigencia_fim',e.target.value||null)} />
+            </FormField>
+          </div>
+          <div style={{ gridColumn:'1/-1', display:'flex', gap:20, alignItems:'center' }}>
+            <Toggle value={form.ativo}         onChange={v=>set('ativo',v)}         label="Ativa" />
             <Toggle value={form.revisao_anual} onChange={v=>set('revisao_anual',v)} label="Revisão anual" />
           </div>
-        </FormGrid>
+        </div>
       </FormSection>
 
+      {/* ── Escopo ─────────────────────────────────────────────────────── */}
       <FormSection label="Escopo">
-        <div style={{ gridColumn: '1/-1' }}>
+        <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
           <ComissaoMultiSelect
             options={[
-              { value:'escopo_interno', label:'Individual', sub:'Usuário interno do sistema' },
-              { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários internos'  },
-              { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo'        },
+              { value:'escopo_interno', label:'Individual', sub:'Usuário interno' },
+              { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários' },
+              { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo' },
             ]}
             value={[
-              ...(form.escopo_interno ? ['escopo_interno'] : []),
-              ...(form.escopo_equipe  ? ['escopo_equipe']  : []),
-              ...(form.escopo_externo ? ['escopo_externo'] : []),
+              ...(form.escopo_interno?['escopo_interno']:[]),
+              ...(form.escopo_equipe ?['escopo_equipe'] :[]),
+              ...(form.escopo_externo?['escopo_externo']:[]),
             ]}
             onChange={vals => {
               set('escopo_interno', vals.includes('escopo_interno'))
@@ -1073,351 +1329,177 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             }}
             placeholder="Selecionar escopos…"
           />
-        </div>
-
-        {form.escopo_interno && (
-          <div style={{ gridColumn: '1/-1' }}>
-            <FormField label="Usuário vinculado (Individual)" required>
+          {form.escopo_interno && (
+            <FormField label="Usuário vinculado" required>
               <ComissaoSearchSelect
-                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.papel || '' }))}
-                value={form.beneficiario_id || ''}
-                onChange={(val, opt) => { set('beneficiario_id', val); set('beneficiario_nome', opt?.label || '') }}
+                options={usuarios.map(u=>({ value:String(u.id), label:u.nome, sub:u.cargo||u.papel||'' }))}
+                value={form.beneficiario_id||''}
+                onChange={(val,opt)=>{ set('beneficiario_id',val); set('beneficiario_nome',opt?.label||'') }}
                 placeholder="Selecionar usuário do sistema…"
               />
             </FormField>
-          </div>
-        )}
-
-        {form.escopo_equipe && (
-          <>
-            <FormField label="Nome da equipe">
-              <input className="so-field" value={form.equipe_nome||''} onChange={e => set('equipe_nome', e.target.value)} placeholder="Ex: Time de Inside Sales" />
-            </FormField>
-            <div style={{ gridColumn: '1/-1' }}>
-              <FormField label="Membros da equipe">
+          )}
+          {form.escopo_equipe && (
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <FormField label="Nome da equipe">
+                <input className="so-field" value={form.equipe_nome||''} onChange={e=>set('equipe_nome',e.target.value)} placeholder="Ex: Time Inside Sales" />
+              </FormField>
+              <FormField label="Membros" style={{ gridColumn:'1/-1' }}>
                 <ComissaoMultiSelect
-                  options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || u.papel || '' }))}
-                  value={form.equipe_ids || []}
-                  onChange={ids => set('equipe_ids', ids)}
+                  options={usuarios.map(u=>({ value:String(u.id), label:u.nome, sub:u.cargo||u.papel||'' }))}
+                  value={form.equipe_ids||[]}
+                  onChange={ids=>set('equipe_ids',ids)}
                   placeholder="Selecionar membros…"
                 />
               </FormField>
             </div>
-          </>
-        )}
-
-        {form.escopo_externo && (
-          <div style={{ gridColumn: '1/-1' }}>
+          )}
+          {form.escopo_externo && (
             <FormField label="Contato Canal" required>
               <ComissaoSearchSelect
-                options={contatos.map(c => ({ value: c.id, label: c.nome, sub: c.empresa_nome || '' }))}
-                value={form.contato_id || ''}
-                onChange={(val, opt) => { set('contato_id', val); set('contato_nome', opt?.label || ''); set('contato_empresa', opt?.sub || '') }}
+                options={contatos.map(c=>({ value:c.id, label:c.nome, sub:c.empresa_nome||'' }))}
+                value={form.contato_id||''}
+                onChange={(val,opt)=>{ set('contato_id',val); set('contato_nome',opt?.label||''); set('contato_empresa',opt?.sub||'') }}
                 placeholder="Selecionar contato…"
               />
             </FormField>
-          </div>
-        )}
+          )}
+        </div>
       </FormSection>
 
-      <FormSection label="Produto / Categoria">
-        <ComissaoSearchSelect
-          options={[
-            { value: '',         label: 'Todos',     sub: 'Sem restrição de produto' },
-            { value: 'produto',  label: 'Produto',   sub: 'Produto específico'       },
-            { value: 'categoria',label: 'Categoria', sub: 'Categoria de produtos'    },
-          ]}
-          value={form.produto_filtro_tipo || ''}
-          onChange={val => set('produto_filtro_tipo', val || null)}
-          placeholder="Selecionar filtro…"
-        />
-        {form.produto_filtro_tipo === 'produto' && (
-          <FormGrid cols={1}>
-            <FormField label="Produtos">
-              <MultiSearchSelect values={form.produto_ids||[]} onChange={ids=>set('produto_ids',ids)}
-                options={produtos.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo} · ${p.categoria}` }))}
-                placeholder="Buscar produto…" />
-            </FormField>
-          </FormGrid>
-        )}
-        {form.produto_filtro_tipo === 'categoria' && (
-          <FormGrid cols={1}>
-            <FormField label="Categorias">
-              <MultiSearchSelect values={form.produto_categorias||[]}
-                onChange={cats=>set('produto_categorias',cats)}
-                options={[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
-                placeholder="Buscar categoria…" />
-            </FormField>
-          </FormGrid>
-        )}
-      </FormSection>
-
-      <FormSection label="Tipos de Cálculo">
-        <ComissaoMultiSelect
-          options={Object.entries(TIPO_CALCULO_CFG).map(([id, cfg]) => ({ value: id, label: cfg.label, sub: cfg.desc }))}
-          value={tipos}
-          onChange={vals => set('tipos_calculo_arr', vals.length ? vals : ['percentual_fixo'])}
-          placeholder="Selecionar tipos de cálculo…"
-        />
-      </FormSection>
-
-      {isFixo && (() => {
-        // Colunas dinâmicas conforme filtro de Produto/Categoria
-        const percCols = form.produto_filtro_tipo === 'produto'
-          ? (form.produto_ids || []).map(id => { const p = produtos.find(x => String(x.id) === String(id)); return { key: `prod_${id}`, label: p?.nome || id } })
-          : form.produto_filtro_tipo === 'categoria'
-            ? (form.produto_categorias || []).map(cat => ({ key: `cat_${cat}`, label: cat }))
-            : RECEITA_TIPOS.map(t => ({ key: t, label: t }))
-        const colCount = percCols.length || 1
-        const activePersonas = personas.filter(p => p.ativo)
-        return (
-          <FormSection label="Percentuais por Persona">
-            {percCols.length === 0 && (
-              <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
-                {form.produto_filtro_tipo === 'produto' ? 'Selecione ao menos um produto acima.' : 'Selecione ao menos uma categoria acima.'}
-              </div>
-            )}
-            {percCols.length > 0 && (
-              <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-                <div style={{ display:'grid', gridTemplateColumns:`150px repeat(${colCount},1fr)`, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
-                  <div style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>Persona</div>
-                  {percCols.map(col => <div key={col.key} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', textAlign:'center' }}>{col.label}</div>)}
-                </div>
-                {activePersonas.map((p, pi) => {
-                  const linkedUser = p.usuario_id ? usuarios.find(u => String(u.id) === String(p.usuario_id)) : null
-                  return (
-                    <div key={p.id} style={{ display:'grid', gridTemplateColumns:`150px repeat(${colCount},1fr)`, borderBottom:pi<activePersonas.length-1?'1px solid var(--border)':'none', alignItems:'center' }}>
-                      <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:1 }}>
-                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                          <span style={{ width:8, height:8, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
-                          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</span>
-                        </div>
-                        {linkedUser && <div style={{ fontSize:11, color:'var(--accent)', paddingLeft:14 }}>{linkedUser.nome}</div>}
-                      </div>
-                      {percCols.map(col => (
-                        <div key={col.key} style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:4 }}>
-                          <input type="number" min={0} max={100} step={0.5} className="so-field"
-                            value={getPerc(form.persona_percentuais, p.id, col.key)}
-                            onChange={e => set('persona_percentuais', setPerc(form.persona_percentuais, p.id, col.key, e.target.value))}
-                            style={{ textAlign:'right' }} />
-                          <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
-                        </div>
-                      ))}
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </FormSection>
-        )
-      })()}
-
-      {isCadeia && (
-        <FormSection label="Parâmetros da Cadeia de Repasse">
-          <FormGrid cols={3}>
-            {[
-              { key:'repasse_origem_pct',  label:'Repasse fabricante/dist. (%)', placeholder:'Ex: 50' },
-              { key:'base_calculo_pct',    label:'Base sobre líquido NG (%)',     placeholder:'Ex: 39' },
-              { key:'percentual_comissao', label:'% comissão sobre a base',       placeholder:'Ex: 5' },
-            ].map(f => (
-              <FormField key={f.key} label={f.label}>
-                <input type="number" min={0} max={100} step={0.5} className="so-field" value={form[f.key]??''} onChange={e=>set(f.key,e.target.value)} placeholder={f.placeholder} />
-              </FormField>
-            ))}
-          </FormGrid>
-          <FormulaPreview repasse={form.repasse_origem_pct} base={form.base_calculo_pct} pct={form.percentual_comissao} />
-          <FormGrid cols={2}>
-            <FormField label="Tipo de recorrência">
-              <select className="so-field" value={form.tipo_recorrencia} onChange={e=>set('tipo_recorrencia',e.target.value)}>
-                {Object.entries(TIPO_RECORRENCIA_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </FormField>
-            {form.tipo_recorrencia === 'prazo_fixo' && (
-              <FormField label="Prazo (meses)">
-                <input type="number" min={1} className="so-field" value={form.prazo_meses||''} onChange={e=>set('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 18" />
-              </FormField>
-            )}
-          </FormGrid>
-        </FormSection>
-      )}
-
-      {isEscal && (
-        <FormSection label="Escala de Comissão">
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-            <div>
-              <SectionTitle icon={<TrendingUp size={13} strokeWidth={2} />} label="Escala Individual" />
-              <div style={{ marginTop:8 }}><EscalaEditor rows={form.escala_individual||DEFAULT_ESCALA_INDIVIDUAL} onChange={v=>set('escala_individual',v)} valueKey="comissao_pct" valueLabel="Comissão (%)" accentColor="#F59E0B" /></div>
+      {/* ── Combinações Produto × Tipo de Cálculo ──────────────────────── */}
+      <FormSection label="Combinações">
+        <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:8 }}>
+          {combinacoes.length === 0 && (
+            <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
+              Nenhuma combinação definida. Adicione ao menos uma para configurar os percentuais.
             </div>
-            <div>
-              <SectionTitle icon={<TrendingUp size={13} strokeWidth={2} />} label="Bônus de Equipe" />
-              <div style={{ marginTop:8 }}><EscalaEditor rows={form.escala_equipe||DEFAULT_ESCALA_EQUIPE} onChange={v=>set('escala_equipe',v)} valueKey="bonus_pct" valueLabel="Bônus (%)" accentColor="#10B981" /></div>
-            </div>
-            <FormGrid cols={1}>
-              <FormField label="Condição para bônus de equipe">
-                <input className="so-field" value={form.condicao_bonus_equipe||''} onChange={e=>set('condicao_bonus_equipe',e.target.value)} placeholder="Ex: Exige atingimento prévio da meta individual" />
-              </FormField>
-            </FormGrid>
-          </div>
-        </FormSection>
-      )}
+          )}
+          {combinacoes.map((c, i) => (
+            <CombinacaoItem
+              key={c.id || i}
+              index={i}
+              comb={c}
+              onChange={updated => setCombinacoes(combinacoes.map((x,j)=>j===i?updated:x))}
+              onRemove={() => setCombinacoes(combinacoes.filter((_,j)=>j!==i))}
+              produtos={produtos}
+              personas={personas}
+              usuarios={usuarios}
+              elegibilidadePorCombinacao={form.elegibilidade_por_combinacao}
+            />
+          ))}
+          <button type="button" onClick={addCombinacao}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 14px', borderRadius:8, background:'none', border:'1px dashed var(--border2)', color:'var(--accent)', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+            <Plus size={13} strokeWidth={2.5} /> Adicionar combinação
+          </button>
+        </div>
+      </FormSection>
 
+      {/* ── Split ──────────────────────────────────────────────────────── */}
       {isSplit && (
         <FormSection label="Split de Comissão">
-          <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>
-            Defina os beneficiários e seus percentuais. A soma deve totalizar 100%.
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {(form.split_participantes || []).map((p, i) => (
-              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px 32px', gap:8, alignItems:'center' }}>
-                <input className="so-field" placeholder="Nome do beneficiário" value={p.beneficiario_nome || ''}
-                  onChange={e => { const arr = [...(form.split_participantes||[])]; arr[i] = {...arr[i], beneficiario_nome: e.target.value}; set('split_participantes', arr) }} />
-                <select className="so-field" value={p.persona || 'externo'}
-                  onChange={e => { const arr = [...(form.split_participantes||[])]; arr[i] = {...arr[i], persona: e.target.value}; set('split_participantes', arr) }}>
-                  <option value="interno">Interno</option>
-                  <option value="externo">Externo</option>
-                  <option value="finder">Finder</option>
-                  <option value="parceiro">Parceiro</option>
+          <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:8 }}>
+            {(form.split_participantes||[]).map((p,i) => (
+              <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px 28px', gap:8, alignItems:'center' }}>
+                <input className="so-field" placeholder="Beneficiário" value={p.beneficiario_nome||''} onChange={e=>{const a=[...(form.split_participantes||[])];a[i]={...a[i],beneficiario_nome:e.target.value};set('split_participantes',a)}} />
+                <select className="so-field" value={p.persona||'externo'} onChange={e=>{const a=[...(form.split_participantes||[])];a[i]={...a[i],persona:e.target.value};set('split_participantes',a)}}>
+                  {['interno','externo','finder','parceiro'].map(o=><option key={o} value={o}>{o}</option>)}
                 </select>
-                <div style={{ display:'flex', alignItems:'center', gap:4 }}>
-                  <input type="number" min={0} max={100} step={0.5} className="so-field" value={p.pct || ''} placeholder="%" style={{ textAlign:'right' }}
-                    onChange={e => { const arr = [...(form.split_participantes||[])]; arr[i] = {...arr[i], pct: Number(e.target.value)}; set('split_participantes', arr) }} />
-                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>%</span>
+                <div style={{ display:'flex', alignItems:'center', gap:3 }}>
+                  <input type="number" min={0} max={100} step={0.5} className="so-field" value={p.pct||''} placeholder="%" style={{ textAlign:'right' }} onChange={e=>{const a=[...(form.split_participantes||[])];a[i]={...a[i],pct:Number(e.target.value)};set('split_participantes',a)}} />
+                  <span style={{ fontSize:11,color:'var(--text-muted)' }}>%</span>
                 </div>
-                <button type="button" onClick={() => { const arr = (form.split_participantes||[]).filter((_,j)=>j!==i); set('split_participantes', arr) }}
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <X size={14} />
-                </button>
+                <button type="button" onClick={()=>set('split_participantes',(form.split_participantes||[]).filter((_,j)=>j!==i))} style={{ background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',display:'flex',alignItems:'center' }}><X size={13}/></button>
               </div>
             ))}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:4 }}>
-              <button type="button" onClick={() => set('split_participantes', [...(form.split_participantes||[]), { beneficiario_nome:'', persona:'externo', pct:0 }])}
-                style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, fontWeight:600, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', padding:0 }}>
-                <Plus size={13} /> Adicionar participante
-              </button>
-              {(form.split_participantes||[]).length > 0 && (() => {
-                const total = (form.split_participantes||[]).reduce((s,p)=>s+(Number(p.pct)||0), 0)
-                const ok = Math.abs(total - 100) < 0.01
-                return <span style={{ fontSize:12, fontWeight:700, color: ok ? '#10B981' : '#EF4444' }}>Total: {total}%{ok ? ' ✓' : ' ≠ 100%'}</span>
-              })()}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+              <button type="button" onClick={()=>set('split_participantes',[...(form.split_participantes||[]),{beneficiario_nome:'',persona:'externo',pct:0}])} style={{ display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:600,color:'var(--accent)',background:'none',border:'none',cursor:'pointer' }}><Plus size={12}/>Adicionar</button>
+              {(form.split_participantes||[]).length>0&&(()=>{const t=(form.split_participantes||[]).reduce((s,p)=>s+(Number(p.pct)||0),0);const ok=Math.abs(t-100)<0.01;return<span style={{fontSize:12,fontWeight:700,color:ok?'#10B981':'#EF4444'}}>Total: {t}%{ok?' ✓':' ≠ 100%'}</span>})()}
             </div>
           </div>
         </FormSection>
       )}
 
+      {/* ── Override ───────────────────────────────────────────────────── */}
       {isOverride && (
         <FormSection label="Override de Gestor">
-          <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>
-            O gestor recebe um percentual sobre a comissão total paga aos membros da equipe.
-          </div>
-          <FormGrid cols={2}>
-            <FormField label="Gestor (beneficiário do override)">
-              <ComissaoSearchSelect
-                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || '' }))}
-                value={form.override_gestor_id || ''}
-                onChange={(val, opt) => { set('override_gestor_id', val); set('override_gestor_nome', opt?.label || '') }}
-                placeholder="Selecionar gestor…"
-              />
+          <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <FormField label="Gestor">
+              <ComissaoSearchSelect options={usuarios.map(u=>({value:String(u.id),label:u.nome,sub:u.cargo||''}))} value={form.override_gestor_id||''} onChange={(val,opt)=>{set('override_gestor_id',val);set('override_gestor_nome',opt?.label||'')}} placeholder="Selecionar gestor…" />
             </FormField>
             <FormField label="% sobre comissão da equipe">
               <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min={0} max={100} step={0.5} className="so-field" value={form.override_pct ?? 10}
-                  onChange={e => set('override_pct', Number(e.target.value))} style={{ textAlign:'right' }} />
-                <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
+                <input type="number" min={0} max={100} step={0.5} className="so-field" value={form.override_pct??10} onChange={e=>set('override_pct',Number(e.target.value))} style={{ textAlign:'right' }} />
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>%</span>
               </div>
             </FormField>
-          </FormGrid>
-          <div style={{ marginTop:8, padding:'10px 14px', background:'rgba(139,92,246,0.06)', borderRadius:8, border:'1px solid rgba(139,92,246,0.2)', fontSize:12, color:'var(--text-muted)' }}>
-            Exemplo: se a equipe gerou R$ 5.000 em comissões e o override é {form.override_pct ?? 10}%, o gestor recebe <strong style={{ color:'#8B5CF6' }}>R$ {((5000 * (form.override_pct ?? 10)) / 100).toLocaleString('pt-BR', {minimumFractionDigits:2})}</strong>.
           </div>
         </FormSection>
       )}
 
+      {/* ── Draw ───────────────────────────────────────────────────────── */}
       {isDraw && (
         <FormSection label="Draw — Adiantamento Mensal">
-          <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>
-            Valor fixo adiantado mensalmente, independente da comissão apurada.
-          </div>
-          <FormGrid cols={2}>
-            <FormField label="Valor do draw mensal (R$)">
-              <input type="number" min={0} step={100} className="so-field" value={form.draw_valor_mensal || 0}
-                onChange={e => set('draw_valor_mensal', Number(e.target.value))} placeholder="Ex: 2000" />
+          <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <FormField label="Valor mensal (R$)">
+              <input type="number" min={0} step={100} className="so-field" value={form.draw_valor_mensal||0} onChange={e=>set('draw_valor_mensal',Number(e.target.value))} placeholder="Ex: 2000" />
             </FormField>
-            <FormField label="Desconto da comissão">
-              <div style={{ display:'flex', alignItems:'center', gap:10, height:38 }}>
-                <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13 }}>
-                  <input type="checkbox" checked={form.draw_recuperavel ?? true}
-                    onChange={e => set('draw_recuperavel', e.target.checked)} />
-                  Draw recuperável (descontado da comissão apurada)
-                </label>
-              </div>
+            <FormField label="Modalidade">
+              <label style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, height:38 }}>
+                <input type="checkbox" checked={form.draw_recuperavel??true} onChange={e=>set('draw_recuperavel',e.target.checked)} />
+                Draw recuperável
+              </label>
             </FormField>
-          </FormGrid>
-          <div style={{ marginTop:8, padding:'10px 14px', background:'rgba(239,68,68,0.06)', borderRadius:8, border:'1px solid rgba(239,68,68,0.2)', fontSize:12, color:'var(--text-muted)' }}>
-            {form.draw_recuperavel ?? true
-              ? `Se a comissão apurada for maior que o draw, o vendedor recebe a diferença. Se for menor, o saldo negativo é carregado para o próximo período.`
-              : `O draw não é descontado da comissão — funciona como garantia mínima de renda.`}
           </div>
         </FormSection>
       )}
 
+      {/* ── Acelerador ─────────────────────────────────────────────────── */}
       {isAcelerador && (
         <FormSection label="Acelerador por Quota">
-          <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:8 }}>
-            Multiplica o percentual base quando o atingimento supera o threshold.
-          </div>
-          <FormGrid cols={3}>
-            <FormField label="Threshold de ativação (%)">
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min={50} max={200} step={5} className="so-field" value={form.acelerador_threshold_pct ?? 100}
-                  onChange={e => set('acelerador_threshold_pct', Number(e.target.value))} style={{ textAlign:'right' }} />
-                <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
-              </div>
-            </FormField>
-            <FormField label="Multiplicador">
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min={1} max={5} step={0.1} className="so-field" value={form.acelerador_multiplicador ?? 1.5}
-                  onChange={e => set('acelerador_multiplicador', Number(e.target.value))} style={{ textAlign:'right' }} />
-                <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>x</span>
-              </div>
-            </FormField>
-            <FormField label="Teto de atingimento (%)">
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min={100} max={500} step={10} className="so-field" value={form.acelerador_teto_pct ?? ''}
-                  onChange={e => set('acelerador_teto_pct', e.target.value ? Number(e.target.value) : null)}
-                  placeholder="Sem teto" style={{ textAlign:'right' }} />
-                <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
-              </div>
-            </FormField>
-          </FormGrid>
-          <div style={{ marginTop:8, padding:'10px 14px', background:'rgba(249,115,22,0.06)', borderRadius:8, border:'1px solid rgba(249,115,22,0.2)', fontSize:12, color:'var(--text-muted)' }}>
-            Exemplo: com threshold em {form.acelerador_threshold_pct ?? 100}% e multiplicador {form.acelerador_multiplicador ?? 1.5}x —
-            acima de {form.acelerador_threshold_pct ?? 100}% de atingimento, o % de comissão é multiplicado por <strong style={{ color:'#F97316' }}>{form.acelerador_multiplicador ?? 1.5}x</strong>
-            {form.acelerador_teto_pct ? ` até o teto de ${form.acelerador_teto_pct}%` : ', sem limite'}.
+          <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10 }}>
+            {[
+              {key:'acelerador_threshold_pct',label:'Threshold (%)',def:100,suf:'%'},
+              {key:'acelerador_multiplicador', label:'Multiplicador',def:1.5,suf:'x'},
+              {key:'acelerador_teto_pct',      label:'Teto (%)',    def:'',  suf:'%',placeholder:'Sem teto'},
+            ].map(f => (
+              <FormField key={f.key} label={f.label}>
+                <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                  <input type="number" className="so-field" value={form[f.key]??f.def} onChange={e=>set(f.key,e.target.value?Number(e.target.value):null)} placeholder={f.placeholder} style={{ textAlign:'right' }} />
+                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>{f.suf}</span>
+                </div>
+              </FormField>
+            ))}
           </div>
         </FormSection>
       )}
 
+      {/* ── Elegibilidade global ───────────────────────────────────────── */}
       <FormSection label="Elegibilidade">
-        <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:4 }}>A comissão só é paga quando todas as condições abaixo forem atendidas.</div>
-        <ConditionBuilder
-          conditions={form.condicoes_elegibilidade||[]}
-          onChange={v=>set('condicoes_elegibilidade',v)}
-          joinsAtivos={form.condicoes_join||[]}
-          onChangeJoins={v=>set('condicoes_join',v)}
-        />
-        <div style={{ display:'flex', gap:20, flexWrap:'wrap', marginTop:4 }}>
-          <Toggle value={form.exige_participacao_venda} onChange={v=>set('exige_participacao_venda',v)} label="Exige participação na venda" />
-          <Toggle value={form.cessa_no_cancelamento}    onChange={v=>set('cessa_no_cancelamento',v)}    label="Cessa no cancelamento" />
+        <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+            <span style={{ fontSize:12, color:'var(--text-muted)', flex:1 }}>A comissão só é paga quando as condições forem atendidas.</span>
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-soft)', cursor:'pointer', whiteSpace:'nowrap' }}>
+              <input type="checkbox" checked={form.elegibilidade_por_combinacao||false} onChange={e=>set('elegibilidade_por_combinacao',e.target.checked)} />
+              Por combinação
+            </label>
+          </div>
+          {!form.elegibilidade_por_combinacao && (
+            <>
+              <ConditionBuilder conditions={form.condicoes_elegibilidade||[]} onChange={v=>set('condicoes_elegibilidade',v)} joinsAtivos={form.condicoes_join||[]} onChangeJoins={v=>set('condicoes_join',v)} />
+              <ElegibilidadeFields form={form} set={set} />
+            </>
+          )}
+          {form.elegibilidade_por_combinacao && (
+            <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 10px', background:'var(--surface2)', borderRadius:6 }}>
+              Configure a elegibilidade individualmente em cada combinação acima.
+            </div>
+          )}
         </div>
-        <FormGrid cols={1}>
-          <FormField label="Notas adicionais">
-            <textarea className="so-field" rows={2} value={form.notas_elegibilidade||''} onChange={e=>set('notas_elegibilidade',e.target.value)} placeholder="Observações, exceções ou restrições adicionais." style={{ resize:'vertical' }} />
-          </FormField>
-        </FormGrid>
       </FormSection>
 
       {err && (
-        <div style={{ display:'flex', alignItems:'center', gap:7, padding:'10px 12px', borderRadius:8, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 12px', borderRadius:8, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#EF4444', fontSize:13 }}>
           <AlertCircle size={14} strokeWidth={2}/>{err}
         </div>
       )}

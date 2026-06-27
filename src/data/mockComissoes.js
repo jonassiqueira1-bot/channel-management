@@ -250,10 +250,16 @@ export const EMPTY_RULE = {
   vigencia_fim:    null,
   revisao_anual:   false,
 
-  // Produto / Categoria (múltipla seleção)
-  produto_filtro_tipo: null, // null | 'produto' | 'categoria'
-  produto_ids:       [],     // array de ids de produtos selecionados
-  produto_categorias: [],    // array de categorias selecionadas
+  // Produto / Categoria (múltipla seleção) — legado, substituído por combinacoes
+  produto_filtro_tipo: null,
+  produto_ids:       [],
+  produto_categorias: [],
+
+  // Combinações Produto/Categoria × Tipo de Cálculo
+  combinacoes: [], // [{id, produto_filtro_tipo, produto_ids, produto_categorias, tipo_calculo, prazo_meses, elegibilidade_propria, exige_participacao_venda, cessa_no_cancelamento, persona_percentuais}]
+
+  // Elegibilidade global
+  elegibilidade_por_combinacao: false, // false = global, true = por combinação
 }
 
 // ─── Helper: percentuais por persona para regra fixo ─────────────────────────
