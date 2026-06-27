@@ -1047,22 +1047,24 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Escopo">
-        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
-          {[
-            { key:'escopo_interno', label:'Individual', color:'var(--accent)' },
-            { key:'escopo_equipe',  label:'Equipe',     color:'#F59E0B'      },
-            { key:'escopo_externo', label:'Externa',    color:'#10B981'      },
-          ].map(opt => {
-            const active = !!form[opt.key]
-            return (
-              <button key={opt.key} type="button" onClick={() => set(opt.key, !active)}
-                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: active ? `1.5px solid ${opt.color}` : '1.5px solid var(--border)', background: active ? `${opt.color}15` : 'var(--surface2)', color: active ? opt.color : 'var(--text-muted)', transition:'all 0.15s' }}>
-                {active && <CheckCircle2 size={11} strokeWidth={2.5} />}
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
+        <ComissaoMultiSelect
+          options={[
+            { value:'escopo_interno', label:'Individual', sub:'Usuário interno do sistema' },
+            { value:'escopo_equipe',  label:'Equipe',     sub:'Grupo de usuários internos'  },
+            { value:'escopo_externo', label:'Externa',    sub:'Contato canal externo'        },
+          ]}
+          value={[
+            ...(form.escopo_interno ? ['escopo_interno'] : []),
+            ...(form.escopo_equipe  ? ['escopo_equipe']  : []),
+            ...(form.escopo_externo ? ['escopo_externo'] : []),
+          ]}
+          onChange={vals => {
+            set('escopo_interno', vals.includes('escopo_interno'))
+            set('escopo_equipe',  vals.includes('escopo_equipe'))
+            set('escopo_externo', vals.includes('escopo_externo'))
+          }}
+          placeholder="Selecionar escopos…"
+        />
 
         {form.escopo_interno && (
           <FormField label="Usuário do sistema" required>
@@ -1104,22 +1106,16 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Produto / Categoria">
-        <div style={{ display:'flex', gap:6 }}>
-          {[
-            { id: null,        label:'Todos'     },
-            { id: 'produto',   label:'Produto'   },
-            { id: 'categoria', label:'Categoria' },
-          ].map(opt => {
-            const active = form.produto_filtro_tipo === opt.id
-            return (
-              <button key={String(opt.id)} type="button" onClick={() => set('produto_filtro_tipo', active ? null : opt.id)}
-                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: active ? '1.5px solid #F59E0B' : '1.5px solid var(--border)', background: active ? 'rgba(245,158,11,0.12)' : 'var(--surface2)', color: active ? '#B45309' : 'var(--text-muted)', transition:'all 0.15s' }}>
-                {active && <CheckCircle2 size={11} strokeWidth={2.5} />}
-                {opt.label}
-              </button>
-            )
-          })}
-        </div>
+        <ComissaoSearchSelect
+          options={[
+            { value: '',         label: 'Todos',     sub: 'Sem restrição de produto' },
+            { value: 'produto',  label: 'Produto',   sub: 'Produto específico'       },
+            { value: 'categoria',label: 'Categoria', sub: 'Categoria de produtos'    },
+          ]}
+          value={form.produto_filtro_tipo || ''}
+          onChange={val => set('produto_filtro_tipo', val || null)}
+          placeholder="Selecionar filtro…"
+        />
         {form.produto_filtro_tipo === 'produto' && (
           <FormGrid cols={1}>
             <FormField label="Produtos">
@@ -1142,19 +1138,12 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       </FormSection>
 
       <FormSection label="Tipos de Cálculo">
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-          {Object.entries(TIPO_CALCULO_CFG).map(([id, cfg]) => {
-            const Icon = TIPO_ICON[id] || Percent
-            const sel = tipos.includes(id)
-            return (
-              <button key={id} type="button" onClick={() => toggleTipo(id)}
-                style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:20, cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', border: sel ? `1.5px solid ${cfg.color}` : '1.5px solid var(--border)', background: sel ? cfg.bg : 'var(--surface2)', color: sel ? cfg.color : 'var(--text-muted)', transition:'all 0.15s' }}>
-                <Icon size={11} strokeWidth={2.5} />
-                {cfg.label}
-              </button>
-            )
-          })}
-        </div>
+        <ComissaoMultiSelect
+          options={Object.entries(TIPO_CALCULO_CFG).map(([id, cfg]) => ({ value: id, label: cfg.label, sub: cfg.desc }))}
+          value={tipos}
+          onChange={vals => set('tipos_calculo_arr', vals.length ? vals : ['percentual_fixo'])}
+          placeholder="Selecionar tipos de cálculo…"
+        />
       </FormSection>
 
       {isFixo && (
