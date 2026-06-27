@@ -129,20 +129,19 @@ function cfTipoToTipo(type) {
   return 'text'
 }
 
-function newCond() { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '' } }
+function newCond(op = 'E') { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '', logico: op } }
 function newAcao() { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', template: 'alerta_generico', assunto: '', mensagem: '', prazo_dias: 3, titulo_tarefa: '' } }
 
 function emptyRule() {
   return {
     origem: '', gatilho_nome: '', ativo: true,
-    operador_logico: 'E',
     condicoes: [newCond()],
     acoes: [newAcao()],
   }
 }
 
 // ─── Editor de Condições ──────────────────────────────────────────────────────
-function CondicoesEditor({ origem, condicoes, operador, onChangeCondicoes, onChangeOp }) {
+function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
   const [cfDefs] = useCustomFields(origem || 'oportunidades')
   const padrao  = CAMPOS_PADRAO[origem] || []
   const custom  = (cfDefs || []).map(f => ({ key: `cf.${f.key}`, label: `${f.label} ✦`, tipo: cfTipoToTipo(f.type), opts: f.options || [] }))
@@ -150,6 +149,9 @@ function CondicoesEditor({ origem, condicoes, operador, onChangeCondicoes, onCha
 
   function update(id, patch) {
     onChangeCondicoes(condicoes.map(c => c.id === id ? { ...c, ...patch, ...(patch.campo ? { operador: '', valor: '' } : {}) } : c))
+  }
+  function toggleLogico(id) {
+    onChangeCondicoes(condicoes.map(c => c.id === id ? { ...c, logico: c.logico === 'E' ? 'OU' : 'E' } : c))
   }
   function add()      { onChangeCondicoes([...condicoes, newCond()]) }
   function remove(id) { onChangeCondicoes(condicoes.filter(c => c.id !== id)) }
@@ -165,9 +167,9 @@ function CondicoesEditor({ origem, condicoes, operador, onChangeCondicoes, onCha
           <div key={c.id}>
             {idx > 0 && (
               <div style={divider}>
-                <button onClick={() => onChangeOp(operador === 'E' ? 'OU' : 'E')}
+                <button onClick={() => toggleLogico(c.id)}
                   style={{ ...btnSm(false), padding: '2px 14px', fontSize: 11, marginBottom: 4 }}>
-                  {operador}
+                  {c.logico || 'E'}
                 </button>
               </div>
             )}
@@ -354,22 +356,11 @@ function RuleForm({ rule, onSave, onClose }) {
 
         {/* Condições + operador */}
         <div style={sec}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-            <div style={lbl12}>Condições</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
-              <span style={{ color: 'var(--text-muted)' }}>Lógica entre condições:</span>
-              <button onClick={() => set('operador_logico', form.operador_logico === 'E' ? 'OU' : 'E')}
-                style={{ ...btnSm(true), padding: '2px 12px', fontSize: 11 }}>
-                {form.operador_logico}
-              </button>
-            </div>
-          </div>
+          <div style={lbl12}>Condições</div>
           <CondicoesEditor
             origem={form.origem}
             condicoes={form.condicoes}
-            operador={form.operador_logico}
             onChangeCondicoes={v => set('condicoes', v)}
-            onChangeOp={v => set('operador_logico', v)}
           />
         </div>
 

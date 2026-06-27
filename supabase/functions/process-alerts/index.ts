@@ -12,7 +12,7 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE)
 
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
-interface Condicao { campo: string; operador: string; valor: string }
+interface Condicao { campo: string; operador: string; valor: string; logico?: 'E' | 'OU' }
 interface Acao {
   tipo: 'notificar' | 'email' | 'tarefa'
   destinatario_tipo: 'responsavel_origem' | 'responsavel_tarefa' | 'contato_empresa' | 'email_fixo'
@@ -32,7 +32,6 @@ interface Rule {
   ativo: boolean
   dias_aviso: number
   custom_fields: {
-    operador_logico?: 'E' | 'OU'
     condicoes?: Condicao[]
     acoes?: Acao[]
   }
@@ -228,10 +227,14 @@ function avaliarCondicao(registro: Record<string, unknown>, c: Condicao): boolea
 function avaliarCondicoes(registro: Record<string, unknown>, rule: Rule): boolean {
   const condicoes = (rule.custom_fields?.condicoes || []).filter(c => c.campo && c.operador)
   if (!condicoes.length) return true
-  const logica = rule.custom_fields?.operador_logico || 'E'
-  return logica === 'E'
-    ? condicoes.every(c => avaliarCondicao(registro, c))
-    : condicoes.some(c => avaliarCondicao(registro, c))
+  // Avalia da esquerda para direita respeitando o operador lógico de cada condição
+  let resultado = avaliarCondicao(registro, condicoes[0])
+  for (let i = 1; i < condicoes.length; i++) {
+    const op = (condicoes[i] as Condicao & { logico?: string }).logico || 'E'
+    const val = avaliarCondicao(registro, condicoes[i])
+    resultado = op === 'OU' ? resultado || val : resultado && val
+  }
+  return resultado
 }
 
 // ─── Tabela → configuração de busca ──────────────────────────────────────────
