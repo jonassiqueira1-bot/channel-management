@@ -176,10 +176,42 @@ export function useCommissions() {
     setPayments(prev => prev.map(p => ids.includes(p.id) ? { ...p, status } : p))
   }, [])
 
+  const savePersonas = useCallback(async (list) => {
+    setPersonas(list)
+    if (isMockMode.current || !tenantId) return { ok: true }
+    const isUuid = (id) => typeof id === 'string' && id.includes('-') && id.length > 20
+
+    const toDelete = personas.filter(p => !list.find(n => n.id === p.id))
+    const toUpsert = list.map(p => ({
+      id:          isUuid(p.id) ? p.id : undefined,
+      tenant_id:   tenantId,
+      slug:        p.slug,
+      label:       p.label,
+      descricao:   p.descricao || null,
+      cor:         p.cor || '#6366F1',
+      ordem:       p.ordem ?? 0,
+      ativo:       p.ativo ?? true,
+      usuario_id:  p.usuario_id || null,
+    }))
+
+    const ops = []
+    if (toDelete.length) {
+      ops.push(supabase.from('commission_personas').delete().in('id', toDelete.map(p => p.id)))
+    }
+    if (toUpsert.length) {
+      ops.push(supabase.from('commission_personas').upsert(toUpsert, { onConflict: 'tenant_id,slug' }).select())
+    }
+    const results = await Promise.all(ops)
+    const err = results.find(r => r.error)
+    if (err) return { ok: false, message: err.error.message }
+    return { ok: true }
+  }, [tenantId, personas])
+
   return {
     rules, payments, personas, loading, reload: load,
     saveRule, removeRule,
     savePayment, removePayment, bulkSetPaymentStatus,
+    savePersonas,
     setRules, setPayments, setPersonas,
     isMock: isMockMode,
   }

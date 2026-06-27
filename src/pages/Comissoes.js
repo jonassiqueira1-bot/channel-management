@@ -1602,7 +1602,7 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
 }
 
 // ─── Tab: Regras de Configuração ──────────────────────────────────────────────
-function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuarios = [] }) {
+function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuarios = [], onSavePersonas }) {
   const [deleting, setDeleting]     = useState(null)
   const [showPersonas, setShowPersonas] = useState(false)
 
@@ -1769,7 +1769,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
         )
       })}
 
-      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} onChange={p=>{setPersonas(p);setShowPersonas(false)}} onClose={()=>setShowPersonas(false)} />}
+      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} onChange={async p=>{ await (onSavePersonas ? onSavePersonas(p) : setPersonas(p)); setShowPersonas(false) }} onClose={()=>setShowPersonas(false)} />}
     </div>
   )
 }
@@ -1996,7 +1996,7 @@ export default function Comissoes() {
   const [tab, setTab]       = useLocalState('comissoes:tab', 'repasses')
   const [period, setPeriod] = useState('this_month')
   const { rules, payments, personas, setRules, setPayments, setPersonas,
-          saveRule: persistRule, removeRule: deleteRule } = useCommissions()
+          saveRule: persistRule, removeRule: deleteRule, savePersonas: persistPersonas } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
   const { contacts: contatosRaw } = useContacts()
@@ -2092,7 +2092,7 @@ export default function Comissoes() {
         <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} />
       )}
       {tab === 'regras' && isAdmin && (
-        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} />
+        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} onSavePersonas={persistPersonas} />
       )}
 
       {/* ── SlideOver: Lançamento ─────────────────────────────────────── */}
