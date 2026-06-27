@@ -13,9 +13,11 @@ function rowToTask(row) {
     tipo:          row.tipo || cf.tipo || 'ligação',
     status:        row.status || 'pendente',
     prioridade:    row.prioridade || 'media',
-    prazo:         row.prazo || '',
-    data_inicio:   row.custom_fields?.data_inicio || '',
-    responsavel:   row.responsavel || '',
+    prazo:            row.prazo || '',
+    data_inicio:      row.custom_fields?.data_inicio || '',
+    responsavel:      row.responsavel || '',
+    responsavel_id:   row.custom_fields?.responsavel_id || null,
+    responsavel_nome: row.custom_fields?.responsavel_nome || row.responsavel || '',
     entidade_tipo: row.entidade_tipo || null,
     entidade_id:   row.entidade_id || null,
     entidade_nome: row.entidade_nome || '',
@@ -39,7 +41,11 @@ function taskToRow(t, tenantId, branchId) {
     entidade_id:   t.entidade_id ? String(t.entidade_id) : null,
     entidade_nome: t.entidade_nome || null,
     concluida_em:  t.concluida_em || null,
-    custom_fields: { data_inicio: t.data_inicio || null },
+    custom_fields: {
+      data_inicio:      t.data_inicio || null,
+      responsavel_id:   t.responsavel_id || null,
+      responsavel_nome: t.responsavel_nome || t.responsavel || null,
+    },
   }
 }
 

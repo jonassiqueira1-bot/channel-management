@@ -864,8 +864,9 @@ export default function Tarefas() {
   function closeSlideOver() { setEditItem(null); setForm(null) }
 
   function handleSave() {
-    if (!form?.titulo?.trim())    { setErrs({ titulo: 'Título é obrigatório' }); return }
+    if (!form?.titulo?.trim())      { setErrs({ titulo: 'Título é obrigatório' }); return }
     if (!form?.data_inicio?.trim()) { setErrs({ data_inicio: 'Data e Hora de Início é obrigatória' }); return }
+    if (!form?.responsavel_id)      { setErrs({ responsavel_id: 'Responsável é obrigatório' }); return }
     setErrs({})
     const isNew = !!editItem?._new
     const saved = isNew ? { ...form, id: novoId(), criado: new Date().toISOString().slice(0, 10) } : { ...form }

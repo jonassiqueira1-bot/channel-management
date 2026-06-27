@@ -91,7 +91,7 @@ const PRIORIDADE_TAREFA = {
   alta: { label:'Alta', color:'#F59E0B',bg:'#FEF3C7',text:'#92400E' },
   urgente:{ label:'Urgente',color:'#EF4444',bg:'#FEE2E2',text:'#991B1B' },
 }
-const EMPTY_TAREFA = { titulo:'', tipo:'ligação', status:'pendente', prioridade:'media', prazo:'', responsavel:'', descricao:'' }
+const EMPTY_TAREFA = { titulo:'', tipo:'ligação', status:'pendente', prioridade:'media', data_inicio:'', responsavel_id:'', responsavel_nome:'', descricao:'' }
 
 
 // ─── Mock de oportunidades ────────────────────────────────────────────────────
@@ -891,9 +891,11 @@ function TarefaStatusBadge({ status }) {
 
 // ─── Aba de Tarefas da Oportunidade ──────────────────────────────────────────
 function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }) {
+  const { usuarios } = useUsuarios()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [quickForm, setQuickForm] = useState({ ...EMPTY_TAREFA })
+  const [formErr, setFormErr] = useState('')
   const [expandedId, setExpandedId] = useState(null)
 
   const oppTarefas = useMemo(() =>
@@ -914,15 +916,21 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
   function qset(f,v) { setQuickForm(prev=>({ ...prev,[f]:v })) }
 
   function handleQuickSave() {
-    if (!quickForm.titulo.trim()) return
+    if (!quickForm.titulo.trim())   { setFormErr('Título é obrigatório'); return }
+    if (!quickForm.data_inicio)     { setFormErr('Data e Hora de Início é obrigatória'); return }
+    if (!quickForm.responsavel_id)  { setFormErr('Responsável é obrigatório'); return }
+    setFormErr('')
+    const u = usuarios.find(u => u.id === quickForm.responsavel_id)
     const tarefa = {
       ...quickForm,
       id: editingId || novoId(),
+      responsavel:      u?.nome || quickForm.responsavel_nome || '',
+      responsavel_nome: u?.nome || quickForm.responsavel_nome || '',
       entidade_tipo: 'oportunidade',
-      entidade_id: oppId,
+      entidade_id:   oppId,
       entidade_nome: oppNome,
-      concluida_em: null,
-      criado: new Date().toISOString().slice(0,10),
+      concluida_em:  null,
+      criado:        new Date().toISOString().slice(0,10),
     }
     onSaveTarefa(tarefa)
     setQuickForm({ ...EMPTY_TAREFA })
@@ -932,7 +940,7 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
 
   function openEdit(t) {
     setQuickForm({ titulo:t.titulo, tipo:t.tipo, status:t.status, prioridade:t.prioridade,
-      prazo:t.prazo||'', responsavel:t.responsavel||'', descricao:t.descricao||'' })
+      data_inicio:t.data_inicio||'', responsavel_id:t.responsavel_id||'', responsavel_nome:t.responsavel_nome||t.responsavel||'', descricao:t.descricao||'' })
     setEditingId(t.id)
     setShowForm(true)
   }
@@ -986,14 +994,18 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
               </select>
             </div>
             <div>
-              <label style={tb.lbl}>Prazo</label>
-              <input type="date" style={m.input} value={quickForm.prazo} onChange={e=>qset('prazo',e.target.value)} />
+              <label style={tb.lbl}>Data e Hora de Início *</label>
+              <input type="datetime-local" style={m.input} value={quickForm.data_inicio} onChange={e=>qset('data_inicio',e.target.value)} />
             </div>
             <div>
-              <label style={tb.lbl}>Responsável</label>
-              <SellerSelect value={quickForm.responsavel} onChange={v=>qset('responsavel',v)} />
+              <label style={tb.lbl}>Responsável *</label>
+              <select style={m.input} value={quickForm.responsavel_id} onChange={e=>qset('responsavel_id',e.target.value)}>
+                <option value="">— Selecione —</option>
+                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
             </div>
           </div>
+          {formErr && <div style={{ fontSize:12, color:'#ef4444', marginBottom:6 }}>{formErr}</div>}
           <textarea style={{ ...m.input, height:52, resize:'none', marginBottom:8, fontSize:12 }}
             placeholder="Descrição (opcional)…" value={quickForm.descricao} onChange={e=>qset('descricao',e.target.value)} />
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
