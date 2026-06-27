@@ -31,8 +31,8 @@
 //   fullscreen  → 100 vw (tela cheia)
 //
 // Regras visuais dos campos dentro do SlideOver:
-//   — container usa --so-bg (zinc-50 equivalente = #F8FAFC)
-//   — inputs usam bg branco + borda visível (#CBD5E1) + foco azul
+//   — container usa branco puro (#FFFFFF)
+//   — inputs usam bg cinza-claro (#F8FAFC) + borda visível (#CBD5E1) + foco azul BoostLy
 //   — use a prop `columns` ou o utilitário <FormGrid cols={2}> para 2 colunas
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -45,11 +45,11 @@ const BASE_SIZES  = { compact: 480, default: 680, fullscreen: '100%' }
 const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────
-const SO_BG         = '#F8FAFC'       // zinc-50 equivalente — contraste com branco dos inputs
-const SO_INPUT_BG   = '#FFFFFF'
-const SO_BORDER     = '#CBD5E1'       // zinc-300 equivalente — borda visível
-const SO_FOCUS_RING = '0 0 0 3px rgba(59,130,246,0.18)'
-const SO_FOCUS_BC   = '#3B82F6'      // blue-500
+const SO_BG         = '#FFFFFF'
+const SO_INPUT_BG   = '#F8FAFC'
+const SO_BORDER     = '#CBD5E1'
+const SO_FOCUS_RING = '0 0 0 3px rgba(37,99,235,0.15)'
+const SO_FOCUS_BC   = '#2563EB'
 
 // ── SlideOver ─────────────────────────────────────────────────────────────────
 export default function SlideOver({
