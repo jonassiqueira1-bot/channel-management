@@ -23,7 +23,23 @@ export const RESOURCE_CFG = {
   outro: { icon: '📌', label: 'Outro',        color: '#6B7280', bg: '#F3F4F6' },
 }
 
-export const SEGMENT_OPTIONS = ['SaaS / ISV', 'Saúde', 'Indústria', 'Varejo', 'Educação', 'Serviços', 'Agronegócio', 'Outro']
+// Segmentos alinhados aos verticais gerenciados pela TOTVS (totvs.com)
+export const SEGMENT_OPTIONS = [
+  'Agronegócio',
+  'Construção e Projetos',
+  'Distribuição e Logística',
+  'Educação',
+  'Finanças e Contabilidade',
+  'Gestão de Pessoas (RH)',
+  'Indústria e Manufatura',
+  'Jurídico',
+  'Saúde',
+  'Serviços',
+  'Tecnologia / SaaS / ISV',
+  'Varejo e Comércio',
+  'Setor Público',
+  'Outro',
+]
 export const REGION_OPTIONS  = ['Sul', 'Sudeste', 'Centro-Oeste', 'Nordeste', 'Norte', 'Nacional']
 
 // ─── Playbooks (registros mestre) ─────────────────────────────────────────────

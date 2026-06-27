@@ -326,29 +326,38 @@ function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
 }
 
 // ─── New / Edit Playbook SlideOver ───────────────────────────────────────────
-const EMPTY_PB = { title: '', segment: 'SaaS / ISV', description: '', funil_id: '', produto_id: '', objecoes: [], tipo: 'vendas' }
+const EMPTY_PB = {
+  title: '', segment: 'Tecnologia / SaaS / ISV', description: '',
+  funil_ids: [], funil_id: '',
+  produto_filtro_tipo: '', produto_ids: [], produto_categorias: [], produto_id: '',
+  objecoes: [], tipo: 'vendas',
+}
 
 function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [], produtos = [] }) {
-  const [form, setForm] = useState(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
+  const [form, setForm] = useState(initial ? { ...EMPTY_PB, ...initial } : EMPTY_PB)
   const [tab, setTab]   = useState('info')
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
 
+  const categoriasProduto = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort(), [produtos])
+
   const slideStageCfg = useMemo(() => {
-    if (!form.funil_id) return STAGE_CFG
-    const funil = funis.find(f => String(f.id) === String(form.funil_id))
-    if (!funil?.etapas?.length) return STAGE_CFG
+    const ids = form.funil_ids?.length ? form.funil_ids : (form.funil_id ? [String(form.funil_id)] : [])
+    if (!ids.length) return STAGE_CFG
+    const etapas = funis
+      .filter(f => ids.includes(String(f.id)))
+      .flatMap(f => f.etapas || [])
+    if (!etapas.length) return STAGE_CFG
     return Object.fromEntries(
-      [...funil.etapas]
+      etapas
         .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
         .map(e => [String(e.id), { label: e.nome, icon: '', color: e.cor || 'var(--accent)', bg: (e.cor || '#6366F1') + '22' }])
     )
-  }, [form.funil_id, funis])
+  }, [form.funil_ids, form.funil_id, funis])
 
-  // Sync form when initial changes (open different playbook)
   useMemo(() => {
-    setForm(initial ? { funil_id: '', produto_id: '', objecoes: [], ...initial } : EMPTY_PB)
+    setForm(initial ? { ...EMPTY_PB, ...initial } : EMPTY_PB)
     setTab('info')
   }, [initial])
 
@@ -399,6 +408,7 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                 <select className="so-field" value={form.tipo || 'vendas'} onChange={e => set('tipo', e.target.value)}>
                   <option value="vendas">Vendas (Pipeline / Oportunidades)</option>
                   <option value="sucesso">Sucesso do Cliente (Check-ins)</option>
+                  <option value="administrativo">Administrativo (Processos internos)</option>
                 </select>
               </FormField>
               <FormField label="Segmento">
@@ -406,19 +416,71 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                   {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
                 </select>
               </FormField>
-              <FormField label="Funil (opcional)">
-                <select className="so-field" value={form.funil_id} onChange={e => set('funil_id', e.target.value)}>
-                  <option value="">— Nenhum —</option>
-                  {funis.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
-                </select>
+              <FormField label="Funis (opcional)" span={2}>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: funis.length ? 6 : 0 }}>
+                  {funis.map(f => {
+                    const sel = (form.funil_ids||[]).includes(String(f.id))
+                    return (
+                      <button key={f.id} type="button"
+                        onClick={() => {
+                          const ids = form.funil_ids || []
+                          set('funil_ids', sel ? ids.filter(x => x !== String(f.id)) : [...ids, String(f.id)])
+                        }}
+                        style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)', border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`, background: sel ? 'rgba(99,102,241,0.08)' : 'none', color: sel ? 'var(--accent)' : 'var(--text-soft)' }}>
+                        {f.nome}
+                      </button>
+                    )
+                  })}
+                  {funis.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Nenhum funil cadastrado.</span>}
+                </div>
               </FormField>
-              <FormField label="Produto (opcional)" span={2}>
-                <SearchSelect
-                  options={produtos.map(p => ({ id: String(p.id), label: p.nome }))}
-                  value={form.produto_id ? String(form.produto_id) : ''}
-                  onChange={v => set('produto_id', v || '')}
-                  placeholder="Pesquisar produto…"
-                />
+              <FormField label="Produto / Categoria (opcional)" span={2}>
+                <div style={{ display:'flex', gap:6, marginBottom:8 }}>
+                  {[
+                    { v:'',         l:'Nenhum'    },
+                    { v:'produto',  l:'Produto específico' },
+                    { v:'categoria',l:'Categoria' },
+                  ].map(opt => {
+                    const sel = (form.produto_filtro_tipo||'') === opt.v
+                    return (
+                      <button key={opt.v} type="button"
+                        onClick={() => set('produto_filtro_tipo', opt.v)}
+                        style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
+                        {opt.l}
+                      </button>
+                    )
+                  })}
+                </div>
+                {form.produto_filtro_tipo === 'produto' && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                    {produtos.filter(p => p.status === 'ativo').map(p => {
+                      const sel = (form.produto_ids||[]).includes(String(p.id))
+                      return (
+                        <button key={p.id} type="button"
+                          onClick={() => { const ids = form.produto_ids||[]; set('produto_ids', sel ? ids.filter(x=>x!==String(p.id)) : [...ids,String(p.id)]) }}
+                          style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel?700:500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
+                          {p.nome}
+                        </button>
+                      )
+                    })}
+                    {produtos.filter(p=>p.status==='ativo').length===0 && <span style={{fontSize:12,color:'var(--text-muted)'}}>Nenhum produto ativo.</span>}
+                  </div>
+                )}
+                {form.produto_filtro_tipo === 'categoria' && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
+                    {categoriasProduto.map(cat => {
+                      const sel = (form.produto_categorias||[]).includes(cat)
+                      return (
+                        <button key={cat} type="button"
+                          onClick={() => { const cats = form.produto_categorias||[]; set('produto_categorias', sel ? cats.filter(c=>c!==cat) : [...cats,cat]) }}
+                          style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel?700:500, cursor:'pointer', fontFamily:'var(--font)', border:`1.5px solid ${sel?'var(--accent)':'var(--border)'}`, background: sel?'rgba(99,102,241,0.08)':'none', color: sel?'var(--accent)':'var(--text-soft)' }}>
+                          {cat}
+                        </button>
+                      )
+                    })}
+                    {categoriasProduto.length===0 && <span style={{fontSize:12,color:'var(--text-muted)'}}>Nenhuma categoria cadastrada.</span>}
+                  </div>
+                )}
               </FormField>
               <FormField label="Descrição" span={2}>
                 <textarea className="so-field" value={form.description} onChange={e => set('description', e.target.value)}
