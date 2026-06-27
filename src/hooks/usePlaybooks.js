@@ -96,21 +96,17 @@ export function usePlaybooks() {
 
   const save = useCallback(async (pb) => {
     if (isMockMode.current) {
-      console.warn('[usePlaybooks] isMockMode=true — salvando apenas em memória, não no banco')
       setPlaybooks(prev => { const idx = prev.findIndex(x => x.id === pb.id); if (idx >= 0) { const n=[...prev]; n[idx]=pb; return n } return [...prev, { ...pb, id: pb.id || `pb-${Date.now()}` }] })
       return { ok: true }
     }
     const row = playbookToRow(pb, tenantId, branchId)
-    console.log('[usePlaybooks] save row:', JSON.stringify(row))
     const isUuid = typeof pb.id === 'string' && pb.id.includes('-') && !pb.id.startsWith('pb-')
     if (isUuid) {
       const { error } = await supabase.from('playbooks').update(row).eq('id', pb.id)
-      console.log('[usePlaybooks] update result:', error || 'ok')
       if (error) return { ok: false, message: error.message }
       setPlaybooks(prev => prev.map(x => x.id === pb.id ? { ...x, ...pb } : x))
     } else {
       const { data, error } = await supabase.from('playbooks').insert(row).select().single()
-      console.log('[usePlaybooks] insert result:', error || data)
       if (error) return { ok: false, message: error.message }
       setPlaybooks(prev => [...prev, rowToPlaybook(data)])
     }
