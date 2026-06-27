@@ -22,18 +22,20 @@ function rowToRule(row) {
 }
 
 function ruleToRow(r, tenantId, branchId) {
-  const { id, nome, tipo_calculo, recorrencia, status, vigencia_ini, vigencia_fim, criado, custom_fields, ...rest } = r
+  const { id, nome, tipo_calculo, tipos_calculo_arr, recorrencia, status, vigencia_ini, vigencia_fim, criado, custom_fields, ...rest } = r
+  const tipoCalculo = tipo_calculo || (tipos_calculo_arr && tipos_calculo_arr[0]) || 'percentual_fixo'
   return {
-    tenant_id:    tenantId,
-    branch_id:    branchId || null,
-    nome:         nome,
-    tipo_calculo: tipo_calculo,
-    recorrencia:  recorrencia || null,
-    status:       status || 'ativa',
-    vigencia_ini: vigencia_ini || null,
-    vigencia_fim: vigencia_fim || null,
-    config:       rest,
-    custom_fields: custom_fields || {},
+    tenant_id:        tenantId,
+    branch_id:        branchId || null,
+    nome:             nome || 'Sem nome',
+    tipo_calculo:     tipoCalculo,
+    tipos_calculo_arr: tipos_calculo_arr || [tipoCalculo],
+    recorrencia:      recorrencia || null,
+    status:           status || 'ativa',
+    vigencia_ini:     vigencia_ini || null,
+    vigencia_fim:     vigencia_fim || null,
+    config:           rest,
+    custom_fields:    custom_fields || {},
   }
 }
 
