@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 
 function rowToPayment(row) {
   const cf = row.custom_fields || {}
@@ -68,9 +67,9 @@ export function usePayments() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [pagamentos, setPagamentos] = useState(MOCK_PAGAMENTOS)
+  const [pagamentos, setPagamentos] = useState([])
   const [loading,    setLoading]    = useState(true)
-  const isMockMode                  = useRef(true)
+  const isMockMode                  = useRef(false)
 
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
@@ -84,7 +83,7 @@ export function usePayments() {
       .select('*, companies(nome_fantasia, razao_social)')
       .order('vencimento', { ascending: false })
 
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
     setPagamentos((data || []).map(rowToPayment))

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_MEMBROS_OPP } from '../data/mockMembroOportunidade'
 
 const LS_KEY = 'opp_membros_v1'
 
@@ -29,7 +28,7 @@ export function useOppMembros() {
   const { profile } = useProfile()
   const isMockMode  = useRef(true)
 
-  const [membros, setMembros] = useState(() => lsLoad() || MOCK_MEMBROS_OPP)
+  const [membros, setMembros] = useState(() => lsLoad() || [])
 
   useEffect(() => { lsSave(membros) }, [membros])
 

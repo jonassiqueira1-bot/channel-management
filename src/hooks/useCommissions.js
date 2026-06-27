@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import {
-  MOCK_RULES, MOCK_PAYMENTS, MOCK_PERSONAS,
-} from '../data/mockComissoes'
 
 function rowToRule(row) {
   return {
@@ -93,7 +90,7 @@ export function useCommissions() {
 
   const [rules,    setRules]    = useState([])
   const [payments, setPayments] = useState([])
-  const [personas, setPersonas] = useState(MOCK_PERSONAS)
+  const [personas, setPersonas] = useState([])
   const [loading, setLoading]   = useState(true)
   const isMockMode              = useRef(false)
 
@@ -102,7 +99,7 @@ export function useCommissions() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setRules(MOCK_RULES); setPayments(MOCK_PAYMENTS); setPersonas(MOCK_PERSONAS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
     const [r, p, pe] = await Promise.all([
       supabase.from('commission_rules').select('*').order('created_at', { ascending: false }),
       supabase.from('commission_payments').select('*').order('created_at', { ascending: false }),
