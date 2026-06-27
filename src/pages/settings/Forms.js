@@ -15,7 +15,7 @@ import {
 import {
   Lock, Plus, X, Pencil, GripVertical, ChevronUp,
   ChevronDown, Trash2, Check, Eye, EyeOff, Search,
-  Type, AlignLeft, Hash, Calendar, ToggleLeft, List,
+  Type, AlignLeft, Hash, Calendar, ToggleLeft, List, Link2,
 } from 'lucide-react'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit } from '../../components/ui'
@@ -42,6 +42,7 @@ const TIPOS = [
   { id: 'date',     label: 'Data',           Icon: Calendar },
   { id: 'select',   label: 'Lista',          Icon: List },
   { id: 'boolean',  label: 'Sim / Não',      Icon: ToggleLeft },
+  { id: 'lookup',   label: 'Referência',     Icon: Link2 },
 ]
 
 const TIPO_META = {
@@ -51,7 +52,19 @@ const TIPO_META = {
   date:     { color: '#C2410C', bg: '#FFF7ED' },
   select:   { color: '#86198F', bg: '#FDF4FF' },
   boolean:  { color: '#166534', bg: '#F0FDF4' },
+  lookup:   { color: '#0369A1', bg: '#E0F2FE' },
 }
+
+// Cadastros disponíveis como referência
+const LOOKUP_TARGETS = [
+  { id: 'companies',     label: 'Empresas' },
+  { id: 'contacts',      label: 'Contatos / Canais' },
+  { id: 'products',      label: 'Produtos' },
+  { id: 'opportunities', label: 'Oportunidades' },
+  { id: 'contracts',     label: 'Contratos' },
+  { id: 'sellers',       label: 'Usuários / Vendedores' },
+  { id: 'tenant_branches', label: 'Filiais' },
+]
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
 
@@ -121,6 +134,16 @@ function PreviewField({ field }) {
     control = (
       <div style={{ ...inputBase, display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>0,00</span>
+      </div>
+    )
+  } else if (field_type === 'lookup') {
+    const target = LOOKUP_TARGETS.find(t => t.id === field.lookup_target)
+    control = (
+      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
+          {target ? `Buscar em ${target.label}…` : 'Selecionar referência…'}
+        </span>
+        <Link2 size={11} color="var(--border2)" strokeWidth={1.75} />
       </div>
     )
   } else {
@@ -433,13 +456,14 @@ function DropSlot({ slotId, field, onRemove, onEdit, onAdd }) {
 // ─── Modal: criar / editar campo ─────────────────────────────────────────────
 function FieldModal({ initial, entity, allFields, onClose, onSave }) {
   const isEdit = !!initial
-  const [label, setLabel]   = useState(initial?.label || '')
-  const [key, setKey]       = useState(initial?.field_key || '')
-  const [tipo, setTipo]     = useState(initial?.field_type || 'text')
-  const [opts, setOpts]     = useState((initial?.options || []).join('\n'))
-  const [req, setReq]       = useState(initial?.is_required || false)
+  const [label, setLabel]         = useState(initial?.label || '')
+  const [key, setKey]             = useState(initial?.field_key || '')
+  const [tipo, setTipo]           = useState(initial?.field_type || 'text')
+  const [opts, setOpts]           = useState((initial?.options || []).join('\n'))
+  const [req, setReq]             = useState(initial?.is_required || false)
+  const [lookupTarget, setLookupTarget] = useState(initial?.lookup_target || '')
   const [keyManual, setKeyManual] = useState(isEdit)
-  const [errs, setErrs]     = useState({})
+  const [errs, setErrs]           = useState({})
 
   function autoKey(v) {
     return v.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
@@ -460,6 +484,7 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
       const dup = allFields.find(f => f.field_key === key && f.entity === entity && f.id !== initial?.id)
       if (dup) e.key = 'Chave já existe nesta entidade'
     }
+    if (tipo === 'lookup' && !lookupTarget) e.lookup = 'Selecione o cadastro de referência'
     return e
   }
 
@@ -472,6 +497,7 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
       entity, label: label.trim(), field_key: key,
       field_type: tipo,
       options: tipo === 'select' ? opts.split('\n').map(o=>o.trim()).filter(Boolean) : [],
+      lookup_target: tipo === 'lookup' ? lookupTarget : null,
       is_required: req, is_system: false,
     })
   }
@@ -544,6 +570,33 @@ function FieldModal({ initial, entity, allFields, onClose, onSave }) {
                 <textarea rows={4} style={{ ...cs.inp, resize:'vertical', fontFamily:'var(--mono)', fontSize:12, lineHeight:1.6 }}
                   value={opts} onChange={e => setOpts(e.target.value)}
                   placeholder={'Opção 1\nOpção 2\nOpção 3'} />
+              </div>
+            )}
+
+            {tipo === 'lookup' && (
+              <div style={cs.fg}>
+                <label style={cs.lbl}>Cadastro referenciado *</label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                  {LOOKUP_TARGETS.map(t => {
+                    const sel = lookupTarget === t.id
+                    return (
+                      <button key={t.id} type="button" onClick={() => setLookupTarget(t.id)}
+                        style={{ padding:'9px 12px', borderRadius:8, cursor:'pointer', textAlign:'left',
+                          border:`2px solid ${sel ? '#0369A1' : 'var(--border)'}`,
+                          background: sel ? '#E0F2FE' : 'var(--surface2)',
+                          display:'flex', alignItems:'center', gap:7, transition:'all 0.12s' }}>
+                        <Link2 size={12} color={sel ? '#0369A1' : 'var(--text-muted)'} strokeWidth={1.75} />
+                        <span style={{ fontSize:12, fontWeight: sel ? 700 : 500, color: sel ? '#0369A1' : 'var(--text)' }}>
+                          {t.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {!lookupTarget && <span style={cs.err}>Selecione o cadastro de referência</span>}
+                <span style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>
+                  O campo exibirá um seletor que busca registros do cadastro escolhido.
+                </span>
               </div>
             )}
 
