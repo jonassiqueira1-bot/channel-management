@@ -1286,8 +1286,9 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
     if (!form.nome?.trim()) { setErr('Informe o nome da regra.'); return }
     if (form.escopo_interno && !form.beneficiario_id)              { setErr('Selecione o usuário para o escopo Individual.'); return }
     if (form.escopo_equipe  && !(form.equipe_ids||[]).length)      { setErr('Selecione membros para o escopo Equipe.'); return }
-    if (form.escopo_externo && !form.contato_id)                   { setErr('Selecione o Contato Canal.'); return }
-    if (!form.escopo_interno && !form.escopo_equipe && !form.escopo_externo) { setErr('Selecione ao menos um escopo.'); return }
+    if (form.escopo_externo  && !form.contato_id)                   { setErr('Selecione o Contato Canal.'); return }
+    if (form.escopo_parceiro && !form.parceiro_id)                  { setErr('Selecione o Parceiro.'); return }
+    if (!form.escopo_interno && !form.escopo_equipe && !form.escopo_externo && !form.escopo_parceiro) { setErr('Selecione ao menos um escopo.'); return }
     setSaving(true); setErr(null)
     try {
       onSave({ ...form, id: form.id || `r${Date.now()}` })
