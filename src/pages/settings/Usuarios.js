@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useUsuarios } from '../../hooks/useUsuarios'
+import { usePendingInvites } from '../../hooks/usePendingInvites'
 import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
 import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
@@ -987,6 +988,7 @@ function ImportModal({ onClose, onImport }) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsUsuarios() {
   const { usuarios: perfis, save: saveUsuario, remove: removeUsuario } = useUsuarios()
+  const { invites, invite: criarConvite, remove: cancelarConvite } = usePendingInvites()
   const { registrar: log } = useAuditLog()
   const sessao                   = SESSOES_MOCK[0]
   const [modalConvite, setModalConvite] = useState(false)
@@ -997,7 +999,30 @@ export default function SettingsUsuarios() {
   // Filtro RLS simulado
   const perfisFiltradosSessao = useMemo(() => filtrarPorSessao(perfis, sessao), [perfis, sessao])
 
-  const lista = perfisFiltradosSessao
+  // Convites pendentes exibidos como linhas com status 'pendente'
+  const inviteRows = invites.map(i => ({
+    id: i.id,
+    nome: i.nome,
+    email: i.email,
+    papel: i.papel,
+    tipo_usuario: i.tipo_usuario,
+    status: 'pendente',
+    criado_em: i.criado_em,
+    ultimo_acesso: null,
+    _invite: true,
+  }))
+
+  const lista = [...perfisFiltradosSessao, ...inviteRows]
+
+  async function salvarConvite(novo) {
+    const res = await criarConvite({
+      nome: novo.nome,
+      email: novo.email,
+      papel: novo.papel,
+      tipo_usuario: novo.tipo_usuario,
+    })
+    if (res.ok) log('criar', 'usuario', novo.email, { descricao: `Convite enviado para: ${novo.email}` })
+  }
 
   function salvarPerfil(novo) {
     const isNew = !perfis.find(p => p.id === novo.id)
@@ -1062,7 +1087,8 @@ export default function SettingsUsuarios() {
         onNew={podeCriar ? () => setModalConvite(true) : undefined}
         newLabel="+ Convidar usuário"
         rowActions={[
-          { label: 'Editar', onClick: row => setEditando(row) },
+          { label: 'Editar',           visible: row => !row._invite, onClick: row => setEditando(row) },
+          { label: 'Cancelar convite', visible: row => !!row._invite, danger: true, onClick: row => cancelarConvite(row.id) },
         ]}
         emptyLabel="Nenhum usuário encontrado"
         search={busca}
@@ -1081,9 +1107,9 @@ export default function SettingsUsuarios() {
       {modalConvite && (
         <ConviteModal
           onClose={() => setModalConvite(false)}
-          onSave={salvarPerfil}
+          onSave={salvarConvite}
           sessao={sessao}
-          perfisExistentes={perfis}
+          perfisExistentes={lista}
         />
       )}
     </div>

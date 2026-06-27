@@ -66,7 +66,8 @@ function RowMenu({ actions, row }) {
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [open])
-  if (!actions?.length) return null
+  const visibleActions = actions.filter(a => !a.visible || a.visible(row))
+  if (!visibleActions.length) return null
   return (
     <div ref={ref} style={{ position:'relative', display:'inline-flex' }}>
       <button type="button" onClick={() => setOpen(o => !o)}
@@ -78,7 +79,7 @@ function RowMenu({ actions, row }) {
       </button>
       {open && (
         <div style={{ position:'absolute', top:'calc(100% + 3px)', right:0, zIndex:100, background:Z.white, border:`1px solid ${Z[200]}`, borderRadius:6, boxShadow:'0 4px 16px rgba(0,0,0,0.08)', padding:'3px 0', minWidth:150 }}>
-          {actions.map((a, i) => (
+          {visibleActions.map((a, i) => (
             <button key={i} type="button" onClick={() => { a.onClick(row); setOpen(false) }}
               style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 12px', border:'none', background:'transparent', fontFamily:'var(--font)', fontSize:13, color: a.danger ? Z.danger : Z[700], cursor:'pointer', textAlign:'left' }}
               onMouseEnter={e => e.currentTarget.style.background = a.danger ? Z.dangerBg : Z[50]}
