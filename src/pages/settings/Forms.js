@@ -64,6 +64,7 @@ const LOOKUP_TARGETS = [
   { id: 'contracts',     label: 'Contratos' },
   { id: 'sellers',       label: 'Usuários / Vendedores' },
   { id: 'tenant_branches', label: 'Filiais' },
+  { id: 'parceiros',       label: 'Parceiros' },
 ]
 
 function uid() { return `${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
