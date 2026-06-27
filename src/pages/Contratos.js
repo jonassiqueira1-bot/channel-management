@@ -10,6 +10,8 @@ import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/Sl
 import BrowseLayout from '../components/BrowseLayout'
 import { DeleteZone } from '../components/NotionDrawer'
 import ActionFeedback from '../components/ActionFeedback'
+import { supabase } from '../lib/supabase'
+import { useProfile } from '../hooks/useProfile'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -272,68 +274,180 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
 }
 
 
-// ─── Geração de provisões de pagamento ────────────────────────────────────────
-function gerarProvisoesPagamento(contrato) {
-  const stored = localStorage.getItem(PAGAMENTOS_STORAGE_KEY)
-  const pagamentos = stored ? JSON.parse(stored) : MOCK_PAGAMENTOS
-  const novas = []
+// ─── Provisões de pagamento (Supabase) ───────────────────────────────────────
+async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   const toRefMonth = date => date.slice(0, 7) + '-01'
-  const cduRef = contrato.data_pag_cdu ? toRefMonth(contrato.data_pag_cdu) : null
-  const smsRef = contrato.data_pag_sms ? toRefMonth(contrato.data_pag_sms) : null
+  const cduRef  = contrato.data_pag_cdu ? toRefMonth(contrato.data_pag_cdu) : null
+  const smsRef  = contrato.data_pag_sms ? toRefMonth(contrato.data_pag_sms) : null
   const valorCdu = (contrato.itens_adesao||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-  const valorSms = (contrato.itens_mrr||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-  const prodCdu  = contrato.itens_adesao?.[0] ? { id: contrato.itens_adesao[0].produto_id, nome: contrato.itens_adesao[0].nome } : { id: null, nome: '' }
-  const prodSms  = contrato.itens_mrr?.[0]    ? { id: contrato.itens_mrr[0].produto_id,    nome: contrato.itens_mrr[0].nome    } : { id: null, nome: '' }
-  const base = {
-    contract_id: contrato.id, contract_numero: contrato.numero,
-    company_id: contrato.empresa_id, company_nome: contrato.empresa_nome,
-    num_documento: null, data_emissao: null, parcela: '1/1',
-    amount_services: 0, amount_discount: 0,
-    valor_recebido: null, data_baixa: null,
-    status: 'pendente', processed: false,
-    tenant_id: 't1', criado: new Date().toISOString().slice(0, 10),
-  }
+  const valorSms = (contrato.itens_mrr||[]).reduce((s,i)   => s + (parseFloat(i.valor)||0), 0)
+  const prodCdu  = contrato.itens_adesao?.[0] || {}
+  const prodSms  = contrato.itens_mrr?.[0]    || {}
+
+  // Checa duplicatas já no banco
+  const { data: existentes } = await supabase
+    .from('payments')
+    .select('id, data_pagamento, custom_fields')
+    .eq('contract_id', contrato.id)
+
   const jaExiste = (ref, campo) =>
-    pagamentos.some(p => p.contract_numero === contrato.numero && p.reference_month === ref && p[campo] > 0)
+    (existentes || []).some(p => p.data_pagamento === ref && (p.custom_fields?.[campo] || 0) > 0)
+
+  const base = {
+    tenant_id:    tenantId,
+    branch_id:    branchId || null,
+    contract_id:  contrato.id,
+    company_id:   contrato.empresa_id || null,
+    status:       'pendente',
+    descricao:    `Provisão automática — contrato ${contrato.numero}`,
+    custom_fields: {
+      contract_numero: contrato.numero,
+      company_nome:    contrato.empresa_nome,
+      parcela:         '1/1',
+      amount_services: 0,
+      amount_discount: 0,
+      processed:       false,
+    },
+  }
+
+  const inserir = []
 
   if (cduRef && valorCdu > 0 && !jaExiste(cduRef, 'amount_cdu')) {
     if (cduRef === smsRef && valorSms > 0) {
-      novas.push({ ...base, id: 'prov_' + Date.now() + '_cdu_sms', produto_id: prodCdu.id, produto_nome: prodCdu.nome, amount_cdu: valorCdu, amount_sms: valorSms, amount_total_net: valorCdu + valorSms, reference_month: cduRef, due_date: contrato.data_pag_cdu, notes: 'Provisão CDU+SMS gerada automaticamente ao criar contrato.' })
+      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
+        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
+          amount_cdu: valorCdu, amount_sms: valorSms, amount_total_net: valorCdu + valorSms } })
     } else {
-      novas.push({ ...base, id: 'prov_' + Date.now() + '_cdu', produto_id: prodCdu.id, produto_nome: prodCdu.nome, amount_cdu: valorCdu, amount_sms: 0, amount_total_net: valorCdu, reference_month: cduRef, due_date: contrato.data_pag_cdu, notes: 'Provisão CDU gerada automaticamente ao criar contrato.' })
+      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
+        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
+          amount_cdu: valorCdu, amount_sms: 0, amount_total_net: valorCdu } })
     }
   }
   if (smsRef && valorSms > 0 && cduRef !== smsRef && !jaExiste(smsRef, 'amount_sms')) {
-    novas.push({ ...base, id: 'prov_' + Date.now() + '_sms', produto_id: prodSms.id, produto_nome: prodSms.nome, amount_cdu: 0, amount_sms: valorSms, amount_total_net: valorSms, reference_month: smsRef, due_date: contrato.data_pag_sms, notes: 'Provisão SMS gerada automaticamente ao criar contrato.' })
+    inserir.push({ ...base, data_pagamento: smsRef, vencimento: contrato.data_pag_sms,
+      custom_fields: { ...base.custom_fields, produto_id: prodSms.produto_id, produto_nome: prodSms.nome,
+        amount_cdu: 0, amount_sms: valorSms, amount_total_net: valorSms } })
   }
-  // Fallback: se nenhuma data específica foi configurada mas o contrato tem valor, gera uma provisão geral
-  if (novas.length === 0) {
-    const totalGeral = [
-      ...(contrato.itens_adesao  || []),
-      ...(contrato.itens_mrr     || []),
-      ...(contrato.itens_servico || []),
-    ].reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)
-    const dueDate = contrato.vigencia_inicio || new Date().toISOString().slice(0, 10)
-    const ref     = dueDate.slice(0, 7) + '-01'
-    const jaExisteGeral = pagamentos.some(
-      p => p.contract_numero === contrato.numero && p.reference_month === ref
-    )
-    if (totalGeral > 0 && !jaExisteGeral) {
-      novas.push({
-        ...base,
-        id: 'prov_' + Date.now() + '_geral',
-        produto_id: null, produto_nome: '',
-        amount_cdu: totalGeral, amount_sms: 0,
-        amount_total_net: totalGeral,
-        reference_month: ref,
-        due_date: dueDate,
-        notes: 'Provisão gerada automaticamente ao criar contrato.',
+
+  // Fallback: nenhuma data configurada mas tem valor
+  if (inserir.length === 0) {
+    const total = [...(contrato.itens_adesao||[]), ...(contrato.itens_mrr||[]), ...(contrato.itens_servico||[])]
+      .reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    if (total > 0) {
+      const dueDate = contrato.vigencia_inicio || new Date().toISOString().slice(0,10)
+      const ref     = dueDate.slice(0,7) + '-01'
+      if (!jaExiste(ref, 'amount_cdu')) {
+        inserir.push({ ...base, data_pagamento: ref, vencimento: dueDate,
+          custom_fields: { ...base.custom_fields, amount_cdu: total, amount_sms: 0, amount_total_net: total } })
+      }
+    }
+  }
+
+  if (!inserir.length) return 0
+  const { error } = await supabase.from('payments').insert(inserir)
+  if (error) console.error('[gerarProvisoesPagamento]', error.message)
+  return inserir.length
+}
+
+// ─── Provisões de comissão (Supabase) ────────────────────────────────────────
+async function gerarProvisoesComissao(contrato, tenantId, branchId) {
+  // Busca oportunidade relacionada para pegar equipe interna
+  let oppResponsavel = contrato.responsavel || null
+  let oppId = contrato.opportunity_id || null
+  if (oppId) {
+    const { data: opp } = await supabase
+      .from('oportunidades')
+      .select('responsavel, custom_fields')
+      .eq('id', oppId)
+      .maybeSingle()
+    if (opp) oppResponsavel = opp.responsavel || opp.custom_fields?.responsavel || oppResponsavel
+  }
+
+  // Busca regras de comissão ativas do tenant
+  const { data: regras } = await supabase
+    .from('commission_rules')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('status', 'ativa')
+
+  if (!regras?.length) return 0
+
+  // Busca personas configuradas
+  const { data: personas } = await supabase
+    .from('commission_personas')
+    .select('*')
+    .eq('tenant_id', tenantId)
+    .eq('ativo', true)
+
+  const totalAdesao = (contrato.itens_adesao||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+  const totalMrr    = (contrato.itens_mrr||[]).reduce((s,i)    => s + (parseFloat(i.valor)||0), 0)
+  const hoje = new Date()
+  const mesAtual = hoje.getMonth() + 1
+  const anoAtual = hoje.getFullYear()
+
+  const provisoes = []
+
+  for (const regra of regras) {
+    const cfg = regra.config || {}
+    const percentual = Number(cfg.percentual_comissao || 0) / 100
+    const baseCalcPct = Number(cfg.base_calculo_pct || 100) / 100
+    const repassePct  = Number(cfg.repasse_origem_pct || 100) / 100
+
+    // Base de cálculo: adesão + MRR ponderados
+    const baseValor = (totalAdesao + totalMrr) * baseCalcPct * repassePct
+    if (!baseValor || !percentual) continue
+
+    const valorComissao = baseValor * percentual
+
+    // Gera uma provisão por persona configurada na regra, ou uma geral
+    const personaPercs = cfg.persona_percentuais || []
+    if (personaPercs.length && personas?.length) {
+      for (const pp of personaPercs) {
+        const persona = personas.find(p => p.id === pp.persona_id)
+        if (!persona) continue
+        const pct = Number(pp.cdu_pct || pp.sms_pct || pp.servicos_pct || 0) / 100
+        if (!pct) continue
+        provisoes.push({
+          tenant_id:         tenantId,
+          branch_id:         branchId || null,
+          rule_id:           regra.id,
+          contract_id:       contrato.id,
+          company_id:        contrato.empresa_id || null,
+          persona_slug:      persona.slug,
+          periodo_mes:       mesAtual,
+          periodo_ano:       anoAtual,
+          valor_bruto:       baseValor,
+          valor_comissao:    baseValor * pct,
+          status:            'pendente',
+          observacoes:       `Provisão automática — contrato ${contrato.numero} — ${regra.nome}`,
+          custom_fields:     { opportunity_id: oppId, responsavel: oppResponsavel, persona_label: persona.label },
+        })
+      }
+    } else {
+      // Uma provisão geral pela regra sem breakdown por persona
+      provisoes.push({
+        tenant_id:         tenantId,
+        branch_id:         branchId || null,
+        rule_id:           regra.id,
+        contract_id:       contrato.id,
+        company_id:        contrato.empresa_id || null,
+        persona_slug:      null,
+        beneficiario_nome: oppResponsavel,
+        periodo_mes:       mesAtual,
+        periodo_ano:       anoAtual,
+        valor_bruto:       baseValor,
+        valor_comissao:    valorComissao,
+        status:            'pendente',
+        observacoes:       `Provisão automática — contrato ${contrato.numero} — ${regra.nome}`,
+        custom_fields:     { opportunity_id: oppId, responsavel: oppResponsavel },
       })
     }
   }
 
-  if (novas.length > 0) localStorage.setItem(PAGAMENTOS_STORAGE_KEY, JSON.stringify([...novas, ...pagamentos]))
-  return novas.length
+  if (!provisoes.length) return 0
+  const { error } = await supabase.from('commission_payments').insert(provisoes)
+  if (error) console.error('[gerarProvisoesComissao]', error.message)
+  return provisoes.length
 }
 
 // ─── Formulário (SlideOver) ───────────────────────────────────────────────────
@@ -369,14 +483,13 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   async function executarSave() {
     setSaving(true)
     try {
-      onSave(confirmData)
-      let qtd = 0
-      if (gerarProvisao) qtd = gerarProvisoesPagamento(confirmData)
+      const steps = [{ id: 'contrato', label: `Contrato ${confirmData.numero} criado`, sublabel: confirmData.empresa_nome }]
+      await onSave(confirmData, {
+        onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
+      })
+      if (!gerarProvisao) steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
       onShowFeedback([
-        { id: 'contrato', label: `Contrato ${confirmData.numero} criado`, sublabel: confirmData.empresa_nome },
-        gerarProvisao
-          ? { id: 'provisao', label: `${qtd || 1} provisão(ões) gerada(s) em Pagamentos`, sublabel: 'Status: Pendente' }
-          : { id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true },
+        ...steps,
       ])
       onClose()
     } finally {
@@ -710,6 +823,7 @@ export default function Contratos() {
   const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts()
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
+  const { profile } = useProfile()
   const [search, setSearch]           = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [editando, setEditando]       = useState(null)
@@ -753,10 +867,31 @@ export default function Contratos() {
     </div>
   )
 
-  async function handleSave(data) {
-    const isNew = !contratos.find(c => c.id === data.id)
-    await saveContrato(data)
-    log(isNew ? 'criar' : 'editar', 'contrato', data.id, { descricao: `Contrato ${isNew ? 'criado' : 'editado'}: ${data.numero || ''} — ${data.empresa_nome || ''}` })
+  async function handleSave(data, opts = {}) {
+    const anterior = contratos.find(c => c.id === data.id)
+    const isNew = !anterior
+    const ativando = !isNew && anterior?.status === 'rascunho' && data.status === 'ativo'
+
+    const result = await saveContrato(data)
+    const contratoFinal = { ...data, id: result?.data?.id || data.id }
+
+    log(isNew ? 'criar' : 'editar', 'contrato', contratoFinal.id, {
+      descricao: `Contrato ${isNew ? 'criado' : 'editado'}: ${data.numero || ''} — ${data.empresa_nome || ''}`,
+    })
+
+    // Dispara provisões ao ativar (Rascunho → Ativo) ou ao criar já como Ativo
+    const tenantId = profile?.tenant_id
+    const branchId = profile?.branch_id || null
+    if ((ativando || (isNew && data.status === 'ativo')) && tenantId) {
+      const steps = []
+      const [qtdPag, qtdCom] = await Promise.all([
+        gerarProvisoesPagamento(contratoFinal, tenantId, branchId),
+        gerarProvisoesComissao(contratoFinal, tenantId, branchId),
+      ])
+      if (qtdPag > 0) steps.push({ id: 'pag', label: `${qtdPag} provisão(ões) de pagamento gerada(s)`, sublabel: 'Status: Pendente — visível em Pagamentos' })
+      if (qtdCom > 0) steps.push({ id: 'com', label: `${qtdCom} provisão(ões) de repasse gerada(s)`, sublabel: 'Status: Pendente — visível em Comissões' })
+      if (steps.length && opts.onFeedback) opts.onFeedback(steps)
+    }
   }
 
   async function handleDelete(id) {

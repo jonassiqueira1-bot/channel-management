@@ -126,6 +126,7 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
       const { data, error } = await supabase.from('contracts').insert(row).select('*, companies(nome_fantasia, razao_social)').single()
       if (error) return { ok: false, message: error.message }
       setContratos(prev => [...prev, rowToContrato(data)])
+      return { ok: true, data: rowToContrato(data) }
     }
     return { ok: true }
   }, [tenantId, branchId])
