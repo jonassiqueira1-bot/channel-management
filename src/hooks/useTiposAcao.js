@@ -53,14 +53,19 @@ export function useTiposAcao(defaults = []) {
       })
       return { ok: true }
     }
+    const isNew = !record.id || !String(record.id).includes('-')
     const row = { ...record, text_color: record.text, tenant_id: tid.current }
     delete row.text
-    const { error } = await supabase.from('tipos_acao').upsert(row, { onConflict: 'id' })
+    if (isNew) {
+      delete row.id
+      const { data, error } = await supabase.from('tipos_acao').insert(row).select().single()
+      if (error) return { ok: false, message: error.message }
+      setTipos(prev => [...prev, { ...record, id: data.id }])
+      return { ok: true }
+    }
+    const { error } = await supabase.from('tipos_acao').update(row).eq('id', record.id)
     if (error) return { ok: false, message: error.message }
-    setTipos(prev => {
-      const idx = prev.findIndex(t => t.id === record.id)
-      return idx >= 0 ? prev.map(t => t.id === record.id ? record : t) : [...prev, record]
-    })
+    setTipos(prev => prev.map(t => t.id === record.id ? { ...t, ...record } : t))
     return { ok: true }
   }, [])
 
