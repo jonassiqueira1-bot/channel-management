@@ -15,7 +15,7 @@ import {
   ENTIDADES_ELEGIBILIDADE, OPERADORES_POR_TIPO, JOIN_PARES,
   EMPTY_RULE,
 } from '../data/mockComissoes'
-import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useProducts } from '../hooks/useProducts'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
 import { useUsuarios } from '../hooks/useUsuarios'
@@ -991,6 +991,7 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const { produtos } = useProducts()
   const isNew = !form.id
   const tipos = form.tipos_calculo_arr || ['percentual_fixo']
   const isFixo = tipos.includes('percentual_fixo'); const isCadeia = tipos.includes('cadeia_repasse'); const isEscal = tipos.includes('escalonado')
@@ -1123,7 +1124,7 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
           <FormGrid cols={1}>
             <FormField label="Produtos">
               <MultiSearchSelect values={form.produto_ids||[]} onChange={ids=>set('produto_ids',ids)}
-                options={MOCK_PRODUTOS.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo} · ${p.categoria}` }))}
+                options={produtos.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo} · ${p.categoria}` }))}
                 placeholder="Buscar produto…" />
             </FormField>
           </FormGrid>
@@ -1133,7 +1134,7 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             <FormField label="Categorias">
               <MultiSearchSelect values={form.produto_categorias||[]}
                 onChange={cats=>set('produto_categorias',cats)}
-                options={[...new Set(MOCK_PRODUTOS.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
+                options={[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
                 placeholder="Buscar categoria…" />
             </FormField>
           </FormGrid>
