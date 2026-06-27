@@ -8,18 +8,19 @@ import {
 
 function rowToPlaybook(row) {
   const cf = row.custom_fields || {}
+  const tit = row.titulo || row.nome || ''  // fallback para coluna legada 'nome'
   return {
     id:          row.id,
-    titulo:      row.titulo,
-    title:       row.titulo,        // alias usado pelo Pipeline
+    titulo:      tit,
+    title:       tit,
     descricao:   row.descricao || '',
-    description: row.descricao || '', // alias usado pelo Pipeline
+    description: row.descricao || '',
     segment:     cf.segment || '',
     status:      row.status || 'rascunho',
     owner_id:    row.owner_id || null,
     criado:      row.created_at?.slice(0, 10) || '',
     atualizado:  row.updated_at?.slice(0, 10) || '',
-    steps:       row.steps || [],
+    steps:       row.steps || row.etapas || [],   // fallback para coluna legada 'etapas'
     refs:        row.refs  || [],
     resources:   row.resources || [],
     ...cf,
@@ -28,11 +29,13 @@ function rowToPlaybook(row) {
 
 function playbookToRow(pb, tenantId, branchId) {
   const { id, titulo, title, descricao, description, status, owner_id, criado, atualizado, ...rest } = pb
+  const tit = titulo || title || ''
   return {
     tenant_id:    tenantId,
     branch_id:    branchId || null,
     owner_id:     owner_id || null,
-    titulo:       titulo || title || '',
+    titulo:       tit,
+    nome:         tit,   // mantém coluna legada sincronizada
     descricao:    descricao || description || null,
     status:       status || 'rascunho',
     steps:        rest.steps || [],
