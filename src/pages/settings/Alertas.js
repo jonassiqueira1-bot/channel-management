@@ -15,6 +15,7 @@ const ORIGENS = [
   { key: 'projetos',            label: 'Projetos'      },
   { key: 'tarefas',             label: 'Tarefas'       },
   { key: 'companies',           label: 'Empresas'      },
+  { key: 'goals',               label: 'Metas & KPIs'  },
 ]
 
 // ─── Campos padrão por origem ─────────────────────────────────────────────────
@@ -59,6 +60,15 @@ const CAMPOS_PADRAO = {
   companies: [
     { key: 'updated_at', label: 'Última atualização', tipo: 'date' },
     { key: 'status',     label: 'Status', tipo: 'enum', opts: ['ativo','inativo'] },
+  ],
+  goals: [
+    { key: 'valor_atual',    label: 'Valor atual',     tipo: 'money'  },
+    { key: 'valor_planejado',label: 'Valor planejado', tipo: 'money'  },
+    { key: 'status',         label: 'Status',          tipo: 'enum',   opts: ['ativa','pausada','encerrada'] },
+    { key: 'tipo_meta',      label: 'Tipo de meta',    tipo: 'enum',   opts: ['valor','quantidade','percentual'] },
+    { key: 'tipo_alvo',      label: 'Alvo',            tipo: 'enum',   opts: ['vendedor','unidade','categoria','produto'] },
+    { key: 'periodo_mes',    label: 'Mês do período',  tipo: 'number'  },
+    { key: 'periodo_ano',    label: 'Ano do período',  tipo: 'number'  },
   ],
 }
 

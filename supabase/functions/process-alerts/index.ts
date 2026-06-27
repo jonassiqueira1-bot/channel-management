@@ -271,6 +271,12 @@ const ORIGEM_CONFIG: Record<string, { select: string; entidade_tipo: string; lin
     entidade_tipo: 'empresa', link: '/empresas',
     titulo: r => `Empresa · ${r.nome_fantasia || r.razao_social}`,
   },
+  goals: {
+    select: 'id, alvo_nome, tipo_meta, tipo_alvo, status, valor_planejado, valor_atual, periodo_mes, periodo_ano, custom_fields',
+    entidade_tipo: 'meta', link: '/metas',
+    titulo: r => `Meta · ${r.alvo_nome || r.tipo_alvo} (${r.periodo_mes}/${r.periodo_ano})`,
+    prioridade: r => Number(r.valor_atual) < Number(r.valor_planejado) * 0.5 ? 'alta' : 'media',
+  },
 }
 
 // ─── Processadores legados (mantidos para compatibilidade) ─────────────────────
