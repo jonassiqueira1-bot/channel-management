@@ -470,7 +470,7 @@ function PersonasEditor({ personas, onChange, onClose, usuarios = [], parceiros 
   const [list, setList] = useState(personas.map(p => ({ ...p })))
   const [editing, setEditing] = useState(null)
   const colors = ['var(--accent)','#0EA5E9','#F59E0B','#10B981','var(--accent)','#EF4444','#EC4899','#14B8A6','#F97316','#84CC16']
-  function add() { const novo = { id: uid(), slug: `persona_${uid()}`, label: 'Novo Persona', descricao: '', cor: colors[list.length % colors.length], ordem: list.length, ativo: true, usuario_id: null }; setList(l => [...l, novo]); setEditing(novo.id) }
+  function add() { const novo = { id: crypto.randomUUID(), slug: `persona_${uid()}`, label: 'Novo Persona', descricao: '', cor: colors[list.length % colors.length], ordem: list.length, ativo: true, usuario_id: null }; setList(l => [...l, novo]); setEditing(novo.id) }
   function remove(id) { setList(l => l.filter(p => p.id !== id)) }
   function update(id, patch) { setList(l => l.map(p => p.id === id ? { ...p, ...patch } : p)) }
   function toggleAtivo(id) { update(id, { ativo: !list.find(p=>p.id===id)?.ativo }) }
