@@ -193,13 +193,13 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
           <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
         </FormField>
 
-        <FormField label="Data de início" required error={errs.data_inicio}>
-          <input className="so-field" type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
+        <FormField label="Data e hora de início" required error={errs.data_inicio}>
+          <input className="so-field" type="datetime-local" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
             style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
         </FormField>
 
-        <FormField label="Data de fim">
-          <input className="so-field" type="date" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
+        <FormField label="Data e hora de fim">
+          <input className="so-field" type="datetime-local" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
         </FormField>
 
         <FormField label="Vagas" style={{ gridColumn: 'span 2' }}>
