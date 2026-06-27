@@ -112,8 +112,8 @@ function StatusBadge({ status }) {
 function PrioridadeBadge({ prioridade }) {
   const cfg = PRIORIDADE_CFG[prioridade] || PRIORIDADE_CFG.media
   return (
-    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:3,
-      background:cfg.bg, color:cfg.text, border:`1px solid ${cfg.color}44`, fontFamily:'var(--mono)' }}>
+    <span style={{ fontSize:10, fontWeight:700, padding:'2px 9px', borderRadius:'var(--radius-pill)',
+      background:cfg.bg, color:cfg.text, border:`1px solid ${cfg.color}55`, fontFamily:'var(--mono)' }}>
       {cfg.label.toUpperCase()}
     </span>
   )
@@ -125,7 +125,7 @@ function EntidadeTag({ tipo, nome }) {
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:11,
       color:'var(--accent)', fontFamily:'var(--mono)', background:'var(--blue-bg)',
-      padding:'2px 7px', borderRadius:4, border:'1px solid rgba(30,58,95,0.12)', whiteSpace:'nowrap', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis' }}>
+      padding:'2px 8px', borderRadius:'var(--radius-sm)', border:'1px solid var(--accent-mid)', whiteSpace:'nowrap', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis' }}>
       <span style={{ fontSize:10 }}>{icons[tipo]||'○'}</span>
       {nome}
     </span>
@@ -519,10 +519,15 @@ const imp = {
 }
 
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, accent, red }) {
+function KpiCard({ label, value, accent, red, green }) {
   return (
-    <div style={{ ...p.kpi, ...(accent?{ borderTopColor:'var(--accent)' }:{}), ...(red?{ borderTopColor:'var(--red)' }:{}) }}>
-      <span style={p.kpiVal}>{value}</span>
+    <div style={{
+      ...p.kpi,
+      ...(accent ? { borderTopColor:'var(--accent)' } : {}),
+      ...(red    ? { borderTopColor:'var(--red)'    } : {}),
+      ...(green  ? { borderTopColor:'var(--success)' } : {}),
+    }}>
+      <span style={{ ...p.kpiVal, ...(accent?{ color:'var(--accent)' }:{}), ...(red?{ color:'var(--red)' }:{}), ...(green?{ color:'var(--success)' }:{}) }}>{value}</span>
       <span style={p.kpiLbl}>{label}</span>
     </div>
   )
@@ -971,9 +976,9 @@ export default function Tarefas() {
   const kpisNode = (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, paddingTop:4 }}>
       <KpiCard label="Total de tarefas" value={tarefas.length} />
-      <KpiCard label="Abertas"          value={pendentes} accent />
-      <KpiCard label="Concluídas"       value={concluidas} />
-      <KpiCard label="Atrasadas"        value={atrasadas} red />
+      <KpiCard label="Abertas"          value={pendentes}  accent />
+      <KpiCard label="Concluídas"       value={concluidas} green />
+      <KpiCard label="Atrasadas"        value={atrasadas}  red />
     </div>
   )
 
@@ -1130,9 +1135,9 @@ export default function Tarefas() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const p = {
-  kpi:    { background:'var(--surface)', borderRadius:10, padding:'16px 18px', display:'flex', flexDirection:'column', gap:4, border:'1px solid var(--border2)', boxShadow:'var(--shadow)', borderTop:'3px solid var(--border)' },
-  kpiVal: { fontSize:26, fontWeight:700, color:'var(--text)', letterSpacing:'-0.5px', lineHeight:1 },
-  kpiLbl: { fontSize:12, color:'var(--text-muted)', marginTop:2 },
+  kpi:    { background:'var(--surface)', borderRadius:12, padding:'18px 20px', display:'flex', flexDirection:'column', gap:4, border:'1px solid var(--border2)', boxShadow:'var(--shadow-md)', borderTop:'3px solid var(--surface3)' },
+  kpiVal: { fontSize:28, fontWeight:700, color:'var(--text)', letterSpacing:'-0.5px', lineHeight:1 },
+  kpiLbl: { fontSize:12, color:'var(--text-muted)', marginTop:3, fontWeight:500 },
   table:  { width:'100%', borderCollapse:'collapse' },
   th:     { padding:'9px 14px', textAlign:'left', fontSize:11, fontWeight:600, color:'var(--text-muted)', fontFamily:'var(--mono)', textTransform:'uppercase', letterSpacing:'0.06em', background:'var(--surface2)', borderBottom:'1px solid var(--border)' },
   td:     { padding:'11px 14px', fontSize:13, verticalAlign:'middle' },

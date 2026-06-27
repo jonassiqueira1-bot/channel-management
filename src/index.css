@@ -13,30 +13,30 @@
   --text-sec:   #5A5650;   /* alias de --text-soft */
   --text-muted: #9A9590;
 
-  /* ── Accent (navy) ── */
-  --accent:      #1E3A5F;
-  --accent2:     #2E5090;
-  --accent-glow: rgba(30, 58, 95, 0.08);
-  --accent-lite: rgba(30, 58, 95, 0.07);
-  --accent-mid:  rgba(30, 58, 95, 0.18);
+  /* ── Accent (vivid blue) ── */
+  --accent:      #2563EB;
+  --accent2:     #1D4ED8;
+  --accent-glow: rgba(37, 99, 235, 0.08);
+  --accent-lite: rgba(37, 99, 235, 0.07);
+  --accent-mid:  rgba(37, 99, 235, 0.18);
 
   /* ── Semântica ── */
   --success:    #059669;  --success-bg: #F0FDF4;
   --warning:    #D97706;  --warning-bg: #FFFBEB;
   --danger:     #DC2626;  --danger-bg:  #FEF2F2;
-  --info:       #1E3A5F;  --info-bg:    #EFF6FF;
+  --info:       #2563EB;  --info-bg:    #EFF6FF;
 
   /* ── Aliases legados ── */
   --green:      #059669;  --green-bg:   #F0FDF4;  --green-text: #166534;
   --yellow:     #D97706;  --yellow-bg:  #FFFBEB;  --yellow-text: #92400E;
   --red:        #DC2626;  --red-bg:     #FEF2F2;  --red-text:   #991B1B;
-  --blue:       #1E3A5F;  --blue-bg:    #EFF6FF;  --blue-text:  #1E40AF;
+  --blue:       #2563EB;  --blue-bg:    #EFF6FF;  --blue-text:  #1D4ED8;
   --purple:     #7C3AED;  --purple-bg:  #F5F3FF;  --purple-text: #5B21B6;
 
   /* ── Bordas ── */
-  --border:     rgba(0, 0, 0, 0.09);
-  --border2:    rgba(0, 0, 0, 0.05);
-  --border-med: rgba(0, 0, 0, 0.14);
+  --border:     rgba(0, 0, 0, 0.12);
+  --border2:    rgba(0, 0, 0, 0.07);
+  --border-med: rgba(0, 0, 0, 0.18);
 
   /* ── Sidebar (dark) ── */
   --sb-bg:      #0F172A;
@@ -77,17 +77,18 @@
   --space-12: 48px;
 
   /* ── Raios ── */
-  --radius-sm: 4px;
-  --radius-md: 6px;
-  --radius-lg: 8px;
-  --radius-xl: 12px;
-  --radius:    8px;   /* legado */
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   16px;
+  --radius-xl:   24px;
+  --radius-pill: 9999px;
+  --radius:      10px;   /* legado */
 
   /* ── Sombras ── */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
   --shadow:    0 1px 3px rgba(0,0,0,0.07), 0 1px 2px rgba(0,0,0,0.04);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg: 0 4px 20px rgba(0,0,0,0.10);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.14);
 
   /* ── Transição ── */
   --transition: 0.15s ease;
