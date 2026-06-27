@@ -7,8 +7,10 @@ import { useLocalState } from '../hooks/useLocalState'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
-import { MOCK_USUARIOS } from '../data/mockUsuarios'
 import { useContacts } from '../hooks/useContacts'
+import { useUsuarios } from '../hooks/useUsuarios'
+import { useContracts } from '../hooks/useContracts'
+import { useProjects } from '../hooks/useProjects'
 import { STORAGE_KEY as TIPOS_ATIVIDADE_KEY } from './settings/TiposAcao'
 import { SESSOES_MOCK } from '../data/mockPerfis'
 
@@ -137,6 +139,8 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
   const ref               = useRef(null)
   const { opps }          = useOpportunities()
   const { companies }     = useCompanies()
+  const { contratos }     = useContracts()
+  const { projetos }      = useProjects()
 
   useEffect(() => { setQuery(label||'') }, [label])
   useEffect(() => {
@@ -144,18 +148,14 @@ function EntidadeSearch({ entidadeTipo, value, label, onChange }) {
     document.addEventListener('mousedown', h); return ()=>document.removeEventListener('mousedown', h)
   }, [])
 
-  const projetos = useMemo(() => {
-    try { const s = localStorage.getItem('projetos:lista_v2'); return s ? JSON.parse(s) : [] } catch { return [] }
-  }, [])
-
   const opts = useMemo(() => {
     const q = query.toLowerCase()
     if (entidadeTipo==='oportunidade') return opps.filter(o=>(o.titulo||'').toLowerCase().includes(q)).slice(0,8).map(o=>({ id:o.id, nome:o.titulo }))
-    if (entidadeTipo==='empresa')      return companies.filter(e=>(e.fantasia||e.razao||'').toLowerCase().includes(q)).slice(0,8).map(e=>({ id:e.id, nome:e.fantasia||e.razao }))
-    if (entidadeTipo==='contrato')     return MOCK_CONTRATOS.filter(c=>c.nome.toLowerCase().includes(q)).slice(0,8)
+    if (entidadeTipo==='empresa')      return companies.filter(e=>(e.fantasia||e.razao||e.nome||'').toLowerCase().includes(q)).slice(0,8).map(e=>({ id:e.id, nome:e.fantasia||e.razao||e.nome }))
+    if (entidadeTipo==='contrato')     return contratos.filter(c=>(c.titulo||c.nome||'').toLowerCase().includes(q)).slice(0,8).map(c=>({ id:c.id, nome:c.titulo||c.nome }))
     if (entidadeTipo==='projeto')      return projetos.filter(p=>(p.nome||p.titulo||'').toLowerCase().includes(q)).slice(0,8).map(p=>({ id:p.id, nome:p.nome||p.titulo }))
     return []
-  }, [query, entidadeTipo, opps, companies, projetos])
+  }, [query, entidadeTipo, opps, companies, contratos, projetos])
 
   if (!entidadeTipo) return null
 
@@ -251,8 +251,8 @@ function ContatoSearch({ value, label, onChange }) {
 
 // ─── Formulário de Tarefa (usado dentro do SlideOver) ────────────────────────
 function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs = {}, clearErr }) {
-  const [profiles] = useLocalState('usuarios:profiles', MOCK_USUARIOS)
-  const usuarios = profiles.length ? profiles : MOCK_USUARIOS
+  const { usuarios: usuariosRaw } = useUsuarios()
+  const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
   return (
@@ -313,17 +313,9 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
               onChange({ ...form, responsavel_id: u?.id || null, responsavel_nome: u?.nome || '' })
             }}>
             <option value="">— Nenhum —</option>
-            {usuarios.filter(u => u.tipo === 'interno' || u.papel).map(u => (
+            {usuarios.map(u => (
               <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : u.papel ? ` — ${u.papel}` : ''}</option>
             ))}
-            {usuarios.filter(u => u.tipo === 'externo' && !u.papel).length > 0 && (
-              <>
-                <option disabled>────────────</option>
-                {usuarios.filter(u => u.tipo === 'externo' && !u.papel).map(u => (
-                  <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : ''}</option>
-                ))}
-              </>
-            )}
           </select>
         </FormField>
 
