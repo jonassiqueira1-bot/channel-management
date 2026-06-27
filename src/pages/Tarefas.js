@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useTasks } from '../hooks/useTasks'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { supabase } from '../lib/supabase'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCompanies } from '../hooks/useCompanies'
 import { useLocalState } from '../hooks/useLocalState'
@@ -837,7 +838,6 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 
 export default function Tarefas() {
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
-  const { updateProximaAcao } = useOpportunities()
   const { registrar: log } = useAuditLog()
   const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
   const tiposTarefa = useMemo(
@@ -873,7 +873,11 @@ export default function Tarefas() {
     saveTarefa(saved)
     log(isNew ? 'criar' : 'editar', 'tarefa', saved.id, { descricao: `Tarefa ${isNew ? 'criada' : 'editada'}: ${saved.titulo || ''}` })
     if (isNew && saved.entidade_tipo === 'oportunidade' && saved.entidade_id && saved.data_inicio) {
-      updateProximaAcao(saved.entidade_id, saved.data_inicio)
+      supabase.from('oportunidades').select('custom_fields').eq('id', saved.entidade_id).single()
+        .then(({ data: cur }) => {
+          const cf = cur?.custom_fields || {}
+          supabase.from('oportunidades').update({ custom_fields: { ...cf, proxima_acao_data: saved.data_inicio } }).eq('id', saved.entidade_id)
+        })
     }
     closeSlideOver()
   }
