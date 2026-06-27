@@ -3,8 +3,7 @@ import {
   Terminal, Trash2,
   Plus, Pencil, X, CheckCircle2, XCircle, DollarSign, Send, RotateCcw, Eye,
 } from 'lucide-react'
-import { useLocalState } from '../../hooks/useLocalState'
-import { AUDIT_LOG_KEY } from '../../hooks/useAuditLog'
+import { useAuditLog } from '../../hooks/useAuditLog'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import Button from '../../components/Button'
 
@@ -164,7 +163,7 @@ const ACOES_OPTIONS   = Object.entries(ACAO_CFG).map(([k, v]) => ({ value: k, la
 const ENTIDADE_OPTIONS = Object.entries(ENTIDADE_LABEL).map(([k, v]) => ({ value: k, label: v }))
 
 export default function Logs() {
-  const [logs, setLogs]         = useLocalState(AUDIT_LOG_KEY, [])
+  const { logs, limpar } = useAuditLog()
   const [search, setSearch]               = useState('')
   const [filterAcoes, setFilterAcoes]     = useState([])
   const [filterEntidades, setFilterEntidades] = useState([])
@@ -195,8 +194,8 @@ export default function Logs() {
     URL.revokeObjectURL(url)
   }
 
-  function limpar() {
-    if (window.confirm('Apagar todo o histórico de logs? Esta ação não pode ser desfeita.')) setLogs([])
+  function handleLimpar() {
+    limpar()
   }
 
   const COLUMNS = [
@@ -260,7 +259,7 @@ export default function Logs() {
         />
         <div style={{ flex:1 }} />
         {logs.length > 0 && (
-          <button onClick={limpar}
+          <button onClick={handleLimpar}
             style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:7,
               border:'1px solid rgba(239,68,68,0.3)', background:'rgba(239,68,68,0.06)',
               color:'#EF4444', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
