@@ -41,6 +41,7 @@ import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
 import { useFormLayout } from '../hooks/useFormLayout'
 import { useContracts } from '../hooks/useContracts'
+import { useUsuarios } from '../hooks/useUsuarios'
 import { useProjects } from '../hooks/useProjects'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -1895,15 +1896,16 @@ function CopyChip({ value, href, label, bg, children }) {
 function OppEquipeTab({ oppId }) {
   const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
   const { contacts } = useContacts()
-  const [perfisStore] = useLocalState('settings:perfis_v2', [])
+  const { usuarios }  = useUsuarios()
   const { sellers }   = useSellers()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-  // Internos: settings:perfis_v2 (usuários do sistema ISV)
+  // Internos: profiles do Supabase (usuários do sistema ISV)
   const poolInternos = useMemo(() => {
-    const base = perfisStore.length > 0 ? perfisStore.filter(u => u.status !== 'inativo') : []
-    return base.map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '' }))
-  }, [perfisStore])
+    return usuarios
+      .filter(u => u.status !== 'inativo')
+      .map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '' }))
+  }, [usuarios])
 
   // Canal: useSellers() = página "Contatos Canais"
   const poolCanais = useMemo(() =>
