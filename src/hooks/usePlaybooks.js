@@ -30,25 +30,23 @@ function rowToPlaybook(row) {
 function playbookToRow(pb, tenantId, branchId) {
   const { id, titulo, title, descricao, description, status, owner_id, criado, atualizado, steps, refs, resources, ...rest } = pb
   const tit = titulo || title || ''
-  const cf = Object.fromEntries(
-    Object.entries(rest).filter(([k]) => !['title','description'].includes(k))
+  // Tudo que não é coluna de sistema vai para custom_fields (JSONB)
+  const customFields = Object.fromEntries(
+    Object.entries(rest).filter(([k]) => !['title', 'description', 'id'].includes(k))
   )
-  // Colunas que existem em TODAS as versões do schema de produção
-  const row = {
-    tenant_id: tenantId,
-    titulo:    tit,
-    descricao: descricao || description || null,
-    status:    status || 'rascunho',
+  return {
+    tenant_id:    tenantId,
+    titulo:       tit,
+    descricao:    descricao || description || null,
+    status:       status || 'rascunho',
+    custom_fields: customFields,
+    // Colunas adicionadas pela migration — inclui sempre para manter consistência
+    branch_id:    branchId || null,
+    owner_id:     owner_id || null,
+    steps:        steps    || [],
+    refs:         refs     || [],
+    resources:    resources|| [],
   }
-  // Colunas adicionadas pela migration 20260626000007 — só envia se existirem valores reais
-  // Isso evita erros de schema cache quando a migration ainda não rodou em prod
-  if (branchId)                            row.branch_id  = branchId
-  if (owner_id)                            row.owner_id   = owner_id
-  if (steps     && steps.length     > 0)  row.steps      = steps
-  if (refs      && refs.length      > 0)  row.refs       = refs
-  if (resources && resources.length > 0)  row.resources  = resources
-  if (Object.keys(cf).length        > 0)  row.custom_fields = cf
-  return row
 }
 
 export function usePlaybooks() {
