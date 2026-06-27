@@ -59,59 +59,6 @@ const EMPTY_FORM = {
   opportunity_id: null, opportunity_titulo: '',
 }
 
-const MOCK_CONTRATOS = [
-  {
-    id: 1, numero: 'CTR-2024-001',
-    empresa_id: 1, empresa_nome: 'Nexus Tech',
-    status: 'ativo', primeira_compra: true,
-    vigencia_inicio: '2024-03-10', vigencia_fim: '2025-03-10',
-    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4800, tabela: 4800, desconto_pct: 0,  desconto_autorizado: true  }],
-    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 890,  tabela: 890,  desconto_pct: 0,  desconto_autorizado: true  }],
-    itens_servico: [{ produto_id: 4, nome: 'Suporte Premium',       valor: 450,  tabela: 450,  desconto_pct: 0,  desconto_autorizado: true  }],
-    responsavel: 'Lucas Ferreira', observacoes: '', criado: '2024-03-10',
-  },
-  {
-    id: 2, numero: 'CTR-2024-002',
-    empresa_id: 2, empresa_nome: 'Alpha Dist.',
-    status: 'ativo', primeira_compra: true,
-    vigencia_inicio: '2024-05-22', vigencia_fim: '2025-05-22',
-    itens_adesao:  [],
-    itens_mrr:     [{ produto_id: 2, nome: 'Boostly Starter', valor: 261, tabela: 290, desconto_pct: 10, desconto_autorizado: true }],
-    itens_servico: [],
-    responsavel: 'Ana Costa', observacoes: 'Desconto de 10% aprovado por gerência', criado: '2024-05-22',
-  },
-  {
-    id: 3, numero: 'CTR-2024-003',
-    empresa_id: 4, empresa_nome: 'Milenium',
-    status: 'ativo', primeira_compra: false,
-    vigencia_inicio: '2024-01-15', vigencia_fim: '2025-01-15',
-    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4080, tabela: 4800, desconto_pct: 15, desconto_autorizado: false }],
-    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 890,  tabela: 890,  desconto_pct: 0,  desconto_autorizado: true  }],
-    itens_servico: [],
-    responsavel: 'Carla Menezes', observacoes: 'Desconto de 15% na adesão aguardando aprovação', criado: '2024-01-15',
-  },
-  {
-    id: 4, numero: 'CTR-2024-004',
-    empresa_id: 6, empresa_nome: 'FinCorp',
-    status: 'ativo', primeira_compra: false,
-    vigencia_inicio: '2023-08-20', vigencia_fim: '2024-08-20',
-    itens_adesao:  [{ produto_id: 3, nome: 'Implantação Assistida', valor: 4320, tabela: 4800, desconto_pct: 10, desconto_autorizado: true }],
-    itens_mrr:     [{ produto_id: 1, nome: 'Boostly Pro',           valor: 801,  tabela: 890,  desconto_pct: 10, desconto_autorizado: true }],
-    itens_servico: [{ produto_id: 4, nome: 'Suporte Premium',       valor: 450,  tabela: 450,  desconto_pct: 0,  desconto_autorizado: true }],
-    responsavel: 'Mariana Silva', observacoes: 'Descontos de 10% aprovados pela diretoria', criado: '2023-08-20',
-  },
-  {
-    id: 5, numero: 'CTR-2024-005',
-    empresa_id: 8, empresa_nome: 'MedGroup',
-    status: 'encerrado', primeira_compra: true,
-    vigencia_inicio: '2024-02-28', vigencia_fim: '2024-08-28',
-    itens_adesao:  [],
-    itens_mrr:     [{ produto_id: 2, nome: 'Boostly Starter', valor: 290, tabela: 290, desconto_pct: 0, desconto_autorizado: true }],
-    itens_servico: [],
-    responsavel: 'Fernanda Rocha', observacoes: 'Cliente migrou para Pro', criado: '2024-02-28',
-  },
-]
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtMoeda(v) {
   if (!v && v !== 0) return '—'
@@ -760,7 +707,7 @@ function getInadimplentesIds() {
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
-  const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts(MOCK_CONTRATOS)
+  const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts()
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const [search, setSearch]           = useState('')
