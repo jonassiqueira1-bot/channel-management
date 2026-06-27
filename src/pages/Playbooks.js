@@ -473,22 +473,12 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                 </select>
               </FormField>
               <FormField label="Funis (opcional)" span={2}>
-                <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginBottom: funis.length ? 6 : 0 }}>
-                  {funis.map(f => {
-                    const sel = (form.funil_ids||[]).includes(String(f.id))
-                    return (
-                      <button key={f.id} type="button"
-                        onClick={() => {
-                          const ids = form.funil_ids || []
-                          set('funil_ids', sel ? ids.filter(x => x !== String(f.id)) : [...ids, String(f.id)])
-                        }}
-                        style={{ padding:'4px 12px', borderRadius:20, fontSize:12, fontWeight: sel ? 700 : 500, cursor:'pointer', fontFamily:'var(--font)', border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`, background: sel ? 'rgba(99,102,241,0.08)' : 'none', color: sel ? 'var(--accent)' : 'var(--text-soft)' }}>
-                        {f.nome}
-                      </button>
-                    )
-                  })}
-                  {funis.length === 0 && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Nenhum funil cadastrado.</span>}
-                </div>
+                <MultiSelect
+                  options={funis.map(f => ({ value: String(f.id), label: f.nome }))}
+                  value={form.funil_ids || []}
+                  onChange={v => set('funil_ids', v)}
+                  placeholder="Pesquisar funil…"
+                />
               </FormField>
               <FormField label="Filtrar por" span={2}>
                 <select className="so-field" value={form.produto_filtro_tipo || ''} onChange={e => set('produto_filtro_tipo', e.target.value)}>
