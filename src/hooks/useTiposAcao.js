@@ -54,10 +54,17 @@ export function useTiposAcao(defaults = []) {
       return { ok: true }
     }
     const isNew = !record.id || !String(record.id).includes('-')
-    const row = { ...record, text_color: record.text, tenant_id: tid.current }
-    delete row.text
+    // whitelist das colunas que existem na tabela
+    const row = {
+      tenant_id:  tid.current,
+      label:      record.label,
+      slug:       record.slug || null,
+      icon:       record.icon || null,
+      color:      record.color || null,
+      bg:         record.bg || null,
+      text_color: record.text || record.text_color || null,
+    }
     if (isNew) {
-      delete row.id
       const { data, error } = await supabase.from('tipos_acao').insert(row).select().single()
       if (error) return { ok: false, message: error.message }
       setTipos(prev => [...prev, { ...record, id: data.id }])
