@@ -48,11 +48,28 @@ export function useParceiros() {
       })
       return { ok: true }
     }
-    const { id, ...fields } = record
-    const row = { ...fields, tenant_id: tid.current, updated_at: new Date().toISOString() }
-    if (id) row.id = id
-    const { data: saved, error } = id
-      ? await supabase.from('parceiros').upsert(row, { onConflict: 'id' }).select().single()
+    const { id, situacao, estado, ...fields } = record
+    // Mapeamento de campos do form → colunas do DB
+    const isRealUuid = typeof id === 'string' && id.includes('-') && id.length > 20
+    const row = {
+      tenant_id:    tid.current,
+      nome:         fields.nome || '',
+      classificacao:fields.classificacao || 'franquia',
+      tipo_parceiro:fields.tipo_parceiro || null,
+      franquia_id:  fields.franquia_id   || null,
+      codigo:       fields.codigo        || null,
+      cnpj:         fields.cnpj          || null,
+      email:        fields.email         || null,
+      telefone:     fields.telefone      || null,
+      responsavel:  fields.responsavel   || null,
+      cidade:       fields.cidade        || null,
+      uf:           estado               || fields.uf || null,   // form usa 'estado', DB usa 'uf'
+      status:       situacao             || fields.status || 'ativo', // form usa 'situacao', DB usa 'status'
+      extra:        fields.extra         || {},
+      updated_at:   new Date().toISOString(),
+    }
+    const { data: saved, error } = isRealUuid
+      ? await supabase.from('parceiros').update(row).eq('id', id).select().single()
       : await supabase.from('parceiros').insert(row).select().single()
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => {
