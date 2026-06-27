@@ -84,7 +84,7 @@ function paymentToRow(p, tenantId, branchId) {
 }
 
 function rowToPersona(row) {
-  return { id: row.id, slug: row.slug, label: row.label, descricao: row.descricao || '', cor: row.cor || 'var(--accent)', ordem: row.ordem || 0, ativo: row.ativo }
+  return { id: row.id, slug: row.slug, label: row.label, descricao: row.descricao || '', cor: row.cor || 'var(--accent)', ordem: row.ordem || 0, ativo: row.ativo, usuario_id: row.usuario_id || null, parceiro_id: row.parceiro_id || null }
 }
 
 export function useCommissions() {
@@ -193,7 +193,8 @@ export function useCommissions() {
         cor:        p.cor || '#6366F1',
         ordem:      p.ordem ?? 0,
         ativo:      p.ativo ?? true,
-        usuario_id: p.usuario_id || null,
+        usuario_id:  p.usuario_id  || null,
+        parceiro_id: p.parceiro_id || null,
       }
       if (isUuid(p.id)) row.id = p.id
       return row

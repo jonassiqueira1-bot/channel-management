@@ -23,6 +23,7 @@ import { useContacts } from '../hooks/useContacts'
 import { useProfile } from '../hooks/useProfile'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissionApprovals } from '../hooks/useCommissionApprovals'
+import { useParceiros } from '../hooks/useParceiros'
 import { InlineSearchSelect } from '../components/NotionDrawer'
 import Button from '../components/Button'
 
@@ -465,7 +466,7 @@ function ConditionBuilder({ conditions, onChange, joinsAtivos = [], onChangeJoin
 }
 
 // ─── PersonasEditor ───────────────────────────────────────────────────────────
-function PersonasEditor({ personas, onChange, onClose, usuarios = [] }) {
+function PersonasEditor({ personas, onChange, onClose, usuarios = [], parceiros = [] }) {
   const [list, setList] = useState(personas.map(p => ({ ...p })))
   const [editing, setEditing] = useState(null)
   const colors = ['var(--accent)','#0EA5E9','#F59E0B','#10B981','var(--accent)','#EF4444','#EC4899','#14B8A6','#F97316','#84CC16']
@@ -517,6 +518,17 @@ function PersonasEditor({ personas, onChange, onClose, usuarios = [] }) {
                         </select>
                       </div>
                     )}
+                    {parceiros.length > 0 && (
+                      <div style={{ gridColumn:'1/-1' }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Parceiro vinculado</div>
+                        <select style={{ ...IN, width:'100%', boxSizing:'border-box' }}
+                          value={p.parceiro_id || ''}
+                          onChange={e => update(p.id, { parceiro_id: e.target.value || null })}>
+                          <option value="">— Nenhum —</option>
+                          {parceiros.map(pa => <option key={pa.id} value={String(pa.id)}>{pa.nome}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div style={{ gridColumn:'1/-1' }}>
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Cor</div>
                       <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -535,7 +547,8 @@ function PersonasEditor({ personas, onChange, onClose, usuarios = [] }) {
                     <div>
                       <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</div>
                       {p.usuario_id && (() => { const u = usuarios.find(u => String(u.id) === String(p.usuario_id)); return u ? <div style={{ fontSize:11, color:'var(--accent)' }}>→ {u.nome}</div> : null })()}
-                      {!p.usuario_id && p.descricao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.descricao}</div>}
+                      {p.parceiro_id && (() => { const pa = parceiros.find(pa => String(pa.id) === String(p.parceiro_id)); return pa ? <div style={{ fontSize:11, color:'#0369A1' }}>↗ {pa.nome}</div> : null })()}
+                      {!p.usuario_id && !p.parceiro_id && p.descricao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.descricao}</div>}
                     </div>
                     <span style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--text-muted)', background:'var(--surface2)', padding:'2px 6px', borderRadius:4, border:'1px solid var(--border)' }}>{p.slug}</span>
                   </div>
@@ -1232,7 +1245,7 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
 }
 
 // ─── RuleForm ─────────────────────────────────────────────────────────────────
-function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [] }) {
+function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [], parceiros = [] }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -1361,6 +1374,16 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
                 value={form.contato_id||''}
                 onChange={(val,opt)=>{ set('contato_id',val); set('contato_nome',opt?.label||''); set('contato_empresa',opt?.sub||'') }}
                 placeholder="Selecionar contato…"
+              />
+            </FormField>
+          )}
+          {parceiros.length > 0 && (
+            <FormField label="Parceiro vinculado (opcional)">
+              <ComissaoSearchSelect
+                options={[{ value:'', label:'— Nenhum —', sub:'' }, ...parceiros.map(p=>({ value:String(p.id), label:p.nome, sub:p.classificacao||'' }))]}
+                value={form.parceiro_id||''}
+                onChange={(val,opt)=>{ set('parceiro_id',val||null); set('parceiro_nome',opt?.label||'') }}
+                placeholder="Selecionar parceiro…"
               />
             </FormField>
           )}
@@ -1684,7 +1707,7 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
 }
 
 // ─── Tab: Regras de Configuração ──────────────────────────────────────────────
-function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuarios = [], onSavePersonas }) {
+function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuarios = [], parceiros = [], onSavePersonas }) {
   const [deleting, setDeleting]     = useState(null)
   const [showPersonas, setShowPersonas] = useState(false)
 
@@ -1851,7 +1874,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
         )
       })}
 
-      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} onChange={async p=>{ await (onSavePersonas ? onSavePersonas(p) : setPersonas(p)); setShowPersonas(false) }} onClose={()=>setShowPersonas(false)} />}
+      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} parceiros={parceiros} onChange={async p=>{ await (onSavePersonas ? onSavePersonas(p) : setPersonas(p)); setShowPersonas(false) }} onClose={()=>setShowPersonas(false)} />}
     </div>
   )
 }
@@ -2085,6 +2108,7 @@ export default function Comissoes() {
   const contatos = contatosRaw.map(c => ({ ...c, empresa_nome: c.empresa_nome || c.company_name || '' }))
   const { usuarios: usuariosRaw } = useUsuarios()
   const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
+  const { parceiros } = useParceiros()
   const { profile } = useProfile()
   const { registrar } = useAuditLog()
   const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
@@ -2174,7 +2198,7 @@ export default function Comissoes() {
         <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} />
       )}
       {tab === 'regras' && isAdmin && (
-        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} onSavePersonas={persistPersonas} />
+        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} parceiros={parceiros} onSavePersonas={persistPersonas} />
       )}
 
       {/* ── SlideOver: Lançamento ─────────────────────────────────────── */}
@@ -2215,6 +2239,7 @@ export default function Comissoes() {
             personas={personas}
             contatos={contatos}
             usuarios={usuarios}
+            parceiros={parceiros}
             onSave={saveRule}
             onClose={() => setEditandoRule(null)}
           />
