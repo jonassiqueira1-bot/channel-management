@@ -7,107 +7,99 @@ import { useCustomFields } from '../../hooks/useCustomFields'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { X, Plus, Trash2 } from 'lucide-react'
 
-// ─── Origens do sistema ───────────────────────────────────────────────────────
+// ─── Origens ──────────────────────────────────────────────────────────────────
 const ORIGENS = [
-  { key: 'commission_payments', label: 'Pagamentos',    link: '/pagamentos' },
-  { key: 'contracts',           label: 'Contratos',     link: '/contratos'  },
-  { key: 'oportunidades',       label: 'Oportunidades', link: '/pipeline'   },
-  { key: 'projetos',            label: 'Projetos',      link: '/projetos'   },
-  { key: 'tarefas',             label: 'Tarefas',       link: '/tarefas'    },
-  { key: 'companies',           label: 'Empresas',      link: '/empresas'   },
+  { key: 'commission_payments', label: 'Pagamentos'    },
+  { key: 'contracts',           label: 'Contratos'     },
+  { key: 'oportunidades',       label: 'Oportunidades' },
+  { key: 'projetos',            label: 'Projetos'      },
+  { key: 'tarefas',             label: 'Tarefas'       },
+  { key: 'companies',           label: 'Empresas'      },
 ]
 
 // ─── Campos padrão por origem ─────────────────────────────────────────────────
 const CAMPOS_PADRAO = {
   commission_payments: [
-    { key: 'data_vencimento', label: 'Data de vencimento',  tipo: 'date'  },
-    { key: 'valor_comissao',  label: 'Valor da comissão',   tipo: 'money' },
-    { key: 'status',          label: 'Status',              tipo: 'enum', opts: ['pendente','pago','cancelado'] },
-    { key: 'beneficiario_nome', label: 'Beneficiário',      tipo: 'text'  },
+    { key: 'data_vencimento',   label: 'Data de vencimento', tipo: 'date'  },
+    { key: 'valor_comissao',    label: 'Valor da comissão',  tipo: 'money' },
+    { key: 'status',            label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado'] },
+    { key: 'beneficiario_nome', label: 'Beneficiário',       tipo: 'text'  },
   ],
   contracts: [
-    { key: 'data_inicio',  label: 'Início da vigência',   tipo: 'date'  },
-    { key: 'data_fim',     label: 'Fim da vigência',      tipo: 'date'  },
-    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['ativo','encerrado','cancelado'] },
-    { key: 'responsavel',  label: 'Responsável',          tipo: 'text'  },
-    { key: 'origem',       label: 'Origem',               tipo: 'text'  },
+    { key: 'data_inicio',  label: 'Início da vigência', tipo: 'date' },
+    { key: 'data_fim',     label: 'Fim da vigência',    tipo: 'date' },
+    { key: 'status',       label: 'Status', tipo: 'enum', opts: ['ativo','encerrado','cancelado'] },
+    { key: 'responsavel',  label: 'Responsável',        tipo: 'text' },
   ],
   oportunidades: [
-    { key: 'updated_at',          label: 'Última atualização',        tipo: 'date'  },
-    { key: 'prazo',               label: 'Prazo',                     tipo: 'date'  },
-    { key: 'cf.proxima_acao_data',label: 'Data da próxima tarefa',    tipo: 'date'  },
-    { key: 'valor',               label: 'Valor estimado',            tipo: 'money' },
-    { key: 'valor_cdu',           label: 'Valor CDU',                 tipo: 'money' },
-    { key: 'valor_sms',           label: 'Valor SMS',                 tipo: 'money' },
-    { key: 'valor_servico',       label: 'Valor Serviço',             tipo: 'money' },
-    { key: 'situacao',            label: 'Situação',                  tipo: 'enum', opts: ['em_andamento','ganho','perdido'] },
-    { key: 'origem',              label: 'Origem',                    tipo: 'enum', opts: ['Inbound','Outbound','Canal','Indicação'] },
-    { key: 'responsavel',         label: 'Responsável',               tipo: 'text'  },
+    { key: 'updated_at',           label: 'Última atualização',     tipo: 'date'  },
+    { key: 'prazo',                label: 'Prazo',                  tipo: 'date'  },
+    { key: 'cf.proxima_acao_data', label: 'Data da próxima tarefa', tipo: 'date'  },
+    { key: 'valor',                label: 'Valor estimado',         tipo: 'money' },
+    { key: 'valor_cdu',            label: 'Valor CDU',              tipo: 'money' },
+    { key: 'valor_sms',            label: 'Valor SMS',              tipo: 'money' },
+    { key: 'valor_servico',        label: 'Valor Serviço',          tipo: 'money' },
+    { key: 'situacao',             label: 'Situação', tipo: 'enum', opts: ['em_andamento','ganho','perdido'] },
+    { key: 'origem',               label: 'Origem',   tipo: 'enum', opts: ['Inbound','Outbound','Canal','Indicação'] },
+    { key: 'responsavel',          label: 'Responsável',            tipo: 'text'  },
   ],
   projetos: [
-    { key: 'data_inicio',  label: 'Data de início',       tipo: 'date'  },
-    { key: 'data_fim',     label: 'Data de entrega',      tipo: 'date'  },
-    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['em_andamento','concluido','cancelado'] },
-    { key: 'phase',        label: 'Fase',                 tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
-    { key: 'total_hours_estimated', label: 'Horas estimadas', tipo: 'number' },
-    { key: 'total_hours_executed',  label: 'Horas executadas', tipo: 'number' },
+    { key: 'data_inicio', label: 'Data de início',   tipo: 'date' },
+    { key: 'data_fim',    label: 'Data de entrega',  tipo: 'date' },
+    { key: 'status',      label: 'Status', tipo: 'enum', opts: ['em_andamento','concluido','cancelado'] },
+    { key: 'phase',       label: 'Fase',   tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
   ],
   tarefas: [
-    { key: 'prazo',        label: 'Prazo',                tipo: 'date'  },
-    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['pendente','em_andamento','concluida'] },
-    { key: 'prioridade',   label: 'Prioridade',           tipo: 'enum', opts: ['alta','media','baixa'] },
-    { key: 'tipo',         label: 'Tipo',                 tipo: 'enum', opts: ['ligação','reunião','email','visita','tarefa'] },
-    { key: 'responsavel',  label: 'Responsável',          tipo: 'text'  },
+    { key: 'prazo',      label: 'Prazo',       tipo: 'date' },
+    { key: 'data_inicio',label: 'Data de início', tipo: 'date' },
+    { key: 'status',     label: 'Status',   tipo: 'enum', opts: ['pendente','em_andamento','concluida'] },
+    { key: 'prioridade', label: 'Prioridade', tipo: 'enum', opts: ['alta','media','baixa'] },
+    { key: 'responsavel',label: 'Responsável', tipo: 'text' },
   ],
   companies: [
-    { key: 'updated_at',   label: 'Última atualização',   tipo: 'date'  },
-    { key: 'status',       label: 'Status',               tipo: 'enum', opts: ['ativo','inativo'] },
-    { key: 'tipo',         label: 'Tipo',                 tipo: 'enum', opts: ['cliente','parceiro','prospect'] },
+    { key: 'updated_at', label: 'Última atualização', tipo: 'date' },
+    { key: 'status',     label: 'Status', tipo: 'enum', opts: ['ativo','inativo'] },
   ],
 }
 
-// converte tipo de campo customizado para tipo de operador
-function cfTipoToTipo(type) {
-  if (type === 'date')   return 'date'
-  if (type === 'number') return 'number'
-  if (type === 'select') return 'enum'
-  return 'text'
-}
-
-// ─── Operadores por tipo de campo ─────────────────────────────────────────────
+// ─── Operadores por tipo ──────────────────────────────────────────────────────
 const OPS = {
   date:  [
-    { key: 'dias_apos',   label: 'há mais de X dias' },
-    { key: 'dias_antes',  label: 'daqui a menos de X dias' },
-    { key: 'antes_de',    label: 'antes de (data fixa)' },
-    { key: 'apos_de',     label: 'após (data fixa)' },
+    { key: 'dias_apos',  label: 'há mais de X dias' },
+    { key: 'dias_antes', label: 'daqui a menos de X dias' },
+    { key: 'antes_de',   label: 'antes de (data fixa)' },
+    { key: 'apos_de',    label: 'após (data fixa)' },
   ],
   money: [
-    { key: 'gt',  label: 'maior que'       },
-    { key: 'gte', label: 'maior ou igual a' },
-    { key: 'lt',  label: 'menor que'       },
-    { key: 'lte', label: 'menor ou igual a' },
-    { key: 'eq',  label: 'igual a'         },
+    { key: 'gt',  label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
+    { key: 'lt',  label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
+    { key: 'eq',  label: 'igual a'   },
   ],
   number: [
-    { key: 'gt',  label: 'maior que'       },
-    { key: 'gte', label: 'maior ou igual a' },
-    { key: 'lt',  label: 'menor que'       },
-    { key: 'lte', label: 'menor ou igual a' },
-    { key: 'eq',  label: 'igual a'         },
+    { key: 'gt',  label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
+    { key: 'lt',  label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
+    { key: 'eq',  label: 'igual a'   },
   ],
-  enum: [
-    { key: 'eq',  label: 'é'     },
-    { key: 'neq', label: 'não é' },
-  ],
-  text: [
-    { key: 'eq',       label: 'é igual a'   },
-    { key: 'neq',      label: 'não é'       },
-    { key: 'contains', label: 'contém'      },
-  ],
+  enum: [{ key: 'eq', label: 'é' }, { key: 'neq', label: 'não é' }],
+  text: [{ key: 'eq', label: 'é igual a' }, { key: 'neq', label: 'não é' }, { key: 'contains', label: 'contém' }],
 }
 
-// ─── Utilitários ──────────────────────────────────────────────────────────────
+// ─── Papéis de destinatário ───────────────────────────────────────────────────
+const DEST_TIPOS = [
+  { key: 'responsavel_origem',  label: 'Responsável pelo registro'   },
+  { key: 'responsavel_tarefa',  label: 'Responsável pela tarefa'     },
+  { key: 'contato_empresa',     label: 'Contato da empresa'          },
+  { key: 'email_fixo',          label: 'Email fixo (digitar)'        },
+]
+
+const TEMPLATES = [
+  { key: 'alerta_generico',     label: 'Alerta genérico'             },
+  { key: 'pagamento_vencido',   label: 'Pagamento vencido'           },
+  { key: 'contrato_vencendo',   label: 'Contrato vencendo'           },
+  { key: 'oportunidade_parada', label: 'Oportunidade parada'         },
+]
+
+// ─── Estilos base ─────────────────────────────────────────────────────────────
 const inp = {
   padding: '5px 9px', borderRadius: 6, border: '1px solid var(--border)',
   background: 'var(--surface2)', color: 'var(--text)', fontSize: 12,
@@ -122,93 +114,93 @@ const btnSm = (accent) => ({
   color: accent ? '#fff' : 'var(--text)',
   border: accent ? '1px solid var(--accent)' : '1px solid var(--border)',
 })
-const label12 = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6 }
+const lbl12 = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6 }
 const sec = { marginBottom: 20 }
+const divider = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textAlign: 'center', padding: '2px 0' }
 
-function Select({ value, onChange, children, style = {} }) {
-  return (
-    <select value={value} onChange={e => onChange(e.target.value)} style={{ ...sel, ...style }}>
-      {children}
-    </select>
-  )
+function Sel({ value, onChange, children, style = {} }) {
+  return <select value={value} onChange={e => onChange(e.target.value)} style={{ ...sel, ...style }}>{children}</select>
 }
 
-function newCondicao() {
-  return { id: crypto.randomUUID(), campo: '', operador: '', valor: '' }
+function cfTipoToTipo(type) {
+  if (type === 'date')   return 'date'
+  if (type === 'number') return 'number'
+  if (type === 'select') return 'enum'
+  return 'text'
 }
+
+function newCond() { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '' } }
+function newAcao() { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', template: 'alerta_generico', assunto: '', mensagem: '', prazo_dias: 3, titulo_tarefa: '' } }
 
 function emptyRule() {
   return {
     origem: '', gatilho_nome: '', ativo: true,
-    condicoes: [newCondicao()],
-    consequencia: 'notificar',            // notificar | criar_tarefa | ambos
-    prazo_tarefa_dias: 3,
-    destinatarios_usuario: [],            // ids de profiles
-    destinatarios_contato: [],            // ids de contacts
-    email_assunto: '',
-    email_mensagem: '',
+    operador_logico: 'E',
+    condicoes: [newCond()],
+    acoes: [newAcao()],
   }
 }
 
 // ─── Editor de Condições ──────────────────────────────────────────────────────
-function CondicoesEditor({ origem, condicoes, onChange }) {
+function CondicoesEditor({ origem, condicoes, operador, onChangeCondicoes, onChangeOp }) {
   const [cfDefs] = useCustomFields(origem || 'oportunidades')
-  const camposPadrao = CAMPOS_PADRAO[origem] || []
-  const camposCustom = (cfDefs || []).map(f => ({
-    key:   `cf.${f.key}`,
-    label: `${f.label} ✦`,
-    tipo:  cfTipoToTipo(f.type),
-    opts:  f.options || [],
-    custom: true,
-  }))
-  const campos = [...camposPadrao, ...camposCustom]
+  const padrao  = CAMPOS_PADRAO[origem] || []
+  const custom  = (cfDefs || []).map(f => ({ key: `cf.${f.key}`, label: `${f.label} ✦`, tipo: cfTipoToTipo(f.type), opts: f.options || [] }))
+  const campos  = [...padrao, ...custom]
 
   function update(id, patch) {
-    onChange(condicoes.map(c => c.id === id ? { ...c, ...patch, ...(patch.campo ? { operador: '', valor: '' } : {}) } : c))
+    onChangeCondicoes(condicoes.map(c => c.id === id ? { ...c, ...patch, ...(patch.campo ? { operador: '', valor: '' } : {}) } : c))
   }
-  function add()      { onChange([...condicoes, newCondicao()]) }
-  function remove(id) { onChange(condicoes.filter(c => c.id !== id)) }
+  function add()      { onChangeCondicoes([...condicoes, newCond()]) }
+  function remove(id) { onChangeCondicoes(condicoes.filter(c => c.id !== id)) }
 
   if (!origem) return <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Selecione uma origem primeiro.</p>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {condicoes.map(c => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      {condicoes.map((c, idx) => {
         const campo = campos.find(f => f.key === c.campo)
         const ops   = campo ? (OPS[campo.tipo] || OPS.text) : []
         return (
-          <div key={c.id} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-            <Select value={c.campo} onChange={v => update(c.id, { campo: v })} style={{ flex: '0 0 160px' }}>
-              <option value="">Campo…</option>
-              {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </Select>
-
-            <Select value={c.operador} onChange={v => update(c.id, { operador: v })} style={{ flex: '0 0 180px' }}>
-              <option value="">Operador…</option>
-              {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </Select>
-
-            {campo?.tipo === 'enum'
-              ? <Select value={c.valor} onChange={v => update(c.id, { valor: v })} style={{ flex: 1 }}>
-                  <option value="">Valor…</option>
-                  {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
-                </Select>
-              : campo?.tipo === 'date' && (c.operador === 'dias_apos' || c.operador === 'dias_antes')
-                ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp, width: 64 }} placeholder="0" />
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
-                  </div>
+          <div key={c.id}>
+            {idx > 0 && (
+              <div style={divider}>
+                <button onClick={() => onChangeOp(operador === 'E' ? 'OU' : 'E')}
+                  style={{ ...btnSm(false), padding: '2px 14px', fontSize: 11, marginBottom: 4 }}>
+                  {operador}
+                </button>
+              </div>
+            )}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
+              <Sel value={c.campo} onChange={v => update(c.id, { campo: v })} style={{ flex: '0 0 155px' }}>
+                <option value="">Campo…</option>
+                {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </Sel>
+              <Sel value={c.operador} onChange={v => update(c.id, { operador: v })} style={{ flex: '0 0 170px' }}>
+                <option value="">Operador…</option>
+                {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </Sel>
+              {campo?.tipo === 'enum'
+                ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })} style={{ flex: 1 }}>
+                    <option value="">Valor…</option>
+                    {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
+                  </Sel>
                 : campo?.tipo === 'money'
                   ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
                       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
                       <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
                     </div>
-                  : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp, flex: 1 }} placeholder="Valor…" />
-            }
-
-            <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '5px 4px', flexShrink: 0 }}>
-              <Trash2 size={13} strokeWidth={2} />
-            </button>
+                  : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
+                    ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp, width: 64 }} placeholder="0" />
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
+                      </div>
+                    : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp, flex: 1 }} placeholder="Valor…" />
+              }
+              <button onClick={() => remove(c.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '5px 4px', flexShrink: 0 }}>
+                <Trash2 size={13} strokeWidth={2} />
+              </button>
+            </div>
           </div>
         )
       })}
@@ -219,59 +211,108 @@ function CondicoesEditor({ origem, condicoes, onChange }) {
   )
 }
 
-// ─── Seletor de Destinatários ─────────────────────────────────────────────────
-function DestinatariosEditor({ usuarios, contatos, selectedUsuarios, selectedContatos, onChangeU, onChangeC }) {
-  const [tab, setTab] = useState('usuarios')
-
-  function toggleU(id) { onChangeU(selectedUsuarios.includes(id) ? selectedUsuarios.filter(x => x !== id) : [...selectedUsuarios, id]) }
-  function toggleC(id) { onChangeC(selectedContatos.includes(id) ? selectedContatos.filter(x => x !== id) : [...selectedContatos, id]) }
-
-  const tabBtn = (active) => ({
-    flex: 1, padding: '5px 0', fontSize: 12, fontWeight: active ? 700 : 400,
-    background: active ? 'var(--accent)' : 'var(--surface2)',
-    color: active ? '#fff' : 'var(--text-muted)',
-    border: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'var(--font)',
-  })
-
-  const lista = tab === 'usuarios' ? usuarios : contatos
-  const selected = tab === 'usuarios' ? selectedUsuarios : selectedContatos
-  const toggle   = tab === 'usuarios' ? toggleU : toggleC
+// ─── Editor de Ações ──────────────────────────────────────────────────────────
+function AcoesEditor({ acoes, onChange }) {
+  function update(id, patch) { onChange(acoes.map(a => a.id === id ? { ...a, ...patch } : a)) }
+  function add()       { onChange([...acoes, newAcao()]) }
+  function remove(id)  { onChange(acoes.filter(a => a.id !== id)) }
 
   return (
-    <div>
-      <div style={{ display: 'flex', borderRadius: 6, overflow: 'hidden', marginBottom: 8 }}>
-        <button style={{ ...tabBtn(tab === 'usuarios'), borderRadius: '6px 0 0 6px', borderRight: 'none' }} onClick={() => setTab('usuarios')}>
-          Usuários do sistema
-        </button>
-        <button style={{ ...tabBtn(tab === 'contatos'), borderRadius: '0 6px 6px 0' }} onClick={() => setTab('contatos')}>
-          Contatos Canais
-        </button>
-      </div>
-      <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-        {lista.length === 0 && (
-          <div style={{ padding: '12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum encontrado.</div>
-        )}
-        {lista.map(u => (
-          <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-            <input type="checkbox" checked={selected.includes(u.id)} onChange={() => toggle(u.id)} />
-            <span style={{ color: 'var(--text)', fontWeight: 500 }}>{u.nome || u.name || ''}</span>
-            {u.email && <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{u.email}</span>}
-          </label>
-        ))}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {acoes.map((a, idx) => (
+        <div key={a.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 12, background: 'var(--surface2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Ação {idx + 1}
+            </span>
+            {acoes.length > 1 && (
+              <button onClick={() => remove(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
+                <Trash2 size={13} strokeWidth={2} />
+              </button>
+            )}
+          </div>
+
+          {/* Tipo */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
+            <div>
+              <div style={lbl12}>Tipo</div>
+              <Sel value={a.tipo} onChange={v => update(a.id, { tipo: v })}>
+                <option value="notificar">Notificar no painel</option>
+                <option value="email">Enviar email</option>
+                <option value="tarefa">Criar tarefa</option>
+              </Sel>
+            </div>
+            <div>
+              <div style={lbl12}>Para quem</div>
+              <Sel value={a.destinatario_tipo} onChange={v => update(a.id, { destinatario_tipo: v })}>
+                {DEST_TIPOS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+              </Sel>
+            </div>
+          </div>
+
+          {/* Email fixo */}
+          {a.destinatario_tipo === 'email_fixo' && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={lbl12}>Email</div>
+              <input value={a.email_fixo} onChange={e => update(a.id, { email_fixo: e.target.value })}
+                placeholder="email@exemplo.com" style={inp} type="email" />
+            </div>
+          )}
+
+          {/* Campos de email */}
+          {a.tipo === 'email' && (
+            <>
+              <div style={{ marginBottom: 8 }}>
+                <div style={lbl12}>Template</div>
+                <Sel value={a.template} onChange={v => update(a.id, { template: v })}>
+                  {TEMPLATES.map(t => <option key={t.key} value={t.key}>{t.label}</option>)}
+                </Sel>
+              </div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={lbl12}>Assunto (opcional)</div>
+                <input value={a.assunto} onChange={e => update(a.id, { assunto: e.target.value })} style={inp} placeholder="Assunto personalizado…" />
+              </div>
+              <div>
+                <div style={lbl12}>Mensagem adicional (opcional)</div>
+                <textarea value={a.mensagem} onChange={e => update(a.id, { mensagem: e.target.value })}
+                  rows={2} style={{ ...inp, resize: 'vertical' }} placeholder="Texto adicional no email…" />
+              </div>
+            </>
+          )}
+
+          {/* Campos de tarefa */}
+          {a.tipo === 'tarefa' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8 }}>
+              <div>
+                <div style={lbl12}>Título da tarefa</div>
+                <input value={a.titulo_tarefa} onChange={e => update(a.id, { titulo_tarefa: e.target.value })} style={inp} placeholder="Ex: Ligar para cliente" />
+              </div>
+              <div>
+                <div style={lbl12}>Prazo (dias)</div>
+                <input type="number" min={1} max={90} value={a.prazo_dias} onChange={e => update(a.id, { prazo_dias: Number(e.target.value) })} style={{ ...inp, width: 60 }} />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button onClick={add} style={{ ...btnSm(false), alignSelf: 'flex-start' }}>
+        <Plus size={11} strokeWidth={2.5} /> Adicionar ação
+      </button>
     </div>
   )
 }
 
-// ─── Form da Regra (SlideOver inline) ─────────────────────────────────────────
-function RuleForm({ rule, onSave, onClose, usuarios, contatos }) {
+// ─── Form da Regra ────────────────────────────────────────────────────────────
+function RuleForm({ rule, onSave, onClose }) {
   const [form, setForm] = useState(rule)
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function submit() {
-    if (!form.origem)         return alert('Selecione a origem.')
+    if (!form.origem)               return alert('Selecione a origem.')
     if (!form.gatilho_nome?.trim()) return alert('Informe um nome para a regra.')
+    if (!form.acoes?.length)        return alert('Adicione pelo menos uma ação.')
     setSaving(true)
     await onSave(form)
     setSaving(false)
@@ -281,7 +322,6 @@ function RuleForm({ rule, onSave, onClose, usuarios, contatos }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 20px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{rule.id ? 'Editar regra' : 'Nova regra de alerta'}</div>
@@ -290,112 +330,75 @@ function RuleForm({ rule, onSave, onClose, usuarios, contatos }) {
         <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}><X size={16} /></button>
       </div>
 
-      {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px' }}>
 
         {/* Nome + Ativo */}
         <div style={sec}>
-          <div style={label12}>Nome da regra</div>
+          <div style={lbl12}>Nome da regra</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <input value={form.gatilho_nome} onChange={e => set('gatilho_nome', e.target.value)} style={{ ...inp, flex: 1 }} placeholder="Ex: Contrato vencendo em 30 dias" />
             <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, whiteSpace: 'nowrap', cursor: 'pointer' }}>
-              <input type="checkbox" checked={form.ativo} onChange={e => set('ativo', e.target.checked)} />
-              Ativa
+              <input type="checkbox" checked={form.ativo} onChange={e => set('ativo', e.target.checked)} /> Ativa
             </label>
           </div>
         </div>
 
         {/* Origem */}
         <div style={sec}>
-          <div style={label12}>Origem</div>
-          <Select value={form.origem} onChange={v => set('origem', v)}>
-            <option value="">Selecione a origem…</option>
+          <div style={lbl12}>Origem</div>
+          <Sel value={form.origem} onChange={v => set('origem', v)}>
+            <option value="">Selecione…</option>
             {ORIGENS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </Select>
+          </Sel>
         </div>
 
-        {/* Condições */}
+        {/* Condições + operador */}
         <div style={sec}>
-          <div style={label12}>Condições</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <div style={lbl12}>Condições</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Lógica entre condições:</span>
+              <button onClick={() => set('operador_logico', form.operador_logico === 'E' ? 'OU' : 'E')}
+                style={{ ...btnSm(true), padding: '2px 12px', fontSize: 11 }}>
+                {form.operador_logico}
+              </button>
+            </div>
+          </div>
           <CondicoesEditor
             origem={form.origem}
             condicoes={form.condicoes}
-            onChange={v => set('condicoes', v)}
+            operador={form.operador_logico}
+            onChangeCondicoes={v => set('condicoes', v)}
+            onChangeOp={v => set('operador_logico', v)}
           />
         </div>
 
-        {/* Consequência */}
+        {/* Ações */}
         <div style={sec}>
-          <div style={label12}>Consequência</div>
-          <Select value={form.consequencia} onChange={v => set('consequencia', v)} style={{ marginBottom: 12 }}>
-            <option value="notificar">Só notificar (painel + email)</option>
-            <option value="criar_tarefa">Criar tarefa automaticamente</option>
-            <option value="ambos">Notificar + Criar tarefa</option>
-          </Select>
-
-          {(form.consequencia === 'criar_tarefa' || form.consequencia === 'ambos') && (
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-              Prazo da tarefa:
-              <input type="number" min={1} max={90} value={form.prazo_tarefa_dias}
-                onChange={e => set('prazo_tarefa_dias', Number(e.target.value))}
-                style={{ ...inp, width: 52 }} />
-              dias após o gatilho
-            </label>
-          )}
-        </div>
-
-        {/* Email */}
-        {(form.consequencia === 'notificar' || form.consequencia === 'ambos') && (
-          <div style={sec}>
-            <div style={label12}>Mensagem do email</div>
-            <input value={form.email_assunto} onChange={e => set('email_assunto', e.target.value)}
-              placeholder="Assunto (opcional)" style={{ ...inp, marginBottom: 6 }} />
-            <textarea value={form.email_mensagem} onChange={e => set('email_mensagem', e.target.value)}
-              placeholder="Mensagem adicional (opcional)" rows={3}
-              style={{ ...inp, resize: 'vertical', lineHeight: 1.5 }} />
-          </div>
-        )}
-
-        {/* Destinatários */}
-        <div style={sec}>
-          <div style={label12}>Destinatários</div>
-          <DestinatariosEditor
-            usuarios={usuarios}
-            contatos={contatos}
-            selectedUsuarios={form.destinatarios_usuario}
-            selectedContatos={form.destinatarios_contato}
-            onChangeU={v => set('destinatarios_usuario', v)}
-            onChangeC={v => set('destinatarios_contato', v)}
-          />
+          <div style={lbl12}>Ações</div>
+          <AcoesEditor acoes={form.acoes} onChange={v => set('acoes', v)} />
         </div>
       </div>
 
-      {/* Footer */}
       <div style={{ padding: '12px 20px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 8, flexShrink: 0 }}>
         <button onClick={onClose} style={btnSm(false)}>Cancelar</button>
-        <button onClick={submit} disabled={saving} style={btnSm(true)}>
-          {saving ? 'Salvando…' : 'Salvar regra'}
-        </button>
+        <button onClick={submit} disabled={saving} style={btnSm(true)}>{saving ? 'Salvando…' : 'Salvar regra'}</button>
       </div>
     </div>
   )
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// ─── Serialização ─────────────────────────────────────────────────────────────
 function rowToRule(r) {
   const cf = r.custom_fields || {}
   return {
-    id: r.id,
-    gatilho_nome:        r.gatilho_nome || r.gatilho || '',
-    origem:              r.origem || '',
-    ativo:               r.ativo,
-    condicoes:           cf.condicoes || [newCondicao()],
-    consequencia:        cf.consequencia || 'notificar',
-    prazo_tarefa_dias:   cf.prazo_tarefa_dias || 3,
-    destinatarios_usuario: cf.destinatarios_usuario || [],
-    destinatarios_contato: cf.destinatarios_contato || [],
-    email_assunto:       cf.email_assunto || '',
-    email_mensagem:      cf.email_mensagem || '',
+    id:             r.id,
+    gatilho_nome:   r.gatilho_nome || r.gatilho || '',
+    origem:         r.origem || '',
+    ativo:          r.ativo,
+    operador_logico: cf.operador_logico || 'E',
+    condicoes:      cf.condicoes || [newCond()],
+    acoes:          cf.acoes    || [newAcao()],
   }
 }
 
@@ -407,46 +410,36 @@ function ruleToRow(f, tenantId) {
     origem:       f.origem,
     ativo:        f.ativo,
     dias_aviso:   1,
-    modo:         f.consequencia === 'criar_tarefa' ? 'criar_tarefa' : 'notificar',
-    prazo_tarefa_dias: f.consequencia !== 'notificar' ? f.prazo_tarefa_dias : null,
+    modo:         'notificar',
     destinatarios: [],
     custom_fields: {
-      condicoes:              f.condicoes,
-      consequencia:           f.consequencia,
-      prazo_tarefa_dias:      f.prazo_tarefa_dias,
-      destinatarios_usuario:  f.destinatarios_usuario,
-      destinatarios_contato:  f.destinatarios_contato,
-      email_assunto:          f.email_assunto,
-      email_mensagem:         f.email_mensagem,
+      operador_logico: f.operador_logico,
+      condicoes:       f.condicoes,
+      acoes:           f.acoes,
     },
     updated_at: new Date().toISOString(),
   }
 }
 
+// ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsAlertas() {
-  const { profile } = useProfile()
-  const { usuarios } = useUsuarios()
-  const { contacts: contatos } = useContacts()
-
-  const [rules,   setRules]   = useState([])
-  const [loading, setLoading] = useState(true)
-  const [editing, setEditing] = useState(null)   // null | rule object
-  const [search,  setSearch]  = useState('')
+  const { profile }              = useProfile()
+  const [rules, setRules]        = useState([])
+  const [loading, setLoading]    = useState(true)
+  const [editing, setEditing]    = useState(null)
+  const [search, setSearch]      = useState('')
 
   const tenantId = profile?.tenant_id
 
   const load = useCallback(async () => {
-    if (!tenantId) return
+    if (!tenantId) { setLoading(false); return }
     setLoading(true)
     const { data } = await supabase.from('alert_rules').select('*').eq('tenant_id', tenantId).order('created_at')
     setRules((data || []).map(rowToRule))
     setLoading(false)
   }, [tenantId])
 
-  useEffect(() => {
-    if (tenantId) load()
-    else setLoading(false)
-  }, [load, tenantId])
+  useEffect(() => { if (tenantId) load(); else setLoading(false) }, [load, tenantId])
 
   async function save(form) {
     const row = ruleToRow(form, tenantId)
@@ -477,16 +470,20 @@ export default function SettingsAlertas() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return rules.filter(r =>
-      !q || r.gatilho_nome.toLowerCase().includes(q) || (origemMap[r.origem] || '').toLowerCase().includes(q)
-    )
+    return rules.filter(r => !q || r.gatilho_nome.toLowerCase().includes(q) || (origemMap[r.origem] || '').toLowerCase().includes(q))
   }, [rules, search])
 
   const COLS = [
-    { key: 'gatilho_nome', label: 'Nome', render: r => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
-    { key: 'origem',       label: 'Origem',      render: r => origemMap[r.origem] || r.origem },
-    { key: 'condicoes',    label: 'Condições',   render: r => `${(r.condicoes || []).filter(c => c.campo).length} condição(ões)` },
-    { key: 'consequencia', label: 'Consequência',render: r => ({ notificar: 'Notificar', criar_tarefa: 'Criar tarefa', ambos: 'Notificar + Tarefa' }[r.consequencia] || r.consequencia) },
+    { key: 'gatilho_nome', label: 'Nome',         render: r => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
+    { key: 'origem',       label: 'Origem',        render: r => origemMap[r.origem] || r.origem },
+    { key: 'condicoes',   label: 'Condições',     render: r => {
+      const n = (r.condicoes || []).filter(c => c.campo).length
+      return `${n} condição(ões) · ${r.operador_logico}`
+    }},
+    { key: 'acoes',       label: 'Ações',         render: r => {
+      const tipos = { email: 'Email', tarefa: 'Tarefa', notificar: 'Painel' }
+      return (r.acoes || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')
+    }},
     { key: 'ativo', label: 'Status', render: r => (
       <button onClick={e => { e.stopPropagation(); toggleAtivo(r) }}
         style={{ padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
@@ -499,17 +496,11 @@ export default function SettingsAlertas() {
 
   return (
     <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
-      {/* Browse */}
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
         <SettingsLayout
-          columns={COLS}
-          data={filtered}
-          keyField="id"
-          loading={loading}
-          search={search}
-          onSearchChange={setSearch}
-          newLabel="+ Nova regra"
-          onNew={() => setEditing(emptyRule())}
+          columns={COLS} data={filtered} keyField="id"
+          loading={loading} search={search} onSearchChange={setSearch}
+          newLabel="+ Nova regra" onNew={() => setEditing(emptyRule())}
           emptyLabel="Nenhuma regra de alerta configurada."
           rowActions={[
             { label: 'Editar',  onClick: r => setEditing(r) },
@@ -518,20 +509,9 @@ export default function SettingsAlertas() {
         />
       </div>
 
-      {/* Form lateral */}
       {editing && (
-        <div style={{
-          width: 480, flexShrink: 0, borderLeft: '1px solid var(--border)',
-          background: 'var(--surface)', display: 'flex', flexDirection: 'column',
-          height: '100%', overflow: 'hidden',
-        }}>
-          <RuleForm
-            rule={editing}
-            onSave={save}
-            onClose={() => setEditing(null)}
-            usuarios={usuarios}
-            contatos={contatos}
-          />
+        <div style={{ width: 500, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+          <RuleForm rule={editing} onSave={save} onClose={() => setEditing(null)} />
         </div>
       )}
     </div>
