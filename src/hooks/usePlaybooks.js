@@ -102,9 +102,10 @@ export function usePlaybooks() {
     const row = playbookToRow(pb, tenantId, branchId)
     const isUuid = typeof pb.id === 'string' && pb.id.includes('-') && !pb.id.startsWith('pb-')
     if (isUuid) {
-      const { error } = await supabase.from('playbooks').update(row).eq('id', pb.id)
+      const { data: updated, error } = await supabase.from('playbooks').update(row).eq('id', pb.id).select()
       if (error) return { ok: false, message: error.message }
-      setPlaybooks(prev => prev.map(x => x.id === pb.id ? { ...x, ...pb } : x))
+      if (!updated?.length) return { ok: false, message: `Nenhuma linha atualizada (id=${pb.id}). Verifique RLS ou se o registro existe.` }
+      setPlaybooks(prev => prev.map(x => x.id === pb.id ? rowToPlaybook(updated[0]) : x))
     } else {
       const { data, error } = await supabase.from('playbooks').insert(row).select().single()
       if (error) return { ok: false, message: error.message }
