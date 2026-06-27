@@ -354,11 +354,11 @@ export default function Parceiros() {
 
   function handleImport(rows) {
     rows.forEach(r => {
-      const { franquia_mae, ...rest } = r
+      const { franquia_mae, id: _id, ...rest } = r
       const franquia_id = franquia_mae
         ? (franquias.find(f => f.nome?.toLowerCase() === franquia_mae.toLowerCase())?.id || null)
         : null
-      saveParceiro({ ...rest, franquia_id, id: String(Date.now() + Math.random()) })
+      saveParceiro({ nome: rest.nome, codigo: rest.codigo || '', classificacao: rest.classificacao || 'franquia', situacao: rest.situacao || 'ativo', franquia_id })
     })
   }
 

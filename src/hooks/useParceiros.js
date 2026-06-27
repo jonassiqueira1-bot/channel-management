@@ -48,12 +48,16 @@ export function useParceiros() {
       })
       return { ok: true }
     }
-    const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
-    const { error } = await supabase.from('parceiros').upsert(row, { onConflict: 'id' })
+    const { id, ...fields } = record
+    const row = { ...fields, tenant_id: tid.current, updated_at: new Date().toISOString() }
+    if (id) row.id = id
+    const { data: saved, error } = id
+      ? await supabase.from('parceiros').upsert(row, { onConflict: 'id' }).select().single()
+      : await supabase.from('parceiros').insert(row).select().single()
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => {
-      const idx = prev.findIndex(p => p.id === record.id)
-      return idx >= 0 ? prev.map(p => p.id === record.id ? record : p) : [...prev, record]
+      const idx = prev.findIndex(p => p.id === (saved?.id || id))
+      return idx >= 0 ? prev.map(p => p.id === saved?.id ? { ...p, ...saved } : p) : [...prev, saved || record]
     })
     return { ok: true }
   }, [])
