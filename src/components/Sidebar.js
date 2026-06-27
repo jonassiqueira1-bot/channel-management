@@ -3,6 +3,7 @@ import logoBoostly from '../assets/logo-boostly.svg'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalState } from '../hooks/useLocalState'
+import AlertsInbox from './AlertsInbox'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
@@ -372,8 +373,9 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         )}
       </nav>
 
-      {/* ── Bottom: Configurações + Recolher + Sair ── */}
+      {/* ── Bottom: Pendências + Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
+        <AlertsInbox collapsed={collapsed} />
         <NavLink
           to="/settings"
           title={collapsed ? 'Configurações' : undefined}
