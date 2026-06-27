@@ -149,10 +149,10 @@ export default function SlideOver({
           /* ─── Inputs dentro do SlideOver ─────────────────────────── */
           .so-field {
             width: 100%;
-            height: 36px;
-            padding: 0 10px;
-            border: 1px solid ${SO_BORDER};
-            border-radius: var(--radius-md, 6px);
+            height: 38px;
+            padding: 0 12px;
+            border: 1.5px solid ${SO_BORDER};
+            border-radius: var(--radius-md, 10px);
             background: ${SO_INPUT_BG};
             font-family: var(--font);
             font-size: var(--text-base, 13px);
@@ -163,9 +163,13 @@ export default function SlideOver({
             box-sizing: border-box;
             appearance: none;
           }
+          .so-field:hover {
+            border-color: #94A3B8;
+          }
           .so-field:focus {
             border-color: ${SO_FOCUS_BC};
-            box-shadow: ${SO_FOCUS_RING};
+            box-shadow: ${SO_FOCUS_RING}, inset 3px 0 0 ${SO_FOCUS_BC};
+            background: #fff;
           }
           .so-field:disabled {
             background: #F1F5F9;
@@ -174,23 +178,29 @@ export default function SlideOver({
           }
           textarea.so-field {
             height: auto;
-            min-height: 80px;
-            padding: 8px 10px;
+            min-height: 84px;
+            padding: 10px 12px;
             resize: vertical;
             line-height: 1.55;
           }
+          textarea.so-field:focus {
+            box-shadow: ${SO_FOCUS_RING}, inset 3px 0 0 ${SO_FOCUS_BC};
+          }
           select.so-field {
-            padding-right: 28px;
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239A9590' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+            padding-right: 32px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%232563EB' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 8px center;
+            background-position: right 10px center;
             background-size: 14px;
+            cursor: pointer;
           }
           .so-label {
-            font-size: var(--text-sm, 12px);
-            font-weight: 500;
-            color: var(--text);
-            margin-bottom: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 6px;
             display: block;
           }
           .so-hint  { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
@@ -201,17 +211,18 @@ export default function SlideOver({
         {/* ── Header sticky ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          padding: '14px 20px', flexShrink: 0,
-          borderBottom: hasTabs ? 'none' : '1px solid var(--border)',
+          padding: '16px 20px', flexShrink: 0,
+          borderBottom: '1px solid var(--border)',
           background: SO_BG,
           position: 'sticky', top: 0, zIndex: 1,
+          borderTop: '3px solid var(--accent)',
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--text)' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px', lineHeight: 1.2 }}>
               {title}
             </h2>
             {subtitle && (
-              <p style={{ margin: '2px 0 0', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+              <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
                 {subtitle}
               </p>
             )}
@@ -314,8 +325,8 @@ export default function SlideOver({
             flex: 1, minHeight: 0, minWidth: 0,
             overflowY: hasTabs ? 'hidden' : 'auto',
             overflowX: 'hidden',
-            padding: hasTabs ? '0' : '20px',
-            display: 'flex', flexDirection: 'column', gap: hasTabs ? 0 : 20,
+            padding: hasTabs ? '0' : '16px',
+            display: 'flex', flexDirection: 'column', gap: hasTabs ? 0 : 12,
           }}>
             {hasTabs ? (
               // With tabs: render children directly (each tab manages its own layout)
@@ -411,25 +422,42 @@ export function FormGrid({ cols = 2, gap = '16px 20px', children, style: extra =
 }
 
 /**
- * FormSection — título de seção dentro do formulário.
- * <FormSection label="Endereço" />
+ * FormSection — seção em card com barra de acento.
+ * <FormSection label="Endereço">...</FormSection>
  */
 export function FormSection({ label, children }) {
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{
+      gridColumn: '1 / -1',
+      background: '#fff',
+      border: '1px solid var(--border2)',
+      borderRadius: 'var(--radius-lg, 16px)',
+      overflow: 'hidden',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+    }}>
+      {/* Cabeçalho da seção */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
+        display: 'flex', alignItems: 'center', gap: 8,
+        padding: '10px 16px',
+        background: 'var(--surface2)',
+        borderBottom: '1px solid var(--border2)',
       }}>
+        <div style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
         <span style={{
-          fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase',
-          letterSpacing: '0.07em', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+          fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+          letterSpacing: '0.07em', color: 'var(--text)',
         }}>
           {label}
         </span>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
       </div>
+      {/* Campos */}
       {children && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px 20px' }}>
+        <div style={{
+          padding: '16px',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: '14px 20px',
+        }}>
           {children}
         </div>
       )}
