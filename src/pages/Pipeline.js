@@ -3637,6 +3637,24 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   const [cfFields, cfActions] = useCustomFields('oportunidade')
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
+  const { companies: allCompanies } = useCompanies()
+  const { sellers: allSellers } = useSellers()
+  const { contacts: allContacts } = useContacts()
+  const { produtos: allProdutos } = useProducts()
+  const { usuarios: allUsuarios } = useUsuarios()
+
+  // Mapa de entidade → opções para campos de Referência (lookup)
+  const lookupOptions = useMemo(() => ({
+    companies:      allCompanies.map(c => ({ id: String(c.id), label: c.nome || c.name || String(c.id) })),
+    contacts:       allContacts.map(c => ({ id: String(c.id), label: c.nome || c.email || String(c.id) })),
+    sellers:        allSellers.map(s => ({ id: String(s.id), label: s.nome || s.email || String(s.id) })),
+    products:       allProdutos.map(p => ({ id: String(p.id), label: p.nome || String(p.id) })),
+    sellers_users:  allUsuarios.map(u => ({ id: String(u.id), label: u.nome || u.email || String(u.id) })),
+    tenant_branches: [],  // carregado via useBranches se necessário
+    opportunities:  [],
+    contracts:      [],
+    parceiros:      [],
+  }), [allCompanies, allContacts, allSellers, allProdutos, allUsuarios])
   const [errs, setErrs] = useState({})
   function set(f, v) { setForm(prev => ({ ...prev, [f]: v })); if (errs[f]) setErrs(p => ({ ...p, [f]: '' })) }
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
@@ -3711,7 +3729,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   const SL = { fontSize:11, fontWeight:700, color:'#64748B', textTransform:'uppercase', letterSpacing:'0.08em', display:'block', marginBottom:5 }
 
   // Conteúdo dos campos do formulário — reutilizado em edição e criação
-  function renderOppField(key) {
+  function renderOppField(key, field) {
     switch (key) {
       case 'titulo':
         return <>
@@ -3794,8 +3812,24 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           : null
       case 'descricao':
         return <textarea style={{ ...m.input, minHeight:72, resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Observações sobre a oportunidade…" />
-      default:
-        return undefined  // campo customizado — usa GenericInput do DynamicFormLayout
+      default: {
+        // Campos de Referência (lookup) criados em Configuração de Campos
+        if (field?.field_type === 'lookup' && field.lookup_target) {
+          const opts = lookupOptions[field.lookup_target] || []
+          const val  = form.custom_fields?.[key] ?? ''
+          const selected = opts.find(o => o.id === String(val))
+          return (
+            <SearchSelect
+              options={opts}
+              value={val ? String(val) : ''}
+              onChange={v => setCustomField(key, v || '')}
+              placeholder={selected ? selected.label : `Buscar ${field.label}…`}
+            />
+          )
+        }
+        // Campo customizado genérico — usa GenericInput do DynamicFormLayout
+        return undefined
+      }
     }
   }
 
