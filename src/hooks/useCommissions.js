@@ -183,33 +183,44 @@ export function useCommissions() {
     if (isMockMode.current || !tenantId) return { ok: true }
     const isUuid = (id) => typeof id === 'string' && id.includes('-') && id.length > 20
 
-    const toDelete = personas.filter(p => !list.find(n => n.id === p.id))
-    const toUpsert = list.map(p => {
-      const row = {
-        tenant_id:  tenantId,
-        slug:       p.slug,
-        label:      p.label,
-        descricao:  p.descricao || null,
-        cor:        p.cor || '#6366F1',
-        ordem:      p.ordem ?? 0,
-        ativo:      p.ativo ?? true,
-        usuario_id:  p.usuario_id  || null,
-        parceiro_id: p.parceiro_id || null,
-      }
-      if (isUuid(p.id)) row.id = p.id
-      return row
+    const toRow = (p) => ({
+      tenant_id:   tenantId,
+      slug:        p.slug,
+      label:       p.label,
+      descricao:   p.descricao || null,
+      cor:         p.cor || '#6366F1',
+      ordem:       p.ordem ?? 0,
+      ativo:       p.ativo ?? true,
+      usuario_id:  p.usuario_id  || null,
+      parceiro_id: p.parceiro_id || null,
     })
+
+    // Personas que existem no DB têm UUID real; novas têm UUID gerado em add()
+    const dbPersonaIds = personas.filter(p => isUuid(p.id)).map(p => p.id)
+    const toDelete  = personas.filter(p => isUuid(p.id) && !list.find(n => n.id === p.id))
+    const toUpdate  = list.filter(p => isUuid(p.id) && dbPersonaIds.includes(p.id))
+    const toInsert  = list.filter(p => !isUuid(p.id) || !dbPersonaIds.includes(p.id))
 
     const ops = []
     if (toDelete.length) {
       ops.push(supabase.from('commission_personas').delete().in('id', toDelete.map(p => p.id)))
     }
-    if (toUpsert.length) {
-      ops.push(supabase.from('commission_personas').upsert(toUpsert, { onConflict: 'tenant_id,slug' }).select())
+    for (const p of toUpdate) {
+      ops.push(supabase.from('commission_personas').update(toRow(p)).eq('id', p.id))
     }
+    if (toInsert.length) {
+      const rows = toInsert.map(p => ({ ...toRow(p), ...(isUuid(p.id) ? { id: p.id } : {}) }))
+      ops.push(supabase.from('commission_personas').insert(rows).select())
+    }
+
     const results = await Promise.all(ops)
     const err = results.find(r => r.error)
     if (err) return { ok: false, message: err.error.message }
+
+    // Recarrega para obter ids reais de personas recém inseridas
+    const { data: fresh } = await supabase.from('commission_personas').select('*').order('ordem')
+    if (fresh) setPersonas(fresh.map(rowToPersona))
+
     return { ok: true }
   }, [tenantId, personas])
 
