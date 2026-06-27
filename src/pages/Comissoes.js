@@ -1878,7 +1878,12 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
         )
       })}
 
-      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} parceiros={parceiros} onChange={async p=>{ await (onSavePersonas ? onSavePersonas(p) : setPersonas(p)); setShowPersonas(false) }} onClose={()=>setShowPersonas(false)} />}
+      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} parceiros={parceiros} onChange={async p=>{
+        const res = onSavePersonas ? await onSavePersonas(p) : null
+        if (res?.ok === false) { alert('Erro ao salvar personas: ' + res.message); return }
+        setPersonas(p)
+        setShowPersonas(false)
+      }} onClose={()=>setShowPersonas(false)} />}
     </div>
   )
 }
