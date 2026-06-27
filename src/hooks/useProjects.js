@@ -2,11 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import {
-  MOCK_PROJETOS, MOCK_PROJECT_PHASES, MOCK_TIME_LOGS,
-  MOCK_PROJECT_ISSUES, MOCK_PROJECT_MEMBERS,
-} from '../data/mockProjetos'
-
 const PHASE_ORDER = { iniciacao: 1, modelagem: 2, implantacao: 3, treinamento: 4, go_live: 5, encerramento: 6 }
 
 function rowToProject(row) {
@@ -61,14 +56,14 @@ export function useProjects() {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [projetos,    setProjetos]    = useState(MOCK_PROJETOS)
-  const [phases,      setPhases]      = useState(MOCK_PROJECT_PHASES)
+  const [projetos,    setProjetos]    = useState([])
+  const [phases,      setPhases]      = useState([])
   const [timeLogs,    setTimeLogs]    = useState(() => {
-    try { const s = localStorage.getItem('projetos:timeLogs_v1'); return s ? JSON.parse(s) : MOCK_TIME_LOGS }
-    catch { return MOCK_TIME_LOGS }
+    try { const s = localStorage.getItem('projetos:timeLogs_v1'); return s ? JSON.parse(s) : [] }
+    catch { return [] }
   })
-  const [issues,      setIssues]      = useState(MOCK_PROJECT_ISSUES)
-  const [members,     setMembers]     = useState(MOCK_PROJECT_MEMBERS)
+  const [issues,      setIssues]      = useState([])
+  const [members,     setMembers]     = useState([])
   const [loading,     setLoading]     = useState(true)
   const isMockMode                    = useRef(true)
 
@@ -85,7 +80,7 @@ export function useProjects() {
       .select('*, companies(nome_fantasia, razao_social)')
       .order('created_at', { ascending: false })
 
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { console.error('[useProjects]', error.message); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setProjetos((data || []).map(rowToProject))

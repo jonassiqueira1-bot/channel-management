@@ -93,7 +93,7 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
       .select('*, companies(nome_fantasia, razao_social)')
       .order('created_at', { ascending: false })
 
-    if (error) { isMockMode.current = true; setLoading(false); return }
+    if (error) { console.error('[useContracts]', error.message); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setContratos((data || []).map(rowToContrato))
