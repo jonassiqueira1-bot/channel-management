@@ -906,7 +906,7 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
   const [expandedId, setExpandedId] = useState(null)
 
   const oppTarefas = useMemo(() =>
-    [...tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===oppId)]
+    [...tarefas.filter(t => t.entidade_tipo==='oportunidade' && String(t.entidade_id)===String(oppId))]
       .sort((a,b) => {
         // pendente/em_andamento primeiro, depois por prazo
         const ord = { pendente:0, em_andamento:1, concluida:2, cancelada:3 }
@@ -5650,7 +5650,10 @@ export default function Pipeline() {
     setModal(null)
   }
 
-  function handleSaveTarefa(tarefa) { saveTask(tarefa) }
+  async function handleSaveTarefa(tarefa) {
+    const result = await saveTask(tarefa)
+    if (result?.ok === false) alert('Erro ao salvar tarefa: ' + result.message)
+  }
   function handleToggleStatus(tarefaId, novoStatus) {
     bulkSetTaskStatus([tarefaId], novoStatus)
   }
