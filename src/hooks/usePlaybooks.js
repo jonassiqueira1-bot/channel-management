@@ -7,20 +7,32 @@ import {
 } from '../data/mockPlaybooks'
 
 function rowToPlaybook(row) {
-  const cf = row.custom_fields || {}
-  const tit = row.titulo || row.nome || ''  // fallback para coluna legada 'nome'
+  // Lê custom_fields: coluna própria (pós-migration) ou serializado em segment
+  let cf = row.custom_fields || {}
+  let segmentText = row.segment || ''
+  if (!Object.keys(cf).length && segmentText.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(segmentText)
+      const { _seg, ...rest } = parsed
+      cf = rest
+      segmentText = _seg || ''
+    } catch { /* segment é texto simples */ }
+  }
+
+  const tit = row.titulo || row.title || ''
+  const desc = row.descricao || row.description || ''
   return {
     id:          row.id,
     titulo:      tit,
     title:       tit,
-    descricao:   row.descricao || '',
-    description: row.descricao || '',
-    segment:     cf.segment || '',
-    status:      row.status || 'rascunho',
+    descricao:   desc,
+    description: desc,
+    segment:     cf.segment || segmentText,
+    status:      row.status || row.is_active === false ? 'inativo' : 'rascunho',
     owner_id:    row.owner_id || null,
     criado:      row.created_at?.slice(0, 10) || '',
     atualizado:  row.updated_at?.slice(0, 10) || '',
-    steps:       row.steps || row.etapas || [],   // fallback para coluna legada 'etapas'
+    steps:       row.steps || row.etapas || [],
     refs:        row.refs  || [],
     resources:   row.resources || [],
     ...cf,
@@ -30,22 +42,27 @@ function rowToPlaybook(row) {
 function playbookToRow(pb, tenantId, branchId) {
   const { id, titulo, title, descricao, description, status, owner_id, criado, atualizado, steps, refs, resources, ...rest } = pb
   const tit = titulo || title || ''
+  const desc = descricao || description || null
   // Tudo que não é coluna de sistema vai para custom_fields (JSONB)
   const customFields = Object.fromEntries(
-    Object.entries(rest).filter(([k]) => !['title', 'description', 'id'].includes(k))
+    Object.entries(rest).filter(([k]) => !['title', 'description', 'id', 'is_active'].includes(k))
   )
+  // Enquanto a migration 20260627000002 não roda em produção,
+  // custom_fields/descricao/status não existem como colunas.
+  // Serializamos os extras em `segment` (coluna original, tipo text).
+  // Após a migration rodar, custom_fields passa a ser usado.
+  const segmentPayload = JSON.stringify({ _seg: customFields.segment || '', ...customFields })
   return {
-    tenant_id:    tenantId,
-    titulo:       tit,
-    descricao:    descricao || description || null,
-    status:       status || 'rascunho',
-    custom_fields: customFields,
-    // Colunas adicionadas pela migration — inclui sempre para manter consistência
-    branch_id:    branchId || null,
-    owner_id:     owner_id || null,
-    steps:        steps    || [],
-    refs:         refs     || [],
-    resources:    resources|| [],
+    tenant_id:   tenantId,
+    title:       tit,
+    titulo:      tit,
+    description: desc,
+    segment:     segmentPayload,
+    branch_id:   branchId || null,
+    owner_id:    owner_id || null,
+    steps:       steps    || [],
+    refs:        refs     || [],
+    resources:   resources|| [],
   }
 }
 
