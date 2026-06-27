@@ -47,22 +47,17 @@ function playbookToRow(pb, tenantId, branchId) {
   const customFields = Object.fromEntries(
     Object.entries(rest).filter(([k]) => !['title', 'description', 'id', 'is_active'].includes(k))
   )
-  // Enquanto a migration 20260627000002 não roda em produção,
-  // custom_fields/descricao/status não existem como colunas.
-  // Serializamos os extras em `segment` (coluna original, tipo text).
-  // Após a migration rodar, custom_fields passa a ser usado.
-  const segmentPayload = JSON.stringify({ _seg: customFields.segment || '', ...customFields })
   return {
-    tenant_id:   tenantId,
-    title:       tit,
-    titulo:      tit,
-    description: desc,
-    segment:     segmentPayload,
-    branch_id:   branchId || null,
-    owner_id:    owner_id || null,
-    steps:       steps    || [],
-    refs:        refs     || [],
-    resources:   resources|| [],
+    tenant_id:    tenantId,
+    titulo:       tit,
+    descricao:    desc,
+    status:       status || 'rascunho',
+    custom_fields: customFields,
+    branch_id:    branchId || null,
+    owner_id:     owner_id || null,
+    steps:        steps    || [],
+    refs:         refs     || [],
+    resources:    resources|| [],
   }
 }
 
