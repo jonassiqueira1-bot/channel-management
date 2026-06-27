@@ -417,11 +417,11 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
     setTab('info')
   }, [initial])
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.title.trim()) { setTab('info'); setErrs({ title: 'Título é obrigatório' }); return }
     setErrs({})
     setSaving(true)
-    onSave(form)
+    await onSave(form)
     setSaving(false)
   }
 

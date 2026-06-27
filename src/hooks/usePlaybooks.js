@@ -28,7 +28,7 @@ function rowToPlaybook(row) {
     descricao:   desc,
     description: desc,
     segment:     cf.segment || segmentText,
-    status:      row.status || row.is_active === false ? 'inativo' : 'rascunho',
+    status:      row.status || (row.is_active === false ? 'inativo' : 'rascunho'),
     owner_id:    row.owner_id || null,
     criado:      row.created_at?.slice(0, 10) || '',
     atualizado:  row.updated_at?.slice(0, 10) || '',
