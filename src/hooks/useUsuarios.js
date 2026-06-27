@@ -21,7 +21,14 @@ export function useUsuarios() {
       if (!session?.user) { isMock.current = true; setUsuarios(load()); return }
       const { data, error } = await supabase.from('profiles').select('*').order('nome')
       if (error) { isMock.current = true; setUsuarios(load()) }
-      else { isMock.current = false; setUsuarios(data || []) }
+      else {
+        isMock.current = false
+        setUsuarios((data || []).map(u => ({
+          ...u,
+          criado_em:    u.criado_em    || u.created_at || null,
+          ultimo_acesso: u.ultimo_acesso || null,
+        })))
+      }
     }
     fetch()
   }, [session])
