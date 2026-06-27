@@ -465,11 +465,11 @@ function ConditionBuilder({ conditions, onChange, joinsAtivos = [], onChangeJoin
 }
 
 // ─── PersonasEditor ───────────────────────────────────────────────────────────
-function PersonasEditor({ personas, onChange, onClose }) {
+function PersonasEditor({ personas, onChange, onClose, usuarios = [] }) {
   const [list, setList] = useState(personas.map(p => ({ ...p })))
   const [editing, setEditing] = useState(null)
   const colors = ['var(--accent)','#0EA5E9','#F59E0B','#10B981','var(--accent)','#EF4444','#EC4899','#14B8A6','#F97316','#84CC16']
-  function add() { const novo = { id: uid(), slug: `persona_${uid()}`, label: 'Novo Persona', descricao: '', cor: colors[list.length % colors.length], ordem: list.length, ativo: true }; setList(l => [...l, novo]); setEditing(novo.id) }
+  function add() { const novo = { id: uid(), slug: `persona_${uid()}`, label: 'Novo Persona', descricao: '', cor: colors[list.length % colors.length], ordem: list.length, ativo: true, usuario_id: null }; setList(l => [...l, novo]); setEditing(novo.id) }
   function remove(id) { setList(l => l.filter(p => p.id !== id)) }
   function update(id, patch) { setList(l => l.map(p => p.id === id ? { ...p, ...patch } : p)) }
   function toggleAtivo(id) { update(id, { ativo: !list.find(p=>p.id===id)?.ativo }) }
@@ -506,6 +506,17 @@ function PersonasEditor({ personas, onChange, onClose }) {
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Descrição</div>
                       <input style={{ ...IN, width:'100%', boxSizing:'border-box' }} value={p.descricao||''} onChange={e => update(p.id, { descricao: e.target.value })} />
                     </div>
+                    {usuarios.length > 0 && (
+                      <div style={{ gridColumn:'1/-1' }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Usuário vinculado</div>
+                        <select style={{ ...IN, width:'100%', boxSizing:'border-box' }}
+                          value={p.usuario_id || ''}
+                          onChange={e => update(p.id, { usuario_id: e.target.value || null })}>
+                          <option value="">— Nenhum —</option>
+                          {usuarios.map(u => <option key={u.id} value={String(u.id)}>{u.nome}{u.cargo ? ` · ${u.cargo}` : ''}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <div style={{ gridColumn:'1/-1' }}>
                       <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>Cor</div>
                       <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -523,7 +534,8 @@ function PersonasEditor({ personas, onChange, onClose }) {
                     <span style={{ width:10, height:10, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
                     <div>
                       <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</div>
-                      {p.descricao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.descricao}</div>}
+                      {p.usuario_id && (() => { const u = usuarios.find(u => String(u.id) === String(p.usuario_id)); return u ? <div style={{ fontSize:11, color:'var(--accent)' }}>→ {u.nome}</div> : null })()}
+                      {!p.usuario_id && p.descricao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.descricao}</div>}
                     </div>
                     <span style={{ fontFamily:'var(--mono)', fontSize:10, color:'var(--text-muted)', background:'var(--surface2)', padding:'2px 6px', borderRadius:4, border:'1px solid var(--border)' }}>{p.slug}</span>
                   </div>
@@ -1021,29 +1033,24 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
     <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
 
       <FormSection label="Identificação">
-        <FormGrid cols={2}>
-          <FormField label="Nome da regra" required>
-            <input className="so-field" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" style={{ gridColumn:'1/-1' }} />
-          </FormField>
-          <FormField label="Descrição curta">
+        <FormField label="Nome da regra" required>
+          <input className="so-field" value={form.nome} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
+        </FormField>
+        <FormGrid cols={3}>
+          <FormField label="Descrição curta" style={{ gridColumn:'1/3' }}>
             <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Resumo em uma linha" />
           </FormField>
           <FormField label="Vigência início">
             <input type="date" className="so-field" value={form.vigencia_inicio||''} onChange={e=>set('vigencia_inicio',e.target.value||null)} />
           </FormField>
-          <FormField label="Vigência fim">
+          <FormField label="Vigência fim" style={{ gridColumn:'span 2' }}>
             <input type="date" className="so-field" value={form.vigencia_fim||''} onChange={e=>set('vigencia_fim',e.target.value||null)} />
           </FormField>
+          <div style={{ display:'flex', gap:20, alignItems:'center', paddingTop:20 }}>
+            <Toggle value={form.ativo}        onChange={v=>set('ativo',v)}        label="Ativa" />
+            <Toggle value={form.revisao_anual} onChange={v=>set('revisao_anual',v)} label="Revisão anual" />
+          </div>
         </FormGrid>
-        <FormGrid cols={1}>
-          <FormField label="Contexto e motivação">
-            <textarea className="so-field" rows={2} value={form.contexto||''} onChange={e=>set('contexto',e.target.value)} placeholder="Explique o porquê desta regra…" style={{ resize:'vertical' }} />
-          </FormField>
-        </FormGrid>
-        <div style={{ display:'flex', gap:20 }}>
-          <Toggle value={form.ativo}        onChange={v=>set('ativo',v)}        label="Regra ativa" />
-          <Toggle value={form.revisao_anual} onChange={v=>set('revisao_anual',v)} label="Revisão anual" />
-        </div>
       </FormSection>
 
       <FormSection label="Escopo">
@@ -1146,33 +1153,56 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         />
       </FormSection>
 
-      {isFixo && (
-        <FormSection label="Percentuais por Persona × Tipo de Receita">
-          <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-            <div style={{ display:'grid', gridTemplateColumns:`140px repeat(${RECEITA_TIPOS.length},1fr)`, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
-              <div style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>Persona</div>
-              {RECEITA_TIPOS.map(t => <div key={t} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', textAlign:'center' }}>{t}</div>)}
-            </div>
-            {personas.filter(p=>p.ativo).map((p, pi) => (
-              <div key={p.id} style={{ display:'grid', gridTemplateColumns:`140px repeat(${RECEITA_TIPOS.length},1fr)`, borderBottom:pi<personas.filter(x=>x.ativo).length-1?'1px solid var(--border)':'none', alignItems:'center' }}>
-                <div style={{ padding:'10px 12px', display:'flex', alignItems:'center', gap:7 }}>
-                  <span style={{ width:8, height:8, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
-                  <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</span>
-                </div>
-                {RECEITA_TIPOS.map(tipo => (
-                  <div key={tipo} style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:4 }}>
-                    <input type="number" min={0} max={100} step={0.5} className="so-field"
-                      value={getPerc(form.persona_percentuais, p.id, tipo)}
-                      onChange={e => set('persona_percentuais', setPerc(form.persona_percentuais, p.id, tipo, e.target.value))}
-                      style={{ textAlign:'right' }} />
-                    <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
-                  </div>
-                ))}
+      {isFixo && (() => {
+        // Colunas dinâmicas conforme filtro de Produto/Categoria
+        const percCols = form.produto_filtro_tipo === 'produto'
+          ? (form.produto_ids || []).map(id => { const p = produtos.find(x => String(x.id) === String(id)); return { key: `prod_${id}`, label: p?.nome || id } })
+          : form.produto_filtro_tipo === 'categoria'
+            ? (form.produto_categorias || []).map(cat => ({ key: `cat_${cat}`, label: cat }))
+            : RECEITA_TIPOS.map(t => ({ key: t, label: t }))
+        const colCount = percCols.length || 1
+        const activePersonas = personas.filter(p => p.ativo)
+        return (
+          <FormSection label="Percentuais por Persona">
+            {percCols.length === 0 && (
+              <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
+                {form.produto_filtro_tipo === 'produto' ? 'Selecione ao menos um produto acima.' : 'Selecione ao menos uma categoria acima.'}
               </div>
-            ))}
-          </div>
-        </FormSection>
-      )}
+            )}
+            {percCols.length > 0 && (
+              <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+                <div style={{ display:'grid', gridTemplateColumns:`150px repeat(${colCount},1fr)`, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                  <div style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase' }}>Persona</div>
+                  {percCols.map(col => <div key={col.key} style={{ padding:'8px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', textAlign:'center' }}>{col.label}</div>)}
+                </div>
+                {activePersonas.map((p, pi) => {
+                  const linkedUser = p.usuario_id ? usuarios.find(u => String(u.id) === String(p.usuario_id)) : null
+                  return (
+                    <div key={p.id} style={{ display:'grid', gridTemplateColumns:`150px repeat(${colCount},1fr)`, borderBottom:pi<activePersonas.length-1?'1px solid var(--border)':'none', alignItems:'center' }}>
+                      <div style={{ padding:'10px 12px', display:'flex', flexDirection:'column', gap:1 }}>
+                        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                          <span style={{ width:8, height:8, borderRadius:'50%', background:p.cor, flexShrink:0 }} />
+                          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.label}</span>
+                        </div>
+                        {linkedUser && <div style={{ fontSize:11, color:'var(--accent)', paddingLeft:14 }}>{linkedUser.nome}</div>}
+                      </div>
+                      {percCols.map(col => (
+                        <div key={col.key} style={{ padding:'8px 10px', display:'flex', alignItems:'center', gap:4 }}>
+                          <input type="number" min={0} max={100} step={0.5} className="so-field"
+                            value={getPerc(form.persona_percentuais, p.id, col.key)}
+                            onChange={e => set('persona_percentuais', setPerc(form.persona_percentuais, p.id, col.key, e.target.value))}
+                            style={{ textAlign:'right' }} />
+                          <span style={{ fontSize:12, color:'var(--text-muted)', flexShrink:0 }}>%</span>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </FormSection>
+        )
+      })()}
 
       {isCadeia && (
         <FormSection label="Parâmetros da Cadeia de Repasse">
@@ -1273,8 +1303,12 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
           </div>
           <FormGrid cols={2}>
             <FormField label="Gestor (beneficiário do override)">
-              <input className="so-field" placeholder="Nome do gestor" value={form.override_gestor_nome || ''}
-                onChange={e => set('override_gestor_nome', e.target.value)} />
+              <ComissaoSearchSelect
+                options={usuarios.map(u => ({ value: String(u.id), label: u.nome, sub: u.cargo || '' }))}
+                value={form.override_gestor_id || ''}
+                onChange={(val, opt) => { set('override_gestor_id', val); set('override_gestor_nome', opt?.label || '') }}
+                placeholder="Selecionar gestor…"
+              />
             </FormField>
             <FormField label="% sobre comissão da equipe">
               <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -1560,7 +1594,7 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
 }
 
 // ─── Tab: Regras de Configuração ──────────────────────────────────────────────
-function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
+function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuarios = [] }) {
   const [deleting, setDeleting]     = useState(null)
   const [showPersonas, setShowPersonas] = useState(false)
 
@@ -1727,7 +1761,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule }) {
         )
       })}
 
-      {showPersonas && <PersonasEditor personas={personas} onChange={p=>{setPersonas(p);setShowPersonas(false)}} onClose={()=>setShowPersonas(false)} />}
+      {showPersonas && <PersonasEditor personas={personas} usuarios={usuarios} onChange={p=>{setPersonas(p);setShowPersonas(false)}} onClose={()=>setShowPersonas(false)} />}
     </div>
   )
 }
@@ -2045,7 +2079,7 @@ export default function Comissoes() {
         <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} />
       )}
       {tab === 'regras' && isAdmin && (
-        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} />
+        <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} />
       )}
 
       {/* ── SlideOver: Lançamento ─────────────────────────────────────── */}
