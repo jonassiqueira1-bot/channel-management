@@ -7,6 +7,15 @@ const MOCK_KEY = 'settings:franquias_v2'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
 function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(list)) } catch {} }
 
+// Normaliza colunas do DB para o formato que a UI espera
+function rowToParceiro(row) {
+  return {
+    ...row,
+    situacao: row.situacao || row.status || 'ativo',  // DB usa 'status', UI usa 'situacao'
+    estado:   row.estado   || row.uf    || '',        // DB usa 'uf', UI usa 'estado'
+  }
+}
+
 export function useParceiros() {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -31,7 +40,7 @@ export function useParceiros() {
       setParceiros(load())
     } else {
       isMock.current = false
-      setParceiros(data || [])
+      setParceiros((data || []).map(rowToParceiro))
     }
     setLoading(false)
   }, [session])
@@ -74,7 +83,8 @@ export function useParceiros() {
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => {
       const idx = prev.findIndex(p => p.id === (saved?.id || id))
-      return idx >= 0 ? prev.map(p => p.id === saved?.id ? { ...p, ...saved } : p) : [...prev, saved || record]
+      const mapped = saved ? rowToParceiro(saved) : record
+      return idx >= 0 ? prev.map(p => p.id === mapped.id ? { ...p, ...mapped } : p) : [...prev, mapped]
     })
     return { ok: true }
   }, [])
