@@ -155,25 +155,16 @@ const EMPTY_OPP = {
 
 // ─── Autocomplete de Seller/Responsável ──────────────────────────────────────
 function SellerSelect({ value, onChange, style }) {
-  const { sellers } = useSellers()
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-  useEffect(() => {
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [])
-  const ativos = sellers.filter(s => s.status === 'ativo')
+  const { usuarios } = useUsuarios()
   return (
-    <div ref={ref} style={{ position:'relative' }}>
+    <div>
       <select
         style={{ ...m.input, ...style }}
         value={value || ''}
         onChange={e => onChange(e.target.value)}
-        onFocus={() => setOpen(true)}
       >
         <option value="">— Responsável —</option>
-        {ativos.map(s => <option key={s.id} value={s.nome}>{s.nome}</option>)}
+        {usuarios.map(u => <option key={u.id} value={u.nome}>{u.nome}</option>)}
       </select>
     </div>
   )
