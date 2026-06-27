@@ -113,7 +113,6 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'E-mail inválido'
     if (perfisExistentes.some(p => p.email.toLowerCase() === form.email.toLowerCase()))
       e.email = 'Este e-mail já está cadastrado'
-    if (precisaEmpresa && !form.empresa_id) e.empresa_id = 'Selecione a empresa'
     setErros(e)
     return Object.keys(e).length === 0
   }
@@ -128,7 +127,6 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
       avatar:       form.nome.trim().split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase(),
       tipo_usuario: papelSelecionado?.tipo || 'externo',
       papel:        form.papel,
-      empresa_id:   precisaEmpresa ? Number(form.empresa_id) : null,
       tenant_id:    sessao.tenant_id,
       status:       'pendente',
       criado_em:    new Date().toISOString(),
@@ -217,34 +215,6 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
               </div>
             </Field>
 
-            {/* Empresa — apenas para papéis externos */}
-            {precisaEmpresa && (
-              <Field label="Empresa *" error={erros.empresa_id}>
-                {sessao.papel === 'admin_franquia' ? (
-                  /* Travado: admin_franquia só pode vincular à própria empresa */
-                  <div style={{ ...inp.base, display: 'flex', alignItems: 'center', gap: 8,
-                    background: 'var(--surface2)', color: 'var(--text-muted)', cursor: 'not-allowed' }}>
-                    <span style={{ fontSize: 13 }}>🔒</span>
-                    <span style={{ fontWeight: 600 }}>{sessao.empresa_nome}</span>
-                    <span style={{ fontSize: 11, marginLeft: 4 }}>(fixo pelo perfil)</span>
-                  </div>
-                ) : (
-                  <select style={{ ...inp.base, ...(erros.empresa_id ? inp.err : {}) }}
-                    value={form.empresa_id}
-                    onChange={e => set('empresa_id', e.target.value)}>
-                    <option value="">— Selecione a empresa —</option>
-                    {empresasDisponiveis.map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.fantasia || emp.razao}</option>
-                    ))}
-                  </select>
-                )}
-                {empresaSelecionada && sessao.papel === 'admin_isv' && (
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, fontFamily: 'var(--mono)' }}>
-                    {empresaSelecionada.cnpj} · {empresaSelecionada.cidade}/{empresaSelecionada.uf}
-                  </div>
-                )}
-              </Field>
-            )}
 
             {/* Nota: convite por e-mail */}
             <div style={{ padding: '10px 14px', background: '#EEF2FF', borderRadius: 8,
