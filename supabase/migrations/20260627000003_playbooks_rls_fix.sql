@@ -4,7 +4,8 @@
 
 DROP POLICY IF EXISTS "tenant_isolation_playbooks" ON public.playbooks;
 
+-- tenant_id é text nesta tabela; my_tenant_id() retorna uuid — cast necessário
 CREATE POLICY "playbooks_tenant_all" ON public.playbooks
   FOR ALL
-  USING     (tenant_id = public.my_tenant_id())
-  WITH CHECK(tenant_id = public.my_tenant_id());
+  USING     (tenant_id = public.my_tenant_id()::text)
+  WITH CHECK(tenant_id = public.my_tenant_id()::text);
