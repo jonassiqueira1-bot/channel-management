@@ -42,6 +42,8 @@ import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFie
 import { useFormLayout } from '../hooks/useFormLayout'
 import { useContracts } from '../hooks/useContracts'
 import { useUsuarios } from '../hooks/useUsuarios'
+import { useBranches } from '../hooks/useBranches'
+import { useParceiros } from '../hooks/useParceiros'
 import { useProjects } from '../hooks/useProjects'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -3642,19 +3644,21 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   const { contacts: allContacts } = useContacts()
   const { produtos: allProdutos } = useProducts()
   const { usuarios: allUsuarios } = useUsuarios()
+  const { branches: allBranches } = useBranches()
+  const { parceiros: allParceiros } = useParceiros()
 
   // Mapa de entidade → opções para campos de Referência (lookup)
   const lookupOptions = useMemo(() => ({
-    companies:      allCompanies.map(c => ({ id: String(c.id), label: c.nome || c.name || String(c.id) })),
-    contacts:       allContacts.map(c => ({ id: String(c.id), label: c.nome || c.email || String(c.id) })),
-    sellers:        allSellers.map(s => ({ id: String(s.id), label: s.nome || s.email || String(s.id) })),
-    products:       allProdutos.map(p => ({ id: String(p.id), label: p.nome || String(p.id) })),
-    sellers_users:  allUsuarios.map(u => ({ id: String(u.id), label: u.nome || u.email || String(u.id) })),
-    tenant_branches: [],  // carregado via useBranches se necessário
-    opportunities:  [],
-    contracts:      [],
-    parceiros:      [],
-  }), [allCompanies, allContacts, allSellers, allProdutos, allUsuarios])
+    companies:       allCompanies.map(c => ({ id: String(c.id), label: c.nome || c.name || String(c.id) })),
+    contacts:        allContacts.map(c => ({ id: String(c.id), label: c.nome || c.email || String(c.id) })),
+    sellers:         allSellers.map(s => ({ id: String(s.id), label: s.nome || s.email || String(s.id) })),
+    products:        allProdutos.map(p => ({ id: String(p.id), label: p.nome || String(p.id) })),
+    sellers_users:   allUsuarios.map(u => ({ id: String(u.id), label: u.nome || u.email || String(u.id) })),
+    tenant_branches: allBranches.map(b => ({ id: String(b.id), label: b.nome || String(b.id) })),
+    parceiros:       allParceiros.map(p => ({ id: String(p.id), label: p.nome || String(p.id) })),
+    opportunities:   [],
+    contracts:       [],
+  }), [allCompanies, allContacts, allSellers, allProdutos, allUsuarios, allBranches, allParceiros])
   const [errs, setErrs] = useState({})
   function set(f, v) { setForm(prev => ({ ...prev, [f]: v })); if (errs[f]) setErrs(p => ({ ...p, [f]: '' })) }
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
