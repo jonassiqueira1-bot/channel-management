@@ -35,7 +35,6 @@ function playbookToRow(pb, tenantId, branchId) {
     branch_id:    branchId || null,
     owner_id:     owner_id || null,
     titulo:       tit,
-    nome:         tit,   // mantém coluna legada sincronizada
     descricao:    descricao || description || null,
     status:       status || 'rascunho',
     steps:        rest.steps || [],
