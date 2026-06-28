@@ -3422,14 +3422,22 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
 
 // ─── Modal de fechamento de oportunidade ganha ───────────────────────────────
 function FechamentoModal({ opp, onClose }) {
-  const { save: saveContrato, contratos } = useContracts()
-  const { save: saveProjeto, projetos }   = useProjects()
+  const { save: saveContrato, contratos }       = useContracts()
+  const { save: saveProjeto, projetos }         = useProjects()
+  const [implPropostas]                         = useLocalState('projects:propostas_v1', [])
+
+  const propostaImplantacao = useMemo(
+    () => implPropostas
+      .filter(p => String(p.opp_id) === String(opp.id))
+      .sort((a, b) => ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[a.status]??9) - ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[b.status]??9))[0] || null,
+    [implPropostas, opp.id]
+  )
 
   const temServico = (opp.valor_servico > 0) ||
-    (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico')
+    (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico' || it.tipo === 'consultoria')
 
   const [gerarContrato, setGerarContrato] = useState(true)
-  const [gerarProjeto,  setGerarProjeto]  = useState(temServico)
+  const [gerarProjeto,  setGerarProjeto]  = useState(temServico && !!propostaImplantacao)
 
   const contratosDuplicados = (contratos||[]).filter(c =>
     c.opportunity_id && String(c.opportunity_id) === String(opp.id)
@@ -3476,21 +3484,44 @@ function FechamentoModal({ opp, onClose }) {
     }
 
     if (gerarProjeto) {
+      // Fases MIT da proposta de implantação vinculada
+      const fasesPropostaWBS = propostaImplantacao
+        ? (propostaImplantacao.itens || []).filter(i => i.nivel === 1)
+        : []
+      const totalHorasEstimadas = fasesPropostaWBS.reduce(
+        (s, f) => s + Math.round((f.hr_analista||0) + (f.hr_coord||0)), 0
+      )
+      const itensServico = (opp.itens||[]).filter(i => ['servico','consultoria'].includes(i.tipo))
       const res = await saveProjeto({
-        name:          opp.titulo,
-        company_id:    opp.empresa_id || null,
-        company_nome:  opp.empresa_nome,
-        franchise_nome: '',
-        phase:         'iniciacao',
-        current_phase_index: 1,
-        status:        'em_andamento',
-        total_hours_estimated: 0,
+        name:                  opp.titulo,
+        company_id:            opp.empresa_id || null,
+        company_nome:          opp.empresa_nome,
+        franchise_nome:        '',
+        phase:                 'iniciacao',
+        current_phase_index:   1,
+        status:                'em_andamento',
+        total_hours_estimated: totalHorasEstimadas || 0,
         total_hours_executed:  0,
-        start_date:    hoje,
-        end_date_estimated: '',
-        notes:         `Projeto criado a partir da oportunidade: ${opp.titulo}`,
-        opportunity_id: opp.id,
-        responsavel:   opp.responsavel || '',
+        start_date:            hoje,
+        end_date_estimated:    '',
+        responsavel:           opp.responsavel || '',
+        opportunity_id:        opp.id,
+        proposta_id:           propostaImplantacao?.id || null,
+        notes: [
+          `Projeto criado a partir da oportunidade: ${opp.titulo}`,
+          opp.empresa_nome ? `Cliente: ${opp.empresa_nome}` : '',
+          itensServico.length ? `Serviços: ${itensServico.map(i => i.produto_nome||i.nome).join(', ')}` : '',
+          propostaImplantacao ? `Proposta de implantação: ${propostaImplantacao.titulo || propostaImplantacao.id}` : '',
+        ].filter(Boolean).join('\n'),
+        // Fases MIT pré-populadas da proposta WBS
+        _fasesWBS: fasesPropostaWBS.map((fase, i) => ({
+          phase_name:          fase.titulo,
+          phase_order:         i + 1,
+          hours_estimated:     Math.round((fase.hr_analista||0) + (fase.hr_coord||0)) || 0,
+          start_date_planned:  '',
+          end_date_planned:    '',
+          is_completed:        false,
+        })),
       })
       if (res.ok) resultados.projeto = opp.titulo
       else resultados.projetoErro = res.message
@@ -3582,16 +3613,28 @@ function FechamentoModal({ opp, onClose }) {
 
           {/* Projeto — só se tiver serviço */}
           {temServico && (
-            <label style={chkRow(gerarProjeto)} onClick={() => setGerarProjeto(v => !v)}>
-              <input type="checkbox" checked={gerarProjeto} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+            <label
+              style={{ ...chkRow(gerarProjeto), ...(!propostaImplantacao ? { opacity:0.6, cursor:'not-allowed' } : {}) }}
+              onClick={() => { if (propostaImplantacao) setGerarProjeto(v => !v) }}
+            >
+              <input type="checkbox" checked={gerarProjeto} onChange={() => {}} disabled={!propostaImplantacao} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:700, color: gerarProjeto ? 'var(--accent)' : 'var(--text)' }}>
                   🗂 Gerar Projeto
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
-                  Cria um projeto na etapa <strong>Iniciação</strong> para os serviços envolvidos nesta venda.
+                  {propostaImplantacao
+                    ? <>Proposta <strong>{propostaImplantacao.titulo || 'vinculada'}</strong> — fases MIT serão pré-populadas automaticamente.</>
+                    : 'Cria um projeto na etapa Iniciação para os serviços desta venda.'}
                 </div>
-                {projetosDuplicados.length > 0 && (
+                {!propostaImplantacao && (
+                  <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                    background:'#FEE2E2', border:'1px solid #EF4444',
+                    fontSize:11, color:'#991B1B', lineHeight:1.4 }}>
+                    ✗ É necessário ter uma <strong>Proposta de Implantação</strong> vinculada a esta oportunidade (aba Proposta → módulo Projetos) para gerar o projeto.
+                  </div>
+                )}
+                {propostaImplantacao && projetosDuplicados.length > 0 && (
                   <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
                     background:'#FEF3C7', border:'1px solid #F59E0B',
                     fontSize:11, color:'#92400E', lineHeight:1.4 }}>

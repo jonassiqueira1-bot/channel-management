@@ -9,7 +9,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { useProjects } from '../hooks/useProjects'
 import { useOpportunities } from '../hooks/useOpportunities'
 import SearchSelect from '../components/SearchSelect'
-import { MOCK_USUARIOS } from '../data/mockUsuarios'
+import { useSellers } from '../hooks/useSellers'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
@@ -404,6 +404,8 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const [memberRole, setMemberRole] = useState('Consultor')
   const oppPickerRef = useRef(null)
   const [perfisStore] = useLocalState('settings:perfis_v2', [])
+  const { sellers }   = useSellers()
+  const todosUsuarios = sellers.length > 0 ? sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' })) : perfisStore
 
   const { opps: allOpps } = useOpportunities()
 
@@ -443,7 +445,7 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   }
   function handleAddMember() {
     if (!memberUserId) return
-    const u = perfisStore.find(p => p.id === memberUserId) || MOCK_USUARIOS.find(p => p.id === memberUserId)
+    const u = todosUsuarios.find(p => p.id === memberUserId)
     if (!u) return
     if (myMembers.some(m => m.user_id === memberUserId)) return
     onAddMember({ id: 'mb_' + Date.now(), project_id: projeto.id, tenant_id: 't1', user_id: memberUserId, name: u.nome, role: memberRole })
@@ -632,7 +634,7 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
               <label style={ms.lbl}>Nome</label>
               <select style={{ ...ms.inp, fontSize: 12 }} value={memberUserId} onChange={e => setMemberUserId(e.target.value)}>
                 <option value="">— Selecionar usuário —</option>
-                {(perfisStore.length > 0 ? perfisStore : MOCK_USUARIOS)
+                {todosUsuarios
                   .filter(u => u.status !== 'inativo' && !myMembers.some(m => m.user_id === u.id))
                   .map(u => <option key={u.id} value={u.id}>{u.nome}{u.cargo ? ` — ${u.cargo}` : ''}</option>)}
               </select>
@@ -1163,8 +1165,8 @@ function TabTimesheet({ projeto, phases, timeLogs, members, onAddLog }) {
 
   const myMembers = (members || []).filter(m => m.project_id === projeto.id)
 
-  const [profiles] = useLocalState('usuarios:profiles', [])
-  const todosUsuarios = profiles.length > 0 ? profiles.filter(p => p.status !== 'inativo') : MOCK_USUARIOS
+  const { sellers } = useSellers()
+  const todosUsuarios = sellers.length > 0 ? sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' })) : []
   const usuarios = myMembers.length > 0
     ? myMembers.map(m => ({ id: m.user_id || m.id, nome: m.name, cargo: m.role, avatar: m.name?.[0] }))
     : todosUsuarios
@@ -1930,13 +1932,12 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
   const [expandido, setExpandido] = useState({})
   const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
   const [filtroStatus, setFiltroStatus] = useState('todos')
-  const [perfisStore] = useLocalState('settings:perfis_v2', [])
+  const { sellers } = useSellers()
 
-  // Pool de usuários: cadastro real > fallback MOCK
+  // Pool de usuários: dados reais do Supabase
   const usuariosCad = useMemo(() => {
-    const base = perfisStore.length > 0 ? perfisStore : MOCK_USUARIOS
-    return base.filter(u => u.status !== 'inativo')
-  }, [perfisStore])
+    return sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' }))
+  }, [sellers])
 
   // Horas apontadas por user_id (ou user_name como fallback) no mês de referência
   const horasPorUser = useMemo(() => {
