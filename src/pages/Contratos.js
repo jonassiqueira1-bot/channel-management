@@ -13,6 +13,7 @@ import ActionFeedback from '../components/ActionFeedback'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import { useLocalState } from '../hooks/useLocalState'
 import SearchSelect from '../components/SearchSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,13 +55,70 @@ const SLOTS = [
 const EMPTY_FORM = {
   numero: '', empresa_id: null, empresa_nome: '',
   status: 'rascunho',
-  primeira_compra: false,
+  vendedor: '',
+  tipo_venda: '',
   vigencia_inicio: '', vigencia_fim: '',
   itens_adesao: [], itens_mrr: [], itens_servico: [],
   responsavel: '', observacoes: '',
   origem: '',
   data_pag_cdu: '', data_pag_sms: '',
   opportunity_id: null, opportunity_titulo: '',
+}
+
+const TIPO_VENDA_KEY = 'contratos:tipo_venda_opts'
+const TIPO_VENDA_DEFAULT = ['Nova venda', 'Renovação', 'Expansão', 'Upsell', 'Cross-sell']
+
+function TipoVendaField({ value, onChange }) {
+  const [opts, setOpts] = useLocalState(TIPO_VENDA_KEY, TIPO_VENDA_DEFAULT)
+  const [editing, setEditing] = useState(false)
+  const [newOpt, setNewOpt] = useState('')
+
+  function addOpt() {
+    const v = newOpt.trim()
+    if (!v || opts.includes(v)) return
+    setOpts([...opts, v])
+    setNewOpt('')
+  }
+
+  function removeOpt(o) {
+    setOpts(opts.filter(x => x !== o))
+    if (value === o) onChange('')
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <select className="so-field" value={value || ''} onChange={e => onChange(e.target.value)} style={{ flex: 1 }}>
+          <option value="">— Selecionar —</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <button type="button" onClick={() => setEditing(e => !e)}
+          title="Editar opções"
+          style={{ padding: '0 10px', borderRadius: 6, border: '1px solid var(--border)', background: editing ? 'var(--accent-glow)' : 'var(--surface)', color: editing ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+          ⚙
+        </button>
+      </div>
+      {editing && (
+        <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--surface3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {opts.map(o => (
+            <div key={o} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ flex: 1, fontSize: 12, color: 'var(--text)' }}>{o}</span>
+              <button type="button" onClick={() => removeOpt(o)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: '0 4px', lineHeight: 1 }}>✕</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <input value={newOpt} onChange={e => setNewOpt(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addOpt()}
+              placeholder="Nova opção…"
+              style={{ flex: 1, padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 12, background: 'var(--surface)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font)' }} />
+            <button type="button" onClick={addOpt}
+              style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'var(--font)' }}>+</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -140,7 +198,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   ]
 
   function addItem(p) {
-    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '' }])
+    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '', primeira_compra: false }])
     setAddingQuery(''); setAddingOpen(false); setShowAll(false)
   }
 
@@ -216,8 +274,8 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
               <button type="button" onClick={() => removeItem(idx)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
-            {/* status + vencimento do primeiro pagamento */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px' }}>
+            {/* status + vencimento + primeira compra por produto */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', flexWrap: 'wrap' }}>
               <select
                 value={item.status_item || 'ativo'}
                 onChange={e => updateItem(idx, { status_item: e.target.value })}
@@ -233,6 +291,11 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
                 style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
                   background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }}
               />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={!!item.primeira_compra} onChange={e => updateItem(idx, { primeira_compra: e.target.checked })}
+                  style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                1ª compra
+              </label>
             </div>
             {/* autorização de desconto */}
             {desc > 0 && (
@@ -487,7 +550,6 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
 
-  const totalRec = [...(form.itens_mrr||[]), ...(form.itens_servico||[])].reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
 
   async function handleSave() {
     const e = {}
@@ -597,12 +659,11 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
 
     <div style={{ display: activeTab === 'dados' ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
       {/* Resumo financeiro */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
         {[
-          { label: 'Adesão',     val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
-          { label: 'MRR',        val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
-          { label: 'Serviço',    val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
-          { label: 'Recorrente', val: totalRec, suffix: '/mês', bold: true },
+          { label: 'Adesão',  val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'MRR',     val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
+          { label: 'Serviço', val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
         ].map(({ label, val, suffix, bold }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
@@ -659,6 +720,9 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           <FormField label="Responsável">
             <input className="so-field" value={form.responsavel || ''} onChange={e => set('responsavel', e.target.value)} placeholder="Nome do responsável" />
           </FormField>
+          <FormField label="Vendedor">
+            <input className="so-field" value={form.vendedor || ''} onChange={e => set('vendedor', e.target.value)} placeholder="Nome do vendedor" />
+          </FormField>
           <FormField label="Origem">
             <select className="so-field" value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
               <option value="">— Não definida —</option>
@@ -667,11 +731,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
               <option value="incentivada">Incentivada</option>
             </select>
           </FormField>
-          <FormField label="Primeira compra">
-            <select className="so-field" value={form.primeira_compra ? 'sim' : 'nao'} onChange={e => set('primeira_compra', e.target.value === 'sim')}>
-              <option value="sim">Sim</option>
-              <option value="nao">Não</option>
-            </select>
+          <FormField label="Tipo de venda">
+            <TipoVendaField value={form.tipo_venda || ''} onChange={v => set('tipo_venda', v)} />
           </FormField>
         </FormGrid>
       </FormSection>
