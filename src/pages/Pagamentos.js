@@ -12,6 +12,7 @@ import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTexta
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import Button from '../components/Button'
+import SearchSelect from '../components/SearchSelect'
 import { FullPageEdit, FPESection, FPEField, FPEGrid, FPESeparator, AsideCard } from '../components/ui'
 import { useAuditLog } from '../hooks/useAuditLog'
 
@@ -1407,11 +1408,12 @@ export default function Pagamentos() {
   if (novoPagForm) {
     const form = novoPagForm
     const set = (k, v) => setNovoPagForm(f => ({ ...f, [k]: v }))
-    const cdu      = parseFloat(form.amount_cdu)      || 0
-    const sms      = parseFloat(form.amount_sms)      || 0
+    const licenca  = parseFloat(form.amount_cdu)      || 0
+    const mensalid = parseFloat(form.amount_sms)      || 0
     const services = parseFloat(form.amount_services) || 0
     const discount = parseFloat(form.amount_discount) || 0
-    const liquido  = Math.max(0, cdu + sms + services - discount)
+    const subtotal = licenca + mensalid + services
+    const liquido  = Math.max(0, subtotal - discount)
 
     async function handleSaveNovo() {
       if (!form.contract_numero.trim()) return alert('Número do contrato é obrigatório')
@@ -1434,7 +1436,7 @@ export default function Pagamentos() {
           company_id: form.company_id,
           company_nome: form.company_nome.trim(),
           num_documento: null, data_emissao: null, parcela: '1/1',
-          amount_cdu: cdu, amount_sms: sms,
+          amount_cdu: licenca, amount_sms: mensalid,
           amount_services: services, amount_discount: discount,
           amount_total_net: liquido,
           valor_recebido: null, data_baixa: null,
@@ -1468,14 +1470,14 @@ export default function Pagamentos() {
               <div style={{ fontSize:28, fontWeight:800, fontFamily:'var(--mono)', color: liquido > 0 ? '#18181B' : '#A1A1AA' }}>
                 {fmtMoeda(liquido)}
               </div>
-              <div style={{ fontSize:11, color:'#71717A', marginTop:4 }}>CDU + SMS + Serviços - Desconto</div>
+              <div style={{ fontSize:11, color:'#71717A', marginTop:4 }}>Licença + Mensalidade + Serviços - Desconto</div>
             </div>
             <div style={{ marginTop:12, display:'flex', flexDirection:'column', gap:6 }}>
               {[
-                { label:'CDU',      val:cdu,      color:'var(--accent)' },
-                { label:'SMS',      val:sms,      color:'#3B82F6' },
-                { label:'Serviços', val:services, color:'#10B981' },
-                { label:'Desconto', val:discount, color:'#EF4444' },
+                { label:'Licença',     val:licenca,  color:'var(--accent)' },
+                { label:'Mensalidade', val:mensalid, color:'#3B82F6' },
+                { label:'Serviços',    val:services, color:'#10B981' },
+                { label:'Desconto',    val:discount, color:'#EF4444' },
               ].map(({ label, val, color }) => (
                 <div key={label} style={{ display:'flex', justifyContent:'space-between', padding:'4px 0', borderBottom:'1px solid #F4F4F5' }}>
                   <span style={{ fontSize:12, color:'#71717A' }}>{label}</span>
@@ -1493,12 +1495,19 @@ export default function Pagamentos() {
               value={form.contract_id}
               label={form.contract_numero}
               onChange={(id, numero, empresaId, empresaNome) => {
+                const contrato = contratos.find(c => c.id === id)
+                const adesao = (contrato?.itens_adesao || []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)
+                const mrr    = (contrato?.itens_mrr    || []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)
+                const servico = (contrato?.itens_servico || []).reduce((s, i) => s + (parseFloat(i.valor) || 0), 0)
                 setNovoPagForm(f => ({
                   ...f,
                   contract_id:     id,
                   contract_numero: numero,
                   company_id:      empresaId || f.company_id,
                   company_nome:    empresaNome || f.company_nome,
+                  ...(adesao  > 0 ? { amount_cdu:      adesao }  : {}),
+                  ...(mrr     > 0 ? { amount_sms:      mrr }     : {}),
+                  ...(servico > 0 ? { amount_services: servico } : {}),
                 }))
               }}
             />
@@ -1511,16 +1520,20 @@ export default function Pagamentos() {
             />
           </FPEField>
           <FPEField label="Produto">
-            <select className="fpe-field" value={form.produto_id || ''} onChange={e => {
-              const prod = produtosNovo.find(p => String(p.id) === e.target.value)
-              set('produto_id', e.target.value)
-              set('produto_nome', prod?.nome || '')
-            }}>
-              <option value="">— Selecione o produto —</option>
-              {produtosNovo.map(p => (
-                <option key={p.id} value={String(p.id)}>{p.nome}{p.codigo ? ` (${p.codigo})` : ''}</option>
-              ))}
-            </select>
+            <SearchSelect
+              options={produtosNovo.map(p => ({
+                id:       String(p.id),
+                label:    p.nome,
+                sublabel: p.codigo || '',
+              }))}
+              value={form.produto_id ? String(form.produto_id) : null}
+              onChange={(id) => {
+                const prod = produtosNovo.find(p => String(p.id) === id)
+                setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '' }))
+              }}
+              placeholder="Buscar produto…"
+              inputStyle={{ height: 40, border: '1px solid var(--border)', borderRadius: 7, padding: '0 12px', fontSize: 13, width: '100%', boxSizing: 'border-box', background: 'var(--surface2)', fontFamily: 'var(--font)', color: 'var(--text)' }}
+            />
           </FPEField>
           <FPEField label="Status">
             <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
@@ -1539,15 +1552,17 @@ export default function Pagamentos() {
         </FPESection>
         <FPESection label="Composição de valores" columns={2}>
           {[
-            { k:'amount_cdu',      label:'CDU',      color:'var(--accent)' },
-            { k:'amount_sms',      label:'SMS',      color:'#3B82F6' },
-            { k:'amount_services', label:'Serviços', color:'#10B981' },
-            { k:'amount_discount', label:'Desconto', color:'#EF4444' },
-          ].map(({ k, label, color }) => (
+            { k:'amount_cdu',      label:'Licença' },
+            { k:'amount_sms',      label:'Mensalidade' },
+            { k:'amount_services', label:'Serviços' },
+          ].map(({ k, label }) => (
             <FPEField key={k} label={label}>
               <input type="number" min="0" step="0.01" className="fpe-field" value={form[k]} placeholder="0,00" onChange={e => set(k, e.target.value)} />
             </FPEField>
           ))}
+          <FPEField label="Desconto" hint="Aplicado sobre o total dos valores acima">
+            <input type="number" min="0" step="0.01" className="fpe-field" value={form.amount_discount} placeholder="0,00" onChange={e => set('amount_discount', e.target.value)} />
+          </FPEField>
         </FPESection>
       </FullPageEdit>
     )
