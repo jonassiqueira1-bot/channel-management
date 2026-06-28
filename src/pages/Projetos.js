@@ -886,6 +886,105 @@ function ImportProjectModal({ projeto, myPhases, onApply, onClose }) {
   )
 }
 
+// ─── Tab: Proposta de Implantação ────────────────────────────────────────────
+function TabProposta({ projeto, onUpdate }) {
+  const [propostas, setPropostas] = useLocalState(PROPOSTAS_KEY, [])
+  const [busca, setBusca]         = useState('')
+
+  const propostaVinculada = useMemo(() => {
+    if (!propostas.length) return null
+    const ranking = { aceita: 0, enviada: 1, rascunho: 2, recusada: 3 }
+    return propostas
+      .filter(p =>
+        (projeto.proposta_id && String(p.id) === String(projeto.proposta_id)) ||
+        (projeto.opportunity_id && String(p.opp_id) === String(projeto.opportunity_id))
+      )
+      .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
+  }, [propostas, projeto.proposta_id, projeto.opportunity_id])
+
+  const disponiveis = useMemo(() =>
+    propostas.filter(p => {
+      if (propostaVinculada && p.id === propostaVinculada.id) return false
+      const q = busca.toLowerCase()
+      return !q || (p.titulo||'').toLowerCase().includes(q) || (p.empresa_nome||'').toLowerCase().includes(q)
+    }),
+    [propostas, propostaVinculada, busca]
+  )
+
+  function vincular(p) {
+    onUpdate({ ...projeto, proposta_id: p.id })
+    setBusca('')
+  }
+  function desvincular() {
+    onUpdate({ ...projeto, proposta_id: null })
+  }
+
+  const STATUS_LABEL = { rascunho:'Rascunho', enviada:'Enviada', aceita:'Aceita', recusada:'Recusada' }
+  const STATUS_COLOR = { rascunho:'var(--text-muted)', enviada:'var(--blue-text)', aceita:'var(--green-text)', recusada:'#DC2626' }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+      {/* Proposta vinculada */}
+      {propostaVinculada ? (
+        <div style={{ border:'1px solid var(--accent)', borderRadius:10, padding:'14px 16px', background:'var(--accent-glow)' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:8 }}>
+            <span style={{ fontSize:11, fontWeight:700, color:'var(--accent)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Proposta vinculada</span>
+            <button onClick={desvincular} style={{ fontSize:11, color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', padding:0 }}>Desvincular</button>
+          </div>
+          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 }}>{propostaVinculada.titulo || '(sem título)'}</div>
+          {propostaVinculada.empresa_nome && <div style={{ fontSize:12, color:'var(--text-soft)' }}>{propostaVinculada.empresa_nome}</div>}
+          <div style={{ display:'flex', gap:10, marginTop:8, flexWrap:'wrap' }}>
+            <span style={{ fontSize:11, fontWeight:600, color: STATUS_COLOR[propostaVinculada.status] || 'var(--text-muted)' }}>
+              {STATUS_LABEL[propostaVinculada.status] || propostaVinculada.status}
+            </span>
+            {(propostaVinculada.itens||[]).filter(i=>i.nivel===1).length > 0 && (
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                {(propostaVinculada.itens||[]).filter(i=>i.nivel===1).length} fase{(propostaVinculada.itens||[]).filter(i=>i.nivel===1).length > 1 ? 's' : ''} MIT
+              </span>
+            )}
+            {propostaVinculada.total_horas > 0 && (
+              <span style={{ fontSize:11, color:'var(--text-muted)' }}>{propostaVinculada.total_horas}h estimadas</span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div style={{ border:'1px dashed var(--border)', borderRadius:10, padding:'14px 16px', background:'var(--surface2)', textAlign:'center' }}>
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:4 }}>Nenhuma proposta de implantação vinculada</div>
+          <div style={{ fontSize:11, color:'var(--text-muted)' }}>Vincule uma proposta abaixo para habilitar a sincronização com o Cronograma MIT</div>
+        </div>
+      )}
+
+      {/* Vincular manualmente */}
+      <div>
+        <div style={{ ...ms.sectionLbl, marginBottom:8 }}>Vincular proposta</div>
+        <input
+          style={{ ...ms.inp, marginBottom:8 }}
+          placeholder="Buscar por título ou empresa..."
+          value={busca}
+          onChange={e => setBusca(e.target.value)}
+        />
+        {disponiveis.length === 0 && busca && (
+          <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'8px 0' }}>Nenhuma proposta encontrada.</div>
+        )}
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {disponiveis.slice(0,10).map(p => (
+            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
+              border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)', cursor:'pointer' }}
+              onClick={() => vincular(p)}
+            >
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.titulo || '(sem título)'}</div>
+                {p.empresa_nome && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.empresa_nome}</div>}
+              </div>
+              <span style={{ fontSize:11, fontWeight:600, color: STATUS_COLOR[p.status] || 'var(--text-muted)', flexShrink:0 }}>{STATUS_LABEL[p.status] || p.status}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Tab 1: Cronograma MIT ────────────────────────────────────────────────────
 function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhases, onAddMember }) {
   const [showImport, setShowImport] = useState(false)
@@ -893,14 +992,37 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
   const [propostas]   = useLocalState(PROPOSTAS_KEY, [])
   const myPhases = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
 
-  // proposta vinculada à oportunidade deste projeto
+  // proposta vinculada: por opp_id ou por proposta_id direto no projeto
   const propostaVinculada = useMemo(() => {
-    if (!projeto.opportunity_id) return null
     const ranking = { aceita: 0, enviada: 1, rascunho: 2, recusada: 3 }
-    return propostas
-      .filter(p => String(p.opp_id) === String(projeto.opportunity_id))
-      .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
-  }, [propostas, projeto.opportunity_id])
+    const candidates = propostas.filter(p =>
+      (projeto.proposta_id && String(p.id) === String(projeto.proposta_id)) ||
+      (projeto.opportunity_id && String(p.opp_id) === String(projeto.opportunity_id))
+    )
+    return candidates.sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
+  }, [propostas, projeto.opportunity_id, projeto.proposta_id])
+
+  // auto-sincronizar fases quando o projeto ainda não tem fases mas tem proposta
+  useEffect(() => {
+    if (myPhases.length === 0 && propostaVinculada) {
+      const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+      if (!fases.length) return
+      const updated = fases.map((fase, i) => ({
+        id:                 `ph_${projeto.id}_${i + 1}`,
+        project_id:         projeto.id,
+        tenant_id:          't1',
+        phase_name:         fase.titulo,
+        phase_order:        i + 1,
+        start_date_planned: '',
+        end_date_planned:   '',
+        hours_estimated:    Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 0,
+        is_completed:       false,
+        completed_at:       null,
+      }))
+      onUpdatePhases(updated)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projeto.id])
 
   function handleSyncFromProposta() {
     if (!propostaVinculada) return
@@ -1727,6 +1849,7 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
 const DRAWER_TABS = [
   { key: 'projeto',    label: 'Projeto'        },
   { key: 'cronograma', label: 'Cronograma MIT' },
+  { key: 'proposta',   label: 'Proposta'       },
   { key: 'timesheet',  label: 'Timesheet'      },
   { key: 'financeiro', label: 'Financeiro'     },
   { key: 'bloqueios',  label: 'Bloqueios'      },
@@ -1774,6 +1897,7 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
         {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
         {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} onAddMember={onAddMember} />}
+        {tab === 'proposta'   && <TabProposta   projeto={projeto} onUpdate={onUpdate} />}
         {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} members={members} onAddLog={onAddLog} />}
         {tab === 'financeiro' && <TabFinanceiro projeto={projeto} timeLogs={timeLogs} onUpdate={onUpdate} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
