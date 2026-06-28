@@ -5101,6 +5101,9 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
     setOverEtapa(null)
   }
 
+  const n = etapas.length || 1
+  const colWidth = `max(220px, calc((100vw - 240px - ${(n - 1) * 12}px - 20px) / ${n}))`
+
   return (
     <div style={{ flex:1, overflowX:'auto', overflowY:'hidden', paddingBottom:16 }}>
       <div style={{ display:'flex', gap:12, height:'100%', paddingRight:4 }}>
@@ -5108,6 +5111,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
           <KanbanColuna
             key={etapa.id}
             etapa={etapa}
+            colWidth={colWidth}
             taxa={calcTaxaConversao(etapas, allOpps || [], etapa.id)}
             opps={filtered.filter(o => String(o.etapa_id) === String(etapa.id))}
             onAddOpp={etapa_id => setModal({ _new:true, etapa_id })}
@@ -5124,13 +5128,13 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
   )
 }
 
-function KanbanColuna({ etapa, opps, taxa, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
+function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
   return (
     <div
-      style={{ ...k.coluna, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
+      style={{ ...k.coluna, width: colWidth, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
       onDragOver={e => { e.preventDefault(); onDragOver && onDragOver() }}
       onDragLeave={onDrop && (() => onDragOver && onDragOver(null))}
       onDrop={e => { e.preventDefault(); onDrop && onDrop() }}
@@ -5165,7 +5169,7 @@ function KanbanColuna({ etapa, opps, taxa, onAddOpp, onClickOpp, onDragOver, onD
 }
 
 const k = {
-  coluna: { width:232, flexShrink:0, background:'rgba(255,255,255,0.65)', backdropFilter:'blur(8px)', borderRadius:14, border:'1px solid rgba(0,0,0,0.07)', boxShadow:'0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9)', display:'flex', flexDirection:'column' },
+  coluna: { width:'var(--col-w, 232px)', flexShrink:0, background:'rgba(255,255,255,0.65)', backdropFilter:'blur(8px)', borderRadius:14, border:'1px solid rgba(0,0,0,0.07)', boxShadow:'0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9)', display:'flex', flexDirection:'column' },
   cards:  { flex:1, overflowY:'auto', padding:'8px 8px 4px', display:'flex', flexDirection:'column', gap:8 },
   card:   { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:14, cursor:'pointer', transition:'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease' },
   addBtn: { margin:'4px 8px 8px', padding:'7px 0', borderRadius:8, border:'1px dashed rgba(0,0,0,0.12)', background:'rgba(255,255,255,0.5)', fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0, transition:'all 0.15s' },
