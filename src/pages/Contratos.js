@@ -61,7 +61,6 @@ const EMPTY_FORM = {
   itens_adesao: [], itens_mrr: [], itens_servico: [],
   responsavel: '', observacoes: '',
   origem: '',
-  data_pag_cdu: '', data_pag_sms: '',
   opportunity_id: null, opportunity_titulo: '',
 }
 
@@ -560,6 +559,17 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       const dup = contratos.find(c => c.id !== form.id && c.numero?.toUpperCase() === num)
       if (dup) e.numero = `Número já existe: ${dup.numero} (${dup.empresa_nome})`
     }
+    // Bloqueio: Rascunho → Ativo requer data de 1º pagamento em todos os itens
+    const ativando = !isNew
+      ? (contratos.find(c => c.id === form.id)?.status === 'rascunho' && form.status === 'ativo')
+      : form.status === 'ativo'
+    if (ativando) {
+      const todosItens = [...(form.itens_adesao||[]), ...(form.itens_mrr||[]), ...(form.itens_servico||[])]
+      const semData = todosItens.filter(i => !i.vencimento_primeiro_pagamento)
+      if (semData.length > 0) {
+        e.vencimento_itens = `Preencha a data de 1º pagamento em todos os produtos (${semData.length} sem data)`
+      }
+    }
     if (Object.keys(e).length) { setErrs(e); return }
     if (isNew) {
       // mostra confirm de integração antes de criar
@@ -745,14 +755,16 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           <FormField label="Data de cancelamento">
             <input type="date" className="so-field" value={form.vigencia_fim || ''} onChange={e => set('vigencia_fim', e.target.value)} />
           </FormField>
-          <FormField label="Início pagamento CDU">
-            <input type="date" className="so-field" value={form.data_pag_cdu || ''} onChange={e => set('data_pag_cdu', e.target.value)} />
-          </FormField>
-          <FormField label="Início pagamento SMS">
-            <input type="date" className="so-field" value={form.data_pag_sms || ''} onChange={e => set('data_pag_sms', e.target.value)} />
-          </FormField>
         </FormGrid>
       </FormSection>
+
+      {errs.vencimento_itens && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8,
+          background:'#FEF2F2', border:'1px solid #EF4444', fontSize:12, color:'#991B1B', lineHeight:1.5 }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>⚠</span>
+          <span><strong>Ativação bloqueada:</strong> {errs.vencimento_itens}</span>
+        </div>
+      )}
 
       <FormSection label="Produtos contratados">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
