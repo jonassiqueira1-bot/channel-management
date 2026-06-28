@@ -329,6 +329,14 @@ export default function BrowseLayout({
 }) {
   const storagePrefix = STORAGE_NS + storageKey
 
+  // ── breakpoint ────────────────────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
+
   // ── estado local ─────────────────────────────────────────────────────────
   const [kpisOpen,   setKpisOpen]   = useState(true)
   const [view,       setView]       = useState('list')
@@ -514,6 +522,7 @@ export default function BrowseLayout({
       {/* ── Action Bar ──────────────────────────────────────────────────── */}
       <div style={{
         ...s.actionBar,
+        ...(isMobile ? { padding: '8px 12px', gap: 6 } : {}),
         ...(someSelected ? { background: 'var(--accent)', borderBottomColor: 'var(--accent)' } : {}),
       }}>
 
@@ -735,7 +744,7 @@ export default function BrowseLayout({
               {onNew && (
                 <button type="button" style={s.primaryBtn} onClick={onNew}>
                   <Plus size={13} />
-                  {newLabel}
+                  {isMobile ? '+' : newLabel}
                 </button>
               )}
             </div>
@@ -754,7 +763,7 @@ export default function BrowseLayout({
           )}
         </div>
       ) : view === 'card' && renderCard ? (
-        <div style={s.cardGrid}>
+        <div style={{ ...s.cardGrid, ...(isMobile ? { gridTemplateColumns: '1fr', padding: '12px' } : {}) }}>
           {pageRows.map(row => (
             <div key={row[keyField]} style={{ position: 'relative' }}>
               <input
