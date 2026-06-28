@@ -132,8 +132,15 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const STATUS_ITEM_OPTS = [
+    { value: 'ativo',      label: 'Ativo' },
+    { value: 'pendente',   label: 'Pendente' },
+    { value: 'suspenso',   label: 'Suspenso' },
+    { value: 'cancelado',  label: 'Cancelado' },
+  ]
+
   function addItem(p) {
-    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false }])
+    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '' }])
     setAddingQuery(''); setAddingOpen(false); setShowAll(false)
   }
 
@@ -208,6 +215,24 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
               />
               <button type="button" onClick={() => removeItem(idx)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+            {/* status + vencimento do primeiro pagamento */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px' }}>
+              <select
+                value={item.status_item || 'ativo'}
+                onChange={e => updateItem(idx, { status_item: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                {STATUS_ITEM_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>1º pagamento:</label>
+              <input
+                type="date"
+                value={item.vencimento_primeiro_pagamento || ''}
+                onChange={e => updateItem(idx, { vencimento_primeiro_pagamento: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }}
+              />
             </div>
             {/* autorização de desconto */}
             {desc > 0 && (
