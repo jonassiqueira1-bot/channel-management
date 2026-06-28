@@ -12,6 +12,8 @@ import { DeleteZone } from '../components/NotionDrawer'
 import ActionFeedback from '../components/ActionFeedback'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
+import { usePlaybooks } from '../hooks/usePlaybooks'
+import SearchSelect from '../components/SearchSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -456,6 +458,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   const [errs, setErrs] = useState({})
   const [confirmData, setConfirmData] = useState(null)
   const [gerarProvisao, setGerarProvisao] = useState(true)
+  const [activeTab, setActiveTab] = useState('dados')
+  const [playbookOpen, setPlaybookOpen] = useState(false)
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
 
@@ -560,7 +564,26 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       </div>
     )}
 
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    {/* ── Playbook hint (flag recolhida) ── */}
+    <ContratoPlaybookHint form={form} open={playbookOpen} onToggle={() => setPlaybookOpen(o => !o)} onGoTab={() => { setPlaybookOpen(false); setActiveTab('playbook') }} />
+
+    {/* ── Tabs ── */}
+    <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:4 }}>
+      {[{ key:'dados', label:'Dados' }, { key:'playbook', label:'Playbook' }].map(t => (
+        <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
+          padding:'10px 18px', fontSize:13, fontWeight: activeTab===t.key ? 700 : 400,
+          color: activeTab===t.key ? 'var(--accent)' : 'var(--text-muted)',
+          background:'none', border:'none', borderBottom: activeTab===t.key ? '2px solid var(--accent)' : '2px solid transparent',
+          cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1,
+        }}>{t.label}</button>
+      ))}
+    </div>
+
+    {activeTab === 'playbook' && (
+      <ContratoPlaybookPanel form={form} setForm={setForm} />
+    )}
+
+    <div style={{ display: activeTab === 'dados' ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
       {/* Resumo financeiro */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
         {[
@@ -689,6 +712,164 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       )}
     </div>
     </>
+  )
+}
+
+// ─── Playbook hint (flag recolhida no topo do form) ──────────────────────────
+function ContratoPlaybookHint({ form, open, onToggle, onGoTab }) {
+  const { playbooks } = usePlaybooks()
+  const adminPlaybooks = useMemo(
+    () => playbooks.filter(p => p.tipo === 'administrativo' || p.segment === 'administrativo' || (p.segment||'').toLowerCase().includes('admin')),
+    [playbooks]
+  )
+  const pb = useMemo(() => adminPlaybooks.find(p => p.id === form.playbook_id) || null, [adminPlaybooks, form.playbook_id])
+  const steps = useMemo(() => {
+    if (!pb) return []
+    return (pb.steps || []).filter(s => s.status_contrato === form.status || !s.status_contrato)
+  }, [pb, form.status])
+  if (!pb || steps.length === 0) return null
+  const stCfg = STATUS_CONTRATO.find(s => s.value === form.status)
+  return (
+    <div style={{ marginBottom:8, border:'1px solid var(--border2)', borderRadius:10, overflow:'hidden' }}>
+      <button onClick={onToggle} style={{
+        width:'100%', display:'flex', alignItems:'center', gap:8, padding:'8px 14px',
+        background:'var(--surface2)', border:'none', cursor:'pointer', fontFamily:'var(--font)',
+        borderBottom: open ? '1px solid var(--border2)' : 'none',
+      }}>
+        <span style={{ width:3, height:14, borderRadius:2, background:'var(--accent)', flexShrink:0 }} />
+        <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', flex:1, textAlign:'left' }}>
+          Playbook · {pb.title}
+        </span>
+        {stCfg && <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:10,
+          background: stCfg.bg, color: stCfg.text }}>{stCfg.label}</span>}
+        <span style={{ fontSize:11, color:'var(--text-muted)' }}>{steps.length} atividade{steps.length !== 1 ? 's' : ''}</span>
+        <span style={{ fontSize:10, color:'var(--text-muted)' }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{ padding:'10px 14px', display:'flex', flexDirection:'column', gap:6 }}>
+          {steps.slice(0, 4).map((s, i) => (
+            <div key={i} style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+              <span style={{ width:18, height:18, borderRadius:5, background:'var(--accent-glow)',
+                color:'var(--accent)', fontSize:10, fontWeight:700, display:'flex', alignItems:'center',
+                justifyContent:'center', flexShrink:0, marginTop:1 }}>{i+1}</span>
+              <div>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{s.title || s.titulo}</div>
+                {s.description && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{s.description}</div>}
+              </div>
+            </div>
+          ))}
+          <button onClick={onGoTab} style={{ alignSelf:'flex-start', fontSize:11, color:'var(--accent)',
+            background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', fontWeight:600, padding:0, marginTop:4 }}>
+            Ver playbook completo →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Playbook panel (aba dedicada) ────────────────────────────────────────────
+function ContratoPlaybookPanel({ form, setForm }) {
+  const { playbooks } = usePlaybooks()
+  const adminPlaybooks = useMemo(
+    () => playbooks.filter(p => p.tipo === 'administrativo' || p.segment === 'administrativo' || (p.segment||'').toLowerCase().includes('admin')),
+    [playbooks]
+  )
+  const pb = useMemo(() => adminPlaybooks.find(p => p.id === form.playbook_id) || null, [adminPlaybooks, form.playbook_id])
+  const stCfg = STATUS_CONTRATO.find(s => s.value === form.status)
+  const steps = useMemo(() => {
+    if (!pb) return []
+    return (pb.steps || []).filter(s => !s.status_contrato || s.status_contrato === form.status)
+  }, [pb, form.status])
+  const allSteps = useMemo(() => pb ? (pb.steps || []) : [], [pb])
+
+  const S = {
+    root:     { padding:'20px 24px', display:'flex', flexDirection:'column', gap:20 },
+    sLabel:   { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em',
+                color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6 },
+    line:     { flex:1, height:1, background:'var(--border2)' },
+    stepCard: { background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:10, padding:'12px 14px' },
+    stepTitle:{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 },
+    stepDesc: { fontSize:12, color:'var(--text-soft)', lineHeight:1.6 },
+    badge:    { display:'inline-flex', padding:'2px 8px', borderRadius:10, fontSize:10, fontWeight:700 },
+  }
+
+  return (
+    <div style={S.root}>
+      {/* Seletor */}
+      <div>
+        <div style={{ ...S.sLabel, marginBottom:8 }}>
+          <span>Playbook administrativo</span><span style={S.line} />
+        </div>
+        <SearchSelect
+          options={adminPlaybooks.map(p => ({ id: p.id, label: p.title||p.titulo, sublabel: p.description||p.segment||'', color:'var(--accent)' }))}
+          value={form.playbook_id || null}
+          onChange={id => setForm(f => ({ ...f, playbook_id: id || null }))}
+          placeholder="Pesquisar playbook administrativo…"
+          noResults="Nenhum playbook do tipo Administrativo encontrado"
+        />
+        {adminPlaybooks.length === 0 && (
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8, padding:'8px 12px',
+            background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border2)' }}>
+            Nenhum playbook do tipo <strong>Administrativo</strong> cadastrado. Crie um em Playbooks e defina o segmento como "administrativo".
+          </div>
+        )}
+      </div>
+
+      {pb && (
+        <>
+          {/* Status atual */}
+          <div>
+            <div style={{ ...S.sLabel, marginBottom:8 }}>
+              <span>Atividades para este status</span>
+              {stCfg && <span style={{ ...S.badge, background: stCfg.bg, color: stCfg.text }}>{stCfg.label}</span>}
+              <span style={S.line} />
+            </div>
+            {steps.length === 0 ? (
+              <div style={{ fontSize:13, color:'var(--text-muted)', padding:'12px 0' }}>
+                Nenhuma atividade configurada para o status <strong>{stCfg?.label || form.status}</strong> neste playbook.
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {steps.map((s, i) => (
+                  <div key={i} style={S.stepCard}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
+                      <span style={{ width:20, height:20, borderRadius:5, background:'var(--accent-glow)',
+                        color:'var(--accent)', fontSize:10, fontWeight:700, display:'flex',
+                        alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
+                      <div style={S.stepTitle}>{s.title || s.titulo}</div>
+                    </div>
+                    {s.description && <div style={S.stepDesc}>{s.description}</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Todas as atividades do playbook */}
+          {allSteps.length > steps.length && (
+            <div>
+              <div style={{ ...S.sLabel, marginBottom:8 }}>
+                <span>Todas as atividades</span><span style={S.line} />
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {allSteps.map((s, i) => {
+                  const sc = s.status_contrato ? STATUS_CONTRATO.find(x => x.value === s.status_contrato) : null
+                  return (
+                    <div key={i} style={{ ...S.stepCard, opacity: s.status_contrato && s.status_contrato !== form.status ? 0.5 : 1 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <div style={{ flex:1, fontSize:12, fontWeight:600, color:'var(--text)' }}>{s.title||s.titulo}</div>
+                        {sc && <span style={{ ...S.badge, background: sc.bg, color: sc.text }}>{sc.label}</span>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   )
 }
 
@@ -950,23 +1131,30 @@ export default function Contratos() {
           { key: 'observacoes',  label: 'Observações',   type: 'textarea' },
         ]}
         onBulkEdit={(ids, changes) => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, ...changes } : c))}
-        renderCard={row => (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--blue-bg)', color: 'var(--blue-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0 }}>
-                {(row.empresa_nome || '?').slice(0, 2).toUpperCase()}
+        renderCard={row => {
+          const stCfg = STATUS_CONTRATO.find(s => s.value === row.status) || STATUS_CONTRATO[0]
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8,
+              background: 'var(--surface)', border: `1.5px solid ${stCfg.color}44`,
+              borderTop: `3px solid ${stCfg.color}`, borderRadius: 10, padding: '12px 14px',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.05)', cursor: 'pointer' }}
+              onClick={() => setEditando(row)}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--blue-bg)', color: 'var(--blue-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                  {(row.empresa_nome || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{row.numero}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.empresa_nome}</div>
+                </div>
               </div>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{row.numero}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{row.empresa_nome}</div>
-              </div>
+              <StatusBadge status={row.status} />
+              {(row.itens_mrr||[]).map((it,i) => <div key={i} style={{ fontSize: 12, color: 'var(--blue-text)', fontWeight: 600 }}>{it.nome} · {fmtMoeda(it.valor)}<span style={{ fontWeight: 400, fontSize: 10 }}>/mês</span></div>)}
+              {(row.itens_adesao||[]).map((it,i) => <div key={i} style={{ fontSize: 11, color: '#0E7490' }}>{it.nome} · {fmtMoeda(it.valor)}</div>)}
+              {row.vigencia_inicio && <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtData(row.vigencia_inicio)} → {fmtData(row.vigencia_fim)}</div>}
             </div>
-            <StatusBadge status={row.status} />
-            {(row.itens_mrr||[]).map((it,i) => <div key={i} style={{ fontSize: 12, color: 'var(--blue-text)', fontWeight: 600 }}>{it.nome} · {fmtMoeda(it.valor)}<span style={{ fontWeight: 400, fontSize: 10 }}>/mês</span></div>)}
-            {(row.itens_adesao||[]).map((it,i) => <div key={i} style={{ fontSize: 11, color: '#0E7490' }}>{it.nome} · {fmtMoeda(it.valor)}</div>)}
-            {row.vigencia_inicio && <div style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtData(row.vigencia_inicio)} → {fmtData(row.vigencia_fim)}</div>}
-          </div>
-        )}
+          )
+        }}
         emptyState={
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
             <span style={{ fontSize: 28, opacity: 0.3 }}>📄</span>
