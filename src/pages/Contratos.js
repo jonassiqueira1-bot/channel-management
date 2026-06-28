@@ -363,28 +363,9 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
 }
 
 
-// ─── Provisões de pagamento (Supabase) ───────────────────────────────────────
+// ─── Provisões de pagamento ───────────────────────────────────────────────────
 async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
-  // Checa duplicatas já no banco
-  const { data: existentes } = await supabase
-    .from('payments')
-    .select('id, custom_fields')
-    .eq('contract_id', contrato.id)
-
-  const jaExiste = (produtoId, vencimento) =>
-    (existentes || []).some(p =>
-      p.custom_fields?.produto_id === produtoId &&
-      p.custom_fields?.vencimento_primeiro_pagamento === vencimento
-    )
-
-  const base = {
-    tenant_id:   tenantId,
-    branch_id:   branchId || null,
-    contract_id: contrato.id,
-    company_id:  contrato.empresa_id || null,
-    status:      'pendente',
-    descricao:   `Provisão automática — contrato ${contrato.numero}`,
-  }
+  const tid = tenantId || 't1'
 
   // Uma provisão por produto ativo com data de 1º pagamento preenchida
   const slots = [
@@ -393,30 +374,103 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
     ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_item: 'servico' })),
   ]
 
-  const inserir = slots
-    .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0)
-    .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
-    .map(i => ({
-      ...base,
-      vencimento:      i.vencimento_primeiro_pagamento,
-      data_pagamento:  i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
-      custom_fields: {
-        contract_numero:              contrato.numero,
-        company_nome:                 contrato.empresa_nome,
-        produto_id:                   i.produto_id || null,
-        produto_nome:                 i.nome || '',
-        tipo_item:                    i.tipo_item,
-        amount_total_net:             parseFloat(i.valor) || 0,
-        primeira_compra:              i.primeira_compra || false,
-        vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
-        processed:                    false,
-      },
-    }))
+  const candidatos = slots.filter(
+    i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0
+  )
 
-  if (!inserir.length) return 0
-  const { error } = await supabase.from('payments').insert(inserir)
-  if (error) console.error('[gerarProvisoesPagamento]', error.message)
-  return inserir.length
+  if (!candidatos.length) return 0
+
+  // Tenta inserir via Supabase
+  let qtd = 0
+  try {
+    // Checa duplicatas já no banco
+    const { data: existentes } = await supabase
+      .from('payments')
+      .select('id, custom_fields')
+      .eq('contract_id', String(contrato.id))
+
+    const jaExiste = (produtoId, vencimento) =>
+      (existentes || []).some(p =>
+        String(p.custom_fields?.produto_id) === String(produtoId) &&
+        p.custom_fields?.vencimento_primeiro_pagamento === vencimento
+      )
+
+    const base = {
+      tenant_id:   tid,
+      branch_id:   branchId || null,
+      contract_id: contrato.id,
+      company_id:  contrato.empresa_id || null,
+      status:      'pendente',
+      descricao:   `Provisão automática — contrato ${contrato.numero}`,
+    }
+
+    const inserir = candidatos
+      .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+      .map(i => ({
+        ...base,
+        vencimento:     i.vencimento_primeiro_pagamento,
+        data_pagamento: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        custom_fields: {
+          contract_numero:               contrato.numero,
+          company_nome:                  contrato.empresa_nome,
+          produto_id:                    i.produto_id || null,
+          produto_nome:                  i.nome || '',
+          tipo_item:                     i.tipo_item,
+          amount_total_net:              parseFloat(i.valor) || 0,
+          primeira_compra:               i.primeira_compra || false,
+          vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
+          processed:                     false,
+        },
+      }))
+
+    if (inserir.length) {
+      const { error } = await supabase.from('payments').insert(inserir)
+      if (error) throw new Error(error.message)
+      qtd = inserir.length
+    }
+  } catch (err) {
+    console.warn('[gerarProvisoesPagamento] Supabase indisponível, usando localStorage:', err.message)
+  }
+
+  // Fallback localStorage — sempre salva uma cópia para garantir visibilidade em Pagamentos
+  try {
+    const raw = localStorage.getItem(PAGAMENTOS_STORAGE_KEY)
+    const existentesLS = raw ? JSON.parse(raw) : []
+    const novos = candidatos
+      .filter(i => !existentesLS.some(p =>
+        p.contract_id === contrato.id &&
+        p.produto_id  === i.produto_id &&
+        p.due_date    === i.vencimento_primeiro_pagamento
+      ))
+      .map(i => ({
+        id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        contract_id:     contrato.id,
+        contract_numero: contrato.numero,
+        company_id:      contrato.empresa_id || null,
+        company_nome:    contrato.empresa_nome || '',
+        produto_id:      i.produto_id || null,
+        produto_nome:    i.nome || '',
+        amount_cdu:      i.tipo_item === 'adesao' ? parseFloat(i.valor) || 0 : 0,
+        amount_sms:      i.tipo_item === 'mrr'    ? parseFloat(i.valor) || 0 : 0,
+        amount_services: i.tipo_item === 'servico' ? parseFloat(i.valor) || 0 : 0,
+        amount_discount: 0,
+        amount_total_net: parseFloat(i.valor) || 0,
+        reference_month: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        due_date:        i.vencimento_primeiro_pagamento,
+        status:          'pendente',
+        processed:       false,
+        notes:           `Provisão automática — contrato ${contrato.numero}`,
+        tenant_id:       tid,
+      }))
+    if (novos.length) {
+      localStorage.setItem(PAGAMENTOS_STORAGE_KEY, JSON.stringify([...existentesLS, ...novos]))
+      if (!qtd) qtd = novos.length
+    }
+  } catch (err) {
+    console.error('[gerarProvisoesPagamento] localStorage:', err.message)
+  }
+
+  return qtd
 }
 
 // ─── Provisões de comissão (Supabase) ────────────────────────────────────────
@@ -1222,9 +1276,9 @@ export default function Contratos() {
     })
 
     // Dispara provisões ao ativar (Rascunho → Ativo) ou ao criar já como Ativo
-    const tenantId = profile?.tenant_id
+    const tenantId = profile?.tenant_id || null
     const branchId = profile?.branch_id || null
-    if ((ativando || (isNew && data.status === 'ativo')) && tenantId && opts.gerarProvisao !== false) {
+    if ((ativando || (isNew && data.status === 'ativo')) && opts.gerarProvisao !== false) {
       const steps = []
       const [qtdPag, qtdCom] = await Promise.all([
         gerarProvisoesPagamento(contratoFinal, tenantId, branchId),

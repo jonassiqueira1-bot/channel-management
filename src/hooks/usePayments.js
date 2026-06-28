@@ -3,6 +3,11 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 
+const LS_KEY = 'pagamentos:data_v1'
+function loadFromLS() {
+  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+}
+
 function rowToPayment(row) {
   const cf = row.custom_fields || {}
   return {
@@ -76,7 +81,12 @@ export function usePayments() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) {
+      isMockMode.current = true
+      setPagamentos(loadFromLS())
+      setLoading(false)
+      return
+    }
 
     const { data, error } = await supabase
       .from('payments')
