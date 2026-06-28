@@ -399,11 +399,9 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
   const categoriasProduto = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort(), [produtos])
 
   const slideStageCfg = useMemo(() => {
-    const ids = form.funil_ids?.length ? form.funil_ids : (form.funil_id ? [String(form.funil_id)] : [])
-    if (!ids.length) return STAGE_CFG
-    const etapas = funis
-      .filter(f => ids.includes(String(f.id)))
-      .flatMap(f => f.etapas || [])
+    if (!form.funil_id) return STAGE_CFG
+    const funil = funis.find(f => String(f.id) === String(form.funil_id))
+    const etapas = funil?.etapas || []
     if (!etapas.length) return STAGE_CFG
     return Object.fromEntries(
       etapas
@@ -472,13 +470,11 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                   {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
                 </select>
               </FormField>
-              <FormField label="Funis (opcional)" span={2}>
-                <MultiSelect
-                  options={funis.map(f => ({ value: String(f.id), label: f.nome }))}
-                  value={form.funil_ids || []}
-                  onChange={v => set('funil_ids', v)}
-                  placeholder="Pesquisar funil…"
-                />
+              <FormField label="Funil (opcional)" span={2}>
+                <select className="so-field" value={form.funil_id || ''} onChange={e => set('funil_id', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  {funis.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
+                </select>
               </FormField>
               <FormField label="Filtrar por" span={2}>
                 <select className="so-field" value={form.produto_filtro_tipo || ''} onChange={e => set('produto_filtro_tipo', e.target.value)}>
