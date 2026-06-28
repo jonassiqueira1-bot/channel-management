@@ -3,8 +3,10 @@ import { SlidersHorizontal, MoreHorizontal, ChevronDown, ChevronUp } from 'lucid
 import { useLocalState } from '../hooks/useLocalState'
 import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
 import { usePayments } from '../hooks/usePayments'
+import { useContracts } from '../hooks/useContracts'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import EmpresaSearch from '../components/EmpresaSearch'
 import { RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY as COMISSOES_PAYMENTS_KEY, MOCK_RULES, MOCK_PAYMENTS as MOCK_COM_PAYMENTS } from '../data/mockComissoes'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
 import { useFormLayout } from '../hooks/useFormLayout'
@@ -1119,10 +1121,75 @@ function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [
   )
 }
 
+// ─── ContratoSearch ───────────────────────────────────────────────────────────
+function ContratoSearch({ contratos = [], value, label, onChange }) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function onClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onClick)
+    return () => document.removeEventListener('mousedown', onClick)
+  }, [])
+
+  const filtered = useMemo(() => {
+    const q = query.toLowerCase()
+    return contratos
+      .filter(c => !q || c.numero?.toLowerCase().includes(q) || c.empresa_nome?.toLowerCase().includes(q))
+      .slice(0, 10)
+  }, [contratos, query])
+
+  function select(c) {
+    onChange(c.id, c.numero, c.empresa_id, c.empresa_nome)
+    setQuery('')
+    setOpen(false)
+  }
+
+  const displayValue = open ? query : (label || '')
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <input
+        className="fpe-field"
+        placeholder="Buscar contrato…"
+        value={displayValue}
+        onFocus={() => setOpen(true)}
+        onChange={e => { setQuery(e.target.value); setOpen(true) }}
+      />
+      {open && filtered.length > 0 && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
+          background: 'var(--surface)', border: '1px solid var(--border)',
+          borderRadius: 8, boxShadow: 'var(--shadow-md)', marginTop: 4, overflow: 'hidden',
+        }}>
+          {filtered.map(c => (
+            <div
+              key={c.id}
+              onMouseDown={() => select(c)}
+              style={{
+                padding: '9px 14px', cursor: 'pointer', fontSize: 13,
+                borderBottom: '1px solid var(--border2)',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+            >
+              <span style={{ fontWeight: 600, fontFamily: 'var(--mono)', fontSize: 12 }}>{c.numero}</span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{c.empresa_nome}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Pagamentos() {
   const { pagamentos, setPagamentos } = usePayments()
   const { registrar: log } = useAuditLog()
+  const { contratos } = useContracts()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1421,10 +1488,27 @@ export default function Pagamentos() {
       >
         <FPESection label="Identificação" noBorder columns={2}>
           <FPEField label="Nº do contrato" required>
-            <input className="fpe-field" value={form.contract_numero} placeholder="CTR-2024-001" onChange={e => set('contract_numero', e.target.value)} />
+            <ContratoSearch
+              contratos={contratos}
+              value={form.contract_id}
+              label={form.contract_numero}
+              onChange={(id, numero, empresaId, empresaNome) => {
+                setNovoPagForm(f => ({
+                  ...f,
+                  contract_id:     id,
+                  contract_numero: numero,
+                  company_id:      empresaId || f.company_id,
+                  company_nome:    empresaNome || f.company_nome,
+                }))
+              }}
+            />
           </FPEField>
           <FPEField label="Empresa" required>
-            <input className="fpe-field" value={form.company_nome} placeholder="Nome da empresa" onChange={e => set('company_nome', e.target.value)} />
+            <EmpresaSearch
+              value={form.company_id}
+              label={form.company_nome}
+              onChange={(id, nome) => setNovoPagForm(f => ({ ...f, company_id: id, company_nome: nome }))}
+            />
           </FPEField>
           <FPEField label="Produto">
             <select className="fpe-field" value={form.produto_id || ''} onChange={e => {
