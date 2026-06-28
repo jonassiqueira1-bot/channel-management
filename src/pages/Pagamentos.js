@@ -2018,7 +2018,7 @@ const pg = {
   tr:         { borderBottom:'1px solid var(--border2)', transition:'background 0.1s' },
   td:         { padding:'10px 14px', fontSize:13, verticalAlign:'middle' },
   bulkBar:    { display:'flex', alignItems:'center', gap:12, padding:'10px 16px',
-                background:'#1E293B', borderRadius:10, flexWrap:'wrap',
+                background:'var(--accent)', borderRadius:10, flexWrap:'wrap',
                 boxShadow:'0 4px 24px rgba(0,0,0,0.2)' },
   bulkCount:  { display:'flex', alignItems:'center', gap:8, fontSize:13, fontWeight:700,
                 color:'#fff', whiteSpace:'nowrap' },
