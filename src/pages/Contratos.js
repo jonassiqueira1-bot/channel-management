@@ -478,12 +478,11 @@ async function gerarProvisoesComissao(contrato, tenantId, branchId) {
 }
 
 // ─── Formulário (SlideOver) ───────────────────────────────────────────────────
-function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, onShowFeedback }) {
+function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, activeTab, onTabChange, onShowFeedback }) {
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [confirmData, setConfirmData] = useState(null)
   const [gerarProvisao, setGerarProvisao] = useState(true)
-  const [activeTab, setActiveTab] = useState('dados')
   const [playbookOpen, setPlaybookOpen] = useState(false)
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
@@ -590,19 +589,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
     )}
 
     {/* ── Playbook hint (flag recolhida) ── */}
-    <ContratoPlaybookHint form={form} open={playbookOpen} onToggle={() => setPlaybookOpen(o => !o)} onGoTab={() => { setPlaybookOpen(false); setActiveTab('playbook') }} />
-
-    {/* ── Tabs ── */}
-    <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:4 }}>
-      {[{ key:'dados', label:'Dados' }, { key:'playbook', label:'Playbook' }].map(t => (
-        <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-          padding:'10px 18px', fontSize:13, fontWeight: activeTab===t.key ? 700 : 400,
-          color: activeTab===t.key ? 'var(--accent)' : 'var(--text-muted)',
-          background:'none', border:'none', borderBottom: activeTab===t.key ? '2px solid var(--accent)' : '2px solid transparent',
-          cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1,
-        }}>{t.label}</button>
-      ))}
-    </div>
+    <ContratoPlaybookHint form={form} open={playbookOpen} onToggle={() => setPlaybookOpen(o => !o)} onGoTab={() => { setPlaybookOpen(false); onTabChange('playbook') }} />
 
     {activeTab === 'playbook' && (
       <ContratoPlaybookPanel form={form} setForm={setForm} />
@@ -1033,6 +1020,7 @@ export default function Contratos() {
   const [search, setSearch]           = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [editando, setEditando]       = useState(null)
+  const [contratoTab, setContratoTab] = useState('dados')
   const [feedbackSteps, setFeedbackSteps] = useState(null)
 
   const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
@@ -1190,24 +1178,31 @@ export default function Contratos() {
 
       <SlideOver
         open={!!editando}
-        onClose={() => setEditando(null)}
+        onClose={() => { setEditando(null); setContratoTab('dados') }}
         title={isNew ? 'Novo contrato' : (editando?.numero || 'Contrato')}
         subtitle={editando?.empresa_nome || 'Dados contratuais'}
         defaultWidth={720}
         showFooter={false}
+        tabs={[{ key: 'dados', label: 'Dados' }, { key: 'playbook', label: 'Playbook' }]}
+        activeTab={contratoTab}
+        onTabChange={setContratoTab}
       >
         {editando && (
-          <ContratoForm
-            form={editando}
-            setForm={setEditando}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            onClose={() => setEditando(null)}
-            isNew={isNew}
-            contratos={contratos}
-            produtos={produtos}
-            onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
-          />
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <ContratoForm
+              form={editando}
+              setForm={setEditando}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              onClose={() => { setEditando(null); setContratoTab('dados') }}
+              isNew={isNew}
+              contratos={contratos}
+              produtos={produtos}
+              activeTab={contratoTab}
+              onTabChange={setContratoTab}
+              onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
+            />
+          </div>
         )}
       </SlideOver>
 
