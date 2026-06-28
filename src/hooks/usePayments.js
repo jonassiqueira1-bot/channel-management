@@ -96,7 +96,17 @@ export function usePayments() {
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
-    setPagamentos((data || []).map(rowToPayment))
+    const fromDB = (data || []).map(rowToPayment)
+    // Mescla entradas do localStorage que ainda não estão no Supabase (geradas em modo offline/fallback)
+    const fromLS = loadFromLS()
+    const lsOnly = fromLS.filter(ls =>
+      !fromDB.some(db =>
+        String(db.contract_id) === String(ls.contract_id) &&
+        db.due_date === ls.due_date &&
+        String(db.produto_id) === String(ls.produto_id)
+      )
+    )
+    setPagamentos([...fromDB, ...lsOnly])
     setLoading(false)
   }, [session])
 
