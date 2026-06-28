@@ -26,10 +26,10 @@ const SLOTS = [
   {
     key: 'adesao',
     label: 'Adesão',
-    hint: 'Licença de ativação ou implementação',
+    hint: 'Licença ou hardware',
     icon: '①',
     color: '#0891B2', bg: '#ECFEFF', text: '#0E7490',
-    filter: p => p.status === 'ativo' && p.tipo === 'licenca',
+    filter: p => p.status === 'ativo' && ['licenca','hardware'].includes(p.tipo),
   },
   {
     key: 'mrr',
@@ -45,7 +45,7 @@ const SLOTS = [
     hint: 'Consultoria ou serviço contratado',
     icon: '③',
     color: 'var(--purple)', bg: 'var(--purple-bg)', text: 'var(--purple-text)',
-    filter: p => p.status === 'ativo' && p.tipo === 'consultoria',
+    filter: p => p.status === 'ativo' && ['servico','consultoria'].includes(p.tipo),
   },
 ]
 
