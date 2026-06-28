@@ -365,72 +365,53 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
 
 // ─── Provisões de pagamento (Supabase) ───────────────────────────────────────
 async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
-  const toRefMonth = date => date.slice(0, 7) + '-01'
-  const cduRef  = contrato.data_pag_cdu ? toRefMonth(contrato.data_pag_cdu) : null
-  const smsRef  = contrato.data_pag_sms ? toRefMonth(contrato.data_pag_sms) : null
-  const valorCdu = (contrato.itens_adesao||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-  const valorSms = (contrato.itens_mrr||[]).reduce((s,i)   => s + (parseFloat(i.valor)||0), 0)
-  const prodCdu  = contrato.itens_adesao?.[0] || {}
-  const prodSms  = contrato.itens_mrr?.[0]    || {}
-
   // Checa duplicatas já no banco
   const { data: existentes } = await supabase
     .from('payments')
-    .select('id, data_pagamento, custom_fields')
+    .select('id, custom_fields')
     .eq('contract_id', contrato.id)
 
-  const jaExiste = (ref, campo) =>
-    (existentes || []).some(p => p.data_pagamento === ref && (p.custom_fields?.[campo] || 0) > 0)
+  const jaExiste = (produtoId, vencimento) =>
+    (existentes || []).some(p =>
+      p.custom_fields?.produto_id === produtoId &&
+      p.custom_fields?.vencimento_primeiro_pagamento === vencimento
+    )
 
   const base = {
-    tenant_id:    tenantId,
-    branch_id:    branchId || null,
-    contract_id:  contrato.id,
-    company_id:   contrato.empresa_id || null,
-    status:       'pendente',
-    descricao:    `Provisão automática — contrato ${contrato.numero}`,
-    custom_fields: {
-      contract_numero: contrato.numero,
-      company_nome:    contrato.empresa_nome,
-      parcela:         '1/1',
-      amount_services: 0,
-      amount_discount: 0,
-      processed:       false,
-    },
+    tenant_id:   tenantId,
+    branch_id:   branchId || null,
+    contract_id: contrato.id,
+    company_id:  contrato.empresa_id || null,
+    status:      'pendente',
+    descricao:   `Provisão automática — contrato ${contrato.numero}`,
   }
 
-  const inserir = []
+  // Uma provisão por produto ativo com data de 1º pagamento preenchida
+  const slots = [
+    ...(contrato.itens_adesao  || []).map(i => ({ ...i, tipo_item: 'adesao' })),
+    ...(contrato.itens_mrr     || []).map(i => ({ ...i, tipo_item: 'mrr' })),
+    ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_item: 'servico' })),
+  ]
 
-  if (cduRef && valorCdu > 0 && !jaExiste(cduRef, 'amount_cdu')) {
-    if (cduRef === smsRef && valorSms > 0) {
-      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
-        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
-          amount_cdu: valorCdu, amount_sms: valorSms, amount_total_net: valorCdu + valorSms } })
-    } else {
-      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
-        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
-          amount_cdu: valorCdu, amount_sms: 0, amount_total_net: valorCdu } })
-    }
-  }
-  if (smsRef && valorSms > 0 && cduRef !== smsRef && !jaExiste(smsRef, 'amount_sms')) {
-    inserir.push({ ...base, data_pagamento: smsRef, vencimento: contrato.data_pag_sms,
-      custom_fields: { ...base.custom_fields, produto_id: prodSms.produto_id, produto_nome: prodSms.nome,
-        amount_cdu: 0, amount_sms: valorSms, amount_total_net: valorSms } })
-  }
-
-  // Fallback: nenhuma data configurada mas tem valor
-  if (inserir.length === 0) {
-    const total = [...(contrato.itens_adesao||[]), ...(contrato.itens_mrr||[]), ...(contrato.itens_servico||[])]
-      .reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-    if (total > 0) {
-      const dueDate = contrato.vigencia_inicio || new Date().toISOString().slice(0,10)
-      const ref     = dueDate.slice(0,7) + '-01'
-      if (!jaExiste(ref, 'amount_cdu')) {
-        inserir.push({ ...base, data_pagamento: ref, vencimento: dueDate,
-          custom_fields: { ...base.custom_fields, amount_cdu: total, amount_sms: 0, amount_total_net: total } })
-      }
-    }
-  }
+  const inserir = slots
+    .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0)
+    .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+    .map(i => ({
+      ...base,
+      vencimento:      i.vencimento_primeiro_pagamento,
+      data_pagamento:  i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+      custom_fields: {
+        contract_numero:              contrato.numero,
+        company_nome:                 contrato.empresa_nome,
+        produto_id:                   i.produto_id || null,
+        produto_nome:                 i.nome || '',
+        tipo_item:                    i.tipo_item,
+        amount_total_net:             parseFloat(i.valor) || 0,
+        primeira_compra:              i.primeira_compra || false,
+        vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
+        processed:                    false,
+      },
+    }))
 
   if (!inserir.length) return 0
   const { error } = await supabase.from('payments').insert(inserir)
@@ -544,6 +525,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [confirmData, setConfirmData] = useState(null)
+  const [ativarData, setAtivarData] = useState(null)
   const [gerarProvisao, setGerarProvisao] = useState(true)
   const [playbookOpen, setPlaybookOpen] = useState(false)
 
@@ -576,8 +558,35 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       setConfirmData({ ...form, id: Date.now(), criado: new Date().toISOString().slice(0, 10) })
       return
     }
+    if (ativando) {
+      // mostra confirm antes de ativar contrato existente
+      setAtivarData(form)
+      return
+    }
     setSaving(true)
     try { onSave(form); onClose() } finally { setSaving(false) }
+  }
+
+  async function executarAtivacao() {
+    setSaving(true)
+    try {
+      const todosItens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+        .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
+      const steps = [{ id: 'contrato', label: `Contrato ${ativarData.numero} ativado`, sublabel: ativarData.empresa_nome }]
+      await onSave(ativarData, {
+        gerarProvisao,
+        onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
+      })
+      if (!gerarProvisao) {
+        steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
+      } else if (todosItens.length === 0) {
+        steps.push({ id: 'provisao', label: 'Nenhum produto com data de pagamento', skip: true })
+      }
+      onShowFeedback(steps)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function executarSave() {
@@ -655,6 +664,72 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
             display:'flex', justifyContent:'flex-end', gap:10 }}>
             <Button variant="ghost" onClick={() => setConfirmData(null)}>Voltar</Button>
             <Button onClick={executarSave} disabled={saving}>{saving ? 'Criando…' : 'Criar contrato'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* ─── Confirm popup: Rascunho → Ativo ─────────────────────────────── */}
+    {ativarData && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
+        display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+        <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
+          boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+          {/* Header */}
+          <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:'#D1FAE5', display:'flex',
+              alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>✓</div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Ativar contrato</div>
+              <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
+                Ao ativar <strong style={{ color:'var(--text)' }}>{ativarData.numero}</strong>, as seguintes ações serão executadas:
+              </div>
+            </div>
+          </div>
+          {/* Itens que gerarão provisão */}
+          <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+            {/* Contrato — sempre */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10,
+              border:'1.5px solid var(--accent)', background:'var(--accent-glow)' }}>
+              <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Status alterado para Ativo</div>
+                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>{ativarData.numero} · {ativarData.empresa_nome}</div>
+              </div>
+            </div>
+            {/* Provisões por produto */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+              border:`1.5px solid ${gerarProvisao ? 'var(--accent)' : 'var(--border)'}`,
+              background: gerarProvisao ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}
+              onClick={() => setGerarProvisao(g => !g)}>
+              <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                border:`2px solid ${gerarProvisao ? 'var(--accent)' : 'var(--border)'}`,
+                background: gerarProvisao ? 'var(--accent)' : 'transparent',
+                display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                {gerarProvisao && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar provisões de pagamento</div>
+                {(() => {
+                  const itens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+                    .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
+                  return (
+                    <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                      {itens.length} produto(s) com data de 1º pagamento · uma provisão por produto em Pagamentos
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+          </div>
+          {/* Actions */}
+          <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
+            display:'flex', justifyContent:'flex-end', gap:10 }}>
+            <Button variant="ghost" onClick={() => setAtivarData(null)}>Voltar</Button>
+            <Button onClick={executarAtivacao} disabled={saving}>{saving ? 'Ativando…' : 'Ativar contrato'}</Button>
           </div>
         </div>
       </div>
@@ -1149,7 +1224,7 @@ export default function Contratos() {
     // Dispara provisões ao ativar (Rascunho → Ativo) ou ao criar já como Ativo
     const tenantId = profile?.tenant_id
     const branchId = profile?.branch_id || null
-    if ((ativando || (isNew && data.status === 'ativo')) && tenantId) {
+    if ((ativando || (isNew && data.status === 'ativo')) && tenantId && opts.gerarProvisao !== false) {
       const steps = []
       const [qtdPag, qtdCom] = await Promise.all([
         gerarProvisoesPagamento(contratoFinal, tenantId, branchId),
