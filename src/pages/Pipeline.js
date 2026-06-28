@@ -3607,6 +3607,7 @@ function FechamentoModal({ opp, onClose }) {
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
 function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade }) {
   const isEditing = !!initial
+  const { funis } = useFunnels()
   const [tab, setTab]       = useState('dados')
   const [logOpen, setLogOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
