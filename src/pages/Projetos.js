@@ -1321,13 +1321,15 @@ function TabBloqueios({ projeto, issues, onAddIssue, onResolveIssue }) {
       <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px' }}>
         <div style={{ ...ms.sectionLbl, marginBottom: 10 }}>Registrar pendência</div>
         <textarea style={{ ...ms.inp, height: 64, resize: 'vertical' }} placeholder="Descreva a pendência ou bloqueio..." value={desc} onChange={e => setDesc(e.target.value)} />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600 }}>Criticidade:</span>
-          {Object.entries(CRITICALITY_CFG).map(([k, cfg]) => (
-            <button key={k} onClick={() => setCrit(k)} style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 20, cursor: 'pointer', fontFamily: 'var(--font)', border: crit === k ? `2px solid ${cfg.color}` : '2px solid transparent', background: crit === k ? cfg.bg : 'var(--surface)', color: crit === k ? cfg.text : 'var(--text-muted)' }}>
-              {cfg.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <label style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, flexShrink: 0 }}>Criticidade:</label>
+          <select value={crit} onChange={e => setCrit(e.target.value)}
+            style={{ fontSize: 12, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)',
+              background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', cursor: 'pointer', outline: 'none' }}>
+            {Object.entries(CRITICALITY_CFG).map(([k, cfg]) => (
+              <option key={k} value={k}>{cfg.label}</option>
+            ))}
+          </select>
           <button style={{ ...ms.btnPrimary, marginLeft: 'auto', padding: '5px 14px', fontSize: 12 }} onClick={handleAdd}>Registrar</button>
         </div>
       </div>
