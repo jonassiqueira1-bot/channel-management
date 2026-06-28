@@ -889,7 +889,6 @@ function ImportProjectModal({ projeto, myPhases, onApply, onClose }) {
 // ─── Tab: Proposta de Implantação ────────────────────────────────────────────
 function TabProposta({ projeto, onUpdate }) {
   const [propostas, setPropostas] = useLocalState(PROPOSTAS_KEY, [])
-  const [busca, setBusca]         = useState('')
 
   const propostaVinculada = useMemo(() => {
     if (!propostas.length) return null
@@ -902,18 +901,8 @@ function TabProposta({ projeto, onUpdate }) {
       .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
   }, [propostas, projeto.proposta_id, projeto.opportunity_id])
 
-  const disponiveis = useMemo(() =>
-    propostas.filter(p => {
-      if (propostaVinculada && p.id === propostaVinculada.id) return false
-      const q = busca.toLowerCase()
-      return !q || (p.titulo||'').toLowerCase().includes(q) || (p.empresa_nome||'').toLowerCase().includes(q)
-    }),
-    [propostas, propostaVinculada, busca]
-  )
-
   function vincular(p) {
     onUpdate({ ...projeto, proposta_id: p.id })
-    setBusca('')
   }
   function desvincular() {
     onUpdate({ ...projeto, proposta_id: null })
@@ -954,33 +943,17 @@ function TabProposta({ projeto, onUpdate }) {
         </div>
       )}
 
-      {/* Vincular manualmente */}
-      <div>
-        <div style={{ ...ms.sectionLbl, marginBottom:8 }}>Vincular proposta</div>
-        <input
-          style={{ ...ms.inp, marginBottom:8 }}
-          placeholder="Buscar por título ou empresa..."
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
-        />
-        {disponiveis.length === 0 && busca && (
-          <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'8px 0' }}>Nenhuma proposta encontrada.</div>
-        )}
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {disponiveis.slice(0,10).map(p => (
-            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
-              border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)', cursor:'pointer' }}
-              onClick={() => vincular(p)}
-            >
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.titulo || '(sem título)'}</div>
-                {p.empresa_nome && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.empresa_nome}</div>}
-              </div>
-              <span style={{ fontSize:11, fontWeight:600, color: STATUS_COLOR[p.status] || 'var(--text-muted)', flexShrink:0 }}>{STATUS_LABEL[p.status] || p.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Vincular manualmente — dropdown com pesquisa */}
+      <PropostaSelectField
+        propostas={propostas}
+        value={propostaVinculada?.id || null}
+        onChange={id => {
+          if (!id) desvincular()
+          else { const p = propostas.find(x => String(x.id) === String(id)); if (p) vincular(p) }
+        }}
+        statusLabel={STATUS_LABEL}
+        statusColor={STATUS_COLOR}
+      />
     </div>
   )
 }
@@ -1005,20 +978,25 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
   // auto-sincronizar fases quando o projeto ainda não tem fases mas tem proposta
   useEffect(() => {
     if (myPhases.length === 0 && propostaVinculada) {
-      const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+      const allItens = propostaVinculada.itens || []
+      const fases = allItens.filter(i => i.nivel === 1)
       if (!fases.length) return
-      const updated = fases.map((fase, i) => ({
-        id:                 `ph_${projeto.id}_${i + 1}`,
-        project_id:         projeto.id,
-        tenant_id:          't1',
-        phase_name:         fase.titulo,
-        phase_order:        i + 1,
-        start_date_planned: '',
-        end_date_planned:   '',
-        hours_estimated:    Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 0,
-        is_completed:       false,
-        completed_at:       null,
-      }))
+      const updated = fases.map((fase, i) => {
+        const filhos = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+        const horas  = filhos.reduce((s, f) => s + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
+        return {
+          id:                 `ph_${projeto.id}_${i + 1}`,
+          project_id:         projeto.id,
+          tenant_id:          't1',
+          phase_name:         fase.titulo,
+          phase_order:        i + 1,
+          start_date_planned: '',
+          end_date_planned:   '',
+          hours_estimated:    Math.round(horas) || 0,
+          is_completed:       false,
+          completed_at:       null,
+        }
+      })
       onUpdatePhases(updated)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1026,10 +1004,13 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
 
   function handleSyncFromProposta() {
     if (!propostaVinculada) return
-    const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+    const allItens = propostaVinculada.itens || []
+    const fases = allItens.filter(i => i.nivel === 1)
     if (fases.length === 0) { alert('A proposta não tem escopo WBS definido.'); return }
     const updated = fases.map((fase, i) => {
       const existing = myPhases[i]
+      const filhos   = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+      const horas    = filhos.reduce((s, f) => s + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
       return {
         id:                  existing?.id || `ph_${projeto.id}_${i + 1}`,
         project_id:          projeto.id,
@@ -1038,7 +1019,7 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
         phase_order:         i + 1,
         start_date_planned:  existing?.start_date_planned || '',
         end_date_planned:    existing?.end_date_planned   || '',
-        hours_estimated:     Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 20,
+        hours_estimated:     Math.round(horas) || 0,
         is_completed:        existing?.is_completed || false,
         completed_at:        existing?.completed_at || null,
       }
@@ -2709,6 +2690,65 @@ const PROP_ESC_STATUS = {
 }
 function tmplUid() { return `tmpl-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
 
+function PropostaSelectField({ propostas, value, onChange, statusLabel, statusColor }) {
+  const [query, setQuery] = useState('')
+  const [open,  setOpen]  = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selecionada = propostas.find(p => String(p.id) === String(value)) || null
+  const lista = propostas.filter(p => {
+    if (selecionada && p.id === selecionada.id) return false
+    const q = query.toLowerCase()
+    return !q || (p.titulo||'').toLowerCase().includes(q) || (p.empresa_nome||'').toLowerCase().includes(q)
+  }).slice(0, 12)
+
+  return (
+    <div>
+      <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)', marginBottom:6 }}>Vincular proposta</div>
+      <div ref={ref} style={{ position:'relative' }}>
+        <div style={{ display:'flex', alignItems:'center', border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)', overflow:'hidden' }}>
+          {selecionada ? (
+            <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, padding:'8px 12px' }}>
+              <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selecionada.titulo || '(sem título)'}</span>
+              {selecionada.status && <span style={{ fontSize:11, fontWeight:600, color: statusColor[selecionada.status] || 'var(--text-muted)', flexShrink:0 }}>{statusLabel[selecionada.status] || selecionada.status}</span>}
+            </div>
+          ) : (
+            <input value={query} onChange={e=>{setQuery(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)}
+              placeholder="Buscar proposta por título ou empresa…"
+              style={{ flex:1, padding:'9px 12px', border:'none', background:'none', color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)' }}/>
+          )}
+          {selecionada
+            ? <button onClick={()=>onChange(null)} style={{ padding:'0 12px', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, lineHeight:1 }}>✕</button>
+            : <span style={{ padding:'0 10px', color:'var(--text-muted)', fontSize:12, pointerEvents:'none' }}>▾</span>
+          }
+        </div>
+        {open && !selecionada && (
+          <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
+            {lista.length === 0
+              ? <div style={{ padding:'12px 14px', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhuma proposta encontrada</div>
+              : lista.map(p => (
+                <div key={p.id} onClick={()=>{onChange(p.id);setQuery('');setOpen(false)}}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid var(--border2)' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--surface3)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.titulo || '(sem título)'}</div>
+                    {p.empresa_nome && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.empresa_nome}</div>}
+                  </div>
+                  {p.status && <span style={{ fontSize:11, fontWeight:600, color: statusColor[p.status] || 'var(--text-muted)', flexShrink:0 }}>{statusLabel[p.status] || p.status}</span>}
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function ProdutoSearch({ produto_id, onChange }) {
   const [query, setQuery] = useState('')
   const [open,  setOpen]  = useState(false)
@@ -3527,7 +3567,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     const tmplTabs = [
       { id:'wbs',     label:'WBS / Escopo'   },
       { id:'tarifas', label:'Tarifas'         },
-      { id:'produtos',label:'Produtos'        },
+      { id:'produtos',label:'Produto'         },
       { id:'blocos',  label:'Blocos de Texto' },
       { id:'regras',  label:'Regras'          },
       { id:'estilo',  label:'Estilo Doc.'     },
@@ -3544,38 +3584,39 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
         {importing && <ImportModal tmplId={st.id} onClose={()=>setImporting(false)}/>}
 
         {/* Header */}
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button onClick={()=>{setSelectedTmpl(null);setTmplTab('wbs')}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>
+        <div>
+          <button onClick={()=>{setSelectedTmpl(null);setTmplTab('wbs')}}
+            style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:11,padding:'0 0 6px',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:4}}>
             ← Templates
           </button>
-          <div style={{flex:1,minWidth:0}}>
-            <input value={st.nome} onChange={e=>salvarTemplate({...st,nome:e.target.value})}
-              style={{fontSize:17,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
-            <input value={st.descricao||''} onChange={e=>salvarTemplate({...st,descricao:e.target.value})}
-              placeholder="Descrição do template…"
-              style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:3}}/>
+          <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <input value={st.nome} onChange={e=>salvarTemplate({...st,nome:e.target.value})}
+                style={{fontSize:18,fontWeight:700,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,letterSpacing:'-0.3px'}}/>
+              <input value={st.descricao||''} onChange={e=>salvarTemplate({...st,descricao:e.target.value})}
+                placeholder="Descrição do template…"
+                style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:2}}/>
+              <div style={{display:'flex',gap:14,marginTop:8,fontSize:12,color:'var(--text-muted)',flexWrap:'wrap'}}>
+                <span>{(st.itens||[]).filter(i=>i.nivel===1).length} fases · {(st.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
+                <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
+                <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
+                <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
+                {invest>0 && <span>Investimento: <strong style={{color:'#10B981'}}>{fmtBRL2(invest)}</strong></span>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,flexShrink:0,alignItems:'center',marginTop:4}}>
+              <button onClick={()=>setImporting(true)} style={{padding:'6px 12px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+                ↑ Importar WBS
+              </button>
+              <button onClick={()=>excluirTemplate(st.id)} style={{padding:'6px 10px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+                Excluir
+              </button>
+              <button onClick={()=>{salvarTemplate(selectedTmpl);setTmplSaved(true);setTimeout(()=>setTmplSaved(false),2000)}}
+                style={{padding:'6px 16px',background:tmplSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:72}}>
+                {tmplSaved ? '✓ Salvo' : 'Salvar'}
+              </button>
+            </div>
           </div>
-          <div style={{display:'flex',gap:8,flexShrink:0,alignItems:'center'}}>
-            <button onClick={()=>setImporting(true)} style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
-              ↑ Importar WBS
-            </button>
-            <button onClick={()=>excluirTemplate(st.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
-              Excluir
-            </button>
-            <button onClick={()=>{salvarTemplate(selectedTmpl);setTmplSaved(true);setTimeout(()=>setTmplSaved(false),2000)}}
-              style={{padding:'7px 18px',background:tmplSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:80}}>
-              {tmplSaved ? '✓ Salvo' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-
-        {/* KPI strip */}
-        <div style={{display:'flex',gap:16,padding:'10px 14px',background:'var(--surface2)',borderRadius:9,fontSize:12,color:'var(--text-muted)',flexWrap:'wrap'}}>
-          <span>{(st.itens||[]).filter(i=>i.nivel===1).length} fases · {(st.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
-          <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
-          <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
-          <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
-          {invest>0 && <span style={{marginLeft:'auto'}}>Investimento estimado: <strong style={{color:'#10B981'}}>{fmtBRL2(invest)}</strong></span>}
         </div>
 
         {/* Sub-tabs */}
