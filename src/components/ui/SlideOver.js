@@ -45,11 +45,11 @@ const BASE_SIZES  = { compact: 480, default: 680, fullscreen: '100%' }
 const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────
-const SO_BG         = '#F8FAFC'       // zinc-50 equivalente — contraste com branco dos inputs
-const SO_INPUT_BG   = '#FFFFFF'
+const SO_BG         = '#FFFFFF'       // painel branco
+const SO_INPUT_BG   = '#F8FAFC'       // inputs ligeiramente acinzentados (inversão proposital)
 const SO_BORDER     = '#CBD5E1'       // zinc-300 equivalente — borda visível
-const SO_FOCUS_RING = '0 0 0 3px rgba(59,130,246,0.18)'
-const SO_FOCUS_BC   = '#3B82F6'      // blue-500
+const SO_FOCUS_RING = '0 0 0 3px rgba(37,99,235,0.15)'
+const SO_FOCUS_BC   = '#2563EB'      // blue-600
 
 // ── SlideOver ─────────────────────────────────────────────────────────────────
 export default function SlideOver({
@@ -165,7 +165,7 @@ export default function SlideOver({
           }
           .so-field:focus {
             border-color: ${SO_FOCUS_BC};
-            box-shadow: ${SO_FOCUS_RING};
+            box-shadow: ${SO_FOCUS_RING}, inset 3px 0 0 ${SO_FOCUS_BC};
           }
           .so-field:disabled {
             background: #F1F5F9;
@@ -187,9 +187,11 @@ export default function SlideOver({
             background-size: 14px;
           }
           .so-label {
-            font-size: var(--text-sm, 12px);
-            font-weight: 500;
-            color: var(--text);
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
             margin-bottom: 5px;
             display: block;
           }
@@ -203,11 +205,12 @@ export default function SlideOver({
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           padding: '14px 20px', flexShrink: 0,
           borderBottom: hasTabs ? 'none' : '1px solid var(--border)',
+          borderTop: '3px solid var(--accent)',
           background: SO_BG,
           position: 'sticky', top: 0, zIndex: 1,
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 'var(--text-md)', fontWeight: 600, color: 'var(--text)' }}>
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--text)' }}>
               {title}
             </h2>
             {subtitle && (
@@ -416,20 +419,31 @@ export function FormGrid({ cols = 2, gap = '16px 20px', children, style: extra =
  */
 export function FormSection({ label, children }) {
   return (
-    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 10,
-      }}>
-        <span style={{
-          fontSize: 'var(--text-xs)', fontWeight: 700, textTransform: 'uppercase',
-          letterSpacing: '0.07em', color: 'var(--text-muted)', whiteSpace: 'nowrap',
+    <div style={{
+      gridColumn: '1 / -1',
+      border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.05)', overflow: 'hidden',
+    }}>
+      {label && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '9px 16px',
+          background: 'var(--surface2)', borderBottom: '1px solid var(--border2)',
         }}>
-          {label}
-        </span>
-        <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-      </div>
+          <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
+          <span style={{
+            fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+            letterSpacing: '0.06em', color: 'var(--text-muted)',
+          }}>
+            {label}
+          </span>
+        </div>
+      )}
       {children && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px 20px' }}>
+        <div style={{
+          padding: 16,
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px 20px',
+        }}>
           {children}
         </div>
       )}
