@@ -25,7 +25,7 @@ const STATUS_CONTRATO = [
 const SLOTS = [
   {
     key: 'adesao',
-    label: 'Adesão / CDU',
+    label: 'Adesão',
     hint: 'Licença de ativação ou implementação',
     icon: '①',
     color: '#0891B2', bg: '#ECFEFF', text: '#0E7490',
@@ -33,7 +33,7 @@ const SLOTS = [
   },
   {
     key: 'mrr',
-    label: 'MRR / SMS',
+    label: 'MRR',
     hint: 'Produto SaaS recorrente',
     icon: '②',
     color: 'var(--blue)', bg: 'var(--blue-bg)', text: 'var(--blue-text)',
