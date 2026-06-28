@@ -338,6 +338,7 @@ export default function SlideOver({
                   gridTemplateColumns: gridCols,
                   gap: '16px 20px',
                   alignItems: 'start',
+                  paddingBottom: 8,
                 }}>
                   {children}
                 </div>
