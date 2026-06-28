@@ -3423,13 +3423,21 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
 // ─── Modal de fechamento de oportunidade ganha ───────────────────────────────
 function FechamentoModal({ opp, onClose }) {
   const { save: saveContrato, contratos } = useContracts()
-  const { save: saveProjeto }             = useProjects()
+  const { save: saveProjeto, projetos }   = useProjects()
 
   const temServico = (opp.valor_servico > 0) ||
     (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico')
 
   const [gerarContrato, setGerarContrato] = useState(true)
   const [gerarProjeto,  setGerarProjeto]  = useState(temServico)
+
+  const contratosDuplicados = (contratos||[]).filter(c =>
+    c.opportunity_id && String(c.opportunity_id) === String(opp.id)
+  )
+  const projetosDuplicados = (projetos||[]).filter(p =>
+    (p.opportunity_id && String(p.opportunity_id) === String(opp.id)) ||
+    (p.name || '').trim().toLowerCase() === (opp.titulo || '').trim().toLowerCase()
+  )
   const [salvando, setSalvando]           = useState(false)
   const [feito, setFeito]                 = useState(null) // null | { contrato, projeto }
 
@@ -3555,13 +3563,20 @@ function FechamentoModal({ opp, onClose }) {
           {/* Contrato */}
           <label style={chkRow(gerarContrato)} onClick={() => setGerarContrato(v => !v)}>
             <input type="checkbox" checked={gerarContrato} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-            <div>
+            <div style={{ flex:1 }}>
               <div style={{ fontSize:13, fontWeight:700, color: gerarContrato ? 'var(--accent)' : 'var(--text)' }}>
                 📄 Gerar Contrato
               </div>
               <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
                 Cria um contrato em status <strong>Rascunho</strong> (pendente de auditoria) vinculado a esta oportunidade.
               </div>
+              {contratosDuplicados.length > 0 && (
+                <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                  background:'#FEF3C7', border:'1px solid #F59E0B',
+                  fontSize:11, color:'#92400E', lineHeight:1.4 }}>
+                  ⚠ Já existe {contratosDuplicados.length} contrato{contratosDuplicados.length > 1 ? 's' : ''} vinculado{contratosDuplicados.length > 1 ? 's' : ''} a esta oportunidade. Gerar novamente criará um duplicado.
+                </div>
+              )}
             </div>
           </label>
 
@@ -3569,13 +3584,20 @@ function FechamentoModal({ opp, onClose }) {
           {temServico && (
             <label style={chkRow(gerarProjeto)} onClick={() => setGerarProjeto(v => !v)}>
               <input type="checkbox" checked={gerarProjeto} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-              <div>
+              <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:700, color: gerarProjeto ? 'var(--accent)' : 'var(--text)' }}>
                   🗂 Gerar Projeto
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
                   Cria um projeto na etapa <strong>Iniciação</strong> para os serviços envolvidos nesta venda.
                 </div>
+                {projetosDuplicados.length > 0 && (
+                  <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                    background:'#FEF3C7', border:'1px solid #F59E0B',
+                    fontSize:11, color:'#92400E', lineHeight:1.4 }}>
+                    ⚠ Já existe um projeto com o nome <strong>"{opp.titulo}"</strong>. Gerar novamente criará um duplicado.
+                  </div>
+                )}
               </div>
             </label>
           )}
