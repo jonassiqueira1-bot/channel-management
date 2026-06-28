@@ -3873,8 +3873,26 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     const dataFmt = dataAbertura
       ? new Date(dataAbertura).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
       : null
+    const funilAtual = funis.find(f => String(f.id) === String(form.funil_id))
     return (
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+        {funis.length > 0 && (
+          <select
+            value={form.funil_id || ''}
+            onChange={e => {
+              const novoFunilId = e.target.value
+              const novoFunil = funis.find(f => String(f.id) === novoFunilId)
+              set('funil_id', novoFunilId)
+              if (novoFunil?.etapas?.length) set('etapa_id', novoFunil.etapas[0].id)
+            }}
+            style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
+              border:'1px solid var(--border)', background:'var(--surface2)',
+              color:'var(--text-muted)', cursor:'pointer', outline:'none', maxWidth:140 }}
+          >
+            <option value="">— Funil —</option>
+            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        )}
         {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
         {dataFmt && (nItens > 0 || liq > 0) && dot}
         {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
