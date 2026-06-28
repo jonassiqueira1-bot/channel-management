@@ -4635,7 +4635,10 @@ export default function Projetos() {
           onUpdate={handleUpdate}
           onUpdateOpp={handleUpdateOpp}
           onAdvancePhase={handleAdvancePhase}
-          onUpdatePhases={savePhase}
+          onUpdatePhases={phasesOrPhase => {
+            const arr = Array.isArray(phasesOrPhase) ? phasesOrPhase : [phasesOrPhase]
+            arr.forEach(ph => savePhase(ph))
+          }}
           onAddLog={handleAddLog}
           onAddIssue={handleAddIssue}
           onResolveIssue={handleResolveIssue}
