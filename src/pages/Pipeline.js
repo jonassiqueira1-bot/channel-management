@@ -3661,7 +3661,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   }
 
   const { playbooks } = usePlaybooks()
-  const [playbookHintOpen, setPlaybookHintOpen] = useState(true)
+  const [playbookHintOpen, setPlaybookHintOpen] = useState(false)
 
   // Playbook contextual: steps da etapa atual
   const playbookContextual = useMemo(() => {
