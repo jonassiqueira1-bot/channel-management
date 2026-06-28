@@ -45,8 +45,10 @@ const BASE_SIZES  = { compact: 480, default: 680, fullscreen: '100%' }
 const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────
-const SO_BG         = '#FFFFFF'
-const SO_INPUT_BG   = '#F8FAFC'
+const SO_BG         = '#FFFFFF'        // header / footer
+const SO_BODY_BG    = '#EEF2F8'        // corpo do painel — cinza azulado para cards brancos se destacarem
+const SO_CARD_BG    = '#FFFFFF'        // FormSection cards
+const SO_INPUT_BG   = '#F8FAFC'        // inputs — recuados sobre o card branco
 const SO_BORDER     = '#CBD5E1'
 const SO_FOCUS_RING = '0 0 0 3px rgba(37,99,235,0.15)'
 const SO_FOCUS_BC   = '#2563EB'
@@ -120,7 +122,7 @@ export default function SlideOver({
           onClick={onClose}
           style={{
             position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.25)',
+            background: 'rgba(0,0,0,0.42)',
             animation: 'soFadeIn 0.18s ease',
           }}
         />
@@ -136,7 +138,7 @@ export default function SlideOver({
           width: currentWidth, maxWidth: '100vw',
           display: 'flex', flexDirection: 'column',
           background: SO_BG,
-          boxShadow: isFullscreen ? 'none' : '-8px 0 40px rgba(0,0,0,0.12)',
+          boxShadow: isFullscreen ? 'none' : '-4px 0 48px rgba(0,0,0,0.22), -1px 0 0 rgba(0,0,0,0.06)',
           borderLeft: isFullscreen ? '1px solid var(--border)' : 'none',
           transition: 'width 0.22s cubic-bezier(0.32,0.72,0,1)',
           animation: 'soSlideIn 0.22s cubic-bezier(0.32,0.72,0,1)',
@@ -159,9 +161,10 @@ export default function SlideOver({
             color: var(--text);
             outline: none;
             line-height: normal;
-            transition: border-color 0.15s, box-shadow 0.15s;
+            transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
             box-sizing: border-box;
             appearance: none;
+            box-shadow: inset 0 1px 2px rgba(0,0,0,0.07);
           }
           .so-field:hover {
             border-color: #94A3B8;
@@ -326,6 +329,7 @@ export default function SlideOver({
             overflowY: hasTabs ? 'hidden' : 'auto',
             overflowX: 'hidden',
             padding: hasTabs ? '0' : '16px',
+            background: hasTabs ? SO_BG : SO_BODY_BG,
             display: 'flex', flexDirection: 'column', gap: hasTabs ? 0 : 12,
           }}>
             {hasTabs ? (
@@ -429,11 +433,11 @@ export function FormSection({ label, children }) {
   return (
     <div style={{
       gridColumn: '1 / -1',
-      background: '#fff',
-      border: '1px solid var(--border2)',
+      background: SO_CARD_BG,
+      border: '1px solid rgba(0,0,0,0.09)',
       borderRadius: 'var(--radius-lg, 16px)',
       overflow: 'hidden',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
+      boxShadow: '0 2px 10px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05)',
     }}>
       {/* Cabeçalho da seção */}
       <div style={{
