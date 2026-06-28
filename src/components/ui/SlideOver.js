@@ -45,10 +45,10 @@ const BASE_SIZES  = { compact: 480, default: 680, fullscreen: '100%' }
 const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────
-const SO_BG         = '#FFFFFF'        // header / footer
-const SO_BODY_BG    = '#EEF2F8'        // corpo do painel — cinza azulado para cards brancos se destacarem
+const SO_BG         = '#FFFFFF'        // header / footer / corpo do painel
+const SO_BODY_BG    = '#FFFFFF'        // corpo — branco puro
 const SO_CARD_BG    = '#FFFFFF'        // FormSection cards
-const SO_INPUT_BG   = '#F8FAFC'        // inputs — recuados sobre o card branco
+const SO_INPUT_BG   = '#EEF2F7'        // inputs visivelmente mais escuros — criam contraste sunken mesmo sobre fundo branco
 const SO_BORDER     = '#CBD5E1'
 const SO_FOCUS_RING = '0 0 0 3px rgba(37,99,235,0.15)'
 const SO_FOCUS_BC   = '#2563EB'
@@ -153,7 +153,7 @@ export default function SlideOver({
             width: 100%;
             height: 38px;
             padding: 0 12px;
-            border: 1.5px solid ${SO_BORDER};
+            border: 1.5px solid rgba(0,0,0,0.15);
             border-radius: var(--radius-md, 10px);
             background: ${SO_INPUT_BG};
             font-family: var(--font);
@@ -164,7 +164,7 @@ export default function SlideOver({
             transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
             box-sizing: border-box;
             appearance: none;
-            box-shadow: inset 0 1px 2px rgba(0,0,0,0.07);
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.09);
           }
           .so-field:hover {
             border-color: #94A3B8;
@@ -434,10 +434,10 @@ export function FormSection({ label, children }) {
     <div style={{
       gridColumn: '1 / -1',
       background: SO_CARD_BG,
-      border: '1px solid rgba(0,0,0,0.09)',
+      border: '1px solid rgba(0,0,0,0.10)',
       borderRadius: 'var(--radius-lg, 16px)',
       overflow: 'hidden',
-      boxShadow: '0 2px 10px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.05)',
+      boxShadow: '0 0 0 1px rgba(0,0,0,0.04), 0 4px 16px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.06)',
     }}>
       {/* Cabeçalho da seção */}
       <div style={{
