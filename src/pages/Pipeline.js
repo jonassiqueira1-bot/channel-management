@@ -736,16 +736,6 @@ function CampanhaField({ value, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-        <label style={{ fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase', letterSpacing:.5 }}>
-          Campanha
-        </label>
-        {ativas.length === 0 && (
-          <span style={{ fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>
-            — nenhuma campanha ativa
-          </span>
-        )}
-      </div>
       <SearchSelect
         options={opts}
         value={value}
