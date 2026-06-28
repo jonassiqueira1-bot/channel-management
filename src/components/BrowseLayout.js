@@ -38,7 +38,7 @@ const STORAGE_NS = 'browse_layout_'
 const s = {
   root: {
     display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0,
-    background: 'var(--bg)', overflow: 'hidden',
+    background: 'var(--surface)', overflow: 'hidden',
   },
 
   // KPI header
@@ -524,7 +524,9 @@ export default function BrowseLayout({
               ? <ChevronUp   size={13} color="var(--text-muted)" />
               : <ChevronDown size={13} color="var(--text-muted)" />}
           </button>
-          {kpisOpen && <div style={s.kpiContent}>{kpis}</div>}
+          <div style={{ maxHeight: kpisOpen ? 400 : 0, overflow: 'hidden', transition: 'max-height 0.24s ease' }}>
+            <div style={s.kpiContent}>{kpis}</div>
+          </div>
         </div>
       )}
 
@@ -769,17 +771,38 @@ export default function BrowseLayout({
         </div>
       ) : view === 'card' && renderCard ? (
         <div style={s.cardGrid}>
-          {pageRows.map(row => (
-            <div key={row[keyField]} style={{ position: 'relative' }}>
-              <input
-                type="checkbox"
-                checked={selected.has(row[keyField])}
-                onChange={() => toggleRow(row[keyField])}
-                style={{ ...s.checkbox, position: 'absolute', top: 10, right: 10, zIndex: 1 }}
-              />
-              {renderCard(row, selected.has(row[keyField]))}
-            </div>
-          ))}
+          {pageRows.map(row => {
+            const sel = selected.has(row[keyField])
+            return (
+              <div
+                key={row[keyField]}
+                style={{
+                  position: 'relative',
+                  background: 'var(--surface)',
+                  border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-lg)',
+                  boxShadow: sel
+                    ? '0 0 0 3px var(--accent-lite), 0 4px 16px rgba(0,0,0,0.10)'
+                    : 'var(--shadow-md)',
+                  padding: '14px 16px',
+                  cursor: onRowClick ? 'pointer' : 'default',
+                  transition: 'box-shadow 0.18s, border-color 0.15s, transform 0.18s',
+                }}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onMouseEnter={e => { if (!sel) { e.currentTarget.style.boxShadow = '0 6px 24px rgba(0,0,0,0.14)'; e.currentTarget.style.transform = 'translateY(-2px)' } }}
+                onMouseLeave={e => { if (!sel) { e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = '' } }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sel}
+                  onChange={() => toggleRow(row[keyField])}
+                  onClick={e => e.stopPropagation()}
+                  style={{ ...s.checkbox, position: 'absolute', top: 12, right: 12, zIndex: 1 }}
+                />
+                {renderCard(row, sel)}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div style={s.tableWrap}>

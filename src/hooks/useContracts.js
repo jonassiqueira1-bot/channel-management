@@ -145,5 +145,12 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
     }
   }, [])
 
-  return { contratos, setContratos, loading, reload: load, save, remove, bulkSetStatus }
+  const bulkRemove = useCallback(async (ids) => {
+    setContratos(prev => prev.filter(c => !ids.includes(c.id)))
+    if (!isMockMode.current) {
+      await supabase.from('contracts').delete().in('id', ids)
+    }
+  }, [])
+
+  return { contratos, setContratos, loading, reload: load, save, remove, bulkSetStatus, bulkRemove }
 }

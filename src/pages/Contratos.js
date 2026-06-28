@@ -760,7 +760,7 @@ function getInadimplentesIds() {
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
-  const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts(MOCK_CONTRATOS)
+  const { contratos, setContratos, save: saveContrato, remove: removeContrato, bulkSetStatus, bulkRemove } = useContracts(MOCK_CONTRATOS)
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const [search, setSearch]           = useState('')
