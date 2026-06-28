@@ -423,13 +423,14 @@ export function FormSection({ label, children }) {
     <div style={{
       gridColumn: '1 / -1',
       border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.05)', overflow: 'hidden',
+      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
     }}>
       {label && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           padding: '9px 16px',
           background: 'var(--surface2)', borderBottom: '1px solid var(--border2)',
+          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
         }}>
           <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
           <span style={{
