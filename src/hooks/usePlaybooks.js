@@ -46,6 +46,7 @@ function playbookToRow(pb, tenantId, branchId) {
   )
   return {
     tenant_id:    tenantId,
+    nome:         tit,
     titulo:       tit,
     descricao:    desc,
     status:       status || 'rascunho',
