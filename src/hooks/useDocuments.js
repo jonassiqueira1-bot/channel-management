@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_DOCS, MOCK_LOGS } from '../data/mockDocumentos'
 
 function rowToDoc(row) {
   const cf = row.custom_fields || {}
@@ -72,7 +71,7 @@ export function useDocuments() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setDocs(MOCK_DOCS); setLogs(MOCK_LOGS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const [d, l] = await Promise.all([
       supabase.from('documents').select('*').order('updated_at', { ascending: false }),
       supabase.from('document_logs').select('*').order('created_at', { ascending: false }),

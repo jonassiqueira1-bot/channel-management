@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_CONTATOS } from '../data/mockContatos'
 
 function rowToContato(row) {
   const cf = row.custom_fields || {}
@@ -68,9 +67,7 @@ export function useContacts() {
     setLoading(true)
 
     if (!session?.user) {
-      const stored = loadMockStore()
-      isMockMode.current = true
-      setContacts(stored ?? MOCK_CONTATOS)
+      isMockMode.current = false
       setLoading(false)
       return
     }
@@ -81,9 +78,8 @@ export function useContacts() {
       .order('nome')
 
     if (error) {
-      const stored = loadMockStore()
-      isMockMode.current = true
-      setContacts(stored ?? MOCK_CONTATOS)
+      console.error('[useContacts]', error.message)
+      isMockMode.current = false
       setLoading(false)
       return
     }

@@ -76,7 +76,7 @@ export function useSellers() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setSellers(MOCK_SELLERS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('sellers')
       .select('*')

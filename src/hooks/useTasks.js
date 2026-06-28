@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_TAREFAS } from '../data/mockTarefas'
 
 function rowToTask(row) {
   const cf = row.custom_fields || {}
@@ -62,7 +61,7 @@ export function useTasks() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setTarefas(MOCK_TAREFAS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('tasks')
       .select('*')

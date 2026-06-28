@@ -51,6 +51,7 @@ const s = {
   kpiToggleLabel: {
     fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.07em',
     textTransform: 'uppercase', color: 'var(--text-muted)',
+    display: 'flex', alignItems: 'center', gap: 8,
   },
   kpiContent: { padding: '0 20px 16px' },
 
@@ -67,7 +68,7 @@ const s = {
   // search
   searchWrap: {
     display: 'flex', alignItems: 'center', gap: 7,
-    background: 'var(--surface2)', border: '1px solid var(--border)',
+    background: '#fff', border: '1.5px solid var(--border)',
     borderRadius: 'var(--radius-md)', padding: '0 10px',
     height: 32, minWidth: 200, maxWidth: 300, transition: 'border-color 0.15s',
   },
@@ -87,7 +88,7 @@ const s = {
   ghostBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
     height: 32, padding: '0 10px', borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text-soft)',
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
@@ -95,7 +96,7 @@ const s = {
   iconBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     width: 32, height: 32, borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
+    border: '1.5px solid var(--border)', background: 'var(--surface)',
     cursor: 'pointer', color: 'var(--text-soft)',
   },
 
@@ -106,26 +107,31 @@ const s = {
     border: 'none', background: 'var(--accent)', color: '#fff',
     fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', fontWeight: 600,
     cursor: 'pointer', whiteSpace: 'nowrap',
+    boxShadow: '0 1px 4px rgba(37,99,235,0.30)',
   },
 
   // bulk bar
-  bulkBar: { display: 'flex', alignItems: 'center', gap: 8, flex: 1, justifyContent: 'flex-end' },
-  bulkCount: { fontSize: 'var(--text-sm)', fontWeight: 600, color: 'var(--accent)', marginRight: 4 },
+  bulkBar: { display: 'flex', alignItems: 'center', gap: 8, flex: 1 },
+  bulkCount: {
+    fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff',
+    background: 'rgba(255,255,255,0.25)', padding: '2px 10px',
+    borderRadius: 99, marginRight: 4,
+  },
   bulkBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
     height: 30, padding: '0 12px', borderRadius: 'var(--radius-md)',
-    border: '1px solid var(--border)', background: 'var(--surface)',
-    fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: 'var(--text-soft)',
+    border: '1.5px solid rgba(255,255,255,0.5)', background: 'rgba(255,255,255,0.15)',
+    fontFamily: 'var(--font)', fontSize: 'var(--text-sm)', color: '#fff',
     cursor: 'pointer', whiteSpace: 'nowrap',
   },
-  bulkBtnDanger: { borderColor: 'var(--red)', color: 'var(--red)' },
+  bulkBtnDanger: { background: 'rgba(239,68,68,0.25)', borderColor: 'rgba(239,68,68,0.5)', color: '#fff' },
 
   // Dropdown
   dropdownWrap: { position: 'relative' },
   dropdown: {
     position: 'absolute', top: 'calc(100% + 4px)', zIndex: 50,
     background: 'var(--surface)', border: '1px solid var(--border)',
-    borderRadius: 'var(--radius-md)', boxShadow: '0 8px 24px rgba(0,0,0,0.10)',
+    borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-lg)',
     padding: '4px 0', minWidth: 180,
   },
   dropdownItem: {
@@ -153,7 +159,7 @@ const s = {
   // Table
   tableWrap: { flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0 },
   table: { width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font)', fontSize: 'var(--text-sm)' },
-  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '1px solid var(--border)' },
+  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '2px solid var(--border)' },
   th: {
     padding: '9px 12px', textAlign: 'left', fontWeight: 700,
     fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -163,7 +169,8 @@ const s = {
   thInner: { display: 'flex', alignItems: 'center', gap: 4 },
   thCheck: { width: 40, paddingLeft: 16 },
   tr: { borderBottom: '1px solid var(--border2)', transition: 'background 0.1s' },
-  trSelected: { background: 'var(--accent-lite)' },
+  trHover: { background: 'var(--surface2)', boxShadow: 'inset 3px 0 0 var(--accent)' },
+  trSelected: { background: 'var(--accent-lite)', boxShadow: 'inset 3px 0 0 var(--accent)' },
   td: { padding: '10px 12px', color: 'var(--text)', verticalAlign: 'middle' },
   tdCheck: { width: 40, paddingLeft: 16 },
   checkbox: { width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 },
@@ -321,6 +328,14 @@ export default function BrowseLayout({
   onRowClick,
 }) {
   const storagePrefix = STORAGE_NS + storageKey
+
+  // ── breakpoint ────────────────────────────────────────────────────────────
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
 
   // ── estado local ─────────────────────────────────────────────────────────
   const [kpisOpen,   setKpisOpen]   = useState(true)
@@ -492,7 +507,10 @@ export default function BrowseLayout({
       {kpis && (
         <div style={s.kpiBar}>
           <button type="button" style={s.kpiToggle} onClick={() => setKpisOpen(o => !o)}>
-            <span style={s.kpiToggleLabel}>{kpisLabel}</span>
+            <span style={s.kpiToggleLabel}>
+              <span style={{ width: 3, height: 12, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
+              {kpisLabel}
+            </span>
             {kpisOpen
               ? <ChevronUp   size={13} color="var(--text-muted)" />
               : <ChevronDown size={13} color="var(--text-muted)" />}
@@ -502,21 +520,27 @@ export default function BrowseLayout({
       )}
 
       {/* ── Action Bar ──────────────────────────────────────────────────── */}
-      <div style={s.actionBar}>
+      <div style={{
+        ...s.actionBar,
+        ...(isMobile ? { padding: '8px 12px', gap: 6 } : {}),
+        ...(someSelected ? { background: 'var(--accent)', borderBottomColor: 'var(--accent)' } : {}),
+      }}>
 
-        {/* Busca */}
-        <div style={s.actionLeft}>
-          <div style={s.searchWrap}>
-            <Search size={13} color="var(--text-muted)" />
-            <input
-              ref={searchRef}
-              style={s.searchInput}
-              placeholder="Buscar…"
-              value={search}
-              onChange={e => { onSearchChange?.(e.target.value); setPage(1) }}
-            />
+        {/* Busca — some quando há seleção */}
+        {!someSelected && (
+          <div style={s.actionLeft}>
+            <div style={s.searchWrap}>
+              <Search size={13} color="var(--text-muted)" />
+              <input
+                ref={searchRef}
+                style={s.searchInput}
+                placeholder="Buscar…"
+                value={search}
+                onChange={e => { onSearchChange?.(e.target.value); setPage(1) }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Bulk bar ou controles normais */}
         {someSelected ? (
@@ -525,11 +549,7 @@ export default function BrowseLayout({
 
             {/* Editar em lote — só aparece se bulkEditFields foi fornecido */}
             {bulkEditFields?.length > 0 && onBulkEdit && (
-              <button
-                type="button"
-                style={{ ...s.bulkBtn, color: 'var(--accent)', borderColor: 'var(--accent)', fontWeight: 600 }}
-                onClick={openBulkEdit}
-              >
+              <button type="button" style={s.bulkBtn} onClick={openBulkEdit}>
                 <PencilLine size={13} />
                 Editar em lote
               </button>
@@ -548,10 +568,10 @@ export default function BrowseLayout({
             ))}
             <button
               type="button"
-              style={{ ...s.bulkBtn, color: 'var(--text-muted)' }}
+              style={{ ...s.bulkBtn, marginLeft: 'auto' }}
               onClick={() => { setSelected(new Set()); setBulkEditOpen(false) }}
             >
-              Cancelar
+              Cancelar seleção
             </button>
           </div>
         ) : (
@@ -724,7 +744,7 @@ export default function BrowseLayout({
               {onNew && (
                 <button type="button" style={s.primaryBtn} onClick={onNew}>
                   <Plus size={13} />
-                  {newLabel}
+                  {isMobile ? '+' : newLabel}
                 </button>
               )}
             </div>
@@ -743,7 +763,7 @@ export default function BrowseLayout({
           )}
         </div>
       ) : view === 'card' && renderCard ? (
-        <div style={s.cardGrid}>
+        <div style={{ ...s.cardGrid, ...(isMobile ? { gridTemplateColumns: '1fr', padding: '12px' } : {}) }}>
           {pageRows.map(row => (
             <div key={row[keyField]} style={{ position: 'relative' }}>
               <input
@@ -799,8 +819,8 @@ export default function BrowseLayout({
                     key={id}
                     style={{ ...s.tr, ...(sel ? s.trSelected : {}), ...(onRowClick ? { cursor: 'pointer' } : {}) }}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--surface2)' }}
-                    onMouseLeave={e => { if (!sel) e.currentTarget.style.background = '' }}
+                    onMouseEnter={e => { if (!sel) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--accent)' } }}
+                    onMouseLeave={e => { if (!sel) { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' } }}
                   >
                     <td style={{ ...s.td, ...s.tdCheck }}>
                       <input

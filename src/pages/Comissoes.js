@@ -1778,33 +1778,6 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
             </div>
 
             <div style={{ padding:'16px 20px', display:'flex', flexDirection:'column', gap:16 }}>
-              {isFixo && (
-                <div>
-                  {isCombo&&<div style={{ fontSize:10, fontWeight:700, color:TIPO_CALCULO_CFG.percentual_fixo.color, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Percentual Fixo por Persona</div>}
-                  <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-                    <div style={{ display:'grid', gridTemplateColumns:`120px repeat(${RECEITA_TIPOS.length},1fr)` }}>
-                      <div style={{ background:'var(--surface2)', padding:'7px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', borderBottom:'1px solid var(--border)' }}>Persona</div>
-                      {RECEITA_TIPOS.map(t=><div key={t} style={{ background:'var(--surface2)', padding:'7px 12px', fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.07em', textTransform:'uppercase', textAlign:'center', borderBottom:'1px solid var(--border)', borderLeft:'1px solid var(--border)' }}>{t}</div>)}
-                      {(rule.persona_percentuais||[]).map((pp,pi)=>{
-                        const persona=personas.find(p=>p.id===pp.persona_id); if(!persona)return null
-                        const isLast=pi===(rule.persona_percentuais||[]).length-1
-                        return [
-                          <div key={`${pp.persona_id}-l`} style={{ padding:'10px 12px', borderBottom:isLast?'none':'1px solid var(--border)', display:'flex', alignItems:'center', gap:7 }}>
-                            <span style={{ width:7, height:7, borderRadius:'50%', background:persona.cor, flexShrink:0 }} />
-                            <span style={{ fontSize:12, fontWeight:600, color:'var(--text-soft)' }}>{persona.label}</span>
-                          </div>,
-                          ...RECEITA_TIPOS.map(tipo=>{
-                            const val=Number(getPerc(rule.persona_percentuais,pp.persona_id,tipo))
-                            return <div key={`${pp.persona_id}-${tipo}`} style={{ padding:'10px 12px', textAlign:'center', borderBottom:isLast?'none':'1px solid var(--border)', borderLeft:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                              <span style={{ fontSize:13, fontWeight:700, fontFamily:'var(--mono)', color:val===0?'var(--text-muted)':val>=10?'var(--accent)':'var(--text)', opacity:val===0?0.5:1 }}>{val===0?'—':fmtPct(val)}</span>
-                            </div>
-                          })
-                        ]
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
               {isCadeia && (
                 <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
                   {isCombo&&<div style={{ fontSize:10, fontWeight:700, color:TIPO_CALCULO_CFG.cadeia_repasse.color, textTransform:'uppercase', letterSpacing:'0.07em' }}>Cadeia de Repasse</div>}

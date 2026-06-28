@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_FUNIS } from '../data/mockFunis'
 
 function rowToFunil(row) {
   const cf = row.custom_fields || {}
@@ -36,21 +35,22 @@ export function useFunnels() {
 
   const [funis, setFunis] = useState([])
   const [loading, setLoading] = useState(true)
-  const isMockMode = useRef(true)
+  const isMockMode = useRef(false)
 
   const tenantId = profile?.tenant_id
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setFunis(MOCK_FUNIS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('form_layouts')
       .select('*')
       .eq('entity', 'funis')
       .limit(1)
     if (error) {
-      isMockMode.current = true
-      setFunis(MOCK_FUNIS)
+      console.error('[useFunnels]', error.message)
+      isMockMode.current = false
+      setFunis([])
     } else {
       isMockMode.current = false
       const stored = data?.[0]?.fields

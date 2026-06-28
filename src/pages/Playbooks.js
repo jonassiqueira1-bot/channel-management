@@ -399,11 +399,9 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
   const categoriasProduto = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort(), [produtos])
 
   const slideStageCfg = useMemo(() => {
-    const ids = form.funil_ids?.length ? form.funil_ids : (form.funil_id ? [String(form.funil_id)] : [])
-    if (!ids.length) return STAGE_CFG
-    const etapas = funis
-      .filter(f => ids.includes(String(f.id)))
-      .flatMap(f => f.etapas || [])
+    if (!form.funil_id) return STAGE_CFG
+    const funil = funis.find(f => String(f.id) === String(form.funil_id))
+    const etapas = funil?.etapas || []
     if (!etapas.length) return STAGE_CFG
     return Object.fromEntries(
       etapas
@@ -472,13 +470,11 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                   {SEGMENT_OPTIONS.map(s => <option key={s}>{s}</option>)}
                 </select>
               </FormField>
-              <FormField label="Funis (opcional)" span={2}>
-                <MultiSelect
-                  options={funis.map(f => ({ value: String(f.id), label: f.nome }))}
-                  value={form.funil_ids || []}
-                  onChange={v => set('funil_ids', v)}
-                  placeholder="Pesquisar funil…"
-                />
+              <FormField label="Funil (opcional)" span={2}>
+                <select className="so-field" value={form.funil_id || ''} onChange={e => set('funil_id', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  {funis.map(f => <option key={f.id} value={String(f.id)}>{f.nome}</option>)}
+                </select>
               </FormField>
               <FormField label="Filtrar por" span={2}>
                 <select className="so-field" value={form.produto_filtro_tipo || ''} onChange={e => set('produto_filtro_tipo', e.target.value)}>
@@ -550,9 +546,18 @@ const oe = {
 }
 
 // ─── Step SlideOver ───────────────────────────────────────────────────────────
-const EMPTY_STEP = { stage: 'prospeccao', icone: '', title: '', content: '' }
+const EMPTY_STEP = { stage: 'prospeccao', icone: '', title: '', content: '', status_contrato: '' }
 
-function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG }) {
+const STATUS_CONTRATO_OPTS = [
+  { value: '',          label: 'Todos os status (sempre exibir)' },
+  { value: 'rascunho',  label: 'Rascunho' },
+  { value: 'ativo',     label: 'Ativo' },
+  { value: 'suspenso',  label: 'Suspenso' },
+  { value: 'encerrado', label: 'Encerrado' },
+  { value: 'cancelado', label: 'Cancelado' },
+]
+
+function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG, showStatusContrato = false }) {
   const [form, setForm] = useState(initial || EMPTY_STEP)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   useMemo(() => { setForm(initial || EMPTY_STEP) }, [initial])
@@ -566,11 +571,20 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG })
       saveLabel="Salvar etapa"
     >
       <FormGrid cols={2}>
-        <FormField label="Etapa">
-          <select className="so-field" value={form.stage} onChange={e => set('stage', e.target.value)}>
-            {Object.entries(stageCfg).map(([k, v]) => <option key={k} value={k}>{v.icon ? `${v.icon} ` : ''}{v.label}</option>)}
-          </select>
-        </FormField>
+        {!showStatusContrato && (
+          <FormField label="Etapa">
+            <select className="so-field" value={form.stage} onChange={e => set('stage', e.target.value)}>
+              {Object.entries(stageCfg).map(([k, v]) => <option key={k} value={k}>{v.icon ? `${v.icon} ` : ''}{v.label}</option>)}
+            </select>
+          </FormField>
+        )}
+        {showStatusContrato && (
+          <FormField label="Status do Contrato">
+            <select className="so-field" value={form.status_contrato || ''} onChange={e => set('status_contrato', e.target.value)}>
+              {STATUS_CONTRATO_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
+          </FormField>
+        )}
         <FormField label="Título" required>
           <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
             placeholder="Ex: Identificando o Parceiro Ideal" />
@@ -1421,6 +1435,7 @@ export default function Playbooks() {
         onSave={saveStep}
         onClose={() => setModal(null)}
         stageCfg={modal?.stageCfg || STAGE_CFG}
+        showStatusContrato={currentPb?.tipo === 'administrativo'}
       />
       <ReferenceSlideOver
         open={modal?.type === 'ref'}

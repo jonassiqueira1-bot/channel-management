@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_TEMPLATES, MOCK_SUBMISSIONS } from '../data/mockQuestionarios'
 
 function rowToTemplate(row) {
   const cf = row.custom_fields || {}
@@ -84,7 +83,7 @@ export function useQuestionnaires() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setTemplates(MOCK_TEMPLATES); setSubmissions(MOCK_SUBMISSIONS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const [t, s] = await Promise.all([
       supabase.from('questionnaire_templates').select('*').order('updated_at', { ascending: false }),
       supabase.from('questionnaire_submissions').select('*').order('created_at', { ascending: false }),

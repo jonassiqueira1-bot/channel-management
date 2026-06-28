@@ -736,16 +736,6 @@ function CampanhaField({ value, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-        <label style={{ fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase', letterSpacing:.5 }}>
-          Campanha
-        </label>
-        {ativas.length === 0 && (
-          <span style={{ fontSize:10, color:'var(--text-muted)', fontStyle:'italic' }}>
-            — nenhuma campanha ativa
-          </span>
-        )}
-      </div>
       <SearchSelect
         options={opts}
         value={value}
@@ -3432,14 +3422,30 @@ function OppQuestionariosTab({ oppId, oppNome, empresaNome, empresaId }) {
 
 // ─── Modal de fechamento de oportunidade ganha ───────────────────────────────
 function FechamentoModal({ opp, onClose }) {
-  const { save: saveContrato, contratos } = useContracts()
-  const { save: saveProjeto }             = useProjects()
+  const { save: saveContrato, contratos }       = useContracts()
+  const { save: saveProjeto, projetos }         = useProjects()
+  const [implPropostas]                         = useLocalState('projects:propostas_v1', [])
+
+  const propostaImplantacao = useMemo(
+    () => implPropostas
+      .filter(p => String(p.opp_id) === String(opp.id))
+      .sort((a, b) => ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[a.status]??9) - ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[b.status]??9))[0] || null,
+    [implPropostas, opp.id]
+  )
 
   const temServico = (opp.valor_servico > 0) ||
-    (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico')
+    (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico' || it.tipo === 'consultoria')
 
   const [gerarContrato, setGerarContrato] = useState(true)
-  const [gerarProjeto,  setGerarProjeto]  = useState(temServico)
+  const [gerarProjeto,  setGerarProjeto]  = useState(temServico && !!propostaImplantacao)
+
+  const contratosDuplicados = (contratos||[]).filter(c =>
+    c.opportunity_id && String(c.opportunity_id) === String(opp.id)
+  )
+  const projetosDuplicados = (projetos||[]).filter(p =>
+    (p.opportunity_id && String(p.opportunity_id) === String(opp.id)) ||
+    (p.name || '').trim().toLowerCase() === (opp.titulo || '').trim().toLowerCase()
+  )
   const [salvando, setSalvando]           = useState(false)
   const [feito, setFeito]                 = useState(null) // null | { contrato, projeto }
 
@@ -3465,9 +3471,9 @@ function FechamentoModal({ opp, onClose }) {
         primeira_compra: false,
         vigencia_inicio: opp.data_fechamento || hoje,
         vigencia_fim:    '',
-        itens_adesao:  (opp.itens||[]).filter(i=>i.slot==='adesao'  || (!i.slot && i.cobranca==='unico'  && i.tipo!=='servico')).map(i=>({ produto_id: i.produto_id, nome: i.nome||i.produto_nome, valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
-        itens_mrr:     (opp.itens||[]).filter(i=>i.slot==='mrr'     || (!i.slot && i.cobranca==='mensal'                       )).map(i=>({ produto_id: i.produto_id, nome: i.nome||i.produto_nome, valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
-        itens_servico: (opp.itens||[]).filter(i=>i.slot==='servico'  || (!i.slot && i.tipo==='servico'                          )).map(i=>({ produto_id: i.produto_id, nome: i.nome||i.produto_nome, valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
+        itens_adesao:  (opp.itens||[]).filter(i=> ['licenca','hardware'].includes(i.tipo)).map(i=>({ produto_id: i.produto_id, nome: i.produto_nome||i.nome||'', valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
+        itens_mrr:     (opp.itens||[]).filter(i=> i.tipo==='saas').map(i=>({ produto_id: i.produto_id, nome: i.produto_nome||i.nome||'', valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
+        itens_servico: (opp.itens||[]).filter(i=> ['servico','consultoria'].includes(i.tipo)).map(i=>({ produto_id: i.produto_id, nome: i.produto_nome||i.nome||'', valor: i.subtotal||i.valor||0, tabela: i.preco_unitario||i.valor||null, desconto_pct: i.desconto_pct||0, desconto_autorizado: false })),
         responsavel:         opp.responsavel || '',
         observacoes:         `Gerado automaticamente ao fechar oportunidade: ${opp.titulo}`,
         opportunity_id:      opp.id,
@@ -3478,21 +3484,44 @@ function FechamentoModal({ opp, onClose }) {
     }
 
     if (gerarProjeto) {
+      // Fases MIT da proposta de implantação vinculada
+      const fasesPropostaWBS = propostaImplantacao
+        ? (propostaImplantacao.itens || []).filter(i => i.nivel === 1)
+        : []
+      const totalHorasEstimadas = fasesPropostaWBS.reduce(
+        (s, f) => s + Math.round((f.hr_analista||0) + (f.hr_coord||0)), 0
+      )
+      const itensServico = (opp.itens||[]).filter(i => ['servico','consultoria'].includes(i.tipo))
       const res = await saveProjeto({
-        name:          opp.titulo,
-        company_id:    opp.empresa_id || null,
-        company_nome:  opp.empresa_nome,
-        franchise_nome: '',
-        phase:         'iniciacao',
-        current_phase_index: 1,
-        status:        'em_andamento',
-        total_hours_estimated: 0,
+        name:                  opp.titulo,
+        company_id:            opp.empresa_id || null,
+        company_nome:          opp.empresa_nome,
+        franchise_nome:        '',
+        phase:                 'iniciacao',
+        current_phase_index:   1,
+        status:                'em_andamento',
+        total_hours_estimated: totalHorasEstimadas || 0,
         total_hours_executed:  0,
-        start_date:    hoje,
-        end_date_estimated: '',
-        notes:         `Projeto criado a partir da oportunidade: ${opp.titulo}`,
-        opportunity_id: opp.id,
-        responsavel:   opp.responsavel || '',
+        start_date:            hoje,
+        end_date_estimated:    '',
+        responsavel:           opp.responsavel || '',
+        opportunity_id:        opp.id,
+        proposta_id:           propostaImplantacao?.id || null,
+        notes: [
+          `Projeto criado a partir da oportunidade: ${opp.titulo}`,
+          opp.empresa_nome ? `Cliente: ${opp.empresa_nome}` : '',
+          itensServico.length ? `Serviços: ${itensServico.map(i => i.produto_nome||i.nome).join(', ')}` : '',
+          propostaImplantacao ? `Proposta de implantação: ${propostaImplantacao.titulo || propostaImplantacao.id}` : '',
+        ].filter(Boolean).join('\n'),
+        // Fases MIT pré-populadas da proposta WBS
+        _fasesWBS: fasesPropostaWBS.map((fase, i) => ({
+          phase_name:          fase.titulo,
+          phase_order:         i + 1,
+          hours_estimated:     Math.round((fase.hr_analista||0) + (fase.hr_coord||0)) || 0,
+          start_date_planned:  '',
+          end_date_planned:    '',
+          is_completed:        false,
+        })),
       })
       if (res.ok) resultados.projeto = opp.titulo
       else resultados.projetoErro = res.message
@@ -3565,27 +3594,53 @@ function FechamentoModal({ opp, onClose }) {
           {/* Contrato */}
           <label style={chkRow(gerarContrato)} onClick={() => setGerarContrato(v => !v)}>
             <input type="checkbox" checked={gerarContrato} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-            <div>
+            <div style={{ flex:1 }}>
               <div style={{ fontSize:13, fontWeight:700, color: gerarContrato ? 'var(--accent)' : 'var(--text)' }}>
                 📄 Gerar Contrato
               </div>
               <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
                 Cria um contrato em status <strong>Rascunho</strong> (pendente de auditoria) vinculado a esta oportunidade.
               </div>
+              {contratosDuplicados.length > 0 && (
+                <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                  background:'#FEF3C7', border:'1px solid #F59E0B',
+                  fontSize:11, color:'#92400E', lineHeight:1.4 }}>
+                  ⚠ Já existe {contratosDuplicados.length} contrato{contratosDuplicados.length > 1 ? 's' : ''} vinculado{contratosDuplicados.length > 1 ? 's' : ''} a esta oportunidade. Gerar novamente criará um duplicado.
+                </div>
+              )}
             </div>
           </label>
 
           {/* Projeto — só se tiver serviço */}
           {temServico && (
-            <label style={chkRow(gerarProjeto)} onClick={() => setGerarProjeto(v => !v)}>
-              <input type="checkbox" checked={gerarProjeto} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
-              <div>
+            <label
+              style={{ ...chkRow(gerarProjeto), ...(!propostaImplantacao ? { opacity:0.6, cursor:'not-allowed' } : {}) }}
+              onClick={() => { if (propostaImplantacao) setGerarProjeto(v => !v) }}
+            >
+              <input type="checkbox" checked={gerarProjeto} onChange={() => {}} disabled={!propostaImplantacao} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+              <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:700, color: gerarProjeto ? 'var(--accent)' : 'var(--text)' }}>
                   🗂 Gerar Projeto
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
-                  Cria um projeto na etapa <strong>Iniciação</strong> para os serviços envolvidos nesta venda.
+                  {propostaImplantacao
+                    ? <>Proposta <strong>{propostaImplantacao.titulo || 'vinculada'}</strong> — fases MIT serão pré-populadas automaticamente.</>
+                    : 'Cria um projeto na etapa Iniciação para os serviços desta venda.'}
                 </div>
+                {!propostaImplantacao && (
+                  <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                    background:'#FEE2E2', border:'1px solid #EF4444',
+                    fontSize:11, color:'#991B1B', lineHeight:1.4 }}>
+                    ✗ É necessário ter uma <strong>Proposta de Implantação</strong> vinculada a esta oportunidade (aba Proposta → módulo Projetos) para gerar o projeto.
+                  </div>
+                )}
+                {propostaImplantacao && projetosDuplicados.length > 0 && (
+                  <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
+                    background:'#FEF3C7', border:'1px solid #F59E0B',
+                    fontSize:11, color:'#92400E', lineHeight:1.4 }}>
+                    ⚠ Já existe um projeto com o nome <strong>"{opp.titulo}"</strong>. Gerar novamente criará um duplicado.
+                  </div>
+                )}
               </div>
             </label>
           )}
@@ -3617,6 +3672,7 @@ function FechamentoModal({ opp, onClose }) {
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
 function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade }) {
   const isEditing = !!initial
+  const { funis } = useFunnels()
   const [tab, setTab]       = useState('dados')
   const [logOpen, setLogOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
@@ -3670,7 +3726,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   }
 
   const { playbooks } = usePlaybooks()
-  const [playbookHintOpen, setPlaybookHintOpen] = useState(true)
+  const [playbookHintOpen, setPlaybookHintOpen] = useState(false)
 
   // Playbook contextual: steps da etapa atual
   const playbookContextual = useMemo(() => {
@@ -3879,8 +3935,32 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         {label}
       </span>
     )
+    const dataAbertura = initial.criado || initial.created_at
+    const dataFmt = dataAbertura
+      ? new Date(dataAbertura).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
+      : null
+    const funilAtual = funis.find(f => String(f.id) === String(form.funil_id))
     return (
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+        {funis.length > 0 && (
+          <select
+            value={form.funil_id || ''}
+            onChange={e => {
+              const novoFunilId = e.target.value
+              const novoFunil = funis.find(f => String(f.id) === novoFunilId)
+              set('funil_id', novoFunilId)
+              if (novoFunil?.etapas?.length) set('etapa_id', novoFunil.etapas[0].id)
+            }}
+            style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
+              border:'1px solid var(--border)', background:'var(--surface2)',
+              color:'var(--text-muted)', cursor:'pointer', outline:'none', maxWidth:140 }}
+          >
+            <option value="">— Funil —</option>
+            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        )}
+        {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
+        {dataFmt && (nItens > 0 || liq > 0) && dot}
         {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
         {nItens > 0 && liq > 0 && dot}
         {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, 'var(--accent)')}
@@ -5101,6 +5181,9 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
     setOverEtapa(null)
   }
 
+  const n = etapas.length || 1
+  const colWidth = `max(220px, calc((100vw - 240px - ${(n - 1) * 12}px - 20px) / ${n}))`
+
   return (
     <div style={{ flex:1, overflowX:'auto', overflowY:'hidden', paddingBottom:16 }}>
       <div style={{ display:'flex', gap:12, height:'100%', paddingRight:4 }}>
@@ -5108,6 +5191,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
           <KanbanColuna
             key={etapa.id}
             etapa={etapa}
+            colWidth={colWidth}
             taxa={calcTaxaConversao(etapas, allOpps || [], etapa.id)}
             opps={filtered.filter(o => String(o.etapa_id) === String(etapa.id))}
             onAddOpp={etapa_id => setModal({ _new:true, etapa_id })}
@@ -5124,13 +5208,13 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
   )
 }
 
-function KanbanColuna({ etapa, opps, taxa, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
+function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
   return (
     <div
-      style={{ ...k.coluna, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
+      style={{ ...k.coluna, width: colWidth, borderColor: isDragOver ? etapa.cor : 'rgba(0,0,0,0.07)', boxShadow: isDragOver ? `0 0 0 2px ${etapa.cor}44, 0 2px 12px rgba(0,0,0,0.05)` : k.coluna.boxShadow }}
       onDragOver={e => { e.preventDefault(); onDragOver && onDragOver() }}
       onDragLeave={onDrop && (() => onDragOver && onDragOver(null))}
       onDrop={e => { e.preventDefault(); onDrop && onDrop() }}
@@ -5165,7 +5249,7 @@ function KanbanColuna({ etapa, opps, taxa, onAddOpp, onClickOpp, onDragOver, onD
 }
 
 const k = {
-  coluna: { width:232, flexShrink:0, background:'rgba(255,255,255,0.65)', backdropFilter:'blur(8px)', borderRadius:14, border:'1px solid rgba(0,0,0,0.07)', boxShadow:'0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9)', display:'flex', flexDirection:'column' },
+  coluna: { width:'var(--col-w, 232px)', flexShrink:0, background:'rgba(255,255,255,0.65)', backdropFilter:'blur(8px)', borderRadius:14, border:'1px solid rgba(0,0,0,0.07)', boxShadow:'0 2px 12px rgba(0,0,0,0.05), inset 0 1px 0 rgba(255,255,255,0.9)', display:'flex', flexDirection:'column' },
   cards:  { flex:1, overflowY:'auto', padding:'8px 8px 4px', display:'flex', flexDirection:'column', gap:8 },
   card:   { background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14, padding:14, cursor:'pointer', transition:'transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease' },
   addBtn: { margin:'4px 8px 8px', padding:'7px 0', borderRadius:8, border:'1px dashed rgba(0,0,0,0.12)', background:'rgba(255,255,255,0.5)', fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0, transition:'all 0.15s' },

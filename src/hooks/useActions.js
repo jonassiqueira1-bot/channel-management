@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_ACOES } from '../data/mockAcoes'
 
 function rowToAcao(row) {
   const cf = row.custom_fields || {}
@@ -67,7 +66,7 @@ export function useActions() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setAcoes(MOCK_ACOES); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('actions')
       .select('*, companies(nome_fantasia, razao_social)')

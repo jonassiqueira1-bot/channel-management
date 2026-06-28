@@ -103,9 +103,7 @@ export function useGoals() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) {
-      isMockMode.current = true
-      const stored = loadMockFromStorage()
-      setGoals(stored ?? MOCK_GOALS_SEED)
+      isMockMode.current = false
       setLoading(false)
       return
     }

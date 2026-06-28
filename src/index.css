@@ -2,10 +2,10 @@
 
 :root {
   /* ── Backgrounds ── */
-  --bg:        #F8FAFC;
+  --bg:        #FFFFFF;
   --surface:   #FFFFFF;
-  --surface2:  #F1F5F9;
-  --surface3:  #E2E8F0;
+  --surface2:  #FFFFFF;
+  --surface3:  #F5F7FA;
 
   /* ── Texto ── */
   --text:       #1A1916;
@@ -13,18 +13,18 @@
   --text-sec:   #5A5650;   /* alias de --text-soft */
   --text-muted: #9A9590;
 
-  /* ── Accent (navy) ── */
-  --accent:      #1E3A5F;
-  --accent2:     #2E5090;
-  --accent-glow: rgba(30, 58, 95, 0.08);
-  --accent-lite: rgba(30, 58, 95, 0.07);
-  --accent-mid:  rgba(30, 58, 95, 0.18);
+  /* ── Accent (blue médio) ── */
+  --accent:      #2563EB;
+  --accent2:     #1D4ED8;
+  --accent-glow: rgba(37, 99, 235, 0.08);
+  --accent-lite: rgba(37, 99, 235, 0.07);
+  --accent-mid:  rgba(37, 99, 235, 0.18);
 
   /* ── Semântica ── */
   --success:    #059669;  --success-bg: #F0FDF4;
   --warning:    #D97706;  --warning-bg: #FFFBEB;
   --danger:     #DC2626;  --danger-bg:  #FEF2F2;
-  --info:       #1E3A5F;  --info-bg:    #EFF6FF;
+  --info:       #2563EB;  --info-bg:    #EFF6FF;
 
   /* ── Aliases legados ── */
   --green:      #059669;  --green-bg:   #F0FDF4;  --green-text: #166534;

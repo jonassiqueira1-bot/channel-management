@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_ANALYTICS, MOCK_ALERTS } from '../data/mockDashboard'
 
 function periodFilter(period) {
   const now = new Date()
@@ -168,10 +167,7 @@ export function useDashboard(period = 'this_month') {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) {
-      const isISV = !profile || profile.role === 'admin_isv'
-      setAnalytics(isISV ? MOCK_ANALYTICS.isv : MOCK_ANALYTICS.franchise)
-      setAlerts(MOCK_ALERTS)
-      isMockMode.current = true
+      isMockMode.current = false
       setLoading(false)
       return
     }

@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 
 const MOCK_STORAGE_KEY = 'companies:mock_v1'
 function loadMockStore() { try { const r = localStorage.getItem(MOCK_STORAGE_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -104,10 +103,8 @@ export function useCompanies() {
     setLoading(true)
     setError(null)
 
-    // Sem sessão autenticada: usa mock
     if (!session?.user) {
-      isMockMode.current = true
-      setCompanies(loadMockStore() ?? MOCK_EMPRESAS)
+      isMockMode.current = false
       setLoading(false)
       return
     }
@@ -118,9 +115,8 @@ export function useCompanies() {
       .order('razao_social')
 
     if (fetchErr) {
-      // Tabela não existe no Supabase demo → fallback para mock
-      isMockMode.current = true
-      setCompanies(loadMockStore() ?? MOCK_EMPRESAS)
+      console.error('[useCompanies]', fetchErr.message)
+      isMockMode.current = false
       setLoading(false)
       return
     }
