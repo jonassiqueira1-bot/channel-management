@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import { MOCK_PRODUTOS } from '../data/mockProdutos'
 
 function rowToProduct(row) {
   const cf = row.custom_fields || {}
@@ -65,7 +64,7 @@ export function useProducts() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setProdutos(MOCK_PRODUTOS); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('products')
       .select('*')

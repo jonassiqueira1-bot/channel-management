@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
-import {
-  MOCK_PLAYBOOKS, MOCK_FUNNEL_STEPS, MOCK_REFERENCES, MOCK_RESOURCES,
-} from '../data/mockPlaybooks'
 
 function rowToPlaybook(row) {
   // Lê custom_fields: coluna própria (pós-migration) ou serializado em segment
@@ -77,7 +74,7 @@ export function usePlaybooks() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setPlaybooks(MOCK_PLAYBOOKS); setSteps(MOCK_FUNNEL_STEPS); setRefs(MOCK_REFERENCES); setResources(MOCK_RESOURCES); setLoading(false); return }
+    if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     const { data, error } = await supabase
       .from('playbooks')
       .select('*')
