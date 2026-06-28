@@ -3869,8 +3869,14 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         {label}
       </span>
     )
+    const dataAbertura = initial.criado || initial.created_at
+    const dataFmt = dataAbertura
+      ? new Date(dataAbertura).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
+      : null
     return (
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
+        {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
+        {dataFmt && (nItens > 0 || liq > 0) && dot}
         {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
         {nItens > 0 && liq > 0 && dot}
         {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, 'var(--accent)')}
