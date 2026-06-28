@@ -3,9 +3,10 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 
-const LS_KEY = 'pagamentos:data_v1'
-function loadFromLS() {
-  try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]') } catch { return [] }
+// Chave exclusiva para provisões geradas pela integração (separada de dados mock)
+export const PROVISOES_LS_KEY = 'pagamentos:provisoes_v1'
+function loadProvisoes() {
+  try { return JSON.parse(localStorage.getItem(PROVISOES_LS_KEY) || '[]') } catch { return [] }
 }
 
 function rowToPayment(row) {
@@ -83,7 +84,7 @@ export function usePayments() {
     setLoading(true)
     if (!session?.user) {
       isMockMode.current = true
-      setPagamentos(loadFromLS())
+      setPagamentos(loadProvisoes())
       setLoading(false)
       return
     }
@@ -98,7 +99,7 @@ export function usePayments() {
     isMockMode.current = false
     const fromDB = (data || []).map(rowToPayment)
     // Mescla entradas do localStorage que ainda não estão no Supabase (geradas em modo offline/fallback)
-    const fromLS = loadFromLS()
+    const fromLS = loadProvisoes()
     const lsOnly = fromLS.filter(ls =>
       !fromDB.some(db =>
         String(db.contract_id) === String(ls.contract_id) &&

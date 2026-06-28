@@ -5,6 +5,7 @@ import { useProducts } from '../hooks/useProducts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
+import { PROVISOES_LS_KEY } from '../hooks/usePayments'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
@@ -432,9 +433,9 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
     console.warn('[gerarProvisoesPagamento] Supabase indisponível, usando localStorage:', err.message)
   }
 
-  // Fallback localStorage — sempre salva uma cópia para garantir visibilidade em Pagamentos
+  // Fallback localStorage — chave dedicada, separada de dados mock
   try {
-    const raw = localStorage.getItem(PAGAMENTOS_STORAGE_KEY)
+    const raw = localStorage.getItem(PROVISOES_LS_KEY)
     const existentesLS = raw ? JSON.parse(raw) : []
     const novos = candidatos
       .filter(i => !existentesLS.some(p =>
@@ -463,7 +464,7 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
         tenant_id:       tid,
       }))
     if (novos.length) {
-      localStorage.setItem(PAGAMENTOS_STORAGE_KEY, JSON.stringify([...existentesLS, ...novos]))
+      localStorage.setItem(PROVISOES_LS_KEY, JSON.stringify([...existentesLS, ...novos]))
       if (!qtd) qtd = novos.length
     }
   } catch (err) {
