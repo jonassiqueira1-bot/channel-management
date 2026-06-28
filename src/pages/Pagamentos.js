@@ -6,6 +6,7 @@ import { usePayments } from '../hooks/usePayments'
 import { useContracts } from '../hooks/useContracts'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useProducts } from '../hooks/useProducts'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY as COMISSOES_PAYMENTS_KEY, MOCK_RULES, MOCK_PAYMENTS as MOCK_COM_PAYMENTS } from '../data/mockComissoes'
 import NotionDrawer, { DrawerBody, MetaSection, MetaRow, InlineText, InlineTextarea, InlineSelect, InlineDate, DeleteZone } from '../components/NotionDrawer'
@@ -1200,9 +1201,9 @@ export default function Pagamentos() {
   const [filtroVencIni, setFiltroVencIni]       = useLocalState('pagamentos:filtroVencIni', '')
   const [filtroVencFim, setFiltroVencFim]       = useLocalState('pagamentos:filtroVencFim', '')
   const [sortBy, setSortBy]                     = useLocalState('pagamentos:sortBy', 'empresa')
-  const [produtosLSPag] = useLocalState('produtos:lista_v1', [])
-  const produtosNovo = produtosLSPag.length > 0
-    ? produtosLSPag.filter(p => p.status === 'ativo')
+  const { produtos: produtosReais } = useProducts()
+  const produtosNovo = produtosReais.length > 0
+    ? produtosReais.filter(p => p.status === 'ativo')
     : MOCK_PRODUTOS.filter(p => p.status === 'ativo')
   const [showMetrics, setShowMetrics]           = useLocalState('pagamentos:showMetrics', true)
 
