@@ -53,6 +53,7 @@ import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useCustomerHealth } from '../hooks/useCustomerHealth'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -3438,8 +3439,13 @@ function FechamentoModal({ opp, onClose }) {
   const temServico = (opp.valor_servico > 0) ||
     (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico' || it.tipo === 'consultoria')
 
+  const { records: csRecords, save: saveHealth } = useCustomerHealth()
+
   const [gerarContrato, setGerarContrato] = useState(true)
   const [gerarProjeto,  setGerarProjeto]  = useState(temServico && !!propostaImplantacao)
+  // Se não tem proposta de implantação → vai direto para CS (já marcado)
+  // Se tem proposta de implantação → CS virá depois do projeto (desmarcado)
+  const [criarCS, setCriarCS] = useState(!propostaImplantacao)
 
   const contratosDuplicados = (contratos||[]).filter(c =>
     c.opportunity_id && String(c.opportunity_id) === String(opp.id)
@@ -3535,6 +3541,44 @@ function FechamentoModal({ opp, onClose }) {
       if (projetosErros.length)   resultados.projetosErros = projetosErros
     }
 
+    if (criarCS) {
+      const checkin = {
+        id:            'ci_opp_' + Date.now(),
+        date:          hoje,
+        type:          'Reunião',
+        summary:       `Oportunidade "${opp.titulo}" ganha. Check-in gerado automaticamente.`,
+        produto_id:    null,
+        produto_nome:  '',
+        oportunidade_id:   opp.id   || null,
+        oportunidade_nome: opp.titulo || '',
+      }
+      const csExistente = csRecords.find(r => String(r.company_id) === String(opp.empresa_id))
+      if (csExistente) {
+        const res = await saveHealth({
+          ...csExistente,
+          checkins: [checkin, ...(csExistente.checkins || [])],
+        })
+        resultados.cs = res?.ok === false ? null : csExistente.company_name
+        resultados.csErro = res?.ok === false ? res.message : null
+        resultados.csNovo = false
+      } else {
+        const res = await saveHealth({
+          company_id:   opp.empresa_id || null,
+          company_name: opp.empresa_nome || '',
+          laer_stage:   'Land',
+          touch_model:  'Tech-Touch',
+          health_score: 75,
+          notes:        `Cliente adicionado ao fechar a oportunidade "${opp.titulo}".`,
+          checkins:     [checkin],
+          action_plans: [],
+          attachments:  [],
+        })
+        resultados.cs = res?.ok === false ? null : opp.empresa_nome
+        resultados.csErro = res?.ok === false ? res.message : null
+        resultados.csNovo = res?.ok !== false
+      }
+    }
+
     setSalvando(false)
     setFeito(resultados)
   }
@@ -3573,6 +3617,12 @@ function FechamentoModal({ opp, onClose }) {
         sublabel: err,
         error: true,
       })) : []),
+      ...(criarCS ? [feito.csErro
+        ? { id: 'cs', label: 'Erro ao registrar em Sucesso do Cliente', sublabel: feito.csErro, error: true }
+        : feito.csNovo
+          ? { id: 'cs', label: 'Registro criado em Sucesso do Cliente', sublabel: `${opp.empresa_nome} · estágio Land` }
+          : { id: 'cs', label: 'Check-in adicionado em Sucesso do Cliente', sublabel: opp.empresa_nome }
+      ] : [{ id: 'cs', label: 'Sucesso do Cliente', skip: true }]),
     ]
     return (
       <ActionFeedback
@@ -3660,7 +3710,22 @@ function FechamentoModal({ opp, onClose }) {
             </label>
           )}
 
-          {!gerarContrato && !gerarProjeto && (
+          {/* Sucesso do Cliente */}
+          <label style={chkRow(criarCS)} onClick={() => setCriarCS(v => !v)}>
+            <input type="checkbox" checked={criarCS} onChange={() => {}} style={{ marginTop:2, accentColor:'var(--accent)', width:15, height:15, flexShrink:0 }} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:13, fontWeight:700, color: criarCS ? 'var(--accent)' : 'var(--text)' }}>
+                💚 Registrar em Sucesso do Cliente
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+                {propostaImplantacao
+                  ? <>Oportunidade tem proposta de implantação — o check-in CS normalmente é gerado ao <strong>concluir o projeto</strong>.</>
+                  : <>Cria um check-in automático para <strong>{opp.empresa_nome}</strong> no módulo de CS.</>}
+              </div>
+            </div>
+          </label>
+
+          {!gerarContrato && !gerarProjeto && !criarCS && (
             <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0', textAlign:'center' }}>
               Nenhuma opção selecionada — a oportunidade será fechada sem registros adicionais.
             </div>
