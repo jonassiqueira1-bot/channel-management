@@ -10,6 +10,7 @@ import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
 import { useSellers } from '../hooks/useSellers'
+import { useParceiros } from '../hooks/useParceiros'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH, LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
 import { useAuditLog } from '../hooks/useAuditLog'
 
@@ -241,7 +242,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const { contratos: allContratos, save: saveContrato, remove: removeContrato } = useContracts()
   const { projetos: allProjetos, save: saveProjeto } = useProjects()
   const { sellers } = useSellers()
-  const [franquias] = useLocalState('settings:franquias_v2', [])
+  const { parceiros: franquias } = useParceiros()
   const [canal, setCanal] = useLocalState('empresa:canal:' + item?.id, {
     resp_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
   })

@@ -4,6 +4,7 @@ import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes
 import { useActions } from '../hooks/useActions'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useBranches } from '../hooks/useBranches'
+import { useParceiros } from '../hooks/useParceiros'
 import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -219,7 +220,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
 export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
   const { registrar: log } = useAuditLog()
-  const [franquiasCad] = useLocalState('settings:franquias_v2', [])
+  const { parceiros: franquiasCad } = useParceiros()
   const { branches }   = useBranches()
   const [usuariosCad]  = useLocalState('settings:perfis_v2', [])
   const [tiposLista]   = useLocalState(TIPOS_KEY, [])
