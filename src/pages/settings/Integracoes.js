@@ -805,7 +805,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                     </div>
                   ) : (
                     <div style={{ padding: '10px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'var(--surface2)', fontSize: 12, color: 'var(--text-muted)' }}>
-                      Salve a configuração para gerar a URL. Cole-a depois em: <strong>RD Station → Configurações → Automações → Webhooks</strong>
+                      Salve a configuração para gerar a URL do webhook e cole-a no sistema externo.
                     </div>
                   )}
                   {lastSync && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Último evento recebido: {new Date(lastSync).toLocaleString('pt-BR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
@@ -988,7 +988,7 @@ function RdStationTab({ toast }) {
     setSalvado(true)
     setIntStatus('active')
     setTimeout(() => setSalvado(false), 3000)
-    toast.show('Configuração salva! Cole a URL do webhook no RD Station.')
+    toast.show('Configuração salva! Cole a URL do webhook no sistema externo.')
   }
 
   async function buscarLeadsPendentes() {
@@ -1007,7 +1007,7 @@ function RdStationTab({ toast }) {
       const lead = p.leads?.[0] || p.lead || p
       return {
         _queueId:      row.id,
-        titulo:        lead.name || lead.email || 'Lead RD Station',
+        titulo:        lead.name || lead.email || 'Lead sem título',
         empresa_nome:  lead.company_name || '',
         contato_nome:  lead.name || '',
         contato_email: lead.email || '',
@@ -1060,7 +1060,7 @@ function RdStationTab({ toast }) {
         contato_email: l.contato_email,
         contato_fone:  l.contato_fone,
         descricao:     l.descricao,
-        origem:        'RD Station Marketing',
+        origem:        nomeIntegracao || 'Webhook',
         situacao:      'em_negociacao',
         valor:         0,
         funil_id:      funil?.id || '',
@@ -1123,12 +1123,12 @@ function RdStationTab({ toast }) {
               </button>
             </div>
             <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-              Cole esta URL no RD Station: Configurações → Automações → Webhooks → Nova URL. Quando um lead é criado, ele chega aqui automaticamente.
+              Cole esta URL no sistema externo como destino do webhook. Quando um evento é disparado, ele chega aqui automaticamente.
             </span>
           </div>
         ) : (
           <div style={{ padding: '12px 16px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
-            Salve a configuração para gerar a URL do webhook que deve ser cadastrada no RD Station.
+            Salve a configuração para gerar a URL do webhook a ser cadastrada no sistema externo.
           </div>
         )}
 
