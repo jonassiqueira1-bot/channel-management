@@ -212,6 +212,8 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
         num_documento:   '',
         notes:           `Fechamento de horas — ${periodo} — ${user_name} — ${horas.toFixed(1)}h`,
         processed:       false,
+        origin_type:     'projeto',
+        project_id:      proj.id || null,
         _origem:         'fechamento_horas',
         _fechamento_id:  fec?.id,
       }

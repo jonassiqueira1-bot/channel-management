@@ -1200,7 +1200,7 @@ export default function Pagamentos() {
   function confirmarGerarComissao(pag) {
     setConfirmComissao(null)
     gerarRepasses(pag)
-    const isFromProjeto = pag._origem === 'fechamento_horas' ||
+    const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' ||
       (pag.notes || '').toLowerCase().includes('fechamento de horas')
     const temValores = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
     const steps = [
@@ -1216,7 +1216,7 @@ export default function Pagamentos() {
 
   function gerarLancamentoComissao(pag) {
     // Determina origem (projeto vs venda)
-    const isFromProjeto = pag._origem === 'fechamento_horas' ||
+    const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' ||
       (pag.notes || '').toLowerCase().includes('fechamento de horas')
 
     // Tipo de receita dominante
@@ -1270,9 +1270,10 @@ export default function Pagamentos() {
   }
 
   function handleNovoPagamento(pag) {
-    setPagamentos(prev=>[pag, ...prev])
+    const pagComOrigem = { ...pag, origin_type: pag.origin_type || 'manual' }
+    savePagamento(pagComOrigem)
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
-    gerarLancamentoComissao(pag)
+    gerarLancamentoComissao(pagComOrigem)
     // navega para o período do novo pagamento
     const ref = parsePeriodo(pag.reference_month)
     setPeriodo(ref)
@@ -1581,7 +1582,7 @@ export default function Pagamentos() {
       {confirmComissao && (() => {
         const pag = confirmComissao
         const temValores = (pag.amount_cdu||0) + (pag.amount_sms||0) + (pag.amount_services||0) > 0
-        const isFromProjeto = pag._origem === 'fechamento_horas' || (pag.notes||'').toLowerCase().includes('fechamento de horas')
+        const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' || (pag.notes||'').toLowerCase().includes('fechamento de horas')
         return (
           <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
             display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
