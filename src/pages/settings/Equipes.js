@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
+import { useUsuarios } from '../../hooks/useUsuarios'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
-import { MOCK_PERFIS } from '../../data/mockPerfis'
 
 export const EQUIPES_STORAGE_KEY = 'settings:equipes_v1'
 
@@ -265,14 +265,14 @@ const EMPTY = { nome: '', descricao: '', status: 'ativa', lider_id: '', membro_i
 
 export default function Equipes() {
   const [equipes, setEquipes]   = useLocalState(EQUIPES_STORAGE_KEY, [])
-  const [usuarios]              = useLocalState('settings:perfis_v2', MOCK_PERFIS)
+  const { usuarios }            = useUsuarios()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
   const [importModal, setImportModal] = useState(false)
   const { registrar: log } = useAuditLog()
 
-  const usuariosAtivos = usuarios.filter(u => u.status !== 'inativo')
+  const usuariosAtivos = usuarios.filter(u => u.status === 'ativo' || u.status === 'active' || u.status === 'pendente')
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
 
