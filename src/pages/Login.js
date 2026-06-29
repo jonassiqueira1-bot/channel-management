@@ -3,20 +3,13 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import logoBoostly from '../assets/logo-boostly.svg'
 
-const ROLES = [
-  { id: 'isv', label: 'ISV Admin' },
-  { id: 'canal', label: 'Canal' },
-  { id: 'vendedor', label: 'Vendedor' },
-]
-
 export default function Login() {
-  const [email, setEmail] = useState('')
+  const [email, setEmail]       = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('isv')
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const { signIn } = useAuth()
-  const navigate = useNavigate()
+  const [error, setError]       = useState('')
+  const [loading, setLoading]   = useState(false)
+  const { signIn }  = useAuth()
+  const navigate    = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -24,61 +17,44 @@ export default function Login() {
     setLoading(true)
     const { error } = await signIn(email, password)
     setLoading(false)
-    if (error) {
-      setError('E-mail ou senha inválidos.')
-    } else {
-      navigate('/dashboard')
-    }
+    if (error) setError('E-mail ou senha inválidos.')
+    else navigate('/dashboard')
   }
 
   return (
     <div style={s.page}>
-      {/* Left panel */}
+      {/* Painel esquerdo */}
       <div style={s.left}>
         <div style={s.leftInner}>
-          <div style={s.brand}>
-            <img src={logoBoostly} alt="Boostly" style={{ height: 40, width: 'auto' }} />
-          </div>
+          <img src={logoBoostly} alt="Boostly" style={{ height: 44, width: 'auto' }} />
 
           <div style={s.heroText}>
-            <h1 style={s.heroTitle}>Gestão de canais indiretos, do jeito certo.</h1>
-            <p style={s.heroSub}>Visibilidade total sobre franquias, unidades e vendedores — em uma só plataforma.</p>
+            <h1 style={s.heroTitle}>Impulsione seu canal de parceiros.</h1>
+            <p style={s.heroSub}>Gerencie revendas, franquias e times de vendas — do pipeline ao pagamento, em um só lugar.</p>
           </div>
 
-          <div style={s.stats}>
+          <div style={s.pillars}>
             {[
-              { label: 'Franquias ativas', value: '247' },
-              { label: 'Receita gerenciada', value: 'R$ 18M' },
-              { label: 'Vendedores', value: '1.340' },
-            ].map(stat => (
-              <div key={stat.label} style={s.stat}>
-                <span style={s.statValue}>{stat.value}</span>
-                <span style={s.statLabel}>{stat.label}</span>
+              { icon: '◈', label: 'Pipeline', desc: 'Oportunidades em tempo real' },
+              { icon: '◎', label: 'Comissões', desc: 'Cálculo e pagamento automatizados' },
+              { icon: '◉', label: 'Parceiros', desc: 'Visibilidade total da rede' },
+            ].map(p => (
+              <div key={p.label} style={s.pillar}>
+                <span style={s.pillarIcon}>{p.icon}</span>
+                <div>
+                  <div style={s.pillarLabel}>{p.label}</div>
+                  <div style={s.pillarDesc}>{p.desc}</div>
+                </div>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Right panel */}
+      {/* Painel direito */}
       <div style={s.right}>
         <div style={s.formWrap}>
-          <h2 style={s.formTitle}>Entrar na plataforma</h2>
-          <p style={s.formSub}>Acesse sua conta para continuar</p>
-
-          {/* Role pills */}
-          <div style={s.pills}>
-            {ROLES.map(r => (
-              <button
-                key={r.id}
-                type="button"
-                onClick={() => setRole(r.id)}
-                style={{ ...s.pill, ...(role === r.id ? s.pillActive : {}) }}
-              >
-                {r.label}
-              </button>
-            ))}
-          </div>
+          <h2 style={s.formTitle}>Acesse sua conta</h2>
 
           <form onSubmit={handleSubmit} style={s.form}>
             <div style={s.field}>
@@ -111,9 +87,7 @@ export default function Login() {
               {loading ? 'Entrando…' : 'Entrar'}
             </button>
 
-            <Link to="/forgot-password" style={s.forgot}>
-              Esqueci minha senha
-            </Link>
+            <Link to="/forgot-password" style={s.forgot}>Esqueci minha senha</Link>
           </form>
         </div>
       </div>
@@ -141,57 +115,51 @@ const s = {
     flexDirection: 'column',
     gap: 48,
   },
-  brand: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: 12,
-  },
-  brandName: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 700,
-    letterSpacing: '-0.3px',
-  },
   heroText: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 12,
+    gap: 14,
   },
   heroTitle: {
     margin: 0,
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: 700,
     color: '#fff',
-    lineHeight: 1.3,
+    lineHeight: 1.25,
     letterSpacing: '-0.5px',
   },
   heroSub: {
     margin: 0,
     fontSize: 15,
-    color: 'rgba(255,255,255,0.55)',
-    lineHeight: 1.6,
+    color: 'rgba(255,255,255,0.5)',
+    lineHeight: 1.65,
   },
-  stats: {
-    display: 'flex',
-    gap: 32,
-  },
-  stat: {
+  pillars: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 3,
+    gap: 20,
   },
-  statValue: {
-    fontSize: 22,
-    fontWeight: 700,
+  pillar: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 14,
+  },
+  pillarIcon: {
+    fontSize: 20,
+    color: '#4F7FE8',
+    lineHeight: 1.2,
+    flexShrink: 0,
+  },
+  pillarLabel: {
+    fontSize: 14,
+    fontWeight: 600,
     color: '#fff',
-    fontFamily: 'var(--mono)',
+    marginBottom: 2,
   },
-  statLabel: {
-    fontSize: 11,
-    color: 'rgba(255,255,255,0.45)',
-    textTransform: 'uppercase',
-    letterSpacing: '0.06em',
-    fontFamily: 'var(--mono)',
+  pillarDesc: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.4)',
+    lineHeight: 1.4,
   },
   right: {
     backgroundColor: '#161B27',
@@ -205,38 +173,11 @@ const s = {
     maxWidth: 380,
   },
   formTitle: {
-    margin: '0 0 4px',
+    margin: '0 0 32px',
     fontSize: 22,
     fontWeight: 700,
     color: '#fff',
     letterSpacing: '-0.3px',
-  },
-  formSub: {
-    margin: '0 0 28px',
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.4)',
-  },
-  pills: {
-    display: 'flex',
-    gap: 8,
-    marginBottom: 28,
-  },
-  pill: {
-    padding: '6px 14px',
-    borderRadius: 20,
-    border: '1px solid rgba(255,255,255,0.12)',
-    background: 'transparent',
-    color: 'rgba(255,255,255,0.5)',
-    fontSize: 13,
-    fontWeight: 500,
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-    fontFamily: 'var(--font)',
-  },
-  pillActive: {
-    background: 'rgba(30,58,95,0.6)',
-    borderColor: 'rgba(46,80,144,0.6)',
-    color: '#fff',
   },
   form: {
     display: 'flex',
@@ -277,7 +218,7 @@ const s = {
   },
   button: {
     padding: '12px',
-    background: '#1E3A5F',
+    background: 'linear-gradient(135deg, #4F7FE8, #2B52C8)',
     color: '#fff',
     border: 'none',
     borderRadius: 8,
@@ -286,7 +227,6 @@ const s = {
     cursor: 'pointer',
     marginTop: 4,
     fontFamily: 'var(--font)',
-    transition: 'background 0.15s',
   },
   forgot: {
     display: 'block',
