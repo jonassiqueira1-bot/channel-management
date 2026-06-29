@@ -2079,7 +2079,8 @@ export default function Comissoes() {
   const [tab, setTab]       = useLocalState('comissoes:tab', 'repasses')
   const [period, setPeriod] = useState('this_month')
   const { rules, payments, personas, setRules, setPayments, setPersonas,
-          saveRule: persistRule, removeRule: deleteRule, savePersonas: persistPersonas } = useCommissions()
+          saveRule: persistRule, removeRule: deleteRule, savePersonas: persistPersonas,
+          savePayment: persistPayment } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
   const { contacts: contatosRaw } = useContacts()
@@ -2114,9 +2115,13 @@ export default function Comissoes() {
     }
   }
 
-  function savePayment(updated) {
+  async function savePayment(updated) {
     const isNew = !payments.find(p => p.id === updated.id)
-    setPayments(prev => isNew ? [...prev, updated] : prev.map(p => p.id===updated.id?updated:p))
+    const res = await persistPayment(updated)
+    if (res && !res.ok) {
+      alert(`Erro ao salvar lançamento: ${res.message}`)
+      return
+    }
     registrar(isNew ? 'criar' : 'editar', 'comissao_lancamento', updated.id, {
       descricao: `Lançamento ${isNew ? 'criado' : 'editado'}: ${updated.beneficiario_nome || ''} — R$ ${Number(updated.valor_comissao||0).toFixed(2)}`,
     })
