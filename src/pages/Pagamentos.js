@@ -333,33 +333,42 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
     produto_nome:    pagamento.produto_nome||'',
     notes:           pagamento.notes||'',
   })
-  function set(k, v) { setForm(f=>({...f,[k]:v})) }
-  function patch(k, v) {
-    setForm(f => {
-      const n = { ...f, [k]: v }
-      const saved = { ...pagamento, ...n,
-        amount_total_net: Math.max(0,(Number(n.amount_cdu)||0)+(Number(n.amount_sms)||0)+(Number(n.amount_services)||0)-(Number(n.amount_discount)||0)),
-        valor_recebido: n.valor_recebido!==''?Number(n.valor_recebido)||0:null,
-        produto_id: n.produto_id?Number(n.produto_id):null,
-        processed: true,
-      }
-      if (checkDupDrawer(saved)) {
-        alert(`Já existe um pagamento deste produto para esta empresa com o mesmo vencimento.`)
-        return f
-      }
-      onSave(saved)
-      return n
-    })
-  }
+  const [dirty, setDirty] = useState(false)
+  const [savedOk, setSavedOk] = useState(false)
+
+  function set(k, v) { setForm(f=>({...f,[k]:v})); setDirty(true); setSavedOk(false) }
+
   function numVal(k) {
     return {
       type:'text', inputMode:'numeric',
       value: form[k]!=='' && form[k]!==null ? Number(form[k]).toLocaleString('pt-BR',{minimumFractionDigits:2}) : '',
       placeholder:'0,00',
       onChange: e => { const r=e.target.value.replace(/\./g,'').replace(',','.'); set(k,isNaN(parseFloat(r))?'':parseFloat(r)) },
-      onBlur: () => patch(k, form[k]),
     }
   }
+
+  function handleSave() {
+    const built = { ...pagamento, ...form,
+      amount_total_net: Math.max(0,(Number(form.amount_cdu)||0)+(Number(form.amount_sms)||0)+(Number(form.amount_services)||0)-(Number(form.amount_discount)||0)),
+      valor_recebido: form.valor_recebido!==''?Number(form.valor_recebido)||0:null,
+      produto_id: form.produto_id?Number(form.produto_id):null,
+      processed: true,
+    }
+    if (form.produto_id && pagamento.company_id && form.due_date) {
+      const dup = pagamentosExistentes.find(p =>
+        p.id !== pagamento.id &&
+        String(p.produto_id) === String(form.produto_id) &&
+        String(p.company_id) === String(pagamento.company_id) &&
+        p.due_date === form.due_date
+      )
+      if (dup) { alert(`Já existe um pagamento deste produto para esta empresa com o mesmo vencimento.`); return }
+    }
+    onSave(built)
+    setDirty(false)
+    setSavedOk(true)
+    setTimeout(() => setSavedOk(false), 2200)
+  }
+
   const bruto    = (Number(form.amount_cdu)||0)+(Number(form.amount_sms)||0)+(Number(form.amount_services)||0)
   const liquido  = Math.max(0, bruto-(Number(form.amount_discount)||0))
   const recebido = form.valor_recebido!=='' ? Number(form.valor_recebido)||0 : null
@@ -368,16 +377,6 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
   const { produtos: produtosRaw } = useProducts()
   const prodListDrawer = (produtosRaw.length > 0 ? produtosRaw : MOCK_PRODUTOS).filter(p => p.status === 'ativo')
 
-  function checkDupDrawer(next) {
-    if (!next.produto_id || !next.company_id || !next.due_date) return false
-    return pagamentosExistentes.some(p =>
-      p.id !== pagamento.id &&
-      String(p.produto_id) === String(next.produto_id) &&
-      String(p.company_id) === String(next.company_id) &&
-      p.due_date === next.due_date
-    )
-  }
-
   const rInp = { paddingLeft: 28, fontFamily:'var(--mono)', fontWeight:600 }
 
   return (
@@ -385,7 +384,7 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
       <FormSection label="Fatura" />
       <FormGrid cols={2}>
         <FormField label="Status">
-          <select className="so-field" value={form.status} onChange={e => patch('status', e.target.value)}>
+          <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
             {Object.entries(STATUS_PAGAMENTO).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
         </FormField>
@@ -397,30 +396,22 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
             onChange={id => {
               const prod = prodListDrawer.find(p => String(p.id) === id)
               const buckets = valorPorTipo(prod, prod?.preco)
-              setForm(f => {
-                const n = { ...f, produto_id: id || '', produto_nome: prod?.nome||'', ...buckets }
-                onSave({ ...pagamento, ...n,
-                  amount_total_net: Math.max(0,(Number(n.amount_cdu)||0)+(Number(n.amount_sms)||0)+(Number(n.amount_services)||0)-(Number(n.amount_discount)||0)),
-                  valor_recebido: n.valor_recebido!==''?Number(n.valor_recebido)||0:null,
-                  produto_id: n.produto_id?Number(n.produto_id):null,
-                  processed: true,
-                })
-                return n
-              })
+              setForm(f => ({ ...f, produto_id: id || '', produto_nome: prod?.nome||'', ...buckets }))
+              setDirty(true); setSavedOk(false)
             }}
           />
         </FormField>
         <FormField label="Nº Documento">
           <input className="so-field" value={form.num_documento} placeholder="NF000000"
-            onChange={e => set('num_documento', e.target.value)} onBlur={e => patch('num_documento', e.target.value)} />
+            onChange={e => set('num_documento', e.target.value)} />
         </FormField>
         <FormField label="Emissão">
           <input type="date" className="so-field" value={form.data_emissao}
-            onChange={e => set('data_emissao', e.target.value)} onBlur={e => patch('data_emissao', e.target.value)} />
+            onChange={e => set('data_emissao', e.target.value)} />
         </FormField>
         <FormField label="Parcela">
           <input className="so-field" value={form.parcela} placeholder="1/1"
-            onChange={e => set('parcela', e.target.value)} onBlur={e => patch('parcela', e.target.value)} />
+            onChange={e => set('parcela', e.target.value)} />
         </FormField>
       </FormGrid>
 
@@ -463,11 +454,11 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
       <FormGrid cols={3}>
         <FormField label="Vencimento">
           <input type="date" className="so-field" value={form.due_date}
-            onChange={e => set('due_date', e.target.value)} onBlur={e => patch('due_date', e.target.value)} />
+            onChange={e => set('due_date', e.target.value)} />
         </FormField>
         <FormField label="Data de Baixa">
           <input type="date" className="so-field" value={form.data_baixa}
-            onChange={e => set('data_baixa', e.target.value)} onBlur={e => patch('data_baixa', e.target.value)} />
+            onChange={e => set('data_baixa', e.target.value)} />
         </FormField>
         <FormField label="Valor Recebido">
           <div style={{ position:'relative' }}>
@@ -512,7 +503,28 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
       <div style={{ padding:'0 24px 24px' }}>
         <textarea className="so-field" rows={3} value={form.notes || ''} placeholder="Observações sobre este faturamento…"
           style={{ resize:'vertical', minHeight:72 }}
-          onChange={e => set('notes', e.target.value)} onBlur={e => patch('notes', e.target.value)} />
+          onChange={e => set('notes', e.target.value)} />
+      </div>
+
+      {/* ── Rodapé Salvar ─────────────────────────────────────────────────── */}
+      <div style={{ position:'sticky', bottom:0, padding:'12px 24px',
+        borderTop:'1px solid var(--border)', background:'var(--surface)',
+        display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, flexShrink:0 }}>
+        {dirty && !savedOk && (
+          <span style={{ fontSize:11, color:'var(--text-muted)' }}>Alterações não salvas</span>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={!dirty && !savedOk}
+          style={{
+            padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:600, cursor: dirty ? 'pointer' : 'default',
+            border:'none', transition:'background 0.2s',
+            background: savedOk ? '#10B981' : dirty ? 'var(--accent)' : 'var(--border)',
+            color: (savedOk || dirty) ? '#fff' : 'var(--text-muted)',
+          }}
+        >
+          {savedOk ? '✓ Salvo' : 'Salvar'}
+        </button>
       </div>
     </div>
   )
