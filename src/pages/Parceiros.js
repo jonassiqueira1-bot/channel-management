@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useParceiros } from '../hooks/useParceiros'
 import { useActions } from '../hooks/useActions'
-import { usePartnerMaturity, usePartnerScores } from '../hooks/usePartnerMaturity'
+import { usePartnerMaturity, usePartnerScores, usePartnerHabilitacoes } from '../hooks/usePartnerMaturity'
+import { useHabilitacoes } from '../hooks/useHabilitacoes'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import BrowseLayout from '../components/BrowseLayout'
@@ -365,19 +366,106 @@ function TabHistorico({ history, params }) {
 }
 
 // ─── SlideOver principal ──────────────────────────────────────────────────────
+// ─── Aba Habilitações ─────────────────────────────────────────────────────────
+function TabHabilitacoes({ parceiro_id }) {
+  const { habilitacoes }                         = useHabilitacoes()
+  const { linkedIds, link, unlink, loading }     = usePartnerHabilitacoes(parceiro_id)
+  const [search, setSearch]                      = useState('')
+
+  const filtered = (habilitacoes || []).filter(h =>
+    !search || (h.nome || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  const linked   = filtered.filter(h => linkedIds.has(String(h.id)))
+  const unlinked = filtered.filter(h => !linkedIds.has(String(h.id)))
+
+  function Section({ title, items, isLinked }) {
+    if (items.length === 0) return null
+    return (
+      <div style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 8 }}>
+          {title}
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {items.map(h => (
+            <div key={h.id} style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '9px 12px', borderRadius: 8,
+              background: isLinked ? '#D1FAE511' : 'var(--surface-alt)',
+              border: `1px solid ${isLinked ? '#10B98133' : 'var(--border2)'}`,
+            }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{h.nome}</div>
+                {h.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{h.descricao}</div>}
+              </div>
+              <button
+                onClick={() => isLinked ? unlink(h.id) : link(h.id)}
+                style={{
+                  flexShrink: 0, marginLeft: 12,
+                  padding: '4px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 600,
+                  background: isLinked ? '#FEE2E2' : 'color-mix(in srgb, var(--accent) 15%, transparent)',
+                  color: isLinked ? '#DC2626' : 'var(--accent)',
+                  transition: 'opacity 0.15s',
+                }}
+              >
+                {isLinked ? 'Remover' : 'Vincular'}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+      {/* Busca */}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+        <input
+          className="so-field"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Buscar habilitação..."
+          style={{ width: '100%', boxSizing: 'border-box' }}
+        />
+      </div>
+
+      {loading ? (
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+          Carregando...
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
+          <Section title={`Vinculadas (${linked.length})`} items={linked} isLinked={true} />
+          <Section title={`Disponíveis (${unlinked.length})`} items={unlinked} isLinked={false} />
+          {filtered.length === 0 && (
+            <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
+              {search ? 'Nenhuma habilitação encontrada.' : 'Nenhuma habilitação cadastrada em Configurações.'}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── SlideOver principal ──────────────────────────────────────────────────────
 function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, onSaveAcao, onClose }) {
   const [tab, setTab] = useState('visao')
 
   useEffect(() => { if (open) setTab('visao') }, [open])
 
   const acoesParceiro = (acoes || []).filter(a => a.empresa_id === parceiro?.id)
+  const { linkedIds } = usePartnerHabilitacoes(parceiro?.id || null)
 
   if (!parceiro) return null
 
   const TABS = [
-    { key: 'visao',    label: 'Visão Geral' },
-    { key: 'acoes',    label: 'Ações', badge: acoesParceiro.length || undefined },
-    { key: 'historico', label: 'Histórico', badge: history.length || undefined },
+    { key: 'visao',         label: 'Visão Geral' },
+    { key: 'acoes',         label: 'Ações',         badge: acoesParceiro.length || undefined },
+    { key: 'habilitacoes',  label: 'Habilitações',  badge: linkedIds.size || undefined },
+    { key: 'historico',     label: 'Histórico',     badge: history.length || undefined },
   ]
 
   return (
@@ -386,14 +474,15 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       onClose={onClose}
       title={parceiro.nome}
       subtitle={parceiro.segmento || parceiro.tipo || extractEstado(parceiro)}
-      width={540}
+      width={560}
       tabs={TABS}
       activeTab={tab}
       onTabChange={setTab}
     >
-      {tab === 'visao'     && <TabVisaoGeral   parceiro={parceiro} scoreData={scoreData} params={params} />}
-      {tab === 'acoes'     && <TabAcoes        parceiro={parceiro} acoes={acoes} onSaveAcao={onSaveAcao} />}
-      {tab === 'historico' && <TabHistorico    history={history} params={params} />}
+      {tab === 'visao'        && <TabVisaoGeral    parceiro={parceiro} scoreData={scoreData} params={params} />}
+      {tab === 'acoes'        && <TabAcoes         parceiro={parceiro} acoes={acoes} onSaveAcao={onSaveAcao} />}
+      {tab === 'habilitacoes' && <TabHabilitacoes  parceiro_id={parceiro.id} />}
+      {tab === 'historico'    && <TabHistorico     history={history} params={params} />}
     </SlideOver>
   )
 }

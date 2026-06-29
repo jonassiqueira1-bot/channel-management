@@ -5,20 +5,20 @@ import { useProfile } from './useProfile'
 
 // ─── Origens disponíveis ──────────────────────────────────────────────────────
 export const ORIGENS = [
-  { value: 'contacts',     label: 'Contatos mapeados'      },
-  { value: 'oportunidades', label: 'Oportunidades ativas'  },
+  { value: 'sellers',      label: 'Vendedores vinculados'   },
+  { value: 'oportunidades', label: 'Oportunidades ativas'   },
   { value: 'contracts',    label: 'Contratos ativos'        },
   { value: 'actions',      label: 'Ações realizadas'        },
-  { value: 'habilitacoes', label: 'Habilitações vigentes'   },
+  { value: 'habilitacoes', label: 'Habilitações vinculadas' },
 ]
 
 export const CONDICOES = [
-  { value: 'exists',         label: 'Tem pelo menos 1 registro'       },
-  { value: 'count_gte',      label: 'Tem pelo menos N registros'      },
+  { value: 'exists',         label: 'Tem pelo menos 1 registro'          },
+  { value: 'count_gte',      label: 'Tem pelo menos N registros'         },
   { value: 'count_gte_days', label: 'Tem N registros nos últimos X dias' },
 ]
 
-// ─── Hook principal ───────────────────────────────────────────────────────────
+// ─── Hook de parâmetros ───────────────────────────────────────────────────────
 export function usePartnerMaturity() {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -60,12 +60,51 @@ export function usePartnerMaturity() {
   return { params, loading, reload: fetch, save, remove }
 }
 
+// ─── Hook de habilitações do parceiro ────────────────────────────────────────
+export function usePartnerHabilitacoes(parceiro_id) {
+  const { session } = useAuth()
+  const { profile } = useProfile()
+  const [links, setLinks]     = useState([]) // [{ id, habilitacao_id }]
+  const [loading, setLoading] = useState(true)
+
+  const fetch = useCallback(async () => {
+    if (!session?.user || !parceiro_id) return
+    setLoading(true)
+    const { data } = await supabase
+      .from('partner_habilitacoes')
+      .select('id, habilitacao_id')
+      .eq('parceiro_id', parceiro_id)
+    setLinks(data || [])
+    setLoading(false)
+  }, [session, parceiro_id])
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const link = useCallback(async (habilitacao_id) => {
+    const tid = profile?.tenant_id
+    if (!tid) return
+    await supabase.from('partner_habilitacoes').insert({ tenant_id: tid, parceiro_id, habilitacao_id: String(habilitacao_id) })
+    await fetch()
+  }, [profile, parceiro_id, fetch])
+
+  const unlink = useCallback(async (habilitacao_id) => {
+    await supabase.from('partner_habilitacoes').delete()
+      .eq('parceiro_id', parceiro_id)
+      .eq('habilitacao_id', String(habilitacao_id))
+    await fetch()
+  }, [parceiro_id, fetch])
+
+  const linkedIds = new Set(links.map(l => String(l.habilitacao_id)))
+
+  return { links, linkedIds, loading, link, unlink }
+}
+
 // ─── Hook de scores ───────────────────────────────────────────────────────────
 export function usePartnerScores(parceiros, params) {
   const { session } = useAuth()
   const { profile } = useProfile()
 
-  const [scores, setScores]         = useState({}) // parceiro_id → { score_pct, detalhes }
+  const [scores, setScores]           = useState({})
   const [calculating, setCalculating] = useState(false)
 
   // Carrega o score mais recente de cada parceiro
@@ -94,60 +133,96 @@ export function usePartnerScores(parceiros, params) {
     setCalculating(true)
 
     const activeParams = params.filter(p => p.ativo)
-    const totalPeso = activeParams.reduce((s, p) => s + p.peso, 0)
+    const totalPeso    = activeParams.reduce((s, p) => s + p.peso, 0)
 
-    // Busca dados de todas as origens de uma vez
-    const [
-      contactsRes, oppsRes, contractsRes, actionsRes, habRes
-    ] = await Promise.all([
-      supabase.from('contacts').select('id, company_id'),
-      supabase.from('oportunidades').select('id, company_id, situacao, updated_at'),
-      supabase.from('contracts').select('id, company_id, status'),
-      supabase.from('actions').select('id, company_id, created_at, tipo'),
-      supabase.from('habilitacoes').select('id, company_id, status, validade'),
+    // ── Busca dados de todas as origens ──────────────────────────────────────
+    // sellers: vínculo via custom_fields.franquia_id → parceiro.id
+    // oportunidades: vínculo via owner_id → seller → franquia_id
+    // contracts: vínculo via owner_id → seller → franquia_id
+    // actions: vínculo via custom_fields.empresa_id → parceiro.id
+    // habilitacoes: vínculo via partner_habilitacoes table
+    const [sellersRes, oppsRes, contractsRes, actionsRes, habLinksRes] = await Promise.all([
+      supabase.from('sellers').select('id, custom_fields, status'),
+      supabase.from('oportunidades').select('id, owner_id, situacao, created_at'),
+      supabase.from('contracts').select('id, owner_id, status'),
+      supabase.from('actions').select('id, custom_fields, created_at'),
+      supabase.from('partner_habilitacoes').select('parceiro_id, habilitacao_id'),
     ])
 
-    const contacts    = contactsRes.data    || []
-    const opps        = oppsRes.data        || []
-    const contracts   = contractsRes.data   || []
-    const actions     = actionsRes.data     || []
-    const habs        = habRes.data         || []
+    const sellers   = sellersRes.data   || []
+    const opps      = oppsRes.data      || []
+    const contracts = contractsRes.data || []
+    const actions   = actionsRes.data   || []
+    const habLinks  = habLinksRes.data  || []
+
+    // Índice: parceiro_id → Set<seller_id>
+    const parceiroSellers = {}
+    sellers.forEach(s => {
+      const fid = s.custom_fields?.franquia_id
+      if (!fid) return
+      if (!parceiroSellers[fid]) parceiroSellers[fid] = new Set()
+      parceiroSellers[fid].add(s.id)
+    })
+
+    // Índice: parceiro_id → count de habilitações vinculadas
+    const parceiroHabCount = {}
+    habLinks.forEach(h => {
+      parceiroHabCount[h.parceiro_id] = (parceiroHabCount[h.parceiro_id] || 0) + 1
+    })
 
     const now = new Date()
 
     function countFor(origem, parceiro_id, param) {
-      const pid = parceiro_id
+      const sellerIds = parceiroSellers[parceiro_id] || new Set()
+
       switch (origem) {
-        case 'contacts':
-          return contacts.filter(r => r.company_id === pid).length
+        // Vendedores vinculados ao parceiro
+        case 'sellers':
+          return sellers.filter(s => {
+            const fid = s.custom_fields?.franquia_id
+            return fid === parceiro_id && s.status !== 'inativo'
+          }).length
+
+        // Oportunidades ativas de sellers do parceiro
         case 'oportunidades':
-          return opps.filter(r => r.company_id === pid && r.situacao === 'em_andamento').length
+          return opps.filter(o =>
+            sellerIds.has(o.owner_id) && o.situacao === 'em_andamento'
+          ).length
+
+        // Contratos ativos de sellers do parceiro
         case 'contracts':
-          return contracts.filter(r => r.company_id === pid && r.status === 'ativo').length
+          return contracts.filter(c =>
+            sellerIds.has(c.owner_id) && c.status === 'ativo'
+          ).length
+
+        // Ações registradas para este parceiro (via empresa_id no custom_fields)
         case 'actions': {
-          let list = actions.filter(r => r.company_id === pid)
+          let list = actions.filter(a => a.custom_fields?.empresa_id === parceiro_id)
           if (param.janela_dias) {
             const cutoff = new Date(now - param.janela_dias * 86400000)
-            list = list.filter(r => new Date(r.created_at) >= cutoff)
+            list = list.filter(a => new Date(a.created_at) >= cutoff)
           }
           return list.length
         }
+
+        // Habilitações vinculadas via partner_habilitacoes
         case 'habilitacoes':
-          return habs.filter(r => r.company_id === pid && r.status === 'ativo').length
+          return parceiroHabCount[parceiro_id] || 0
+
         default:
           return 0
       }
     }
 
     const newScores = {}
-    const rows = []
+    const rows      = []
 
     for (const parceiro of parceiros) {
       const detalhes = {}
-      let somaPeso = 0
+      let somaPeso   = 0
 
       for (const p of activeParams) {
-        const count = countFor(p.origem, parceiro.id, p)
+        const count    = countFor(p.origem, parceiro.id, p)
         const atingido = count >= p.valor_min
         detalhes[p.id] = { atingido, valor: count, peso: p.peso }
         if (atingido) somaPeso += p.peso
@@ -170,7 +245,7 @@ export function usePartnerScores(parceiros, params) {
   const getHistory = useCallback(async (parceiro_id) => {
     const { data } = await supabase
       .from('partner_maturity_scores')
-      .select('score_pct, calculado_em')
+      .select('score_pct, detalhes, calculado_em')
       .eq('parceiro_id', parceiro_id)
       .order('calculado_em', { ascending: true })
       .limit(30)
