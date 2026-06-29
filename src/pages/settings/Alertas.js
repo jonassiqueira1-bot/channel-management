@@ -535,17 +535,17 @@ export default function SettingsAlertas() {
 
   // ── Listagem ────────────────────────────────────────────────────────────────
   const COLS = [
-    { key: 'gatilho_nome', label: 'Nome',     render: r => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
-    { key: 'origem',       label: 'Origem',   render: r => origemMap[r.origem] || r.origem },
-    { key: 'condicoes',    label: 'Condições',render: r => {
+    { key: 'gatilho_nome', label: 'Nome',     render: (_, r) => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
+    { key: 'origem',       label: 'Origem',   render: (_, r) => origemMap[r.origem] || r.origem },
+    { key: 'condicoes',    label: 'Condições',render: (_, r) => {
       const n = (r.condicoes || []).filter(c => c.campo).length
       return `${n} condição(ões) · ${r.operador_logico || 'E'}`
     }},
-    { key: 'acoes', label: 'Ações', render: r => {
+    { key: 'acoes', label: 'Ações', render: (_, r) => {
       const tipos = { notificar: 'Painel', tarefa: 'Tarefa' }
       return (r.acoes || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')
     }},
-    { key: 'ativo', label: 'Status', render: r => (
+    { key: 'ativo', label: 'Status', render: (_, r) => (
       <button onClick={e => { e.stopPropagation(); toggleAtivo(r) }}
         style={{ padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
           background: r.ativo ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--surface2)',
