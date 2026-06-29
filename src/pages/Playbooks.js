@@ -1457,7 +1457,11 @@ export default function Playbooks() {
       />
       <StepSlideOver
         open={modal?.type === 'step'}
-        initial={modal?.data?.id ? modal.data : { ...EMPTY_STEP, stage: modal?.data?.stage || Object.keys(modal?.stageCfg || STAGE_CFG)[0] || 'prospeccao' }}
+        initial={modal?.data?.id ? modal.data : {
+          ...EMPTY_STEP,
+          stage: modal?.data?.stage || Object.keys(modal?.stageCfg || STAGE_CFG)[0] || 'prospeccao',
+          status_contrato: currentPb?.tipo === 'administrativo' ? (modal?.data?.stage || '') : '',
+        }}
         onSave={saveStep}
         onClose={() => setModal(null)}
         stageCfg={modal?.stageCfg || STAGE_CFG}
