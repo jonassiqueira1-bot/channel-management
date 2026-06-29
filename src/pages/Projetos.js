@@ -4568,6 +4568,8 @@ export default function Projetos() {
         summary:      `Projeto "${merged.name}" concluído. Check-in gerado automaticamente.`,
         produto_id:   null,
         produto_nome: merged.produto_nome || '',
+        projeto_id:   merged.id   || null,
+        projeto_nome: merged.name || '',
       }
       const csExistente = csRecords.find(r => String(r.company_id) === String(merged.company_id))
       if (csExistente) {
