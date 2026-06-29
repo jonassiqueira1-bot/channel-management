@@ -765,11 +765,13 @@ export default function BrowseLayout({
       ) : view === 'card' && renderCard ? (
         <div style={{ ...s.cardGrid, ...(isMobile ? { gridTemplateColumns: '1fr', padding: '12px' } : {}) }}>
           {pageRows.map(row => (
-            <div key={row[keyField]} style={{ position: 'relative' }}>
+            <div key={row[keyField]} style={{ position: 'relative', cursor: onRowClick ? 'pointer' : 'default' }}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}>
               <input
                 type="checkbox"
                 checked={selected.has(row[keyField])}
-                onChange={() => toggleRow(row[keyField])}
+                onChange={e => { e.stopPropagation(); toggleRow(row[keyField]) }}
+                onClick={e => e.stopPropagation()}
                 style={{ ...s.checkbox, position: 'absolute', top: 10, right: 10, zIndex: 1 }}
               />
               {renderCard(row, selected.has(row[keyField]))}
