@@ -12,39 +12,48 @@ const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
 const SUPABASE_SERVICE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 const db = createClient(SUPABASE_URL, SUPABASE_SERVICE)
 
-// ─── Resolve dot-notation no payload ─────────────────────────────────────────
 type Obj = Record<string, unknown>
+
 function get(obj: Obj, path: string): unknown {
   if (!path) return undefined
   return path.split('.').reduce((acc: unknown, k) => (acc as Obj)?.[k], obj)
 }
 
-// ─── Normaliza payload para objeto plano ─────────────────────────────────────
 function flattenPayload(payload: Obj): Obj {
   const lead = (payload.leads as Obj[])?.[0] || (payload.lead as Obj) || payload
   return { ...payload, ...(lead as Obj) }
 }
 
-// ─── Campos mapeáveis (espelha OPP_CAMPOS_MAPEAVEIS do frontend) ──────────────
+// ─── Campos mapeáveis ─────────────────────────────────────────────────────────
 const OPP_CAMPOS = [
   'titulo', 'empresa_nome', 'contato_nome', 'contato_email', 'contato_fone',
   'valor', 'valor_cdu', 'valor_sms', 'valor_servico', 'valor_desconto',
   'origem', 'responsavel', 'prazo', 'situacao', 'descricao',
 ]
+const EMPRESA_CAMPOS = ['name', 'corporate_name', 'cnpj', 'email', 'phone', 'city', 'state', 'website']
+const CONTATO_CAMPOS = ['name', 'email', 'phone', 'job_title']
 
-// ─── Aplica mapeamento da integração ao payload ───────────────────────────────
 function aplicarMapeamento(
+  payload: Obj,
+  mapeamento: Record<string, string>,
+  campos: string[],
+): Record<string, unknown> {
+  const flat = flattenPayload(payload)
+  const resultado: Record<string, unknown> = {}
+  campos.forEach(key => {
+    const path = mapeamento?.[key]
+    if (path) resultado[key] = get(flat, path) ?? get(flat, path.replace('lead.', ''))
+  })
+  return resultado
+}
+
+function aplicarMapeamentoOpp(
   payload: Obj,
   mapeamento: Record<string, string>,
   nomeIntegracao: string,
 ): Record<string, unknown> {
   const flat = flattenPayload(payload)
-
-  const resultado: Record<string, unknown> = {}
-  OPP_CAMPOS.forEach(key => {
-    const path = mapeamento?.[key]
-    if (path) resultado[key] = get(flat, path) ?? get(flat, path.replace('lead.', ''))
-  })
+  const resultado = aplicarMapeamento(payload, mapeamento, OPP_CAMPOS)
 
   return {
     titulo:        resultado.titulo        || flat.name        || flat.email     || 'Lead sem título',
@@ -70,7 +79,107 @@ function aplicarMapeamento(
   }
 }
 
-// ─── Busca primeira etapa do funil (armazenado em form_layouts) ───────────────
+// ─── Upsert Empresa ───────────────────────────────────────────────────────────
+async function upsertEmpresa(
+  tenantId: string,
+  payload: Obj,
+  mapeamento: Record<string, string>,
+  fallback: { name?: string },
+): Promise<string | null> {
+  const campos = aplicarMapeamento(payload, mapeamento, EMPRESA_CAMPOS)
+  const flat   = flattenPayload(payload)
+
+  const name = (campos.name as string) || fallback.name || (flat.company_name as string) || (flat.company as string) || ''
+  if (!name) return null
+
+  const row: Record<string, unknown> = {
+    tenant_id:      tenantId,
+    name,
+    type:           'CUSTOMER',
+    updated_at:     new Date().toISOString(),
+  }
+  if (campos.corporate_name) row.corporate_name = campos.corporate_name
+  if (campos.cnpj)           row.cnpj           = campos.cnpj
+  if (campos.email)          row.email          = campos.email
+  if (campos.phone)          row.phone          = campos.phone
+  if (campos.city)           row.city           = campos.city
+  if (campos.state)          row.state          = campos.state
+  if (campos.website)        row.website        = campos.website
+
+  // Tenta encontrar empresa existente pelo nome (case-insensitive) no tenant
+  const { data: existing } = await db
+    .from('companies')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .ilike('name', name)
+    .maybeSingle()
+
+  if (existing?.id) {
+    await db.from('companies').update(row).eq('id', existing.id)
+    return existing.id as string
+  }
+
+  const { data: inserted } = await db
+    .from('companies')
+    .insert({ ...row, created_at: new Date().toISOString() })
+    .select('id')
+    .single()
+
+  return inserted?.id || null
+}
+
+// ─── Upsert Contato ───────────────────────────────────────────────────────────
+async function upsertContato(
+  tenantId: string,
+  companyId: string | null,
+  payload: Obj,
+  mapeamento: Record<string, string>,
+  fallback: { name?: string; email?: string; phone?: string },
+): Promise<string | null> {
+  const campos = aplicarMapeamento(payload, mapeamento, CONTATO_CAMPOS)
+  const flat   = flattenPayload(payload)
+
+  const name  = (campos.name  as string) || fallback.name  || (flat.name  as string) || ''
+  const email = (campos.email as string) || fallback.email || (flat.email as string) || ''
+  const phone = (campos.phone as string) || fallback.phone || (flat.mobile_phone as string) || (flat.phone as string) || ''
+
+  if (!name && !email) return null
+
+  const row: Record<string, unknown> = {
+    tenant_id:  tenantId,
+    company_id: companyId || null,
+    name:       name || email,
+    updated_at: new Date().toISOString(),
+  }
+  if (email)           row.email     = email
+  if (phone)           row.phone     = phone
+  if (campos.job_title) row.job_title = campos.job_title
+
+  // Dedup por email dentro do tenant
+  if (email) {
+    const { data: existing } = await db
+      .from('contacts')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .ilike('email', email)
+      .maybeSingle()
+
+    if (existing?.id) {
+      await db.from('contacts').update(row).eq('id', existing.id)
+      return existing.id as string
+    }
+  }
+
+  const { data: inserted } = await db
+    .from('contacts')
+    .insert({ ...row, created_at: new Date().toISOString() })
+    .select('id')
+    .single()
+
+  return inserted?.id || null
+}
+
+// ─── Busca primeira etapa do funil ────────────────────────────────────────────
 async function primeiraEtapa(funilId: string | null): Promise<string | null> {
   if (!funilId) return null
   const { data } = await db
@@ -88,7 +197,6 @@ async function primeiraEtapa(funilId: string | null): Promise<string | null> {
 
 // ─── Processa fila de um tenant + provider ────────────────────────────────────
 async function processarTenant(tenantId: string, provider: string): Promise<number> {
-  // Configuração da integração (mapeamento, funil, campanha, nome)
   const { data: integracao } = await db
     .from('integracoes')
     .select('config')
@@ -96,11 +204,15 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
     .eq('provider', provider)
     .maybeSingle()
 
-  const config: Obj    = (integracao?.config as Obj) || {}
-  const mapeamento     = (config.mapeamento as Record<string, string>) || {}
-  const funilId        = (config.funil_id   as string) || null
-  const campanhaId     = (config.campanha_id as string) || null
-  const nomeIntegracao = (config.nome_integracao as string) || provider
+  const config: Obj        = (integracao?.config as Obj) || {}
+  const mapeamento         = (config.mapeamento          as Record<string, string>) || {}
+  const mapeamentoEmpresa  = (config.mapeamento_empresa  as Record<string, string>) || {}
+  const mapeamentoContato  = (config.mapeamento_contato  as Record<string, string>) || {}
+  const funilId            = (config.funil_id            as string) || null
+  const campanhaId         = (config.campanha_id         as string) || null
+  const nomeIntegracao     = (config.nome_integracao     as string) || provider
+  const criarEmpresa       = config.criar_empresa  !== false  // default true
+  const criarContato       = config.criar_contato  !== false  // default true
 
   const etapaId = await primeiraEtapa(funilId)
 
@@ -116,7 +228,6 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
       .filter(Boolean)
   )
 
-  // Itens pendentes para este tenant+provider
   const { data: fila } = await db
     .from('rd_leads_queue')
     .select('id, payload')
@@ -127,7 +238,6 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
 
   if (!fila?.length) return 0
 
-  // Filtra pelo provider correto (marcado como _provider no payload pela integration-webhook)
   const filaDoProv = fila.filter(
     item => ((item.payload as Obj)?._provider as string) === provider
   )
@@ -137,19 +247,37 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
   const processados: string[] = []
 
   for (const item of filaDoProv) {
-    const campos = aplicarMapeamento(item.payload as Obj, mapeamento, nomeIntegracao)
+    const payload = item.payload as Obj
+    const campos  = aplicarMapeamentoOpp(payload, mapeamento, nomeIntegracao)
 
-    // Pula duplicatas
     if (campos.rd_lead_id && rdIdsExistentes.has(campos.rd_lead_id as string)) {
       processados.push(item.id as string)
       continue
     }
 
-    // Insere oportunidade — schema idêntico ao oppToRow() do frontend
+    // 1. Upsert Empresa
+    let companyId: string | null = null
+    if (criarEmpresa) {
+      companyId = await upsertEmpresa(tenantId, payload, mapeamentoEmpresa, {
+        name: campos.empresa_nome as string,
+      })
+    }
+
+    // 2. Upsert Contato
+    let _contactId: string | null = null
+    if (criarContato) {
+      _contactId = await upsertContato(tenantId, companyId, payload, mapeamentoContato, {
+        name:  campos.contato_nome  as string,
+        email: campos.contato_email as string,
+        phone: campos.contato_fone  as string,
+      })
+    }
+
+    // 3. Cria Oportunidade
     const { error } = await db.from('oportunidades').insert({
       tenant_id:   tenantId,
       titulo:      campos.titulo,
-      stage_id:    etapaId,           // coluna real do DB
+      stage_id:    etapaId,
       valor:       campos.valor,
       situacao:    campos.situacao,
       origem:      campos.origem,
@@ -157,8 +285,9 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
       responsavel: campos.responsavel || '',
       prazo:       campos.prazo || null,
       campanha_id: campanhaId || null,
+      company_id:  companyId || null,
       custom_fields: {
-        funil_id:             funilId,   // funil_id fica em custom_fields (não é coluna)
+        funil_id:             funilId,
         funil_nome:           '',
         etapa_id:             etapaId,
         empresa_nome:         campos.empresa_nome,
@@ -184,7 +313,6 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
     processados.push(item.id as string)
   }
 
-  // Marca como processados (mesmo os duplicatas pulados)
   if (processados.length) {
     await db.from('rd_leads_queue').update({ processed: true }).in('id', processados)
   }
@@ -197,7 +325,6 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
   try {
-    // Agrupa pendentes por tenant + provider
     const { data: pendentes } = await db
       .from('rd_leads_queue')
       .select('tenant_id, payload')
@@ -207,7 +334,6 @@ serve(async (req) => {
       return json({ ok: true, mensagem: 'Nenhum lead pendente', oportunidades_criadas: 0 })
     }
 
-    // Monta mapa { tenantId → Set<provider> }
     const filaMap = new Map<string, Set<string>>()
     for (const row of pendentes) {
       const tid  = row.tenant_id as string
