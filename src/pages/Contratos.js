@@ -1067,15 +1067,16 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         <textarea className="so-field" value={form.observacoes || ''} onChange={e => set('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" style={{ minHeight: 80, resize: 'vertical' }} />
       </FormSection>
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : isNew ? 'Criar contrato' : 'Salvar alterações'}</Button>
-      </div>
-
-      {!isNew && (
-        <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
-      )}
     </div>
+
+    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+      <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : isNew ? 'Criar contrato' : 'Salvar alterações'}</Button>
+    </div>
+
+    {!isNew && (
+      <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
+    )}
     </>
   )
 }
@@ -1140,32 +1141,80 @@ function ContratoPlaybookPanel({ form, setForm }) {
     () => playbooks.filter(p => p.tipo === 'administrativo' || p.segment === 'administrativo' || (p.segment||'').toLowerCase().includes('admin')),
     [playbooks]
   )
-  const pb = useMemo(() => adminPlaybooks.find(p => p.id === form.playbook_id) || null, [adminPlaybooks, form.playbook_id])
-  const stCfg = STATUS_CONTRATO.find(s => s.value === form.status)
-  const steps = useMemo(() => {
+  const pb      = useMemo(() => adminPlaybooks.find(p => p.id === form.playbook_id) || null, [adminPlaybooks, form.playbook_id])
+  const stCfg   = STATUS_CONTRATO.find(s => s.value === form.status)
+  const steps   = useMemo(() => {
     if (!pb) return []
-    return (pb.steps || []).filter(s => !s.status_contrato || s.status_contrato === form.status)
+    return (pb.steps || []).filter(s => !s.status_contrato || s.status_contrato === form.status || s.status_contrato === 'todos')
   }, [pb, form.status])
-  const allSteps = useMemo(() => pb ? (pb.steps || []) : [], [pb])
+  const allSteps    = useMemo(() => pb ? (pb.steps || []) : [], [pb])
+  const resources   = useMemo(() => pb ? (pb.resources || []) : [], [pb])
+  const refs        = useMemo(() => pb ? (pb.refs || []) : [], [pb])
 
   const S = {
-    root:     { padding:'20px 24px', display:'flex', flexDirection:'column', gap:20 },
-    sLabel:   { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em',
-                color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6 },
-    line:     { flex:1, height:1, background:'var(--border2)' },
-    stepCard: { background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:10, padding:'12px 14px' },
-    stepTitle:{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:4 },
-    stepDesc: { fontSize:12, color:'var(--text-soft)', lineHeight:1.6 },
-    badge:    { display:'inline-flex', padding:'2px 8px', borderRadius:10, fontSize:10, fontWeight:700 },
+    root:      { padding:'20px 24px', display:'flex', flexDirection:'column', gap:20 },
+    sLabel:    { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em',
+                 color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6 },
+    line:      { flex:1, height:1, background:'var(--border2)' },
+    stepCard:  { background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:10, padding:'14px 16px' },
+    stepTitle: { fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:8 },
+    badge:     { display:'inline-flex', padding:'2px 8px', borderRadius:10, fontSize:10, fontWeight:700 },
+    mdP:       { fontSize:13, color:'var(--text-soft)', lineHeight:1.7, margin:'0 0 6px' },
+    mdH2:      { fontSize:13, fontWeight:700, color:'var(--text)', margin:'12px 0 4px', borderBottom:'1px solid var(--border2)', paddingBottom:4 },
+    mdH3:      { fontSize:12, fontWeight:700, color:'var(--text)', margin:'10px 0 4px' },
+    mdLi:      { fontSize:13, color:'var(--text-soft)', lineHeight:1.65, marginBottom:3 },
+    resGrid:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:8 },
+    resCard:   { border:'1px solid var(--border2)', borderRadius:9, padding:'10px 12px',
+                 background:'var(--surface)', display:'flex', flexDirection:'column', gap:6 },
+    resTitle:  { fontSize:12, fontWeight:600, color:'var(--text)', lineHeight:1.35 },
+    resLink:   { fontSize:11, color:'var(--accent)', textDecoration:'none', fontWeight:600, marginTop:'auto' },
+    refCard:   { border:'1px solid var(--border2)', borderRadius:9, padding:'12px 14px',
+                 background:'var(--surface)', display:'flex', alignItems:'flex-start', gap:10 },
+    refLogo:   { width:32, height:32, borderRadius:7, display:'flex', alignItems:'center',
+                 justifyContent:'center', fontWeight:800, fontSize:11, flexShrink:0 },
+    empty:     { padding:'16px 0', textAlign:'center', color:'var(--text-muted)', fontSize:13 },
+  }
+
+  function MiniMd({ content }) {
+    if (!content) return null
+    return (
+      <div>
+        {(content || '').split('\n').map((line, i) => {
+          if (line.startsWith('## '))  return <div key={i} style={S.mdH2}>{line.slice(3)}</div>
+          if (line.startsWith('### ')) return <div key={i} style={S.mdH3}>{line.slice(4)}</div>
+          if (line.startsWith('- ') || line.startsWith('* '))
+            return <div key={i} style={{ display:'flex', gap:6, marginBottom:3 }}>
+              <span style={{ color:'var(--accent)', flexShrink:0 }}>•</span>
+              <span style={S.mdLi}>{line.slice(2)}</span>
+            </div>
+          if (line.startsWith('> '))
+            return <div key={i} style={{ borderLeft:'3px solid var(--accent)', paddingLeft:10,
+              margin:'6px 0', background:'var(--accent-glow)', borderRadius:'0 6px 6px 0', padding:'6px 10px' }}>
+              <span style={{ fontSize:13, color:'var(--text-soft)', fontStyle:'italic' }}>{line.slice(2)}</span>
+            </div>
+          if (line.trim() === '') return null
+          return <p key={i} style={S.mdP}>{line}</p>
+        })}
+      </div>
+    )
+  }
+
+  function SectionHeading({ icon, label, badge }) {
+    return (
+      <div style={{ ...S.sLabel, marginBottom:8 }}>
+        {icon && <span>{icon}</span>}
+        <span>{label}</span>
+        {badge}
+        <span style={S.line} />
+      </div>
+    )
   }
 
   return (
     <div style={S.root}>
       {/* Seletor */}
       <div>
-        <div style={{ ...S.sLabel, marginBottom:8 }}>
-          <span>Playbook administrativo</span><span style={S.line} />
-        </div>
+        <SectionHeading label="Playbook administrativo" />
         <SearchSelect
           options={adminPlaybooks.map(p => ({ id: p.id, label: p.title||p.titulo, sublabel: p.description||p.segment||'', color:'var(--accent)' }))}
           value={form.playbook_id || null}
@@ -1176,59 +1225,99 @@ function ContratoPlaybookPanel({ form, setForm }) {
         {adminPlaybooks.length === 0 && (
           <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8, padding:'8px 12px',
             background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border2)' }}>
-            Nenhum playbook do tipo <strong>Administrativo</strong> cadastrado. Crie um em Playbooks e defina o segmento como "administrativo".
+            Nenhum playbook do tipo <strong>Administrativo</strong> cadastrado. Crie um em Playbooks.
           </div>
         )}
       </div>
 
       {pb && (
         <>
-          {/* Status atual */}
-          <div>
-            <div style={{ ...S.sLabel, marginBottom:8 }}>
-              <span>Atividades para este status</span>
-              {stCfg && <span style={{ ...S.badge, background: stCfg.bg, color: stCfg.text }}>{stCfg.label}</span>}
-              <span style={S.line} />
+          {/* Header do playbook */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, paddingBottom:16, borderBottom:'1px solid var(--border2)' }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', letterSpacing:'-0.2px' }}>{pb.title}</div>
+              {pb.description && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{pb.description}</div>}
             </div>
+            {stCfg && <span style={{ ...S.badge, background:stCfg.bg, color:stCfg.text }}>{stCfg.label}</span>}
+          </div>
+
+          {/* Atividades para este status */}
+          <div>
+            <SectionHeading icon="🎯" label="Atividades para este status"
+              badge={stCfg && <span style={{ ...S.badge, background:stCfg.bg, color:stCfg.text }}>{stCfg.label}</span>} />
             {steps.length === 0 ? (
-              <div style={{ fontSize:13, color:'var(--text-muted)', padding:'12px 0' }}>
+              <div style={S.empty}>
                 Nenhuma atividade configurada para o status <strong>{stCfg?.label || form.status}</strong> neste playbook.
               </div>
             ) : (
               <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
                 {steps.map((s, i) => (
-                  <div key={i} style={S.stepCard}>
-                    <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4 }}>
-                      <span style={{ width:20, height:20, borderRadius:5, background:'var(--accent-glow)',
-                        color:'var(--accent)', fontSize:10, fontWeight:700, display:'flex',
-                        alignItems:'center', justifyContent:'center', flexShrink:0 }}>{i+1}</span>
-                      <div style={S.stepTitle}>{s.title || s.titulo}</div>
-                    </div>
-                    {s.description && <div style={S.stepDesc}>{s.description}</div>}
+                  <div key={s.id || i} style={S.stepCard}>
+                    <div style={S.stepTitle}>{s.icone && <span style={{ marginRight:6 }}>{s.icone}</span>}{s.title || s.titulo}</div>
+                    <MiniMd content={s.content} />
                   </div>
                 ))}
               </div>
             )}
           </div>
 
-          {/* Todas as atividades do playbook */}
-          {allSteps.length > steps.length && (
+          {/* Todas as atividades */}
+          {allSteps.length > 0 && (
             <div>
-              <div style={{ ...S.sLabel, marginBottom:8 }}>
-                <span>Todas as atividades</span><span style={S.line} />
-              </div>
+              <SectionHeading icon="📋" label="Todas as atividades do playbook" />
               <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                 {allSteps.map((s, i) => {
                   const sc = s.status_contrato ? STATUS_CONTRATO.find(x => x.value === s.status_contrato) : null
+                  const isActive = !s.status_contrato || s.status_contrato === form.status || s.status_contrato === 'todos'
                   return (
-                    <div key={i} style={{ ...S.stepCard, opacity: s.status_contrato && s.status_contrato !== form.status ? 0.5 : 1 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <div style={{ flex:1, fontSize:12, fontWeight:600, color:'var(--text)' }}>{s.title||s.titulo}</div>
-                        {sc && <span style={{ ...S.badge, background: sc.bg, color: sc.text }}>{sc.label}</span>}
+                    <div key={s.id || i} style={{ ...S.stepCard, opacity: isActive ? 1 : 0.45 }}>
+                      <div style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom: s.content ? 6 : 0 }}>
+                            {s.icone && <span style={{ marginRight:6 }}>{s.icone}</span>}{s.title||s.titulo}
+                          </div>
+                          {isActive && <MiniMd content={s.content} />}
+                        </div>
+                        {sc && <span style={{ ...S.badge, background:sc.bg, color:sc.text, flexShrink:0 }}>{sc.label}</span>}
                       </div>
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Materiais de apoio */}
+          {resources.length > 0 && (
+            <div>
+              <SectionHeading icon="📂" label="Materiais de Apoio" />
+              <div style={S.resGrid}>
+                {resources.map((res, i) => (
+                  <div key={res.id || i} style={S.resCard}>
+                    <div style={S.resTitle}>{res.title}</div>
+                    {res.url && <a href={res.url} target="_blank" rel="noreferrer" style={S.resLink}>↗ Abrir</a>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Clientes de referência */}
+          {refs.length > 0 && (
+            <div>
+              <SectionHeading icon="🏆" label="Clientes de Referência" />
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {refs.map((ref, i) => (
+                  <div key={ref.id || i} style={S.refCard}>
+                    <div style={{ ...S.refLogo, background:(ref.logo_color||'var(--accent)')+'22', color:ref.logo_color||'var(--accent)', border:`1px solid ${ref.logo_color||'var(--accent)'}44` }}>
+                      {ref.logo_initials || (ref.company_name||'').slice(0,2).toUpperCase()}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{ref.company_name}</div>
+                      {ref.summary && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{ref.summary}</div>}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           )}

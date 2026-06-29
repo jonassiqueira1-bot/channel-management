@@ -526,6 +526,26 @@ const OPP_CAMPOS_MAPEAVEIS = [
   { key: 'descricao',           label: 'Descrição / Observações',  native: true },
 ]
 
+// ─── Campos de empresa mapeáveis ─────────────────────────────────────────────
+const EMPRESA_CAMPOS_MAPEAVEIS = [
+  { key: 'name',           label: 'Nome fantasia'   },
+  { key: 'corporate_name', label: 'Razão social'    },
+  { key: 'cnpj',           label: 'CNPJ'            },
+  { key: 'email',          label: 'E-mail'          },
+  { key: 'phone',          label: 'Telefone'        },
+  { key: 'city',           label: 'Cidade'          },
+  { key: 'state',          label: 'Estado (UF)'     },
+  { key: 'website',        label: 'Website'         },
+]
+
+// ─── Campos de contato mapeáveis ─────────────────────────────────────────────
+const CONTATO_CAMPOS_MAPEAVEIS = [
+  { key: 'name',      label: 'Nome'          },
+  { key: 'email',     label: 'E-mail'        },
+  { key: 'phone',     label: 'Telefone'      },
+  { key: 'job_title', label: 'Cargo'         },
+]
+
 // ─── Métodos de conexão disponíveis ──────────────────────────────────────────
 const METODOS_CONEXAO = [
   { id: 'webhook', label: 'Webhook', desc: 'Receba eventos em tempo real via HTTP POST', tag: 'Ativo' },
@@ -575,6 +595,12 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   const [campanhaId, setCampanhaId]   = useState('')
   const [campanhas]                   = useLocalState('settings:campanhas_v1', [])
 
+  // Empresa e Contato
+  const [criarEmpresa, setCriarEmpresa]             = useState(true)
+  const [criarContato, setCriarContato]             = useState(true)
+  const [mapeamentoEmpresa, setMapeamentoEmpresa]   = useState({})
+  const [mapeamentoContato, setMapeamentoContato]   = useState({})
+
   const [payloadLog, setPayloadLog] = useState(null)
 
   useEffect(() => {
@@ -594,6 +620,10 @@ function RdStationFullEdit({ provider, onClose, toast }) {
         setLastSync(data.last_sync_at)
         setMapeamento({ ...defaultMap, ...(data.config?.mapeamento || {}) })
         setCampanhaId(data.config?.campanha_id || '')
+        setCriarEmpresa(data.config?.criar_empresa !== false)
+        setCriarContato(data.config?.criar_contato !== false)
+        setMapeamentoEmpresa(data.config?.mapeamento_empresa || {})
+        setMapeamentoContato(data.config?.mapeamento_contato || {})
       })
   }, [profile?.tenant_id]) // eslint-disable-line
 
@@ -606,7 +636,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
       tenant_id:   profile.tenant_id,
       provider:    provider.id,
       credentials: {},
-      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData, mapeamento, campanha_id: campanhaId },
+      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData, mapeamento, campanha_id: campanhaId, criar_empresa: criarEmpresa, criar_contato: criarContato, mapeamento_empresa: mapeamentoEmpresa, mapeamento_contato: mapeamentoContato },
       status:      'active',
       updated_at:  new Date().toISOString(),
     }, { onConflict: 'tenant_id,provider' })
@@ -877,6 +907,90 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                     <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads importados entram vinculados a esta campanha.</span>
                   </div>
                 )}
+
+                {/* ── Criar Empresa ── */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Empresa</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cada lead cria ou atualiza um registro em Empresas</div>
+                    </div>
+                    <button onClick={() => setCriarEmpresa(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      {criarEmpresa
+                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
+                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                    </button>
+                  </div>
+                  {criarEmpresa && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {EMPRESA_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                            <tr key={campo.key} style={{ borderBottom: i < EMPRESA_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', width: '42%' }}>{campo.label}</td>
+                              <td style={{ padding: '3px 6px' }}>
+                                <input
+                                  value={mapeamentoEmpresa[campo.key] || ''}
+                                  onChange={e => setMapeamentoEmpresa(m => ({ ...m, [campo.key]: e.target.value }))}
+                                  placeholder={campo.key}
+                                  style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                {/* ── Criar Contato ── */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Contato</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>O contato do lead é salvo em Contatos e vinculado à Empresa</div>
+                    </div>
+                    <button onClick={() => setCriarContato(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      {criarContato
+                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
+                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                    </button>
+                  </div>
+                  {criarContato && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {CONTATO_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                            <tr key={campo.key} style={{ borderBottom: i < CONTATO_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', width: '42%' }}>{campo.label}</td>
+                              <td style={{ padding: '3px 6px' }}>
+                                <input
+                                  value={mapeamentoContato[campo.key] || ''}
+                                  onChange={e => setMapeamentoContato(m => ({ ...m, [campo.key]: e.target.value }))}
+                                  placeholder={campo.key}
+                                  style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
 
                 {/* Leads pendentes */}
                 {leads !== null && leads.length > 0 && (
