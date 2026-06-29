@@ -770,20 +770,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
   function TabOportunidades() {
     const totalValor = opps.reduce((s, o) => s + (Number(o.valor) || 0), 0)
-    const [adicionando, setAdicionando] = useState(false)
-    const [novaOpp, setNovaOpp] = useState({ titulo:'', situacao:'em_andamento', valor:'', data:'' })
-
-    async function salvarOpp() {
-      if (!novaOpp.titulo.trim()) return
-      await saveOpp({
-        titulo: novaOpp.titulo, situacao: novaOpp.situacao,
-        valor: Number(novaOpp.valor) || 0, prazo: novaOpp.data || null,
-        empresa_id: item?.id, empresa_nome: form.fantasia || form.razao || '',
-      })
-      setNovaOpp({ titulo:'', situacao:'em_andamento', valor:'', data:'' })
-      setAdicionando(false)
-    }
-
     const SIT = { em_andamento:{ label:'Em andamento', bg:'#FFFBEB', text:'#92400E' }, ganha:{ label:'Ganha', bg:'var(--green-bg)', text:'var(--green-text)' }, perdida:{ label:'Perdida', bg:'#FEF2F2', text:'#991B1B' } }
 
     return (
@@ -807,60 +793,17 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
 
         <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
           boxShadow:'0 1px 3px rgba(0,0,0,0.06)', overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-            padding:'14px 20px', borderBottom: opps.length > 0 || adicionando ? '1px solid var(--border2)' : 'none' }}>
+          <div style={{ padding:'14px 20px', borderBottom: opps.length > 0 ? '1px solid var(--border2)' : 'none' }}>
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {opps.length} oportunidade{opps.length !== 1 ? 's' : ''}
             </span>
-            <Button size="sm" onClick={() => setAdicionando(true)}>+ Nova oportunidade</Button>
           </div>
-
-          {adicionando && (
-            <div style={{ padding:'16px 20px', background:'var(--surface2)', borderBottom:'1px solid var(--border2)',
-              display:'flex', flexDirection:'column', gap:8 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <div>
-                  <label className="so-label">Título</label>
-                  <input className="so-field" value={novaOpp.titulo}
-                    onChange={e => setNovaOpp(p => ({ ...p, titulo:e.target.value }))}
-                    placeholder="Ex: Renovação contrato 2025" />
-                </div>
-                <div>
-                  <label className="so-label">Situação</label>
-                  <select className="so-field" value={novaOpp.situacao}
-                    onChange={e => setNovaOpp(p => ({ ...p, situacao:e.target.value }))}>
-                    <option value="em_andamento">Em andamento</option>
-                    <option value="ganha">Ganha</option>
-                    <option value="perdida">Perdida</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="so-label">Valor (R$)</label>
-                  <input className="so-field" type="number" min="0" value={novaOpp.valor}
-                    onChange={e => setNovaOpp(p => ({ ...p, valor:e.target.value }))}
-                    placeholder="0" />
-                </div>
-                <div>
-                  <label className="so-label">Prazo</label>
-                  <input className="so-field" type="date" value={novaOpp.data}
-                    onChange={e => setNovaOpp(p => ({ ...p, data:e.target.value }))} />
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
-                <Button size="sm" onClick={salvarOpp}>Salvar</Button>
-              </div>
-            </div>
-          )}
 
           {opps.map((o, i) => {
             const sit = SIT[o.situacao] || SIT.em_andamento
             return (
               <div key={o.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px',
-                borderBottom: i < opps.length - 1 ? '1px solid var(--border2)' : 'none',
-                transition:'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                borderBottom: i < opps.length - 1 ? '1px solid var(--border2)' : 'none' }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{o.titulo}</div>
                   {o.prazo && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>Prazo: {o.prazo}</div>}
@@ -873,15 +816,11 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                     R$ {Number(o.valor).toLocaleString('pt-BR')}
                   </span>
                 )}
-                <button onClick={() => removeOpp(o.id)}
-                  style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
-                    fontSize:13, padding:'2px 6px', borderRadius:4, lineHeight:1 }}
-                  title="Remover">✕</button>
               </div>
             )
           })}
 
-          {opps.length === 0 && !adicionando && (
+          {opps.length === 0 && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
               Nenhuma oportunidade vinculada a esta empresa
             </div>
@@ -892,22 +831,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   }
 
   function TabContratos() {
-    const [adicionando, setAdicionando] = useState(false)
-    const [novoContrato, setNovoContrato] = useState({ numero:'', tipo:'', status:'ativo', valor:'', validade:'' })
-
-    async function salvarContrato() {
-      if (!novoContrato.numero.trim()) return
-      await saveContrato({
-        numero: novoContrato.numero, status: novoContrato.status,
-        valor_mrr: Number(novoContrato.valor) || 0,
-        vigencia_fim: novoContrato.validade || null,
-        empresa_id: item?.id, empresa_nome: form.fantasia || form.razao || '',
-        produto_mrr_nome: novoContrato.tipo,
-      })
-      setNovoContrato({ numero:'', tipo:'', status:'ativo', valor:'', validade:'' })
-      setAdicionando(false)
-    }
-
     const STATUS_CONTRATO = {
       ativo:    { label:'Ativo',      bg:'var(--green-bg)',  text:'var(--green-text)' },
       encerrado:{ label:'Encerrado',  bg:'var(--surface3)',  text:'var(--text-muted)' },
@@ -918,67 +841,18 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
           boxShadow:'0 1px 3px rgba(0,0,0,0.06)', overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-            padding:'14px 20px', borderBottom: contratos.length > 0 || adicionando ? '1px solid var(--border2)' : 'none' }}>
+          <div style={{ padding:'14px 20px', borderBottom: contratos.length > 0 ? '1px solid var(--border2)' : 'none' }}>
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {contratos.length} contrato{contratos.length !== 1 ? 's' : ''}
             </span>
-            <Button size="sm" onClick={() => setAdicionando(true)}>+ Novo contrato</Button>
           </div>
-
-          {adicionando && (
-            <div style={{ padding:'16px 20px', background:'var(--surface2)', borderBottom:'1px solid var(--border2)',
-              display:'flex', flexDirection:'column', gap:8 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <div>
-                  <label className="so-label">Número</label>
-                  <input className="so-field" value={novoContrato.numero}
-                    onChange={e => setNovoContrato(p => ({ ...p, numero:e.target.value }))}
-                    placeholder="Ex: CT-2025-001" />
-                </div>
-                <div>
-                  <label className="so-label">Tipo / Produto</label>
-                  <input className="so-field" value={novoContrato.tipo}
-                    onChange={e => setNovoContrato(p => ({ ...p, tipo:e.target.value }))}
-                    placeholder="Ex: Licença, Serviço…" />
-                </div>
-                <div>
-                  <label className="so-label">Status</label>
-                  <select className="so-field" value={novoContrato.status}
-                    onChange={e => setNovoContrato(p => ({ ...p, status:e.target.value }))}>
-                    <option value="ativo">Ativo</option>
-                    <option value="encerrado">Encerrado</option>
-                    <option value="renovacao">Em Renovação</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="so-label">Valor MRR (R$)</label>
-                  <input className="so-field" type="number" min="0" value={novoContrato.valor}
-                    onChange={e => setNovoContrato(p => ({ ...p, valor:e.target.value }))}
-                    placeholder="0" />
-                </div>
-                <div>
-                  <label className="so-label">Validade</label>
-                  <input className="so-field" type="date" value={novoContrato.validade}
-                    onChange={e => setNovoContrato(p => ({ ...p, validade:e.target.value }))} />
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
-                <Button size="sm" onClick={salvarContrato}>Salvar</Button>
-              </div>
-            </div>
-          )}
 
           {contratos.map((c, i) => {
             const sc = STATUS_CONTRATO[c.status] || STATUS_CONTRATO.ativo
             const valor = c.valor_mrr || c.valor || 0
             return (
               <div key={c.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px',
-                borderBottom: i < contratos.length - 1 ? '1px solid var(--border2)' : 'none',
-                transition:'background 0.1s' }}
-                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                borderBottom: i < contratos.length - 1 ? '1px solid var(--border2)' : 'none' }}>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                     <span style={{ fontSize:13, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{c.numero}</span>
@@ -994,15 +868,11 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                     R$ {Number(valor).toLocaleString('pt-BR')}
                   </span>
                 )}
-                <button onClick={() => removeContrato(c.id)}
-                  style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer',
-                    fontSize:13, padding:'2px 6px', borderRadius:4, lineHeight:1 }}
-                  title="Remover">✕</button>
               </div>
             )
           })}
 
-          {contratos.length === 0 && !adicionando && (
+          {contratos.length === 0 && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
               Nenhum contrato vinculado a esta empresa
             </div>
@@ -1013,9 +883,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   }
 
   function TabProjetos() {
-    const [adicionando, setAdicionando] = useState(false)
-    const [novoPrj, setNovoPrj] = useState({ name:'', status:'em_andamento', phase:'iniciacao' })
-
     const FASES = [
       { value:'iniciacao',   label:'Iniciação'   },
       { value:'diagnostico', label:'Diagnóstico'  },
@@ -1031,65 +898,15 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
       cancelado:    { label:'Cancelado',    bg:'#FEF2F2', text:'#991B1B' },
     }
 
-    async function salvarProjeto() {
-      if (!novoPrj.name.trim()) return
-      await saveProjeto({
-        name: novoPrj.name.trim(),
-        status: novoPrj.status,
-        phase: novoPrj.phase,
-        current_phase_index: FASES.findIndex(f => f.value === novoPrj.phase) + 1 || 1,
-        company_id: item?.id,
-        company_nome: form.fantasia || form.razao || '',
-        total_hours_estimated: 0,
-        total_hours_executed: 0,
-      })
-      setNovoPrj({ name:'', status:'em_andamento', phase:'iniciacao' })
-      setAdicionando(false)
-    }
-
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
         <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
           boxShadow:'0 1px 3px rgba(0,0,0,0.06)', overflow:'hidden' }}>
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-            padding:'14px 20px', borderBottom: projetos.length > 0 || adicionando ? '1px solid var(--border2)' : 'none' }}>
+          <div style={{ padding:'14px 20px', borderBottom: projetos.length > 0 ? '1px solid var(--border2)' : 'none' }}>
             <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
               {projetos.length} projeto{projetos.length !== 1 ? 's' : ''}
             </span>
-            <Button size="sm" onClick={() => setAdicionando(true)}>+ Novo projeto</Button>
           </div>
-
-          {adicionando && (
-            <div style={{ padding:'16px 20px', background:'var(--surface2)', borderBottom:'1px solid var(--border2)',
-              display:'flex', flexDirection:'column', gap:8 }}>
-              <div>
-                <label className="so-label">Nome do projeto</label>
-                <input className="so-field" value={novoPrj.name} autoFocus
-                  onChange={e => setNovoPrj(p => ({ ...p, name:e.target.value }))}
-                  placeholder="Ex: Implantação ERP" />
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <div>
-                  <label className="so-label">Fase MIT</label>
-                  <select className="so-field" value={novoPrj.phase}
-                    onChange={e => setNovoPrj(p => ({ ...p, phase:e.target.value }))}>
-                    {FASES.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="so-label">Status</label>
-                  <select className="so-field" value={novoPrj.status}
-                    onChange={e => setNovoPrj(p => ({ ...p, status:e.target.value }))}>
-                    {Object.entries(STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:8, justifyContent:'flex-end', marginTop:4 }}>
-                <Button variant="secondary" size="sm" onClick={() => setAdicionando(false)}>Cancelar</Button>
-                <Button size="sm" onClick={salvarProjeto}>Salvar</Button>
-              </div>
-            </div>
-          )}
 
           {projetos.map((p, i) => {
             const sit = STATUS[p.status] || STATUS.em_andamento
