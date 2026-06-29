@@ -750,13 +750,23 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
   }, [form.rule_id])
 
   async function submit() {
-    if (!form.beneficiario_nome.trim()) { setErr('Informe o beneficiário.'); return }
-    if (!form.data_vencimento)          { setErr('Informe a data de vencimento.'); return }
+    // Resolve nome efetivo: usuário selecionado ou label da persona
+    const personaObj = personas.find(p => p.slug === form.persona || p.id === form.persona)
+    const nomeEfetivo = (form.beneficiario_nome || '').trim() || personaObj?.label || form.persona || ''
+    if (!nomeEfetivo) { setErr('Informe o beneficiário ou selecione uma persona.'); return }
     if (!form.valor_base || parseFloat(form.valor_base) <= 0) { setErr('Informe um valor base válido.'); return }
     setSaving(true); setErr(null)
     try {
       await new Promise(r => setTimeout(r, 300))
-      onSave({ ...form, id: form.id||`p${Date.now()}`, valor_base: parseFloat(form.valor_base), percentual: parseFloat(form.percentual), valor_comissao: parseFloat(comissaoCalculada) })
+      onSave({
+        ...form,
+        id:               form.id || `p${Date.now()}`,
+        beneficiario_nome: nomeEfetivo,
+        persona_slug:     form.persona || '',
+        valor_base:       parseFloat(form.valor_base),
+        percentual:       parseFloat(form.percentual),
+        valor_comissao:   parseFloat(comissaoCalculada),
+      })
       onClose()
     } catch(e) { setErr(e.message||'Erro ao salvar.') }
     finally { setSaving(false) }
