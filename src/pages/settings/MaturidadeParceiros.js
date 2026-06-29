@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react'
 import { usePartnerMaturity, ORIGENS, CONDICOES } from '../../hooks/usePartnerMaturity'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
-import Button from '../../components/Button'
 
 const EMPTY_PARAM = {
   nome:        '',
@@ -16,28 +15,8 @@ const EMPTY_PARAM = {
   ordem:       0,
 }
 
-function ParamBadge({ ativo }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '2px 9px', borderRadius: 20,
-      background: ativo ? '#D1FAE5' : '#F3F4F6',
-      color: ativo ? '#065F46' : '#374151',
-      fontSize: 11, fontWeight: 600,
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: '50%', background: ativo ? '#10B981' : '#9CA3AF', display: 'inline-block' }} />
-      {ativo ? 'Ativo' : 'Inativo'}
-    </span>
-  )
-}
-
-function origemLabel(v) {
-  return ORIGENS.find(o => o.value === v)?.label || v
-}
-
-function condicaoLabel(v) {
-  return CONDICOES.find(c => c.value === v)?.label || v
-}
+function origemLabel(v) { return ORIGENS.find(o => o.value === v)?.label || v }
+function condicaoLabel(v) { return CONDICOES.find(c => c.value === v)?.label || v }
 
 export default function MaturidadeParceiros() {
   const { params, loading, save, remove } = usePartnerMaturity()
@@ -47,6 +26,7 @@ export default function MaturidadeParceiros() {
   const [saving, setSaving]       = useState(false)
   const [errs, setErrs]           = useState({})
   const [form, setForm]           = useState({ ...EMPTY_PARAM })
+  const [search, setSearch]       = useState('')
 
   const totalPeso = useMemo(
     () => params.filter(p => p.ativo).reduce((s, p) => s + p.peso, 0),
@@ -78,8 +58,7 @@ export default function MaturidadeParceiros() {
     if (form.peso < 1) e.peso = 'Peso mínimo é 1'
     if (Object.keys(e).length) { setErrs(e); return }
     setSaving(true)
-    const row = { ...form, id: editando?.id }
-    const res = await save(row)
+    const res = await save({ ...form, id: editando?.id })
     setSaving(false)
     if (res.ok) { setSlideOpen(false); setEditando(null) }
   }
@@ -92,105 +71,94 @@ export default function MaturidadeParceiros() {
     setEditando(null)
   }
 
-  async function toggleAtivo(p) {
+  async function toggleAtivo(p, e) {
+    e.stopPropagation()
     await save({ ...p, ativo: !p.ativo })
   }
 
-  const needsDays = form.condicao === 'count_gte_days'
-  const needsMin  = form.condicao !== 'exists'
+  const filtered = params.filter(p =>
+    !search || (p.nome || '').toLowerCase().includes(search.toLowerCase())
+  )
+
+  const columns = [
+    {
+      key: 'nome',
+      label: 'Parâmetro',
+      render: (val, row) => (
+        <div>
+          <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>{val}</div>
+          {row.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{row.descricao}</div>}
+        </div>
+      ),
+    },
+    {
+      key: 'origem',
+      label: 'Origem',
+      render: val => <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{origemLabel(val)}</span>,
+    },
+    {
+      key: 'condicao',
+      label: 'Condição',
+      render: (val, row) => (
+        <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>
+          {condicaoLabel(val)}
+          {row.condicao !== 'exists' && ` ≥ ${row.valor_min}`}
+          {row.janela_dias && ` · ${row.janela_dias}d`}
+        </span>
+      ),
+    },
+    {
+      key: 'peso',
+      label: 'Peso',
+      render: val => (
+        <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>
+          {val}pts
+        </span>
+      ),
+    },
+    {
+      key: 'ativo',
+      label: 'Status',
+      render: (val, row) => (
+        <button
+          onClick={e => toggleAtivo(row, e)}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 5,
+            padding: '2px 9px', borderRadius: 20, cursor: 'pointer', border: 'none',
+            background: val ? '#D1FAE5' : '#F3F4F6',
+            color: val ? '#065F46' : '#374151',
+            fontSize: 11, fontWeight: 600,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: val ? '#10B981' : '#9CA3AF', display: 'inline-block' }} />
+          {val ? 'Ativo' : 'Inativo'}
+        </button>
+      ),
+    },
+  ]
+
+  const rowActions = [
+    { label: 'Editar', onClick: (row) => openEdit(row) },
+  ]
 
   return (
-    <SettingsLayout>
-      <div style={{ maxWidth: 720 }}>
-        {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--text)' }}>
-              Maturidade de Parceiros
-            </h2>
-            <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-muted)' }}>
-              Configure os parâmetros que definem o score de maturidade de cada parceiro.
-              {totalPeso > 0 && (
-                <span style={{ marginLeft: 8, fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--accent)' }}>
-                  Peso total ativo: {totalPeso}
-                </span>
-              )}
-            </p>
-          </div>
-          <Button size="sm" onClick={openNew}>+ Novo parâmetro</Button>
-        </div>
+    <>
+      <SettingsLayout
+        title="Maturidade de Parceiros"
+        description={`Configure os parâmetros que definem o score de maturidade de cada parceiro.${totalPeso > 0 ? `  Peso total ativo: ${totalPeso}pts` : ''}`}
+        columns={columns}
+        data={filtered}
+        keyField="id"
+        loading={loading}
+        onNew={openNew}
+        newLabel="+ Novo parâmetro"
+        rowActions={rowActions}
+        onRowClick={openEdit}
+        search={search}
+        onSearchChange={setSearch}
+        emptyLabel="Nenhum parâmetro configurado. Crie parâmetros para calcular a maturidade dos parceiros."
+      />
 
-        {/* Lista */}
-        {loading ? (
-          <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Carregando…</div>
-        ) : params.length === 0 ? (
-          <div style={{
-            textAlign: 'center', padding: '48px 24px',
-            border: '2px dashed var(--border2)', borderRadius: 12, color: 'var(--text-muted)',
-          }}>
-            <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>
-            <div style={{ fontWeight: 600, marginBottom: 6 }}>Nenhum parâmetro configurado</div>
-            <div style={{ fontSize: 13, marginBottom: 16 }}>
-              Crie parâmetros para calcular a maturidade dos seus parceiros.
-            </div>
-            <Button size="sm" onClick={openNew}>+ Criar primeiro parâmetro</Button>
-          </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {params.map((p, i) => (
-              <div key={p.id} style={{
-                background: 'var(--surface)', border: '1px solid var(--border2)',
-                borderRadius: 10, padding: '14px 16px',
-                display: 'flex', alignItems: 'center', gap: 14,
-                opacity: p.ativo ? 1 : 0.6,
-                borderLeft: `4px solid ${p.ativo ? 'var(--accent)' : 'var(--border2)'}`,
-              }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: 'var(--surface-alt)', border: '1px solid var(--border2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', fontFamily: 'var(--mono)',
-                  flexShrink: 0,
-                }}>
-                  {i + 1}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 600, fontSize: 14, color: 'var(--text)' }}>{p.nome}</span>
-                    <ParamBadge ativo={p.ativo} />
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                    {origemLabel(p.origem)} · {condicaoLabel(p.condicao)}
-                    {p.condicao !== 'exists' && ` ≥ ${p.valor_min}`}
-                    {p.janela_dias && ` · últimos ${p.janela_dias} dias`}
-                  </div>
-                  {p.descricao && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{p.descricao}</div>
-                  )}
-                </div>
-
-                <div style={{
-                  fontFamily: 'var(--mono)', fontSize: 13, fontWeight: 700,
-                  color: p.ativo ? 'var(--accent)' : 'var(--text-muted)',
-                  minWidth: 36, textAlign: 'right',
-                }}>
-                  {p.peso}pts
-                </div>
-
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <Button size="xs" variant="ghost" onClick={() => toggleAtivo(p)}>
-                    {p.ativo ? 'Pausar' : 'Ativar'}
-                  </Button>
-                  <Button size="xs" variant="ghost" onClick={() => openEdit(p)}>Editar</Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* FullPageEdit de criação/edição */}
       {slideOpen && (
         <FullPageEdit
           title={editando ? 'Editar parâmetro' : 'Novo parâmetro'}
@@ -235,7 +203,7 @@ export default function MaturidadeParceiros() {
               </select>
             </FPEField>
 
-            {needsMin && (
+            {form.condicao !== 'exists' && (
               <FPEField label="Quantidade mínima (N)" error={errs.valor_min}>
                 <input
                   type="number" min={1}
@@ -246,7 +214,7 @@ export default function MaturidadeParceiros() {
               </FPEField>
             )}
 
-            {needsDays && (
+            {form.condicao === 'count_gte_days' && (
               <FPEField label="Janela de dias (X)">
                 <input
                   type="number" min={1}
@@ -278,7 +246,7 @@ export default function MaturidadeParceiros() {
           </FPESection>
         </FullPageEdit>
       )}
-    </SettingsLayout>
+    </>
   )
 }
 
