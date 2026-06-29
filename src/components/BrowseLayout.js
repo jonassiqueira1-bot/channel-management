@@ -58,7 +58,7 @@ const s = {
   // Action bar
   actionBar: {
     display: 'flex', alignItems: 'center', gap: 8,
-    padding: '10px 20px', borderBottom: '1px solid var(--border)',
+    padding: '10px 20px', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'var(--border)',
     background: 'var(--surface)', flexShrink: 0, flexWrap: 'wrap',
   },
   actionLeft:   { display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 180 },
