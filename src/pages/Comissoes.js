@@ -754,7 +754,7 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
     const personaObj = personas.find(p => p.slug === form.persona || p.id === form.persona)
     const nomeEfetivo = (form.beneficiario_nome || '').trim() || personaObj?.label || form.persona || ''
     if (!nomeEfetivo) { setErr('Informe o beneficiário ou selecione uma persona.'); return }
-    if (!form.valor_base || parseFloat(form.valor_base) <= 0) { setErr('Informe um valor base válido.'); return }
+    // valor_base pode ser 0 em lançamentos manuais de acompanhamento
     setSaving(true); setErr(null)
     try {
       await new Promise(r => setTimeout(r, 300))
