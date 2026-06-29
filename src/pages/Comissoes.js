@@ -2219,7 +2219,6 @@ export default function Comissoes() {
               <DollarSign size={17} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
             </div>
             <div>
-              <h1 style={{ fontSize:20, fontWeight:800, color:'var(--text)', margin:0, letterSpacing:'-0.3px' }}>Gestão de Comissões</h1>
               {totalPendente > 0 && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{fmt(totalPendente)} pendente de pagamento</div>}
             </div>
           </div>

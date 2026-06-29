@@ -4627,7 +4627,7 @@ export default function Projetos() {
         {/* Page header */}
         <PageHeader
           breadcrumb={['Projetos']}
-          title={tab === 'fechamento' ? 'Fechamento de Horas' : tab === 'recursos' ? 'Mapa de Recursos' : tab === 'financeiro' ? 'Financeiro' : tab === 'propostas' ? 'Propostas de Implantação' : 'Projetos de Implantação'}
+          title={null}
           showKpis={showKpis}
           onToggleKpis={() => setShowKpis(v => !v)}
           actions={

@@ -1108,7 +1108,7 @@ export default function Tarefas() {
         data={filtered}
         keyField="id"
         kpis={kpisNode}
-        kpisLabel="Métricas"
+        kpisLabel="Indicadores"
         filters={filterDefs}
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
