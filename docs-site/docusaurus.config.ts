@@ -43,6 +43,10 @@ const config: Config = {
     },
     navbar: {
       title: 'Boostly',
+      logo: {
+        alt: 'Boostly',
+        src: 'img/logo.png',
+      },
       items: [
         {
           type: 'docSidebar',
