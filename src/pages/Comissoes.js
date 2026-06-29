@@ -1695,7 +1695,9 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
         { label: 'Excluir',          onClick: ids => { if (window.confirm(`Excluir ${ids.length} lançamento(s)?`)) setPayments(prev => prev.filter(p => !ids.includes(p.id))) } },
       ] : []}
       bulkEditFields={isAdmin ? [
-        { key: 'data_vencimento', label: 'Data de vencimento', type: 'date' },
+        { key: 'data_competencia', label: 'Competência',       type: 'date' },
+        { key: 'data_vencimento',  label: 'Data de vencimento', type: 'date' },
+        { key: 'data_pagamento',   label: 'Data de pagamento',  type: 'date' },
       ] : []}
       onBulkEdit={isAdmin ? ((ids, changes) => setPayments(prev => prev.map(p => ids.includes(p.id) ? { ...p, ...changes } : p))) : undefined}
       renderCard={row => (
@@ -2220,10 +2222,10 @@ export default function Comissoes() {
               {totalPendente > 0 && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{fmt(totalPendente)} pendente de pagamento</div>}
             </div>
           </div>
-          {/* Toggle de abas */}
-          <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9, padding:3, border:'1px solid var(--border)' }}>
+          {/* Toggle de abas — fixo centralizado, estilo Projetos */}
+          <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:200, display:'flex', gap:2, background:'var(--surface)', borderRadius:10, padding:3, border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
             {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'6px 16px', borderRadius:7, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--surface)':'none', color:tab===t.id?'var(--text)':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 3px rgba(0,0,0,0.12)':'none', transition:'all 0.15s' }}>{t.label}</button>
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s' }}>{t.label}</button>
             ))}
           </div>
         </div>
