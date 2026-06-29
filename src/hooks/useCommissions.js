@@ -51,6 +51,7 @@ function rowToPayment(row) {
     persona_slug:     row.persona_slug || cf.persona_slug || '',
     periodo_mes:      row.periodo_mes || (pMes ? Number(pMes) : null),
     periodo_ano:      row.periodo_ano || (pAno ? Number(pAno) : null),
+    data_competencia: periodoStr || null,
     valor_bruto:      row.valor_bruto || 0,
     valor_comissao:   row.valor_comissao || row.valor || 0,
     parcela_numero:   row.parcela_numero || null,
