@@ -1488,16 +1488,12 @@ export default function Pagamentos() {
                     value={form.contract_id}
                     label={form.contract_numero}
                     onChange={(id, numero, empresaId, empresaNome) => {
-                      const contrato = contratos.find(c => c.id === id)
-                      const adesao  = (contrato?.itens_adesao  || []).reduce((s, i) => s + (parseFloat(i.valor)||0), 0)
-                      const mrr     = (contrato?.itens_mrr     || []).reduce((s, i) => s + (parseFloat(i.valor)||0), 0)
-                      const servico = (contrato?.itens_servico || []).reduce((s, i) => s + (parseFloat(i.valor)||0), 0)
                       setNovoPagForm(f => ({
                         ...f, contract_id: id, contract_numero: numero,
                         company_id: empresaId || f.company_id, company_nome: empresaNome || f.company_nome,
-                        ...(adesao  > 0 ? { amount_cdu:      adesao }  : {}),
-                        ...(mrr     > 0 ? { amount_sms:      mrr }     : {}),
-                        ...(servico > 0 ? { amount_services: servico } : {}),
+                        // Limpa produto e valores — serão preenchidos ao escolher o produto
+                        produto_id: null, produto_nome: '',
+                        amount_cdu: 0, amount_sms: 0, amount_services: 0, amount_discount: 0,
                       }))
                     }}
                   />
@@ -1525,7 +1521,18 @@ export default function Pagamentos() {
                         value={form.produto_id ? String(form.produto_id) : null}
                         onChange={id => {
                           const prod = opcoesDisponiveis.find(p => String(p.id) === id)
-                          setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '' }))
+                          // Busca o valor deste produto no contrato selecionado
+                          const contratoSel2 = form.contract_id ? contratos.find(c => c.id === form.contract_id) : null
+                          let amount_cdu = 0, amount_sms = 0, amount_services = 0
+                          if (contratoSel2 && id) {
+                            const itemAdesao  = (contratoSel2.itens_adesao  || []).find(i => String(i.produto_id) === id)
+                            const itemMrr     = (contratoSel2.itens_mrr     || []).find(i => String(i.produto_id) === id)
+                            const itemServico = (contratoSel2.itens_servico || []).find(i => String(i.produto_id) === id)
+                            amount_cdu      = parseFloat(itemAdesao?.valor)  || 0
+                            amount_sms      = parseFloat(itemMrr?.valor)     || 0
+                            amount_services = parseFloat(itemServico?.valor) || 0
+                          }
+                          setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '', amount_cdu, amount_sms, amount_services }))
                         }}
                         placeholder={idsDoContrato.length > 0 ? `${idsDoContrato.length} produto(s) do contrato…` : 'Buscar produto…'}
                         inputStyle={{ height:40, border:'1px solid var(--border)', borderRadius:7, padding:'0 12px', fontSize:13, width:'100%', boxSizing:'border-box', background:'var(--surface2)', fontFamily:'var(--font)', color:'var(--text)' }}
