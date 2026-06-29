@@ -81,7 +81,7 @@ export function useCustomerHealth() {
     } else {
       // INSERT — deixa DB gerar UUID
       const { data, error } = await supabase.from('customer_health').insert(base).select().single()
-      if (error) return { ok: false, message: error.message }
+      if (error) { console.error('[useCustomerHealth INSERT]', error.code, error.message, error.details, error.hint); return { ok: false, message: error.message } }
       setRecords(prev => [...prev, { ...record, id: data.id }])
     }
     return { ok: true }
