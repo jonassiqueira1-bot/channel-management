@@ -13,7 +13,7 @@ export const PAGAMENTOS_STORAGE_KEY = 'pagamentos:data_v1'
 
 export const STATUS_PAGAMENTO = {
   pendente:  { label:'Pendente',  color:'#F59E0B', bg:'#FEF3C7', text:'#B45309' },
-  pago:      { label:'Pago',      color:'#10B981', bg:'#D1FAE5', text:'#065F46' },
+  pago:      { label:'Recebido',  color:'#10B981', bg:'#D1FAE5', text:'#065F46' },
   vencido:   { label:'Vencido',   color:'#EF4444', bg:'#FEE2E2', text:'#991B1B' },
   cancelado: { label:'Cancelado', color:'#94A3B8', bg:'#F1F5F9', text:'#475569' },
 }
