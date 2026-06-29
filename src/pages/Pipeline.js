@@ -5884,7 +5884,7 @@ export default function Pipeline() {
       {/* ── Page header ── */}
       <PageHeader
         breadcrumb={['Comercial', 'Pipeline']}
-        title="Pipeline"
+        title={null}
         showKpis={showMetrics}
         onToggleKpis={() => setShowMetrics(v => !v)}
         kpisLabel="métricas"

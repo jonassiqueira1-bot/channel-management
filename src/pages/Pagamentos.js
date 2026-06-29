@@ -1411,7 +1411,7 @@ export default function Pagamentos() {
         keyField="id"
         storageKey="pagamentos_browse"
         kpis={kpisNode}
-        kpisLabel="Indicadores do período"
+        kpisLabel="Indicadores"
         search={search}
         onSearchChange={setSearch}
         filters={FILTERS_DEF}
