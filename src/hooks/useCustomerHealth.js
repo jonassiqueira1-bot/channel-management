@@ -50,8 +50,29 @@ export function useCustomerHealth() {
       })
       return { ok: true }
     }
-    const { id, ...rest } = record
-    const base = { ...rest, tenant_id: tid.current, updated_at: new Date().toISOString() }
+    const toRow = (r) => ({
+      tenant_id:       tid.current,
+      branch_id:       r.branch_id       || null,
+      company_id:      isUuid(r.company_id) ? r.company_id : null,
+      company_name:    r.company_name    || '',
+      company_city:    r.company_city    || null,
+      company_uf:      r.company_uf      || null,
+      csm:             r.csm             || null,
+      laer_stage:      r.laer_stage      || null,
+      touch_model:     r.touch_model     || null,
+      health_score:    r.health_score    != null ? Number(r.health_score) : null,
+      renewal_date:    r.renewal_date    || null,
+      notes:           r.notes           || null,
+      action_plans:    r.action_plans    || [],
+      checkins:        r.checkins        || [],
+      attachments:     r.attachments     || [],
+      contract_id:     isUuid(r.contract_id) ? r.contract_id : null,
+      contract_numero: r.contract_numero || null,
+      criado_em:       r.criado_em       || new Date().toISOString().slice(0, 10),
+      updated_at:      new Date().toISOString(),
+    })
+    const { id } = record
+    const base = toRow(record)
     if (isUuid(id)) {
       // UPDATE
       const { error } = await supabase.from('customer_health').update(base).eq('id', id)
