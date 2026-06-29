@@ -3991,26 +3991,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     <>
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
-      {funis.length > 1 && (
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:10 }}>
-          <span style={{ fontSize:11, fontWeight:600, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Funil</span>
-          <select
-            value={form.funil_id || ''}
-            onChange={e => {
-              const novoFunilId = e.target.value
-              if (!novoFunilId || novoFunilId === String(form.funil_id)) return
-              const novoFunil = funis.find(f => String(f.id) === novoFunilId)
-              if (!novoFunil) return
-              setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
-            }}
-            style={{ fontSize:13, fontWeight:600, padding:'5px 10px', borderRadius:8,
-              border:'1px solid var(--border)', background:'var(--surface2)',
-              color:'var(--text)', cursor:'pointer', outline:'none' }}
-          >
-            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-          </select>
-        </div>
-      )}
       <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
       <div style={{ marginTop:16 }}>
         <DynamicFormLayout
@@ -4052,8 +4032,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               if (!novoFunilId || novoFunilId === String(form.funil_id)) return
               const novoFunil = funis.find(f => String(f.id) === novoFunilId)
               if (!novoFunil) return
-              setForm(f => ({ ...f, funil_id: novoFunilId }))
-              // Abre popup para escolher a etapa de destino
+              // Abre popup — funil_id só muda após confirmar
               setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
             }}
             style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
