@@ -76,7 +76,7 @@ function paymentToRow(p, tenantId, branchId) {
     status:           p.status || 'pendente',
     data_pagamento:   p.data_pagamento || null,
     observacoes:      p.observacoes || null,
-    custom_fields:    {},
+    custom_fields:    p.custom_fields || {},
   }
 }
 

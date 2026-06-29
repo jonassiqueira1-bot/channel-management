@@ -10,7 +10,7 @@ function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(lis
 export function useFechamentosHoras() {
   const { session } = useAuth()
   const { profile } = useProfile()
-  const [fechamentos, setFechamentos] = useState([])
+  const [fechamentos, setFechamentos] = useState(() => load())
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
   const tid = useRef(null)
@@ -31,7 +31,15 @@ export function useFechamentosHoras() {
       setFechamentos(load())
     } else {
       isMock.current = false
-      setFechamentos(data || [])
+      // Mescla Supabase com registros locais que ainda não foram enviados (offline)
+      const remote = data || []
+      const local  = load()
+      const localOnly = local.filter(l =>
+        !remote.some(r => r.id === l.id || (r.periodo === l.periodo && r.user_name === l.user_name))
+      )
+      const merged = [...remote, ...localOnly]
+      setFechamentos(merged)
+      persist(merged) // mantém localStorage sincronizado com Supabase
     }
     setLoading(false)
   }, [session])
@@ -50,11 +58,14 @@ export function useFechamentosHoras() {
     }
     const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('fechamentos_horas').upsert(row, { onConflict: 'tenant_id,periodo,user_name' })
-    if (error) return { ok: false, message: error.message }
+    // Atualiza estado local independente de erro no Supabase
     setFechamentos(prev => {
       const idx = prev.findIndex(f => f.periodo === record.periodo && f.user_name === record.user_name)
-      return idx >= 0 ? prev.map((f, i) => i === idx ? { ...f, ...record } : f) : [...prev, record]
+      const next = idx >= 0 ? prev.map((f, i) => i === idx ? { ...f, ...record } : f) : [...prev, record]
+      persist(next) // sempre persiste localmente como cache/fallback
+      return next
     })
+    if (error) return { ok: false, message: error.message }
     return { ok: true }
   }, [])
 

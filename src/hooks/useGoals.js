@@ -45,6 +45,7 @@ function rowToGoal(row) {
     valor_planejado:     row.valor_planejado || 0,
     valor_atual:         row.valor_atual || 0,
     status:              row.status || 'ativa',
+    custom_fields:       { ...cf },
   }
 }
 
@@ -71,6 +72,7 @@ function goalToRow(g, tenantId, branchId) {
       id_unidade:   g.id_unidade,
       category_id:  g.category_id,
       product_id:   g.product_id,
+      lancamentos:  g.custom_fields?.lancamentos || [],
     },
   }
 }

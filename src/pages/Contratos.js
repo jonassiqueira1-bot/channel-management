@@ -3,6 +3,7 @@ import { useContracts } from '../hooks/useContracts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProducts } from '../hooks/useProducts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useGoals } from '../hooks/useGoals'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import { PROVISOES_LS_KEY } from '../hooks/usePayments'
@@ -582,7 +583,55 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   const [confirmData, setConfirmData] = useState(null)
   const [ativarData, setAtivarData] = useState(null)
   const [gerarProvisao, setGerarProvisao] = useState(true)
+  const [somarMetas, setSomarMetas] = useState(true)
   const [playbookOpen, setPlaybookOpen] = useState(false)
+
+  const { goals, save: saveGoals } = useGoals()
+
+  // Determina mês/ano da venda a partir de vigencia_inicio do contrato (data da venda, não pagamento)
+  function periodoVenda(contratoData) {
+    const ref = contratoData.vigencia_inicio || new Date().toISOString().slice(0, 10)
+    const d = new Date(ref + 'T00:00:00')
+    return { mes: d.getMonth() + 1, ano: d.getFullYear() }
+  }
+
+  function calcMetasMatch(contratoData) {
+    const { mes, ano } = periodoVenda(contratoData)
+    const todosItens = [
+      ...(contratoData.itens_adesao  || []),
+      ...(contratoData.itens_mrr     || []),
+      ...(contratoData.itens_servico || []),
+    ].filter(i => i.status_item !== 'inativo')
+
+    const goalsAtivos = goals.filter(g =>
+      g.status === 'ativa' &&
+      g.periodo_mes === mes &&
+      g.periodo_ano === ano &&
+      g.tipo_meta === 'valor'
+    )
+
+    const matched = [] // { goal, item, valor }
+    for (const item of todosItens) {
+      const valor = parseFloat(item.valor) || 0
+      if (!valor) continue
+      const prod = produtos.find(p => String(p.id) === String(item.produto_id))
+
+      // por produto específico
+      const gProd = goalsAtivos.find(g =>
+        g.tipo_alvo === 'produto' && String(g.product_id) === String(item.produto_id)
+      )
+      if (gProd) { matched.push({ goal: gProd, item, valor, mes, ano }); continue }
+
+      // por categoria do produto (campo `categoria` é string como 'CRM', igual ao category_id da goal)
+      if (prod?.categoria) {
+        const gCat = goalsAtivos.find(g =>
+          g.tipo_alvo === 'categoria' && g.category_id === prod.categoria
+        )
+        if (gCat) { matched.push({ goal: gCat, item, valor, mes, ano }); continue }
+      }
+    }
+    return matched
+  }
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
 
@@ -622,6 +671,52 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
     try { onSave(form); onClose() } finally { setSaving(false) }
   }
 
+  async function aplicarMetas(contratoData, steps) {
+    const metasMatch = calcMetasMatch(contratoData)
+    if (!somarMetas) {
+      steps.push({ id: 'metas', label: 'Registro em Metas ignorado', skip: true })
+      return
+    }
+    if (metasMatch.length === 0) {
+      steps.push({ id: 'metas', label: 'Sem meta definida para os produtos deste contrato', skip: true })
+      return
+    }
+    // Agrupa por goal, soma valores e acumula lançamentos de origem
+    const byGoal = {}
+    for (const { goal, item, valor, mes, ano } of metasMatch) {
+      if (!byGoal[goal.id]) byGoal[goal.id] = { goal, soma: 0, lancamentos: [] }
+      byGoal[goal.id].soma += valor
+      byGoal[goal.id].lancamentos.push({
+        contrato_numero: contratoData.numero,
+        empresa_nome:    contratoData.empresa_nome,
+        produto_nome:    item.nome || '',
+        valor,
+        data:  contratoData.vigencia_inicio || new Date().toISOString().slice(0, 10),
+        mes,
+        ano,
+      })
+    }
+    const updates = Object.values(byGoal).map(({ goal, soma, lancamentos }) => {
+      const existentes = goal.custom_fields?.lancamentos || []
+      return {
+        ...goal,
+        valor_atual: (goal.valor_atual || 0) + soma,
+        custom_fields: {
+          ...(goal.custom_fields || {}),
+          lancamentos: [...existentes, ...lancamentos],
+        },
+      }
+    })
+    await saveGoals(updates)
+    const totalSomado = Object.values(byGoal).reduce((s, { soma }) => s + soma, 0)
+    const { mes, ano } = periodoVenda(contratoData)
+    steps.push({
+      id: 'metas',
+      label: `Realizado somado em ${updates.length} meta(s)`,
+      sublabel: `+${totalSomado.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })} · ${mes.toString().padStart(2,'0')}/${ano}`,
+    })
+  }
+
   async function executarAtivacao() {
     setSaving(true)
     try {
@@ -637,6 +732,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       } else if (todosItens.length === 0) {
         steps.push({ id: 'provisao', label: 'Nenhum produto com data de pagamento', skip: true })
       }
+      await aplicarMetas(ativarData, steps)
       onShowFeedback(steps)
       onClose()
     } finally {
@@ -652,9 +748,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
       })
       if (!gerarProvisao) steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
-      onShowFeedback([
-        ...steps,
-      ])
+      await aplicarMetas(confirmData, steps)
+      onShowFeedback(steps)
       onClose()
     } finally {
       setSaving(false)
@@ -713,6 +808,32 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
                 <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro pendente criado em Pagamentos (D+0 da vigência)</div>
               </div>
             </div>
+            {/* Metas — opcional */}
+            {(() => {
+              const mm = calcMetasMatch(confirmData)
+              const { mes, ano } = periodoVenda(confirmData)
+              return (
+                <div style={chkRow(somarMetas)} onClick={() => setSomarMetas(g => !g)}>
+                  <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                    border:`2px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                    background: somarMetas ? 'var(--accent)' : 'transparent',
+                    display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                    {somarMetas && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Somar realizado em Metas</div>
+                    {mm.length > 0
+                      ? <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                          {mm.length} produto(s) com meta · período {mes.toString().padStart(2,'0')}/{ano} (data da venda)
+                        </div>
+                      : <div style={{ fontSize:11.5, color:'#F59E0B', marginTop:2 }}>
+                          Nenhuma meta definida para os produtos deste contrato — será ignorado
+                        </div>
+                    }
+                  </div>
+                </div>
+              )
+            })()}
           </div>
           {/* Actions */}
           <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
@@ -779,6 +900,35 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
                 })()}
               </div>
             </div>
+            {/* Metas — opcional */}
+            {(() => {
+              const mm = calcMetasMatch(ativarData)
+              const { mes, ano } = periodoVenda(ativarData)
+              return (
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+                  border:`1.5px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                  background: somarMetas ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}
+                  onClick={() => setSomarMetas(g => !g)}>
+                  <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                    border:`2px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                    background: somarMetas ? 'var(--accent)' : 'transparent',
+                    display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                    {somarMetas && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Somar realizado em Metas</div>
+                    {mm.length > 0
+                      ? <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                          {mm.length} produto(s) com meta · período {mes.toString().padStart(2,'0')}/{ano} (data da venda)
+                        </div>
+                      : <div style={{ fontSize:11.5, color:'#F59E0B', marginTop:2 }}>
+                          Nenhuma meta definida para os produtos deste contrato — será ignorado
+                        </div>
+                    }
+                  </div>
+                </div>
+              )
+            })()}
           </div>
           {/* Actions */}
           <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',

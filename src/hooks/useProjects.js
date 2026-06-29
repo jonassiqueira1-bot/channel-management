@@ -62,8 +62,15 @@ export function useProjects() {
     try { const s = localStorage.getItem('projetos:timeLogs_v1'); return s ? JSON.parse(s) : [] }
     catch { return [] }
   })
+  const [tasks,       setTasks]       = useState(() => {
+    try { const s = localStorage.getItem('projetos:tasks_v1'); return s ? JSON.parse(s) : [] }
+    catch { return [] }
+  })
   const [issues,      setIssues]      = useState([])
-  const [members,     setMembers]     = useState([])
+  const [members,     setMembers]     = useState(() => {
+    try { const s = localStorage.getItem('projetos:members_v1'); return s ? JSON.parse(s) : [] }
+    catch { return [] }
+  })
   const [loading,     setLoading]     = useState(true)
   const isMockMode                    = useRef(true)
 
@@ -125,16 +132,31 @@ export function useProjects() {
     return { ok: true }
   }, [])
 
-  // Sync timeLogs para localStorage — permite que Fechamento leia/escreva
-  useEffect(() => {
-    localStorage.setItem('projetos:timeLogs_v1', JSON.stringify(timeLogs))
-  }, [timeLogs])
+  // Sync para localStorage
+  useEffect(() => { localStorage.setItem('projetos:timeLogs_v1', JSON.stringify(timeLogs)) }, [timeLogs])
+  useEffect(() => { localStorage.setItem('projetos:members_v1',  JSON.stringify(members))  }, [members])
+  useEffect(() => { localStorage.setItem('projetos:tasks_v1',    JSON.stringify(tasks))    }, [tasks])
 
-  // Fases, timeLogs, issues e members ficam em localStorage/mock por ora
-  const savePhase   = useCallback((phase) => { setPhases(prev => { const idx = prev.findIndex(x => x.id === phase.id); if (idx >= 0) { const n = [...prev]; n[idx] = phase; return n } return [...prev, phase] }) }, [])
-  const saveTimeLog = useCallback((log)   => { setTimeLogs(prev => { const idx = prev.findIndex(x => x.id === log.id); if (idx >= 0) { const n = [...prev]; n[idx] = log; return n } return [...prev, log] }) }, [])
-  const saveIssue   = useCallback((issue) => { setIssues(prev => { const idx = prev.findIndex(x => x.id === issue.id); if (idx >= 0) { const n = [...prev]; n[idx] = issue; return n } return [...prev, issue] }) }, [])
-  const removeIssue = useCallback((id)   => { setIssues(prev => prev.filter(x => x.id !== id)) }, [])
+  const savePhase = useCallback((phase) => {
+    setPhases(prev => { const i = prev.findIndex(x => x.id === phase.id); if (i >= 0) { const n=[...prev]; n[i]=phase; return n } return [...prev, phase] })
+  }, [])
+  const saveTimeLog = useCallback((log) => {
+    setTimeLogs(prev => { const i = prev.findIndex(x => x.id === log.id); if (i >= 0) { const n=[...prev]; n[i]=log; return n } return [...prev, log] })
+  }, [])
+  const saveTask = useCallback((task) => {
+    setTasks(prev => { const i = prev.findIndex(x => x.id === task.id); if (i >= 0) { const n=[...prev]; n[i]=task; return n } return [...prev, task] })
+  }, [])
+  const saveTasks = useCallback((list) => {
+    setTasks(prev => {
+      const next = [...prev.filter(t => !list.find(l => l.id === t.id)), ...list]
+      return next
+    })
+  }, [])
+  const removeTask = useCallback((id) => { setTasks(prev => prev.filter(x => x.id !== id)) }, [])
+  const saveIssue  = useCallback((issue) => {
+    setIssues(prev => { const i = prev.findIndex(x => x.id === issue.id); if (i >= 0) { const n=[...prev]; n[i]=issue; return n } return [...prev, issue] })
+  }, [])
+  const removeIssue = useCallback((id) => { setIssues(prev => prev.filter(x => x.id !== id)) }, [])
 
-  return { projetos, phases, timeLogs, issues, members, loading, reload: load, save, remove, savePhase, saveTimeLog, saveIssue, removeIssue, setMembers, setProjetos, setPhases, setTimeLogs, setIssues }
+  return { projetos, phases, tasks, timeLogs, issues, members, loading, reload: load, save, remove, savePhase, saveTask, saveTasks, removeTask, saveTimeLog, saveIssue, removeIssue, setMembers, setProjetos, setPhases, setTasks, setTimeLogs, setIssues }
 }
