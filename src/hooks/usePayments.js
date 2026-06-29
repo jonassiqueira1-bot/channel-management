@@ -124,14 +124,19 @@ export function usePayments() {
     const fromDB = (data || []).map(rowToPayment)
 
     // Mescla registros locais (provisões offline ou novos não sincronizados)
-    const localAll = [...loadLS(), ...loadProvisoes()]
+    const seenIds = new Set()
+    const localAll = [...loadLS(), ...loadProvisoes()].filter(p => {
+      if (!p.id || seenIds.has(p.id)) return false
+      seenIds.add(p.id)
+      return true
+    })
     const lsOnly = localAll.filter(ls =>
       !fromDB.some(db => db.id === ls.id) &&
       ls.id && !isUuid(ls.id) // apenas registros locais (id não-UUID)
     )
     const merged = [...fromDB, ...lsOnly]
     setPagamentos(merged)
-    saveLS(merged)
+    saveLS(merged.filter(p => !isUuid(p.id))) // salva só locais no LS (DB items recarregados no próximo load)
     setLoading(false)
   }, [session])
 
