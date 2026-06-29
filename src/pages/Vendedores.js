@@ -262,16 +262,12 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
         </FormField>
 
         <FormField label="Franquia / Equipe" style={{ gridColumn: 'span 2' }}>
-          <select className="so-field" value={form.franquia_id || ''}
-            onChange={e => {
-              const opt = franquiasOpts.find(o => String(o.id) === e.target.value)
-              setForm(f => ({ ...f, franquia_id: e.target.value || null, franquia_nome: opt?.label || '' }))
-            }}>
-            <option value="">— Nenhuma —</option>
-            {franquiasOpts.map(o => (
-              <option key={o.id} value={o.id}>{o.sublabel ? `[${o.sublabel}] ` : ''}{o.label}</option>
-            ))}
-          </select>
+          <SearchSelect
+            value={form.franquia_id || ''}
+            onChange={(id, label) => setForm(f => ({ ...f, franquia_id: id || null, franquia_nome: label || '' }))}
+            options={franquiasOpts.map(o => ({ id: o.id, label: `${o.sublabel ? `[${o.sublabel}] ` : ''}${o.label}` }))}
+            placeholder="Buscar parceiro..."
+          />
         </FormField>
 
         <FormField label="Meta mensal (R$)">
