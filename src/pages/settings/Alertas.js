@@ -106,8 +106,9 @@ const OPS = {
 }
 
 const DEST_TIPOS = [
-  { key: 'responsavel_origem', label: 'Responsável pelo registro' },
-  { key: 'email_fixo',         label: 'Email fixo (digitar)'     },
+  { key: 'responsavel_origem', label: 'Responsável pelo registro'   },
+  { key: 'lider_equipe',       label: 'Líder da equipe'             },
+  { key: 'email_fixo',         label: 'Email fixo (digitar)'        },
 ]
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
