@@ -3770,9 +3770,10 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           origem:initial.origem, etapa_id:initial.etapa_id, itens: initial.itens || [],
           playbook_id: initial.playbook_id || null,
           campanha_id: initial.campanha_id || null,
+          funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
           custom_fields: { tipo_implantacao:'', segmento_industria:'', exige_integracao:false, ...(initial.custom_fields || {}) } }
-      : { ...EMPTY_OPP, etapa_id: etapas[0]?.id || null, itens: [] }
+      : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [] }
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [moverFunilPopup, setMoverFunilPopup] = useState(null) // { novoFunil, etapaId }
@@ -3858,7 +3859,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     const eraGanha = initial?.situacao === 'ganha'
     const hoje = new Date().toISOString().slice(0, 10)
     const oppSalva = { ...form, valor_desconto: desconto, valor: liquido,
-      funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||hoje,
+      funil_id: form.funil_id || funilId, id:initial?.id||novoId(), criado:initial?.criado||hoje,
       data_fechamento: form.situacao === 'ganha' && !eraGanha ? hoje : (initial?.data_fechamento || null),
     }
 
@@ -4025,12 +4026,13 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
         {funis.length > 0 && (
           <select
-            value={form.funil_id || ''}
+            value={form.funil_id || funilId || ''}
             onChange={e => {
               const novoFunilId = e.target.value
               if (!novoFunilId || novoFunilId === String(form.funil_id)) return
               const novoFunil = funis.find(f => String(f.id) === novoFunilId)
               if (!novoFunil) return
+              setForm(f => ({ ...f, funil_id: novoFunilId }))
               // Abre popup para escolher a etapa de destino
               setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
             }}
@@ -4279,7 +4281,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
             <Button
               onClick={() => {
                 if (!form.titulo.trim()) { setErrs({ titulo: 'Título é obrigatório' }); setTab('dados'); return }
-                onSave({ ...form, funil_id:funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
+                onSave({ ...form, funil_id: form.funil_id || funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
                 onClose()
               }}>Salvar alterações</Button>
           </div>
@@ -5752,8 +5754,13 @@ export default function Pipeline() {
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
   const { registrar: log } = useAuditLog()
+  // Corrige opps sem funil_id — atribui o funil padrão automaticamente
+  useEffect(() => {
+    if (!funilPadrao || !opps.length) return
+    const semFunil = opps.filter(o => !o.funil_id)
+    semFunil.forEach(o => saveOpp({ ...o, funil_id: funilPadrao.id, funil_nome: funilPadrao.nome }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { console.log('[Pipeline opps]', opps.length, opps.map(o=>({id:o.id,funil:o.funil_id,etapa:o.etapa_id}))) }, [opps])
+  }, [opps.length, funilPadrao?.id])
   // ── estado efêmero (não persiste) ────────────────────────────────────────
   const { tarefas, save: saveTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
