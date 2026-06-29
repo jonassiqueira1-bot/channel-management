@@ -1013,7 +1013,7 @@ const FILTERS_DEF = [
 ]
 
 export default function Pagamentos() {
-  const { pagamentos, setPagamentos } = usePayments()
+  const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
   const { registrar: log } = useAuditLog()
   const { contratos } = useContracts()
   const { savePayment: saveCommissionPayment } = useCommissions()
@@ -1034,6 +1034,7 @@ export default function Pagamentos() {
   const [savingNovo, setSavingNovo]           = useState(false) // eslint-disable-line no-unused-vars
   const [importModal, setImportModal]         = useState(false)
   const [recebidoFeedback, setRecebidoFeedback] = useState(null) // { pag, steps }
+  const [confirmComissao, setConfirmComissao] = useState(null)   // pag aguardando confirmação
 
   const periodos = useMemo(() => periodosUnicos(pagamentos), [pagamentos])
   const [periodo, setPeriodo] = useState(() => periodos[0] || { month:6, year:2026 })
@@ -1188,23 +1189,29 @@ export default function Pagamentos() {
 
   function handleSave(pag) {
     const anterior = pagamentos.find(p => p.id === pag.id)
-    setPagamentos(prev => prev.map(p => p.id === pag.id ? pag : p))
+    savePagamento(pag)
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
-      gerarRepasses(pag)
-      const isFromProjeto = pag._origem === 'fechamento_horas' ||
-        (pag.notes || '').toLowerCase().includes('fechamento de horas')
-      const temValores = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
-      const steps = [
-        { id: 'recebimento', label: `Recebimento registrado — ${pag.company_nome || pag.contract_numero}` },
-        { id: 'tipo',        label: isFromProjeto
-            ? `Origem: Serviços de projeto — ${pag.contract_numero || 'N/D'}`
-            : `Origem: Venda — Contrato ${pag.contract_numero || 'N/D'}` },
-        { id: 'comissao',    label: 'Gerando lançamento de comissão pendente', skip: !temValores },
-        { id: 'repasse',     label: 'Calculando repasses por persona' },
-      ]
-      setRecebidoFeedback({ pag, steps })
+      // Abre popup de confirmação antes de gerar comissões
+      setConfirmComissao(pag)
     }
+  }
+
+  function confirmarGerarComissao(pag) {
+    setConfirmComissao(null)
+    gerarRepasses(pag)
+    const isFromProjeto = pag._origem === 'fechamento_horas' ||
+      (pag.notes || '').toLowerCase().includes('fechamento de horas')
+    const temValores = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
+    const steps = [
+      { id: 'recebimento', label: `Recebimento registrado — ${pag.company_nome || pag.contract_numero}` },
+      { id: 'tipo',        label: isFromProjeto
+          ? `Origem: Serviços de projeto — ${pag.contract_numero || 'N/D'}`
+          : `Origem: Venda — Contrato ${pag.contract_numero || 'N/D'}` },
+      { id: 'comissao',    label: 'Gerando lançamento de comissão pendente', skip: !temValores },
+      { id: 'repasse',     label: 'Calculando repasses por persona' },
+    ]
+    setRecebidoFeedback({ pag, steps })
   }
 
   function gerarLancamentoComissao(pag) {
@@ -1569,6 +1576,78 @@ export default function Pagamentos() {
           autoClose={4500}
         />
       )}
+
+      {/* ── Confirmação de geração de comissão ── */}
+      {confirmComissao && (() => {
+        const pag = confirmComissao
+        const temValores = (pag.amount_cdu||0) + (pag.amount_sms||0) + (pag.amount_services||0) > 0
+        const isFromProjeto = pag._origem === 'fechamento_horas' || (pag.notes||'').toLowerCase().includes('fechamento de horas')
+        return (
+          <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
+            display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+            <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
+              boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+              {/* Header */}
+              <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+                <div style={{ width:42, height:42, borderRadius:12, background:'rgba(16,185,129,0.12)', display:'flex',
+                  alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>💰</div>
+                <div>
+                  <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Pagamento recebido</div>
+                  <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
+                    Ao confirmar, as seguintes ações serão executadas automaticamente:
+                  </div>
+                </div>
+              </div>
+              {/* Itens */}
+              <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'10px 12px',
+                  borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)' }}>
+                  <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                    display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                    <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+                  </div>
+                  <div>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Registrar recebimento</div>
+                    <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>
+                      {pag.company_nome || pag.contract_numero} · {isFromProjeto ? 'Serviços de projeto' : `Contrato ${pag.contract_numero || ''}`}
+                    </div>
+                  </div>
+                </div>
+                {temValores && (
+                  <div style={{ display:'flex', gap:12, alignItems:'flex-start', padding:'10px 12px',
+                    borderRadius:10, background:'var(--surface2)', border:'1px solid var(--border)' }}>
+                    <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                      display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                      <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar lançamento de comissão pendente</div>
+                      <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>
+                        Valor bruto: {(Number(pag.amount_cdu)||0) + (Number(pag.amount_sms)||0) + (Number(pag.amount_services)||0) > 0
+                          ? `R$ ${((Number(pag.amount_cdu)||0)+(Number(pag.amount_sms)||0)+(Number(pag.amount_services)||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+                          : '—'} · Status: pendente em Comissões
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Footer */}
+              <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:10 }}>
+                <button onClick={() => setConfirmComissao(null)}
+                  style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)',
+                    background:'transparent', color:'var(--text-muted)', fontSize:13, cursor:'pointer' }}>
+                  Cancelar
+                </button>
+                <button onClick={() => confirmarGerarComissao(pag)}
+                  style={{ padding:'8px 20px', borderRadius:8, border:'none',
+                    background:'#10B981', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
+                  Confirmar e gerar comissão
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </>
   )
 }
