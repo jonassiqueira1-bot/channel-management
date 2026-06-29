@@ -1060,7 +1060,7 @@ function RdStationTab({ toast }) {
         contato_email: l.contato_email,
         contato_fone:  l.contato_fone,
         descricao:     l.descricao,
-        origem:        provider.name || 'Webhook',
+        origem:        'Webhook',
         situacao:      'em_negociacao',
         valor:         0,
         funil_id:      funil?.id || '',
