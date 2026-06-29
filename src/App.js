@@ -45,6 +45,8 @@ import SettingsEquipes from './pages/settings/Equipes'
 import Funis from './pages/Funis'
 import Relatorios from './pages/Relatorios'
 import FechamentoHoras from './pages/FechamentoHoras'
+import ParceirosPage from './pages/Parceiros'
+import SettingsMaturidade from './pages/settings/MaturidadeParceiros'
 
 export default function App() {
   return (
@@ -66,7 +68,8 @@ export default function App() {
             <Route path="/vendedores" element={<Vendedores />} />
             {/* /habilitacoes movido para Configurações → Habilitações */}
             <Route path="/pipeline" element={<Pipeline />} />
-            <Route path="/acoes" element={<Acoes />} />
+            <Route path="/acoes"     element={<Acoes />} />
+            <Route path="/parceiros" element={<ParceirosPage />} />
             <Route path="/tarefas" element={<Tarefas />} />
             <Route path="/metas" element={<Metas />} />
             <Route path="/campanhas" element={<Campanhas />} />
@@ -101,6 +104,7 @@ export default function App() {
               <Route path="logs"         element={<SettingsLogs />} />
               <Route path="campanhas"    element={<SettingsCampanhas />} />
               <Route path="franquias"    element={<SettingsParceiros />} />
+              <Route path="maturidade-parceiros" element={<SettingsMaturidade />} />
               <Route path="indicadores"  element={<SettingsIndicadores />} />
               <Route path="metas"        element={<SettingsMetas />} />
               <Route path="compartilhamento" element={<BranchSharing />} />

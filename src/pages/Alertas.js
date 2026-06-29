@@ -4,13 +4,16 @@ import { useProfile } from '../hooks/useProfile'
 import { Bell, Check, CheckCheck, AlertTriangle, Info, Clock, RefreshCw } from 'lucide-react'
 
 const ENTIDADE_LABEL = {
-  oportunidades:       'Oportunidade',
-  contracts:           'Contrato',
-  projects:            'Projeto',
-  tasks:               'Tarefa',
-  commission_payments: 'Pagamento',
-  companies:           'Empresa',
-  goals:               'Meta',
+  oportunidades:              'Oportunidade',
+  contracts:                  'Contrato',
+  projects:                   'Projeto',
+  tasks:                      'Tarefa',
+  commission_payments:        'Pagamento',
+  companies:                  'Empresa',
+  goals:                      'Meta',
+  parceiros:                  'Parceiro',
+  partner_maturity_scores:    'Score de Maturidade',
+  partner_habilitacoes:       'Habilitação de Parceiro',
 }
 
 const PRIORIDADE_CFG = {

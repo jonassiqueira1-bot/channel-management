@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { useSellers } from '../hooks/useSellers'
+import { useParceiros } from '../hooks/useParceiros'
 import { useAuditLog } from '../hooks/useAuditLog'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -23,6 +23,96 @@ function fmtPhone(v) {
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
 function uid() { return Date.now() + Math.floor(Math.random() * 1000) }
+
+function SearchSelect({ value, onChange, options, placeholder = 'Buscar...' }) {
+  const [open, setOpen]     = useState(false)
+  const [query, setQuery]   = useState('')
+  const ref                 = useRef(null)
+
+  const selected = options.find(o => String(o.id) === String(value))
+
+  const filtered = useMemo(() => {
+    if (!query) return options
+    const q = query.toLowerCase()
+    return options.filter(o => (o.label || '').toLowerCase().includes(q))
+  }, [options, query])
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQuery('') } }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQuery('') }}
+        style={{
+          width: '100%', textAlign: 'left', padding: '8px 12px',
+          border: '1px solid var(--border2)', borderRadius: 8,
+          background: 'var(--surface-alt)', color: selected ? 'var(--text)' : 'var(--text-muted)',
+          fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontFamily: 'var(--font)',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected ? selected.label : '— Nenhuma —'}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 9999,
+          background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', overflow: 'hidden',
+        }}>
+          <div style={{ padding: '8px 8px 4px' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={placeholder}
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 6,
+                border: '1px solid var(--border2)', background: 'var(--surface-alt)',
+                color: 'var(--text)', fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'var(--font)',
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            <div
+              style={{ padding: '7px 12px', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer' }}
+              onMouseDown={() => { onChange(null, null); setOpen(false); setQuery('') }}
+            >
+              — Nenhuma —
+            </div>
+            {filtered.length === 0 && (
+              <div style={{ padding: '7px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>
+            )}
+            {filtered.map(o => (
+              <div
+                key={o.id}
+                onMouseDown={() => { onChange(o.id, o.label); setOpen(false); setQuery('') }}
+                style={{
+                  padding: '7px 12px', fontSize: 13, cursor: 'pointer',
+                  background: String(o.id) === String(value) ? 'var(--accent-lite)' : 'transparent',
+                  color: String(o.id) === String(value) ? 'var(--accent)' : 'var(--text)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                {String(o.id) === String(value) && <span style={{ fontSize: 10 }}>✓</span>}
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 function initials(nome) {
   if (!nome) return '?'
   return nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
@@ -172,16 +262,12 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
         </FormField>
 
         <FormField label="Franquia / Equipe" style={{ gridColumn: 'span 2' }}>
-          <select className="so-field" value={form.franquia_id || ''}
-            onChange={e => {
-              const opt = franquiasOpts.find(o => String(o.id) === e.target.value)
-              setForm(f => ({ ...f, franquia_id: e.target.value || null, franquia_nome: opt?.label || '' }))
-            }}>
-            <option value="">— Nenhuma —</option>
-            {franquiasOpts.map(o => (
-              <option key={o.id} value={o.id}>{o.sublabel ? `[${o.sublabel}] ` : ''}{o.label}</option>
-            ))}
-          </select>
+          <SearchSelect
+            value={form.franquia_id || ''}
+            onChange={(id, label) => setForm(f => ({ ...f, franquia_id: id || null, franquia_nome: label || '' }))}
+            options={franquiasOpts.map(o => ({ id: o.id, label: `${o.sublabel ? `[${o.sublabel}] ` : ''}${o.label}` }))}
+            placeholder="Buscar parceiro..."
+          />
         </FormField>
 
         <FormField label="Meta mensal (R$)">
@@ -340,17 +426,20 @@ function AvatarCell({ nome, email }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Vendedores() {
-  const [companies]   = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const [franquiasCad] = useLocalState('settings:franquias_v2', [])
+  const { parceiros }                                                        = useParceiros()
   const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany } = useSellers()
   const { registrar: log } = useAuditLog()
 
+  const franquiasMap = useMemo(
+    () => Object.fromEntries((parceiros || []).map(p => [String(p.id), p])),
+    [parceiros]
+  )
+
   const franquiasOpts = useMemo(() =>
-    franquiasCad.length > 0
-      ? franquiasCad.filter(f => f.classificacao !== 'unidade' && f.situacao !== 'inativo')
-          .map(f => ({ id: String(f.id), label: f.nome, sublabel: f.codigo || '' }))
-      : companies.filter(c => c.type === 'FRANCHISE').map(c => ({ id: String(c.id), label: c.name, sublabel: '' }))
-  , [franquiasCad, companies])
+    (parceiros || [])
+      .filter(p => p.classificacao !== 'unidade' && p.situacao !== 'inativo')
+      .map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))
+  , [parceiros])
 
   const [search, setSearch]           = useLocalState('contatos_canais:search', '')
   const [filterStatus, setFilterStatus] = useLocalState('contatos_canais:status', '')
@@ -365,18 +454,17 @@ export default function Vendedores() {
     let list = sellers
     if (search) {
       const q = search.toLowerCase()
-      const companyMap = Object.fromEntries(companies.map(c => [c.id, c]))
       list = list.filter(f =>
         f.nome?.toLowerCase().includes(q) ||
         f.email?.toLowerCase().includes(q) ||
         f.cpf?.includes(q) ||
-        companyMap[f.company_id]?.name?.toLowerCase().includes(q)
+        franquiasMap[String(f.franquia_id)]?.nome?.toLowerCase().includes(q)
       )
     }
     if (filterStatus) list = list.filter(f => f.status === filterStatus)
     if (filterRole)   list = list.filter(f => f.role === filterRole)
     return [...list].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
-  }, [sellers, companies, search, filterStatus, filterRole])
+  }, [sellers, franquiasMap, search, filterStatus, filterRole])
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function handleSave(form) {
@@ -398,11 +486,10 @@ export default function Vendedores() {
 
   // ── Export ───────────────────────────────────────────────────────────────────
   function handleExport() {
-    const companyMap = Object.fromEntries(companies.map(c => [c.id, c]))
-    const headers = ['nome','email','telefone','cpf','role','regiao','status','empresa','meta_mensal','criado']
+    const headers = ['nome','email','telefone','cpf','role','regiao','status','franquia','meta_mensal','criado']
     const csv = [headers.join(';'), ...filtered.map(f => [
       f.nome, f.email||'', f.telefone||'', f.cpf||'', f.role||'', f.regiao||'', f.status||'',
-      companyMap[f.company_id]?.name || '', f.meta_mensal||'', f.criado||''
+      franquiasMap[String(f.franquia_id)]?.nome || f.franquia_nome || '', f.meta_mensal||'', f.criado||''
     ].join(';'))].join('\n')
     const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -447,16 +534,15 @@ export default function Vendedores() {
       render: (val) => <RoleBadge role={val} />,
     },
     {
-      key: 'company_id',
-      label: 'Empresa',
-      render: (val) => {
-        const c = companies.find(co => co.id === val)
-        if (!c) return <span style={{ color:'var(--border)', fontSize:12 }}>—</span>
-        const tc = COMPANY_TYPE_CFG[c.type] || {}
+      key: 'franquia_id',
+      label: 'Franquia / Equipe',
+      render: (val, row) => {
+        const f = franquiasMap[String(val)]
+        const nome = f?.nome || row.franquia_nome
+        if (!nome) return <span style={{ color:'var(--border)', fontSize:12 }}>—</span>
         return (
           <span style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
-            <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4, background:tc.bg, color:tc.color, letterSpacing:'0.04em' }}>{tc.label}</span>
-            <span style={{ color:'var(--text-soft)', fontWeight:500 }}>{c.name}</span>
+            <span style={{ color:'var(--text-soft)', fontWeight:500 }}>{nome}</span>
           </span>
         )
       },
@@ -512,8 +598,7 @@ export default function Vendedores() {
 
   // ── Card render ───────────────────────────────────────────────────────────────
   function renderCard(row) {
-    const company = companies.find(c => c.id === row.company_id)
-    const tc = company ? (COMPANY_TYPE_CFG[company.type] || {}) : {}
+    const franquiaNome = franquiasMap[String(row.franquia_id)]?.nome || row.franquia_nome
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -529,10 +614,9 @@ export default function Vendedores() {
           <RoleBadge role={row.role} />
           <StatusBadge status={row.status} />
         </div>
-        {company && (
+        {franquiaNome && (
           <div style={{ fontSize:12, color:'var(--text-soft)', display:'flex', alignItems:'center', gap:6 }}>
-            <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:4, background:tc.bg, color:tc.color }}>{tc.label}</span>
-            {company.name}
+            {franquiaNome}
           </div>
         )}
         {row.regiao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>📍 {row.regiao}</div>}

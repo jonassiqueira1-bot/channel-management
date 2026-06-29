@@ -45,13 +45,13 @@ async function fetchAnalytics(period) {
     // Empresas ativas (franquias = tipo parceiro)
     supabase.from('companies').select('id, nome_fantasia, razao_social, tipo, status'),
     // Oportunidades em aberto
-    supabase.from('opportunities').select('id, situacao, valor, stage_id, pipeline_stages(name)'),
+    supabase.from('oportunidades').select('id, situacao, valor, stage_id'),
     // Projetos ativos
     supabase.from('projects').select('id, status'),
     // Contratos ativos
     supabase.from('contracts').select('id, status, valor'),
     // Todas as opps para calcular taxa conversão
-    supabase.from('opportunities').select('id, situacao'),
+    supabase.from('oportunidades').select('id, situacao'),
     // Pagamentos vencidos D+1 (inadimplência)
     supabase.from('payments').select('contract_id, vencimento, status, custom_fields')
       .in('status', ['pendente', 'vencido'])
@@ -137,7 +137,7 @@ async function fetchAnalytics(period) {
   // ── Pipeline por etapa ───────────────────────────────────────────────────
   const pipelineMap = {}
   opps.filter(o => o.situacao === 'em_andamento').forEach(o => {
-    const etapa = o.pipeline_stages?.name || 'Sem etapa'
+    const etapa = o.etapa || 'Sem etapa'
     if (!pipelineMap[etapa]) pipelineMap[etapa] = { etapa, qtd: 0, valor: 0 }
     pipelineMap[etapa].qtd++
     pipelineMap[etapa].valor += o.valor || 0

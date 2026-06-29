@@ -3,7 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } from 'react-router-dom'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -12,7 +12,8 @@ const SECTIONS = [
     items: [
       { path: '/settings/empresa',   label: 'Empresa / ISV',      Icon: Building2   },
       { path: '/settings/conta',     label: 'Minha Conta',        Icon: UserCircle  },
-      { path: '/settings/franquias', label: 'Parceiros',          Icon: Store       },
+      { path: '/settings/franquias',             label: 'Parceiros',            Icon: Store    },
+      { path: '/settings/maturidade-parceiros', label: 'Maturidade Parceiros', Icon: Network  },
     ],
   },
   {

@@ -16,6 +16,7 @@
 
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
+import { useParceiros } from '../hooks/useParceiros'
 import { useGoals } from '../hooks/useGoals'
 import { useProducts } from '../hooks/useProducts'
 import { useContracts } from '../hooks/useContracts'
@@ -28,6 +29,7 @@ import { useAuditLog } from '../hooks/useAuditLog'
 const TIPOS_ALVO = {
   vendedor:  { label: 'Por Vendedor',             badgeLabel: 'Vendedor',  badgeColor: 'var(--accent)', badgeBg: '#F5F3FF', badgeBorder: '#DDD6FE' },
   unidade:   { label: 'Por Unidade / Franquia',   badgeLabel: 'Unidade',   badgeColor: '#1D4ED8', badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE' },
+  parceiro:  { label: 'Por Parceiro',             badgeLabel: 'Parceiro',  badgeColor: '#D97706', badgeBg: '#FFFBEB', badgeBorder: '#FDE68A' },
   categoria: { label: 'Por Categoria de Produto', badgeLabel: 'Categoria', badgeColor: '#0891B2', badgeBg: '#ECFEFF', badgeBorder: '#A5F3FC' },
   produto:   { label: 'Por Produto Específico',   badgeLabel: 'Produto',   badgeColor: '#059669', badgeBg: '#F0FDF4', badgeBorder: '#A7F3D0' },
   equipe:    { label: 'Por Equipe',               badgeLabel: 'Equipe',    badgeColor: '#7C3AED', badgeBg: '#F5F3FF', badgeBorder: '#C4B5FD' },
@@ -154,6 +156,8 @@ function calcRealizado(goal, contratosAtivos, produtos, equipes, vendedores) {
     else return 0
   } else if (goal.tipo_alvo === 'unidade') {
     filtrados = filtrados.filter(c => String(c.branch_id) === String(goal.id_unidade))
+  } else if (goal.tipo_alvo === 'parceiro') {
+    filtrados = filtrados.filter(c => String(c.partner_id) === String(goal.partner_id))
   } else if (goal.tipo_alvo === 'categoria') {
     const catProdIds = new Set(produtos.filter(p => p.categoria === goal.category_id).map(p => String(p.id)))
     filtrados = filtrados.filter(c =>
@@ -701,13 +705,13 @@ function MesCell({ mes, label, value, onChange, showPrefix, isCurrent }) {
 // ─── Modal Nova/Editar Meta ───────────────────────────────────────────────────
 const EMPTY_MESES_VALORES = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, '']))
 const EMPTY_FORM = {
-  tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', category_id: '', product_id: '', equipe_id: '',
+  tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', partner_id: '', category_id: '', product_id: '', equipe_id: '',
   tipo_meta: 'valor', subtipo_operacional: 'quantidade', valor_sufixo: '',
   periodo_ano: String(ANO), meses_valores: { ...EMPTY_MESES_VALORES }, valor_padrao_str: '',
   status: 'ativa',
 }
 
-function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categorias, produtos, equipes }) {
+function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parceiros, categorias, produtos, equipes }) {
   const isEditing = !!initial
   const [activeTab, setActiveTab] = useState('meta') // 'meta' | 'execucao'
 
@@ -743,7 +747,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
     }
     return {
       tipo_alvo: initial.tipo_alvo, id_vendedor: initial.id_vendedor || '',
-      id_unidade: initial.id_unidade || '', category_id: initial.category_id || '',
+      id_unidade: initial.id_unidade || '', partner_id: initial.partner_id || '', category_id: initial.category_id || '',
       product_id: initial.product_id || '', equipe_id: initial.equipe_id || '',
       tipo_meta: initial.tipo_meta,
       subtipo_operacional: initial.subtipo_operacional || 'quantidade',
@@ -768,6 +772,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
     const e = {}
     if (form.tipo_alvo==='vendedor'  && !form.id_vendedor)  e.ref='Selecione um vendedor'
     if (form.tipo_alvo==='unidade'   && !form.id_unidade)   e.ref='Selecione uma unidade'
+    if (form.tipo_alvo==='parceiro'  && !form.partner_id)   e.ref='Selecione um parceiro'
     if (form.tipo_alvo==='categoria' && !form.category_id)  e.ref='Selecione uma categoria'
     if (form.tipo_alvo==='produto'   && !form.product_id)   e.ref='Selecione um produto'
     if (form.tipo_alvo==='equipe'    && !form.equipe_id)    e.ref='Selecione uma equipe'
@@ -781,6 +786,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
     let nome_ref = '', sub_ref = ''
     if (form.tipo_alvo==='vendedor')       { const v=vendedores.find(x=>x.id===form.id_vendedor); nome_ref=v?.nome||''; sub_ref=v?.unidade||v?.franquia||'' }
     else if (form.tipo_alvo==='unidade')   { const u=unidades.find(x=>x.id===form.id_unidade);    nome_ref=u?.nome||'' }
+    else if (form.tipo_alvo==='parceiro')  { const p=parceiros.find(x=>x.id===form.partner_id);   nome_ref=p?.nome||''; sub_ref='Parceiro' }
     else if (form.tipo_alvo==='categoria') { nome_ref=form.category_id; sub_ref='Categoria de produto' }
     else if (form.tipo_alvo==='produto')   { const p=produtos.find(x=>x.id===form.product_id); nome_ref=p?.nome||''; sub_ref=p?.categoria||'' }
     else if (form.tipo_alvo==='equipe')    { const e=equipes.find(x=>x.id===form.equipe_id);    nome_ref=e?.nome||''; sub_ref='Equipe' }
@@ -789,6 +795,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
       tipo_alvo: form.tipo_alvo,
       id_vendedor: form.tipo_alvo==='vendedor'  ? form.id_vendedor  : null,
       id_unidade:  form.tipo_alvo==='unidade'   ? form.id_unidade   : null,
+      partner_id:  form.tipo_alvo==='parceiro'  ? form.partner_id   : null,
       category_id: form.tipo_alvo==='categoria' ? form.category_id  : null,
       product_id:  form.tipo_alvo==='produto'   ? form.product_id   : null,
       equipe_id:   form.tipo_alvo==='equipe'    ? form.equipe_id    : null,
@@ -857,14 +864,15 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
       <div>
         <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)',
           textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
-          {{ vendedor:'Vendedor', unidade:'Unidade / Franquia', categoria:'Categoria de produto', produto:'Produto', equipe:'Equipe' }[form.tipo_alvo]}
+          {{ vendedor:'Vendedor', unidade:'Unidade / Franquia', parceiro:'Parceiro', categoria:'Categoria de produto', produto:'Produto', equipe:'Equipe' }[form.tipo_alvo]}
         </div>
         <select style={{ width:'100%', padding:'9px 11px', borderRadius:8, border:`1px solid ${errors.ref?'var(--red)':'var(--border)'}`,
           background:'var(--surface2)', fontSize:13, color:'var(--text)', fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }}
-          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='unidade'?form.id_unidade:form.tipo_alvo==='categoria'?form.category_id:form.tipo_alvo==='equipe'?form.equipe_id:form.product_id}
+          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='unidade'?form.id_unidade:form.tipo_alvo==='parceiro'?form.partner_id:form.tipo_alvo==='categoria'?form.category_id:form.tipo_alvo==='equipe'?form.equipe_id:form.product_id}
           onChange={e => {
             if (form.tipo_alvo==='vendedor')       set('id_vendedor',e.target.value)
             else if (form.tipo_alvo==='unidade')   set('id_unidade',e.target.value)
+            else if (form.tipo_alvo==='parceiro')  set('partner_id',e.target.value)
             else if (form.tipo_alvo==='categoria') set('category_id',e.target.value)
             else if (form.tipo_alvo==='equipe')    set('equipe_id',e.target.value)
             else                                   set('product_id',e.target.value)
@@ -872,6 +880,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
           <option value="">— Selecione —</option>
           {form.tipo_alvo==='vendedor'  && vendedores.map(v=><option key={v.id} value={v.id}>{v.nome}{v.unidade?` · ${v.unidade}`:''}</option>)}
           {form.tipo_alvo==='unidade'   && unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
+          {form.tipo_alvo==='parceiro'  && parceiros.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
           {form.tipo_alvo==='categoria' && categorias.map(c=><option key={c} value={c}>{c}</option>)}
           {form.tipo_alvo==='produto'   && produtos.map(p=><option key={p.id} value={p.id}>{p.nome}{p.categoria?` · ${p.categoria}`:''}</option>)}
           {form.tipo_alvo==='equipe'    && equipes.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
@@ -1126,12 +1135,13 @@ export default function Metas() {
 
   // ── Dados reais de referência ─────────────────────────────────────────────
   const [funcionarios]  = useLocalState(FUNC_STORAGE_KEY, [])
-  const [franquiasData] = useLocalState('settings:franquias_v2', [])
+  const { parceiros: parceirosData } = useParceiros()
   const [categoriasData] = useLocalState('produtos:categorias', [])
   const [equipesData]   = useLocalState('settings:equipes_v1', [])
 
   const vendedores = funcionarios.map(f => ({ id: f.id, nome: f.nome, unidade: f.empresa || '' }))
-  const unidades   = franquiasData.map(f => ({ id: String(f.id), nome: [f.codigo ? `[${f.codigo}] ` : '', f.nome].join('') }))
+  const unidades   = (parceirosData || []).map(p => ({ id: String(p.id), nome: p.codigo ? `[${p.codigo}] ${p.nome}` : p.nome }))
+  const parceiros  = (parceirosData || []).filter(p => p.situacao !== 'inativo').map(p => ({ id: String(p.id), nome: p.codigo ? `[${p.codigo}] ${p.nome}` : p.nome }))
   const categorias = categoriasData
   const produtos   = produtosStore
   const equipes    = equipesData.filter(e => e.status !== 'inativa')
@@ -1464,6 +1474,7 @@ export default function Metas() {
             onSave={handleSave}
             vendedores={vendedores}
             unidades={unidades}
+            parceiros={parceiros}
             categorias={categorias}
             produtos={produtos}
             equipes={equipes}

@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useLocalState } from '../hooks/useLocalState'
 import AlertsInbox from './AlertsInbox'
 import {
-  LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
+  LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 
 const ICON_MAP = {
-  LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target,
+  LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, BarChart2, TimerReset,
@@ -32,6 +32,7 @@ const INITIAL_GROUPS = [
       { path: '/playbooks',        label: 'Playbooks',          iconKey: 'BookOpen'        },
       { path: '/vendedores',       label: 'Contatos Canais',    iconKey: 'Users'           },
       { path: '/acoes',            label: 'Ações',              iconKey: 'Zap'             },
+      { path: '/parceiros',        label: 'Parceiros',          iconKey: 'Network'         },
       { path: '/empresas',         label: 'Empresas',           iconKey: 'Building2'       },
       { path: '/contatos',         label: 'Contatos',           iconKey: 'UserCircle'      },
       { path: '/projetos',         label: 'Projetos',           iconKey: 'FolderKanban'    },
