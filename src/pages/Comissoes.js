@@ -811,11 +811,6 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
 
       <FormSection label="Cálculo">
         <FormGrid cols={2}>
-          <FormField label="Tipo de receita">
-            <select className="so-field" value={form.receita_tipo} onChange={e=>set('receita_tipo',e.target.value)}>
-              {RECEITA_TIPOS.map(t=><option key={t} value={t}>{t}</option>)}
-            </select>
-          </FormField>
           <FormField label="Status">
             <select className="so-field" value={form.status} onChange={e=>set('status',e.target.value)}>
               {Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
