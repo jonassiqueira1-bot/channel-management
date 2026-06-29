@@ -110,21 +110,24 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       title={parceiro.nome}
       subtitle={parceiro.segmento || parceiro.tipo || ''}
       width={520}
+      columns={1}
     >
       {/* KPIs topo */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
         {[
-          { label: 'Estado',      value: parceiro.estado || parceiro.uf || '—' },
-          { label: 'Status',      value: parceiro.situacao || parceiro.status || '—' },
-          { label: 'Maturidade',  value: score_pct !== null ? `${score_pct}%` : '—' },
+          { label: 'Estado',     value: extractEstado(parceiro) },
+          { label: 'Status',     value: parceiro.situacao || parceiro.status || 'ativo' },
+          { label: 'Maturidade', value: score_pct !== null ? `${score_pct}%` : '—', color: score_pct !== null ? scoreColor(score_pct) : undefined },
         ].map(k => (
           <div key={k.label} style={{
+            flex: '1 1 80px', minWidth: 80,
             background: 'var(--surface-alt)', border: '1px solid var(--border2)',
             borderRadius: 8, padding: '10px 12px', textAlign: 'center',
           }}>
             <div style={{
-              fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)',
-              color: k.label === 'Maturidade' && score_pct !== null ? scoreColor(score_pct) : 'var(--text)',
+              fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono)',
+              color: k.color || 'var(--text)',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               {k.value}
             </div>

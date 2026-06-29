@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { useSellers } from '../hooks/useSellers'
@@ -23,6 +23,96 @@ function fmtPhone(v) {
   return `(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`
 }
 function uid() { return Date.now() + Math.floor(Math.random() * 1000) }
+
+function SearchSelect({ value, onChange, options, placeholder = 'Buscar...' }) {
+  const [open, setOpen]     = useState(false)
+  const [query, setQuery]   = useState('')
+  const ref                 = useRef(null)
+
+  const selected = options.find(o => String(o.id) === String(value))
+
+  const filtered = useMemo(() => {
+    if (!query) return options
+    const q = query.toLowerCase()
+    return options.filter(o => (o.label || '').toLowerCase().includes(q))
+  }, [options, query])
+
+  useEffect(() => {
+    function handle(e) { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setQuery('') } }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [])
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => { setOpen(o => !o); setQuery('') }}
+        style={{
+          width: '100%', textAlign: 'left', padding: '8px 12px',
+          border: '1px solid var(--border2)', borderRadius: 8,
+          background: 'var(--surface-alt)', color: selected ? 'var(--text)' : 'var(--text-muted)',
+          fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          fontFamily: 'var(--font)',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {selected ? selected.label : '— Nenhuma —'}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>▾</span>
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 9999,
+          background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.15)', overflow: 'hidden',
+        }}>
+          <div style={{ padding: '8px 8px 4px' }}>
+            <input
+              autoFocus
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={placeholder}
+              style={{
+                width: '100%', padding: '6px 10px', borderRadius: 6,
+                border: '1px solid var(--border2)', background: 'var(--surface-alt)',
+                color: 'var(--text)', fontSize: 12, outline: 'none', boxSizing: 'border-box',
+                fontFamily: 'var(--font)',
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            <div
+              style={{ padding: '7px 12px', fontSize: 13, color: 'var(--text-muted)', cursor: 'pointer' }}
+              onMouseDown={() => { onChange(null, null); setOpen(false); setQuery('') }}
+            >
+              — Nenhuma —
+            </div>
+            {filtered.length === 0 && (
+              <div style={{ padding: '7px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>
+            )}
+            {filtered.map(o => (
+              <div
+                key={o.id}
+                onMouseDown={() => { onChange(o.id, o.label); setOpen(false); setQuery('') }}
+                style={{
+                  padding: '7px 12px', fontSize: 13, cursor: 'pointer',
+                  background: String(o.id) === String(value) ? 'var(--accent-lite)' : 'transparent',
+                  color: String(o.id) === String(value) ? 'var(--accent)' : 'var(--text)',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}
+              >
+                {String(o.id) === String(value) && <span style={{ fontSize: 10 }}>✓</span>}
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 function initials(nome) {
   if (!nome) return '?'
   return nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
