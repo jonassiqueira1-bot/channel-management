@@ -44,6 +44,7 @@ function rowToContrato(row) {
     origem:          cf.origem || '',
     data_pag_cdu:    cf.data_pag_cdu || '',
     data_pag_sms:    cf.data_pag_sms || '',
+    playbook_id:     cf.playbook_id  || null,
   }
 }
 
@@ -69,6 +70,7 @@ function contratoToRow(c, tenantId, branchId) {
       origem:             c.origem || '',
       data_pag_cdu:       c.data_pag_cdu || '',
       data_pag_sms:       c.data_pag_sms || '',
+      playbook_id:        c.playbook_id  || null,
     },
   }
 }
