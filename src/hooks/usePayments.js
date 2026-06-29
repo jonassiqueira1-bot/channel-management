@@ -3,7 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 
-// Chave exclusiva para provisões geradas pela integração (separada de dados mock)
 export const PROVISOES_LS_KEY = 'pagamentos:provisoes_v1'
 const PAYMENTS_LS_KEY = 'pagamentos:lista_v1'
 
@@ -17,14 +16,20 @@ function saveLS(list) {
   try { localStorage.setItem(PAYMENTS_LS_KEY, JSON.stringify(list)) } catch {}
 }
 
+// Detecta se o id é um UUID real do Supabase (para distinguir INSERT de UPDATE)
+function isUuid(id) {
+  return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(id)
+}
+
 function rowToPayment(row) {
   const cf = row.custom_fields || {}
   return {
     id:               row.id,
-    contract_id:      row.contract_id || null,
+    // Campos que podem não existir na tabela real → lê de custom_fields como fallback
+    contract_id:      cf.contract_id || null,
     contract_numero:  cf.contract_numero || '',
-    project_id:       row.project_id || null,
-    origin_type:      row.origin_type || cf._origem || null,
+    project_id:       cf.project_id || null,
+    origin_type:      cf.origin_type || cf._origem || null,
     company_id:       row.company_id || null,
     company_nome:     row.companies?.nome_fantasia || row.companies?.razao_social || cf.company_nome || '',
     produto_id:       cf.produto_id || null,
@@ -39,8 +44,9 @@ function rowToPayment(row) {
     data_baixa:       cf.data_baixa || '',
     valor_recebido:   cf.valor_recebido || 0,
     parcela:          cf.parcela || '',
-    reference_month:  row.reference_month || '',
-    due_date:         row.due_date || '',
+    // Colunas de data — schema real usa vencimento/data_pagamento
+    reference_month:  row.data_pagamento || cf.reference_month || '',
+    due_date:         row.vencimento     || cf.due_date        || '',
     status:           row.status || 'pendente',
     processed:        cf.processed || false,
     notes:            row.descricao || '',
@@ -51,19 +57,20 @@ function rowToPayment(row) {
 
 function paymentToRow(p, tenantId, branchId) {
   return {
-    tenant_id:       tenantId,
-    branch_id:       branchId || null,
-    company_id:      p.company_id || null,
-    contract_id:     p.contract_id || null,
-    project_id:      p.project_id || null,
-    origin_type:     p.origin_type || null,
-    status:          p.status || 'pendente',
-    due_date:        p.due_date || null,
-    reference_month: p.reference_month || null,
-    descricao:       p.notes || '',
+    tenant_id:      tenantId,
+    branch_id:      branchId || null,
+    company_id:     p.company_id || null,
+    status:         p.status || 'pendente',
+    vencimento:     p.due_date || null,
+    data_pagamento: p.reference_month || null,
+    descricao:      p.notes || '',
+    // Todos os campos extras em custom_fields (evita erros de colunas inexistentes)
     custom_fields: {
+      contract_id:      p.contract_id,
       contract_numero:  p.contract_numero,
       company_nome:     p.company_nome,
+      project_id:       p.project_id,
+      origin_type:      p.origin_type,
       produto_id:       p.produto_id,
       produto_nome:     p.produto_nome,
       amount_cdu:       p.amount_cdu,
@@ -77,6 +84,8 @@ function paymentToRow(p, tenantId, branchId) {
       valor_recebido:   p.valor_recebido,
       parcela:          p.parcela,
       processed:        p.processed,
+      due_date:         p.due_date,
+      reference_month:  p.reference_month,
     },
   }
 }
@@ -107,20 +116,18 @@ export function usePayments() {
     const { data, error } = await supabase
       .from('payments')
       .select('*, companies(nome_fantasia, razao_social)')
-      .order('due_date', { ascending: false })
+      .order('vencimento', { ascending: false })
 
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
     const fromDB = (data || []).map(rowToPayment)
-    // Mescla entradas do localStorage que ainda não estão no Supabase
-    const fromLS = loadProvisoes()
-    const lsOnly = fromLS.filter(ls =>
-      !fromDB.some(db =>
-        String(db.contract_id) === String(ls.contract_id) &&
-        db.due_date === ls.due_date &&
-        String(db.produto_id) === String(ls.produto_id)
-      )
+
+    // Mescla registros locais (provisões offline ou novos não sincronizados)
+    const localAll = [...loadLS(), ...loadProvisoes()]
+    const lsOnly = localAll.filter(ls =>
+      !fromDB.some(db => db.id === ls.id) &&
+      ls.id && !isUuid(ls.id) // apenas registros locais (id não-UUID)
     )
     const merged = [...fromDB, ...lsOnly]
     setPagamentos(merged)
@@ -131,19 +138,36 @@ export function usePayments() {
   useEffect(() => { load() }, [load])
 
   const save = useCallback(async (p) => {
-    // Atualiza estado e localStorage imediatamente (otimista)
+    // Otimista: atualiza estado e localStorage imediatamente
     setPagamentos(prev => {
-      const next = prev.map(x => x.id === p.id ? { ...x, ...p } : x)
+      const exists = prev.some(x => x.id === p.id)
+      const next = exists
+        ? prev.map(x => x.id === p.id ? { ...x, ...p } : x)
+        : [p, ...prev]
       saveLS(next)
       return next
     })
     if (isMockMode.current) return { ok: true }
 
     const row = paymentToRow(p, tenantId, branchId)
-    const { error } = await supabase.from('payments').update(row).eq('id', p.id)
-    if (error) {
-      console.error('[usePayments.save]', error.message)
-      return { ok: false, message: error.message }
+
+    if (isUuid(p.id)) {
+      // UPDATE — registro existente no banco
+      const { error } = await supabase.from('payments').update(row).eq('id', p.id)
+      if (error) { console.error('[usePayments.save update]', error.message); return { ok: false, message: error.message } }
+    } else {
+      // INSERT — registro novo (id local como 'man_...' ou 'prov_...')
+      const { data, error } = await supabase.from('payments').insert(row).select().single()
+      if (error) { console.error('[usePayments.save insert]', error.message); return { ok: false, message: error.message } }
+      if (data) {
+        // Substitui o id local pelo UUID do banco
+        const novo = rowToPayment(data)
+        setPagamentos(prev => {
+          const next = prev.map(x => x.id === p.id ? novo : x)
+          saveLS(next)
+          return next
+        })
+      }
     }
     return { ok: true }
   }, [tenantId, branchId])
@@ -154,7 +178,10 @@ export function usePayments() {
       saveLS(next)
       return next
     })
-    if (!isMockMode.current) await supabase.from('payments').delete().in('id', ids)
+    if (!isMockMode.current) {
+      const uuids = ids.filter(isUuid)
+      if (uuids.length) await supabase.from('payments').delete().in('id', uuids)
+    }
   }, [])
 
   const bulkSetProcessed = useCallback(async (ids) => {
@@ -164,8 +191,8 @@ export function usePayments() {
       return next
     })
     if (!isMockMode.current) {
-      const patch = { custom_fields: { processed: true } }
-      await supabase.from('payments').update(patch).in('id', ids)
+      const uuids = ids.filter(isUuid)
+      if (uuids.length) await supabase.from('payments').update({ custom_fields: { processed: true } }).in('id', uuids)
     }
   }, [])
 
@@ -175,7 +202,10 @@ export function usePayments() {
       saveLS(next)
       return next
     })
-    if (!isMockMode.current) await supabase.from('payments').update({ status: 'pago' }).in('id', ids)
+    if (!isMockMode.current) {
+      const uuids = ids.filter(isUuid)
+      if (uuids.length) await supabase.from('payments').update({ status: 'pago' }).in('id', uuids)
+    }
   }, [])
 
   return { pagamentos, setPagamentos, loading, reload: load, save, removeMany, bulkSetProcessed, bulkSetPago }
