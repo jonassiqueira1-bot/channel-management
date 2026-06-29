@@ -19,7 +19,7 @@ import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection } from '../../components/ui'
 
-const SUPABASE_URL = 'https://kkvnvlfyswevlpnchilu.supabase.co'
+const SUPABASE_URL = process.env.REACT_APP_SUPABASE_URL || 'https://tbzlezyzkicyvjujxlru.supabase.co'
 
 const ACCENT = 'var(--accent)'
 
