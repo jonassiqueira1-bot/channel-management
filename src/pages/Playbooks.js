@@ -557,6 +557,15 @@ const STATUS_CONTRATO_OPTS = [
   { value: 'cancelado', label: 'Cancelado' },
 ]
 
+const STATUS_CONTRATO_CFG = {
+  todos:     { label: 'Todos os status',  icon: '📋', color: '#6B7280', bg: '#F3F4F620' },
+  rascunho:  { label: 'Rascunho',         icon: '📝', color: '#92400E', bg: '#FEF3C720' },
+  ativo:     { label: 'Ativo',            icon: '✅', color: '#065F46', bg: '#D1FAE520' },
+  suspenso:  { label: 'Suspenso',         icon: '⏸️', color: '#1E40AF', bg: '#DBEAFE20' },
+  encerrado: { label: 'Encerrado',        icon: '🔒', color: '#374151', bg: '#F3F4F620' },
+  cancelado: { label: 'Cancelado',        icon: '❌', color: '#991B1B', bg: '#FEE2E220' },
+}
+
 function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG, showStatusContrato = false }) {
   const [form, setForm] = useState(initial || EMPTY_STEP)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -832,22 +841,29 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
 }
 
 // ─── Detail: Funnel Steps Panel ───────────────────────────────────────────────
-function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, stageCfg = STAGE_CFG }) {
+function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, stageCfg = STAGE_CFG, isAdministrativo = false }) {
   const firstKey = Object.keys(stageCfg)[0] || 'prospeccao'
   const [open, setOpen] = useState(new Set([firstKey]))
   const toggle = k => setOpen(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   const byStage = useMemo(() => {
     const map = {}
-    Object.keys(stageCfg).forEach(k => { map[k] = steps.filter(s => String(s.stage) === String(k)) })
+    if (isAdministrativo) {
+      // Agrupa por status_contrato; steps sem status vão em 'todos'
+      Object.keys(stageCfg).forEach(k => {
+        map[k] = steps.filter(s => (s.status_contrato || 'todos') === k)
+      })
+    } else {
+      Object.keys(stageCfg).forEach(k => { map[k] = steps.filter(s => String(s.stage) === String(k)) })
+    }
     return map
-  }, [steps, stageCfg])
+  }, [steps, stageCfg, isAdministrativo])
 
   return (
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
-        <h2 style={dp.panelTitle}>Atividades por Etapa</h2>
-        <p style={dp.panelSub}>Roteiros, scripts e critérios estruturados por fase do funil.</p>
+        <h2 style={dp.panelTitle}>{isAdministrativo ? 'Atividades por Status do Contrato' : 'Atividades por Etapa'}</h2>
+        <p style={dp.panelSub}>{isAdministrativo ? 'Roteiros e processos internos organizados por status do contrato.' : 'Roteiros, scripts e critérios estruturados por fase do funil.'}</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {Object.entries(stageCfg).map(([key, cfg]) => {
@@ -1075,8 +1091,15 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
 
 // ─── Objeções Detail Panel ────────────────────────────────────────────────────
 // ─── Detail View ─────────────────────────────────────────────────────────────
-const DETAIL_SECTIONS = [
+const DETAIL_SECTIONS_VENDAS = [
   { id: 'funnel',    icon: '🎯', label: 'Atividades por Etapa' },
+  { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
+  { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
+  { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
+]
+
+const DETAIL_SECTIONS_ADMIN = [
+  { id: 'funnel',    icon: '📋', label: 'Atividades por Status' },
   { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
   { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
   { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
@@ -1099,7 +1122,10 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
   const [section, setSection] = useState('funnel')
   const segColor = SEGMENT_COLORS[playbook.segment] || SEGMENT_COLORS['Outro']
 
+  const isAdministrativo = playbook.tipo === 'administrativo'
+
   const stageCfg = useMemo(() => {
+    if (isAdministrativo) return STATUS_CONTRATO_CFG
     if (!playbook.funil_id) return STAGE_CFG
     const funil = funis.find(f => String(f.id) === String(playbook.funil_id))
     if (!funil?.etapas?.length) return STAGE_CFG
@@ -1108,7 +1134,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
         .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
         .map(e => [String(e.id), { label: e.nome, icon: '', color: e.cor || 'var(--accent)', bg: (e.cor || '#6366F1') + '22' }])
     )
-  }, [playbook.funil_id, funis])
+  }, [playbook.funil_id, funis, isAdministrativo])
   const stepsCount    = steps.length
   const refsCount     = refs.length
   const resourceCount = resources.length
@@ -1136,7 +1162,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
         {/* Internal sidebar */}
         <aside style={dv.sidebar}>
           <div style={dv.sbInner}>
-            {DETAIL_SECTIONS.map(sec => {
+            {(isAdministrativo ? DETAIL_SECTIONS_ADMIN : DETAIL_SECTIONS_VENDAS).map(sec => {
               const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount : objecoesCount
               return (
                 <button key={sec.id}
@@ -1156,7 +1182,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
         {/* Content area */}
         <main style={dv.content}>
           {section === 'funnel' && (
-            <FunnelStepsPanel steps={steps} isISV={isISV} onAddStep={onAddStep} onEditStep={onEditStep} onDeleteStep={onDeleteStep} stageCfg={stageCfg} />
+            <FunnelStepsPanel steps={steps} isISV={isISV} onAddStep={onAddStep} onEditStep={onEditStep} onDeleteStep={onDeleteStep} stageCfg={stageCfg} isAdministrativo={isAdministrativo} />
           )}
           {section === 'refs' && (
             <ReferencesPanel refs={refs} isISV={isISV} onAdd={onAddRef} onEdit={onEditRef} onDelete={onDeleteRef} />
