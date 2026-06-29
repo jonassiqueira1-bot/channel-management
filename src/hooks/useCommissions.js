@@ -38,34 +38,45 @@ function ruleToRow(r, tenantId, branchId) {
 
 function rowToPayment(row) {
   const cf = row.custom_fields || {}
+  // Período pode vir como 'YYYY-MM' (coluna original) ou separado em periodo_mes/ano
+  const periodoStr = row.periodo || ''
+  const [pAno, pMes] = periodoStr.split('-')
   return {
     id:               row.id,
     rule_id:          row.rule_id || null,
-    company_id:       row.company_id || null,
-    contract_id:      row.contract_id || null,
+    company_id:       row.company_id || cf.company_id || null,
+    contract_id:      row.contract_id || cf.contract_id || null,
     beneficiario_id:  row.beneficiario_id || cf.beneficiario_id || null,
-    beneficiario_nome:row.beneficiario_nome || cf.beneficiario_nome || '',
+    beneficiario_nome:row.beneficiario_nome || row.beneficiario || cf.beneficiario_nome || '',
     persona_slug:     row.persona_slug || cf.persona_slug || '',
-    periodo_mes:      row.periodo_mes || null,
-    periodo_ano:      row.periodo_ano || null,
+    periodo_mes:      row.periodo_mes || (pMes ? Number(pMes) : null),
+    periodo_ano:      row.periodo_ano || (pAno ? Number(pAno) : null),
     valor_bruto:      row.valor_bruto || 0,
-    valor_comissao:   row.valor_comissao || 0,
+    valor_comissao:   row.valor_comissao || row.valor || 0,
     parcela_numero:   row.parcela_numero || null,
     total_parcelas:   row.total_parcelas || null,
     status:           row.status || 'pendente',
-    data_pagamento:   row.data_pagamento || null,
-    observacoes:      row.observacoes || '',
+    data_pagamento:   row.pago_em || row.data_pagamento || null,
+    observacoes:      row.observacoes || row.obs || '',
     ...cf,
     criado:           row.created_at?.slice(0, 10) || '',
   }
 }
 
 function paymentToRow(p, tenantId, branchId) {
-  const { id, criado, ...rest } = p
+  const mes = p.periodo_mes ? String(p.periodo_mes).padStart(2, '0') : '01'
+  const ano = p.periodo_ano ? String(p.periodo_ano) : String(new Date().getFullYear())
   return {
     tenant_id:        tenantId,
     branch_id:        branchId || null,
     rule_id:          p.rule_id || null,
+    // Colunas originais NOT NULL — mantidas para compatibilidade
+    beneficiario:     p.beneficiario_nome || p.persona_slug || 'N/D',
+    periodo:          `${ano}-${mes}`,
+    valor:            Number(p.valor_comissao) || 0,
+    status:           p.status || 'pendente',
+    obs:              p.observacoes || null,
+    // Novas colunas adicionadas via ALTER TABLE
     company_id:       p.company_id || null,
     contract_id:      p.contract_id || null,
     beneficiario_id:  p.beneficiario_id ? String(p.beneficiario_id) : null,
@@ -73,12 +84,12 @@ function paymentToRow(p, tenantId, branchId) {
     persona_slug:     p.persona_slug || null,
     periodo_mes:      p.periodo_mes ? Number(p.periodo_mes) : null,
     periodo_ano:      p.periodo_ano ? Number(p.periodo_ano) : null,
-    valor_bruto:      p.valor_bruto ? Number(p.valor_bruto) : null,
-    valor_comissao:   p.valor_comissao ? Number(p.valor_comissao) : null,
-    status:           p.status || 'pendente',
-    data_pagamento:   p.data_pagamento || null,
+    valor_bruto:      Number(p.valor_bruto) || 0,
+    valor_comissao:   Number(p.valor_comissao) || 0,
     observacoes:      p.observacoes || null,
     custom_fields:    p.custom_fields || {},
+    parcela_numero:   p.parcela_numero || 1,
+    total_parcelas:   p.total_parcelas || null,
   }
 }
 
