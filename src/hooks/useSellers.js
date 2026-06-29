@@ -114,7 +114,7 @@ export function useSellers() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setSellers(prev => prev.filter(s => s.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('sellers').delete().eq('id', id)
+    const { error } = await supabase.from('sellers').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setSellers(prev => prev.filter(s => s.id !== id))
     return { ok: true }

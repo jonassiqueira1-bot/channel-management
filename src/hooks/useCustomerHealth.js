@@ -98,7 +98,7 @@ export function useCustomerHealth() {
       setRecords(prev => { const next = prev.filter(r => r.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('customer_health').delete().eq('id', id)
+    const { error } = await supabase.from('customer_health').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setRecords(prev => prev.filter(r => r.id !== id))
     return { ok: true }

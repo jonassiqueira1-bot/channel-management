@@ -67,7 +67,7 @@ export function useHabilitacoes() {
       setHabilitacoes(prev => { const next = prev.filter(h => h.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('habilitacoes').delete().eq('id', id)
+    const { error } = await supabase.from('habilitacoes').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setHabilitacoes(prev => prev.filter(h => h.id !== id))
     return { ok: true }

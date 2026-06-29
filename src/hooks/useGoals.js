@@ -181,7 +181,7 @@ export function useGoals() {
       setGoals(prev => { const next = prev.filter(g => g.id !== id); saveMockToStorage(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('goals').delete().eq('id', id)
+    const { error } = await supabase.from('goals').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setGoals(prev => prev.filter(g => g.id !== id))
     return { ok: true }

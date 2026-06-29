@@ -114,7 +114,7 @@ export function usePlaybooks() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setPlaybooks(prev => prev.filter(p => p.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('playbooks').delete().eq('id', id)
+    const { error } = await supabase.from('playbooks').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setPlaybooks(prev => prev.filter(p => p.id !== id))
     return { ok: true }

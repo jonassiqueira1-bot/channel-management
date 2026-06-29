@@ -94,7 +94,7 @@ export function useParceiros() {
       setParceiros(prev => { const next = prev.filter(p => p.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('parceiros').delete().eq('id', id)
+    const { error } = await supabase.from('parceiros').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => prev.filter(p => p.id !== id))
     return { ok: true }

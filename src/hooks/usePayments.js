@@ -185,7 +185,7 @@ export function usePayments() {
     })
     if (!isMockMode.current) {
       const uuids = ids.filter(isUuid)
-      if (uuids.length) await supabase.from('payments').delete().in('id', uuids)
+      if (uuids.length) await supabase.from('payments').update({ deleted_at: new Date().toISOString() }).in('id', uuids)
     }
   }, [])
 
