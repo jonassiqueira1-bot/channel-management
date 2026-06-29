@@ -3901,7 +3901,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       case 'responsavel':
         return <SellerSelect value={form.responsavel} onChange={nome => set('responsavel', nome)} style={m.input} />
       case 'situacao':
-        return (
+        return (<>
           <div style={{ position:'relative' }}>
             <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)',
               width:8, height:8, borderRadius:'50%', pointerEvents:'none',
@@ -3918,7 +3918,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               <MotivoPerdaField value={form.motivo_perda || ''} onChange={v => set('motivo_perda', v)} />
             </div>
           )}
-        )
+        </>)
       // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
       case 'etapa_id':
         return null
