@@ -782,9 +782,10 @@ export default function CustomerSuccess() {
     )
   }, [records, search, activeFilters])
 
-  function save(updated) {
+  async function save(updated) {
     const isNew = !records.find(r => r.id === updated.id)
-    saveHealth(updated)
+    const res = await saveHealth(updated)
+    if (res && !res.ok) { alert(res.message); return }
     log(isNew ? 'criar' : 'editar', 'customer_success', updated.id, { descricao: `CS ${isNew ? 'criado' : 'editado'}: ${updated.company_name || ''}` })
   }
 
