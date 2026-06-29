@@ -50,6 +50,8 @@ function rowToPayment(row) {
     periodo_ano:      row.periodo_ano || null,
     valor_bruto:      row.valor_bruto || 0,
     valor_comissao:   row.valor_comissao || 0,
+    parcela_numero:   row.parcela_numero || null,
+    total_parcelas:   row.total_parcelas || null,
     status:           row.status || 'pendente',
     data_pagamento:   row.data_pagamento || null,
     observacoes:      row.observacoes || '',
