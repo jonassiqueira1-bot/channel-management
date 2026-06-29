@@ -3991,30 +3991,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     <>
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
-      {funis.length > 1 && (
-        <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:12 }}>
-          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Funil</span>
-          <select
-            value={form.funil_id || ''}
-            onChange={e => {
-              const novoFunilId = e.target.value
-              if (!novoFunilId || novoFunilId === String(form.funil_id)) return
-              const novoFunil = funis.find(f => String(f.id) === novoFunilId)
-              if (!novoFunil) return
-              if (isEditing) {
-                setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
-              } else {
-                setForm(f => ({ ...f, funil_id: String(novoFunil.id), etapa_id: novoFunil.etapas?.[0]?.id || null }))
-              }
-            }}
-            style={{ fontSize:13, fontWeight:600, padding:'5px 12px', borderRadius:20,
-              border:'1px solid var(--border)', background:'var(--surface2)',
-              color:'var(--text)', cursor:'pointer', outline:'none' }}
-          >
-            {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
-          </select>
-        </div>
-      )}
       <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
       <div style={{ marginTop:16 }}>
         <DynamicFormLayout
@@ -4029,11 +4005,10 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   )
 
   // ── chips do header (valor, produtos) ────────────────────────────────────
-  const headerChips = isEditing ? (() => {
+  const headerChips = (() => {
     const bruto  = (Number(form.valor_cdu)||0)+(Number(form.valor_sms)||0)+(Number(form.valor_servico)||0)
     const liq    = Math.max(0, bruto - Math.min(Number(form.valor_desconto)||0, bruto))
     const nItens = (form.itens||[]).length
-    if (!liq && !nItens) return null
     const dot  = <span style={{ color:'var(--border2)', fontSize:12 }}>·</span>
     const chip = (label, color) => (
       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
@@ -4141,7 +4116,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         )}
       </div>
     )
-  })() : null
+  })()
 
   // ── tabs para edição ──────────────────────────────────────────────────────
   const OPP_TABS = isEditing ? [
