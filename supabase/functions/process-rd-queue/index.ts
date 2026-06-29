@@ -96,6 +96,7 @@ async function upsertEmpresa(
     tenant_id:      tenantId,
     name,
     type:           'CUSTOMER',
+    status:         'rascunho',
     updated_at:     new Date().toISOString(),
   }
   if (campos.corporate_name) row.corporate_name = campos.corporate_name
