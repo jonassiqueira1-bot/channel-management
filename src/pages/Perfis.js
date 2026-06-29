@@ -202,6 +202,16 @@ const MODULOS = [
     ],
   },
   {
+    id: 'parceiros', label: 'Parceiros', icon: ShieldAlert, grupo: 'Canal',
+    desc: 'Gestão de parceiros, maturidade e habilitações',
+    acoes: [
+      { id: 'visualizar',   label: 'Visualizar',     icon: Eye,    danger: false },
+      { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false },
+      { id: 'excluir',      label: 'Excluir',        icon: Trash2, danger: true  },
+      { id: 'exportar',     label: 'Exportar',       icon: Download, danger: false },
+    ],
+  },
+  {
     id: 'configuracoes', label: 'Configurações', icon: Settings2, grupo: 'Sistema',
     desc: 'Usuários, funis, integrações e sistema',
     acoes: [
@@ -254,6 +264,7 @@ function buildSeedPerms() {
       questionarios:   { visualizar:T, criar_editar:T, excluir:T },
       documentos:      { visualizar:T, criar_editar:T, excluir:T, exportar:T, apenas_proprios:F },
       campanhas:       { visualizar:T, criar_editar:T, excluir:T },
+      parceiros:       { visualizar:T, criar_editar:T, excluir:T, exportar:T },
       configuracoes:   { acessar:T, gerenciar_users:T, gerenciar_perfis:T, gerenciar_funis:T, integracoes:T },
     },
     native_gestor: {
@@ -274,6 +285,7 @@ function buildSeedPerms() {
       questionarios:   { visualizar:T, criar_editar:T, excluir:F },
       documentos:      { visualizar:T, criar_editar:T, excluir:F, exportar:T, apenas_proprios:F },
       campanhas:       { visualizar:T, criar_editar:F, excluir:F },
+      parceiros:       { visualizar:T, criar_editar:T, excluir:F, exportar:T },
       configuracoes:   { acessar:T, gerenciar_users:T, gerenciar_perfis:F, gerenciar_funis:T, integracoes:F },
     },
     native_vendedor: {
@@ -294,6 +306,7 @@ function buildSeedPerms() {
       questionarios:   { visualizar:T, criar_editar:F, excluir:F },
       documentos:      { visualizar:T, criar_editar:F, excluir:F, exportar:T, apenas_proprios:T },
       campanhas:       { visualizar:T, criar_editar:F, excluir:F },
+      parceiros:       { visualizar:F, criar_editar:F, excluir:F, exportar:F },
       configuracoes:   { acessar:F, gerenciar_users:F, gerenciar_perfis:F, gerenciar_funis:F, integracoes:F },
     },
     native_parceiro: {
@@ -314,6 +327,7 @@ function buildSeedPerms() {
       questionarios:   { visualizar:T, criar_editar:F, excluir:F },
       documentos:      { visualizar:T, criar_editar:F, excluir:F, exportar:T, apenas_proprios:T },
       campanhas:       { visualizar:T, criar_editar:F, excluir:F },
+      parceiros:       { visualizar:T, criar_editar:F, excluir:F, exportar:F },
       configuracoes:   { acessar:F, gerenciar_users:F, gerenciar_perfis:F, gerenciar_funis:F, integracoes:F },
     },
   }

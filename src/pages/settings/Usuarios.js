@@ -11,6 +11,7 @@ import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import { useBranches } from '../../hooks/useBranches'
+import { useParceiros } from '../../hooks/useParceiros'
 
 const ACCENT = 'var(--accent)'
 
@@ -502,7 +503,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const [confirmDel, setConfirmDel] = useState(false)
   const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const { rules: regrasComiss } = useCommissions()
-  const [franquias]    = useLocalState('settings:franquias_v2', [])
+  const { parceiros: franquias } = useParceiros()
   const { branches }  = useBranches()
 
   const isAdminFranquia = form.papel === 'admin_franquia'

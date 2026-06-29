@@ -101,7 +101,10 @@ const ENTIDADE_LABEL = {
   // ── Configurações › Geral ───────────────────────────────────────────────────
   empresa:             'Empresa / ISV',
   minha_conta:         'Minha Conta',
-  parceiro:            'Parceiro (Unidade)',
+  parceiro:            'Parceiro',
+  parceiro_maturidade_param:  'Parâmetro de Maturidade',
+  parceiro_maturidade_score:  'Score de Maturidade',
+  parceiro_habilitacao:       'Habilitação de Parceiro',
   unidade:             'Unidade',
   // ── Configurações › Segurança ───────────────────────────────────────────────
   usuario:             'Usuário',

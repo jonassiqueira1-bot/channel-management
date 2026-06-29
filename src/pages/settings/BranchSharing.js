@@ -25,6 +25,7 @@ const MODULOS = [
   { key: 'questionarios',   label: 'Questionários',      grupo: 'Pós-venda'   },
   { key: 'documentos',      label: 'Documentos',         grupo: 'Pós-venda'   },
   { key: 'campanhas',       label: 'Campanhas',          grupo: 'Canal'       },
+  { key: 'parceiros',       label: 'Parceiros',          grupo: 'Canal'       },
 ]
 
 const GRUPOS_MODULOS = [...new Set(MODULOS.map(m => m.grupo))]
