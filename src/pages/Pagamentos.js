@@ -15,6 +15,7 @@ import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/Sl
 import BrowseLayout from '../components/BrowseLayout'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissions } from '../hooks/useCommissions'
+import ActionFeedback from '../components/ActionFeedback'
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -1020,6 +1021,7 @@ export default function Pagamentos() {
   const [novoPagForm, setNovoPagForm]         = useState(null)
   const [savingNovo, setSavingNovo]           = useState(false) // eslint-disable-line no-unused-vars
   const [importModal, setImportModal]         = useState(false)
+  const [recebidoFeedback, setRecebidoFeedback] = useState(null) // { pag, steps }
 
   const periodos = useMemo(() => periodosUnicos(pagamentos), [pagamentos])
   const [periodo, setPeriodo] = useState(() => periodos[0] || { month:6, year:2026 })
@@ -1178,6 +1180,18 @@ export default function Pagamentos() {
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
       gerarRepasses(pag)
+      const isFromProjeto = pag._origem === 'fechamento_horas' ||
+        (pag.notes || '').toLowerCase().includes('fechamento de horas')
+      const temValores = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
+      const steps = [
+        { id: 'recebimento', label: `Recebimento registrado — ${pag.company_nome || pag.contract_numero}` },
+        { id: 'tipo',        label: isFromProjeto
+            ? `Origem: Serviços de projeto — ${pag.contract_numero || 'N/D'}`
+            : `Origem: Venda — Contrato ${pag.contract_numero || 'N/D'}` },
+        { id: 'comissao',    label: 'Gerando lançamento de comissão pendente', skip: !temValores },
+        { id: 'repasse',     label: 'Calculando repasses por persona' },
+      ]
+      setRecebidoFeedback({ pag, steps })
     }
   }
 
@@ -1370,7 +1384,7 @@ export default function Pagamentos() {
         newLabel="+ Novo Pagamento"
         bulkActions={[
           { label: '✓ Gerar faturas', onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p)) },
-          { label: 'Marcar como pago', onClick: ids => {
+          { label: 'Marcar como recebido', onClick: ids => {
             const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
             setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'pago' } : p))
             naoEramPagos.forEach(p => gerarRepasses({ ...p, status: 'pago' }))
@@ -1531,6 +1545,17 @@ export default function Pagamentos() {
       )}
       {importModal && (
         <ImportModal onClose={() => setImportModal(false)} onImport={handleImport} />
+      )}
+
+      {recebidoFeedback && (
+        <ActionFeedback
+          title={`Recebimento confirmado — ${recebidoFeedback.pag.company_nome || recebidoFeedback.pag.contract_numero}`}
+          subtitle="Comissões geradas · Repasses calculados"
+          steps={recebidoFeedback.steps}
+          onClose={() => setRecebidoFeedback(null)}
+          stepDelay={750}
+          autoClose={4500}
+        />
       )}
     </>
   )
