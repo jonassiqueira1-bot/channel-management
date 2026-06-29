@@ -4626,7 +4626,7 @@ export default function Projetos() {
 
         {/* Page header */}
         <PageHeader
-          breadcrumb={['Projetos']}
+          breadcrumb={['Indicadores']}
           title={null}
           showKpis={showKpis}
           onToggleKpis={() => setShowKpis(v => !v)}
