@@ -1067,15 +1067,16 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         <textarea className="so-field" value={form.observacoes || ''} onChange={e => set('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" style={{ minHeight: 80, resize: 'vertical' }} />
       </FormSection>
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : isNew ? 'Criar contrato' : 'Salvar alterações'}</Button>
-      </div>
-
-      {!isNew && (
-        <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
-      )}
     </div>
+
+    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+      <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : isNew ? 'Criar contrato' : 'Salvar alterações'}</Button>
+    </div>
+
+    {!isNew && (
+      <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
+    )}
     </>
   )
 }
