@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useTasks } from '../hooks/useTasks'
@@ -3978,8 +3979,8 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         )}
 
         {/* Popup: escolher etapa no funil de destino */}
-        {moverFunilPopup && (
-          <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center',
+        {moverFunilPopup && createPortal(
+          <div style={{ position:'fixed', inset:0, zIndex:99999, display:'flex', alignItems:'center', justifyContent:'center',
             background:'rgba(0,0,0,0.4)', backdropFilter:'blur(2px)' }}
             onClick={e => { if (e.target === e.currentTarget) setMoverFunilPopup(null) }}
           >
@@ -4029,7 +4030,8 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
         {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
         {dataFmt && (nItens > 0 || liq > 0) && dot}
