@@ -126,7 +126,7 @@ export function useProjects() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setProjetos(prev => prev.filter(p => p.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('projects').delete().eq('id', id)
+    const { error } = await supabase.from('projects').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setProjetos(prev => prev.filter(p => p.id !== id))
     return { ok: true }

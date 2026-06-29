@@ -1,7 +1,7 @@
-import { useState, useMemo, useRef } from 'react'
-import { Building2, Star, Upload, ImageOff } from 'lucide-react'
-import { useLocalState } from '../../hooks/useLocalState'
-import { MOCK_COMPANIES, COMPANIES_STORAGE_KEY } from '../../data/mockCompanies'
+import { useState, useEffect, useRef } from 'react'
+import { Building2, Star, Upload } from 'lucide-react'
+import { supabase } from '../../lib/supabase'
+import { useProfile } from '../../hooks/useProfile'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import BrowseLayout from '../../components/BrowseLayout'
 import { useBranches } from '../../hooks/useBranches'
@@ -112,63 +112,85 @@ const BRANCH_COLUMNS = [
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function EmpresaISV() {
-  const [companies, setCompanies] = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const isv = useMemo(() => companies.find(c => c.type === 'ISV'), [companies])
-  const [form, setForm] = useState(null)
-  const [owner, setOwner] = useState({ nome: '', email: '' })
-  const { branches, loading: loadingBranches, error: errorBranches, save: saveBranch, remove: removeBranch } = useBranches()
-  const jaTemOwner = branches.length > 0 // se já tem unidades, conta já foi criada
-  const [editandoUnidade, setEditandoUnidade] = useState(null) // null | 'novo' | branch object
-  const [formUnidade, setFormUnidade] = useState(null)
+  const { profile } = useProfile()
+  const [isv, setIsv]       = useState(null)
+  const [form, setForm]     = useState(null)
+  const [saving, setSaving] = useState(false)
+  const [owner, setOwner]   = useState({ nome: '', email: '' })
+  const { branches, save: saveBranch, remove: removeBranch } = useBranches()
+  const jaTemOwner = branches.length > 0
+  const [editandoUnidade, setEditandoUnidade] = useState(null)
+  const [formUnidade, setFormUnidade]         = useState(null)
   const [confirmDelUnidade, setConfirmDelUnidade] = useState(false)
 
-  const current = form || isv
+  // Carrega a empresa ISV do Supabase
+  useEffect(() => {
+    if (!profile?.tenant_id) return
+    supabase.from('companies')
+      .select('*')
+      .eq('tenant_id', profile.tenant_id)
+      .eq('tipo', 'ISV')
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setIsv(data)
+        else setIsv({ nome_fantasia: '', razao_social: '', tipo: 'ISV' })
+      })
+  }, [profile?.tenant_id])
+
+  // Normaliza ISV para campos de formulário consistentes
+  const current = {
+    ...(isv || {}),
+    name:           form?.name           ?? isv?.nome_fantasia ?? '',
+    corporate_name: form?.corporate_name ?? isv?.razao_social  ?? '',
+    email:          form?.email          ?? isv?.email         ?? '',
+    phone:          form?.phone          ?? isv?.phone         ?? '',
+    website:        form?.website        ?? isv?.website       ?? '',
+  }
   const temMatriz = branches.some(b => b.custom_fields?.is_matriz)
 
   if (!isv) return (
-    <div style={{ padding:32, color:'var(--text-muted)', fontSize:14 }}>Organização não encontrada.</div>
+    <div style={{ padding:32, color:'var(--text-muted)', fontSize:14 }}>Carregando…</div>
   )
 
   // ── Org handlers ──
-  function set(k, v) { setForm(f => ({ ...(f || isv), [k]: v })) }
+  function set(k, v) { setForm(f => ({ ...(f || {}), [k]: v })) }
 
   async function handleSaveOrg() {
-    const updated = { ...(form || isv), updated_at: new Date().toISOString() }
-    setCompanies(prev => prev.map(c => c.id === isv.id ? updated : c))
-    if (!temMatriz && updated.name?.trim()) {
-      await saveBranch({ name: updated.name.trim(), custom_fields: { is_matriz: true } })
+    if (!profile?.tenant_id) return
+    setSaving(true)
+    const payload = {
+      tenant_id:    profile.tenant_id,
+      tipo:         'ISV',
+      nome_fantasia: current.name?.trim()            || current.nome_fantasia?.trim() || '',
+      razao_social:  current.corporate_name?.trim()  || current.razao_social?.trim()  || '',
+      email:         current.email                   || null,
+      phone:         current.phone                   || null,
+      website:       current.website                 || null,
+      updated_at:    new Date().toISOString(),
     }
-    // Registra o owner na lista de usuários (apenas no primeiro save)
-    if (!jaTemOwner && owner.nome.trim() && owner.email.trim()) {
-      try {
-        const perfisAtual = JSON.parse(localStorage.getItem('settings:perfis_v2') || '[]')
-        const jaExiste = perfisAtual.some(p => p.email === owner.email.trim())
-        if (!jaExiste) {
-          const novoOwner = {
-            id: `owner_${Date.now()}`,
-            nome: owner.nome.trim(),
-            email: owner.email.trim(),
-            papel: 'admin_isv',
-            tipo_usuario: 'interno',
-            status: 'ativo',
-            is_owner: true,
-            criado_em: new Date().toISOString(),
-            ultimo_acesso: null,
-            perfis_acesso_ids: [],
-            branch_ids: [],
-          }
-          localStorage.setItem('settings:perfis_v2', JSON.stringify([novoOwner, ...perfisAtual]))
-        }
-      } catch {}
+    let savedId = isv.id
+    if (isv.id) {
+      const { error } = await supabase.from('companies').update(payload).eq('id', isv.id)
+      if (error) { alert('Erro ao salvar: ' + error.message); setSaving(false); return }
+    } else {
+      const { data, error } = await supabase.from('companies').insert(payload).select().single()
+      if (error) { alert('Erro ao salvar: ' + error.message); setSaving(false); return }
+      savedId = data.id
     }
+    setIsv({ ...isv, ...payload, id: savedId })
+
+    if (!temMatriz && payload.nome_fantasia) {
+      await saveBranch({ name: payload.nome_fantasia, custom_fields: { is_matriz: true } })
+    }
+    setSaving(false)
     setForm(null)
   }
 
-  const nomeOk    = current?.name?.trim().length > 0
-  const razaoOk   = current?.corporate_name?.trim().length > 0
+  const nomeOk       = current?.name?.trim().length > 0
+  const razaoOk      = current?.corporate_name?.trim().length > 0
   const ownerNomeOk  = jaTemOwner || owner.nome.trim().length > 0
   const ownerEmailOk = jaTemOwner || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(owner.email.trim())
-  const podeGravar = nomeOk && razaoOk && ownerNomeOk && ownerEmailOk
+  const podeGravar   = nomeOk && razaoOk && ownerNomeOk && ownerEmailOk && !saving
 
   // ── Unidade handlers ──
   function abrirNovaUnidade() {
@@ -345,10 +367,12 @@ export default function EmpresaISV() {
   // ── View principal ──
   return (
     <FullPageEdit
-      title="Empresa / ISV"
-      subtitle={isv.corporate_name || isv.name}
+      title="Empresa"
+      subtitle={isv.razao_social || isv.nome_fantasia}
       onSave={podeGravar ? handleSaveOrg : undefined}
       onCancel={() => setForm(null)}
+      saving={saving}
+      saveLabel={saving ? 'Salvando…' : 'Salvar alterações'}
     >
       <FPESection
         title="Organização"

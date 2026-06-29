@@ -3901,7 +3901,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       case 'responsavel':
         return <SellerSelect value={form.responsavel} onChange={nome => set('responsavel', nome)} style={m.input} />
       case 'situacao':
-        return (
+        return (<>
           <div style={{ position:'relative' }}>
             <span style={{ position:'absolute', left:11, top:'50%', transform:'translateY(-50%)',
               width:8, height:8, borderRadius:'50%', pointerEvents:'none',
@@ -3912,7 +3912,13 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               {Object.entries(SITUACOES).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
             </select>
           </div>
-        )
+          {form.situacao === 'perdida' && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Motivo da perda</div>
+              <MotivoPerdaField value={form.motivo_perda || ''} onChange={v => set('motivo_perda', v)} />
+            </div>
+          )}
+        </>)
       // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
       case 'etapa_id':
         return null
@@ -4005,11 +4011,10 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   )
 
   // ── chips do header (valor, produtos) ────────────────────────────────────
-  const headerChips = isEditing ? (() => {
+  const headerChips = (() => {
     const bruto  = (Number(form.valor_cdu)||0)+(Number(form.valor_sms)||0)+(Number(form.valor_servico)||0)
     const liq    = Math.max(0, bruto - Math.min(Number(form.valor_desconto)||0, bruto))
     const nItens = (form.itens||[]).length
-    if (!liq && !nItens) return null
     const dot  = <span style={{ color:'var(--border2)', fontSize:12 }}>·</span>
     const chip = (label, color) => (
       <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
@@ -4032,8 +4037,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               if (!novoFunilId || novoFunilId === String(form.funil_id)) return
               const novoFunil = funis.find(f => String(f.id) === novoFunilId)
               if (!novoFunil) return
-              setForm(f => ({ ...f, funil_id: novoFunilId }))
-              // Abre popup para escolher a etapa de destino
+              // Abre popup — funil_id só muda após confirmar
               setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
             }}
             style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
@@ -4118,7 +4122,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         )}
       </div>
     )
-  })() : null
+  })()
 
   // ── tabs para edição ──────────────────────────────────────────────────────
   const OPP_TABS = isEditing ? [

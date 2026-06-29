@@ -99,7 +99,7 @@ export function useTasks() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setTarefas(prev => prev.filter(t => t.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    const { error } = await supabase.from('tasks').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setTarefas(prev => prev.filter(t => t.id !== id))
     return { ok: true }

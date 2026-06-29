@@ -176,7 +176,7 @@ export function useCompanies() {
       return { ok: true }
     }
 
-    const { error } = await supabase.from('companies').delete().eq('id', id)
+    const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
 
     setCompanies(prev => prev.filter(e => e.id !== id))
@@ -190,7 +190,7 @@ export function useCompanies() {
       return { ok: true }
     }
 
-    const { error } = await supabase.from('companies').delete().in('id', ids)
+    const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).in('id', ids)
     if (error) return { ok: false, message: error.message }
 
     setCompanies(prev => prev.filter(e => !ids.includes(e.id)))

@@ -63,7 +63,7 @@ export function useCampanhas(seeds = []) {
       setCampanhas(prev => { const next = prev.filter(c => c.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('campanhas').delete().eq('id', id)
+    const { error } = await supabase.from('campanhas').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setCampanhas(prev => prev.filter(c => c.id !== id))
     return { ok: true }

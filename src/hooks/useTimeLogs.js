@@ -76,25 +76,6 @@ export function useTimeLogs() {
     // Lê logs locais (podem ter sido salvos enquanto Supabase estava vazio)
     let localLogs = []
     try { const s = localStorage.getItem(LS_KEY); localLogs = s ? JSON.parse(s) : [] } catch {}
-    const localOnly = localLogs.filter(l =>
-      !mapped.find(r => r.id === l.id) &&                         // não duplicar
-      l.project_id && typeof l.project_id === 'string' && l.project_id.includes('-') // apenas reais
-    )
-
-    // Migra logs locais para Supabase se existirem
-    if (localOnly.length > 0 && tenantId) {
-      try {
-        const rows = localOnly.map(l => ({ ...logToRow(l, tenantId, branchId), id: undefined }))
-        const { data: inserted } = await supabase.from('time_logs').insert(rows).select()
-        if (inserted?.length) {
-          const all = [...mapped, ...inserted.map(rowToLog)]
-          setLogs(all)
-          try { localStorage.setItem(LS_KEY, JSON.stringify(all)) } catch {}
-          setLoading(false)
-          return
-        }
-      } catch {}
-    }
 
     // Nunca sobrescreve localStorage com array vazio se já tem dados locais
     const merged = mapped.length > 0 ? mapped : localLogs

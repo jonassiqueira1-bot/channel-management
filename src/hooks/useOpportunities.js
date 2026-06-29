@@ -219,7 +219,7 @@ export function useOpportunities() {
       setOpps(prev => prev.filter(o => o.id !== id))
       return { ok: true }
     }
-    const { error } = await supabase.from('oportunidades').delete().eq('id', id)
+    const { error } = await supabase.from('oportunidades').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setOpps(prev => prev.filter(o => o.id !== id))
     return { ok: true }
@@ -229,7 +229,7 @@ export function useOpportunities() {
   const removeMany = useCallback(async (ids) => {
     setOpps(prev => prev.filter(o => !ids.includes(o.id)))
     if (!isMockMode.current) {
-      await supabase.from('oportunidades').delete().in('id', ids)
+      await supabase.from('oportunidades').update({ deleted_at: new Date().toISOString() }).in('id', ids)
     }
   }, [])
 

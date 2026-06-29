@@ -474,12 +474,18 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
           </FormGrid>
           <FormGrid cols={2}>
             <FormField label="Empresa cliente">
-              <EmpresaSearch
-                value={form.company_nome || ''}
-                label={form.company_nome || ''}
-                onChange={({ nome, id }) => setForm(f => ({ ...f, company_nome: nome, company_id: id }))}
-                placeholder="Buscar empresa cliente…"
-              />
+              {projeto.id && form.company_id ? (
+                <div className="so-field" style={{ background:'var(--surface2)', color:'var(--text)', cursor:'default', display:'flex', alignItems:'center' }}>
+                  {form.company_nome || form.company_id}
+                </div>
+              ) : (
+                <EmpresaSearch
+                  value={form.company_nome || ''}
+                  label={form.company_nome || ''}
+                  onChange={({ nome, id }) => setForm(f => ({ ...f, company_nome: nome, company_id: id }))}
+                  placeholder="Buscar empresa cliente…"
+                />
+              )}
             </FormField>
             <FormField label="Canal / Franquia">
               <input className="so-field" value={form.franchise_nome || ''} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
@@ -4503,7 +4509,7 @@ export default function Projetos() {
 
   // CRUD
   async function handleCreate(form) {
-    const np = { ...form, id: 'prj_' + Date.now(), tenant_id: 't1', company_id: null, franchise_id: null, created_at: new Date().toISOString().slice(0, 10) }
+    const np = { ...form, id: 'prj_' + Date.now(), tenant_id: 't1', franchise_id: null, created_at: new Date().toISOString().slice(0, 10) }
     log('criar', 'projeto', np.id, { descricao: `Projeto criado: ${np.name || np.nome || ''}` })
 
     // tenta usar proposta vinculada à oportunidade

@@ -45,6 +45,8 @@ export default function AlertsInbox({ collapsed }) {
     setLoading(false)
   }, [tenantId, usuarioId])
 
+  // Carrega count ao montar para mostrar badge mesmo com painel fechado
+  useEffect(() => { load() }, [load])
   useEffect(() => { if (open) load() }, [open, load])
 
   // Fecha ao clicar fora
@@ -87,14 +89,15 @@ export default function AlertsInbox({ collapsed }) {
         }}
       >
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <Bell size={15} strokeWidth={1.75} />
+          <Bell size={15} strokeWidth={1.75} color={count > 0 ? '#ef4444' : 'currentColor'} />
           {count > 0 && (
             <span style={{
-              position: 'absolute', top: -5, right: -6,
-              background: 'var(--accent)', color: '#fff',
-              fontSize: 9, fontWeight: 700, lineHeight: 1,
+              position: 'absolute', top: -5, right: -7,
+              background: '#ef4444', color: '#fff',
+              fontSize: 9, fontWeight: 800, lineHeight: 1,
               padding: '2px 4px', borderRadius: 99, minWidth: 14,
               textAlign: 'center',
+              boxShadow: '0 0 0 1.5px var(--sb-bg)',
             }}>
               {count > 99 ? '99+' : count}
             </span>

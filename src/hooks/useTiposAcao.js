@@ -81,7 +81,7 @@ export function useTiposAcao(defaults = []) {
       setTipos(prev => { const next = prev.filter(t => t.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('tipos_acao').delete().eq('id', id)
+    const { error } = await supabase.from('tipos_acao').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setTipos(prev => prev.filter(t => t.id !== id))
     return { ok: true }

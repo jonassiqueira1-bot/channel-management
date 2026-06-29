@@ -99,6 +99,35 @@ async function resolveEmail(
     }
   }
 
+  if (acao.destinatario_tipo === 'lider_equipe') {
+    // Encontra a equipe onde o responsável do registro é membro e retorna o email do líder
+    const responsavelId = (registro.responsavel_id as string) || null
+    if (responsavelId) {
+      const { data: equipes } = await db.from('equipes')
+        .select('lider_id')
+        .eq('tenant_id', tenantId)
+        .contains('membro_ids', JSON.stringify([responsavelId]))
+        .limit(1)
+      const liderId = equipes?.[0]?.lider_id as string | undefined
+      if (liderId) {
+        const { data } = await db.from('profiles').select('email').eq('id', liderId).single()
+        return data?.email || null
+      }
+    }
+    // fallback: qualquer líder do tenant
+    const { data: equipe } = await db.from('equipes')
+      .select('lider_id')
+      .eq('tenant_id', tenantId)
+      .not('lider_id', 'is', null)
+      .limit(1)
+      .maybeSingle()
+    if (equipe?.lider_id) {
+      const { data } = await db.from('profiles').select('email').eq('id', equipe.lider_id as string).single()
+      return data?.email || null
+    }
+    return null
+  }
+
   if (acao.destinatario_tipo === 'responsavel_tarefa') {
     // busca tarefa mais recente relacionada ao registro
     const { data: task } = await db.from('tasks').select('custom_fields')
@@ -252,7 +281,7 @@ const ORIGEM_CONFIG: Record<string, { select: string; entidade_tipo: string; lin
     titulo: r => `Contrato vencendo · ${r.id}`,
   },
   oportunidades: {
-    select: 'id, titulo, responsavel, responsavel_id, situacao, valor, updated_at, prazo, company_id, custom_fields',
+    select: 'id, titulo, responsavel, responsavel_id, situacao, valor, valor_sms, valor_cdu, valor_servico, valor_desconto, updated_at, prazo, company_id, custom_fields',
     entidade_tipo: 'oportunidade', link: '/pipeline',
     titulo: r => `Oportunidade · ${r.titulo}`,
   },

@@ -106,8 +106,9 @@ const OPS = {
 }
 
 const DEST_TIPOS = [
-  { key: 'responsavel_origem', label: 'Responsável pelo registro' },
-  { key: 'email_fixo',         label: 'Email fixo (digitar)'     },
+  { key: 'responsavel_origem', label: 'Responsável pelo registro'   },
+  { key: 'lider_equipe',       label: 'Líder da equipe'             },
+  { key: 'email_fixo',         label: 'Email fixo (digitar)'        },
 ]
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
@@ -250,12 +251,12 @@ function CondicoesEditor({ origem, condicoes, operadorLogico, onChangeCondicoes,
         const campo = campos.find(f => f.key === c.campo)
         const ops   = campo ? (OPS[campo.tipo] || OPS.text) : []
         return (
-          <div key={c.id} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-            <Sel value={c.campo} onChange={v => update(c.id, { campo: v })} style={{ flex: '0 0 200px' }}>
+          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, alignItems: 'center' }}>
+            <Sel value={c.campo} onChange={v => update(c.id, { campo: v })}>
               <option value="">Campo…</option>
               {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
             </Sel>
-            <Sel value={c.operador} onChange={v => update(c.id, { operador: v })} style={{ flex: '0 0 200px' }}>
+            <Sel value={c.operador} onChange={v => update(c.id, { operador: v })}>
               <option value="">Operador…</option>
               {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </Sel>
@@ -317,6 +318,7 @@ function AcoesEditor({ acoes, onChange }) {
               <div style={lbl}>Tipo</div>
               <Sel value={a.tipo} onChange={v => update(a.id, { tipo: v })}>
                 <option value="notificar">Notificar no painel</option>
+                <option value="email">Enviar e-mail</option>
                 <option value="tarefa">Criar tarefa</option>
               </Sel>
             </div>
@@ -332,6 +334,21 @@ function AcoesEditor({ acoes, onChange }) {
               <div style={lbl}>Email</div>
               <input value={a.email_fixo} onChange={e => update(a.id, { email_fixo: e.target.value })}
                 placeholder="email@exemplo.com" style={inp} type="email" />
+            </div>
+          )}
+          {a.tipo === 'email' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              <div>
+                <div style={lbl}>Assunto</div>
+                <input value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
+                  style={inp} placeholder="Ex: Alerta: contrato vencendo" />
+              </div>
+              <div>
+                <div style={lbl}>Mensagem</div>
+                <textarea value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
+                  style={{ ...inp, minHeight: 72, resize: 'vertical' }}
+                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}, {link}." />
+              </div>
             </div>
           )}
           {a.tipo === 'tarefa' && (
@@ -535,17 +552,17 @@ export default function SettingsAlertas() {
 
   // ── Listagem ────────────────────────────────────────────────────────────────
   const COLS = [
-    { key: 'gatilho_nome', label: 'Nome',     render: r => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
-    { key: 'origem',       label: 'Origem',   render: r => origemMap[r.origem] || r.origem },
-    { key: 'condicoes',    label: 'Condições',render: r => {
+    { key: 'gatilho_nome', label: 'Nome',     render: (_, r) => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
+    { key: 'origem',       label: 'Origem',   render: (_, r) => origemMap[r.origem] || r.origem },
+    { key: 'condicoes',    label: 'Condições',render: (_, r) => {
       const n = (r.condicoes || []).filter(c => c.campo).length
       return `${n} condição(ões) · ${r.operador_logico || 'E'}`
     }},
-    { key: 'acoes', label: 'Ações', render: r => {
+    { key: 'acoes', label: 'Ações', render: (_, r) => {
       const tipos = { notificar: 'Painel', tarefa: 'Tarefa' }
       return (r.acoes || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')
     }},
-    { key: 'ativo', label: 'Status', render: r => (
+    { key: 'ativo', label: 'Status', render: (_, r) => (
       <button onClick={e => { e.stopPropagation(); toggleAtivo(r) }}
         style={{ padding: '2px 10px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: 'none',
           background: r.ativo ? 'color-mix(in srgb, var(--accent) 12%, transparent)' : 'var(--surface2)',

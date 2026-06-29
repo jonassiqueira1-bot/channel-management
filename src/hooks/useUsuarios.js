@@ -7,6 +7,23 @@ const STORAGE_KEY = 'settings:perfis_v2'
 function load() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
 function persist(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {} }
 
+const STATUS_MAP = { active: 'ativo', inactive: 'inativo', pending: 'pendente' }
+
+// Mapeia colunas reais do banco (role, last_seen, created_at) para os nomes
+// que o frontend usa (papel, tipo_usuario, ultimo_acesso, criado_em)
+function normalizeProfile(u) {
+  const papel = u.papel || u.role || ''
+  const tipoInterno = ['admin_isv', 'admin_franquia', 'gestor', 'vendedor_interno'].includes(papel)
+  return {
+    ...u,
+    papel,
+    tipo_usuario:  u.tipo_usuario  || (tipoInterno ? 'interno' : 'externo'),
+    status:        STATUS_MAP[u.status] || u.status || 'inativo',
+    criado_em:     u.criado_em     || u.created_at  || null,
+    ultimo_acesso: u.ultimo_acesso || u.last_seen    || null,
+  }
+}
+
 export function useUsuarios() {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -19,15 +36,11 @@ export function useUsuarios() {
   useEffect(() => {
     async function fetch() {
       if (!session?.user) { isMock.current = true; setUsuarios(load()); return }
-      const { data, error } = await supabase.from('profiles').select('*').order('nome')
+      const { data, error } = await supabase.from('profiles').select('*').order('nome', { ascending: true })
       if (error) { isMock.current = true; setUsuarios(load()) }
       else {
         isMock.current = false
-        setUsuarios((data || []).map(u => ({
-          ...u,
-          criado_em:    u.criado_em    || u.created_at || null,
-          ultimo_acesso: u.ultimo_acesso || null,
-        })))
+        setUsuarios((data || []).map(normalizeProfile))
       }
     }
     fetch()

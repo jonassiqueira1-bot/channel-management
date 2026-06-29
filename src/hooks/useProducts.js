@@ -102,7 +102,7 @@ export function useProducts() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setProdutos(prev => prev.filter(p => p.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('products').delete().eq('id', id)
+    const { error } = await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setProdutos(prev => prev.filter(p => p.id !== id))
     return { ok: true }
