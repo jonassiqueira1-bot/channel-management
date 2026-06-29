@@ -268,7 +268,7 @@ function CheckinBlock({ checkins, onChange, produtos = [], onAddActionPlans }) {
   const [dupErr, setDupErr] = useState('')
   const TYPES = ['Reunião', 'Ligação', 'E-mail', 'Visita', 'QBR']
 
-  const [allPlaybooks] = useLocalState(PB_STORAGE_KEY, [])
+  const { playbooks: allPlaybooks } = usePlaybooks()
   const csPlaybooks = useMemo(() => allPlaybooks.filter(p => p.tipo === 'sucesso'), [allPlaybooks])
 
   function addCheckin() {
