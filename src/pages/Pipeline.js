@@ -3912,6 +3912,12 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               {Object.entries(SITUACOES).map(([k, cfg]) => <option key={k} value={k}>{cfg.label}</option>)}
             </select>
           </div>
+          {form.situacao === 'perdida' && (
+            <div style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 4 }}>Motivo da perda</div>
+              <MotivoPerdaField value={form.motivo_perda || ''} onChange={v => set('motivo_perda', v)} />
+            </div>
+          )}
         )
       // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
       case 'etapa_id':
