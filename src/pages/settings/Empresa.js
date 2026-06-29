@@ -129,15 +129,23 @@ export default function EmpresaISV() {
     supabase.from('companies')
       .select('*')
       .eq('tenant_id', profile.tenant_id)
-      .eq('type', 'ISV')
+      .eq('tipo', 'ISV')
       .maybeSingle()
       .then(({ data }) => {
         if (data) setIsv(data)
-        else setIsv({ name: '', corporate_name: '', type: 'ISV' })
+        else setIsv({ nome_fantasia: '', razao_social: '', tipo: 'ISV' })
       })
   }, [profile?.tenant_id])
 
-  const current  = form || isv || {}
+  // Normaliza ISV para campos de formulário consistentes
+  const current = {
+    ...(isv || {}),
+    name:           form?.name           ?? isv?.nome_fantasia ?? '',
+    corporate_name: form?.corporate_name ?? isv?.razao_social  ?? '',
+    email:          form?.email          ?? isv?.email         ?? '',
+    phone:          form?.phone          ?? isv?.phone         ?? '',
+    website:        form?.website        ?? isv?.website       ?? '',
+  }
   const temMatriz = branches.some(b => b.custom_fields?.is_matriz)
 
   if (!isv) return (
@@ -145,22 +153,20 @@ export default function EmpresaISV() {
   )
 
   // ── Org handlers ──
-  function set(k, v) { setForm(f => ({ ...(f || isv), [k]: v })) }
+  function set(k, v) { setForm(f => ({ ...(f || {}), [k]: v })) }
 
   async function handleSaveOrg() {
     if (!profile?.tenant_id) return
     setSaving(true)
     const payload = {
-      tenant_id:      profile.tenant_id,
-      type:           'ISV',
-      name:           current.name?.trim()           || '',
-      corporate_name: current.corporate_name?.trim() || '',
-      email:          current.email                  || null,
-      phone:          current.phone                  || null,
-      website:        current.website                || null,
-      city:           current.city                   || null,
-      state:          current.state                  || null,
-      updated_at:     new Date().toISOString(),
+      tenant_id:    profile.tenant_id,
+      tipo:         'ISV',
+      nome_fantasia: current.name?.trim()            || current.nome_fantasia?.trim() || '',
+      razao_social:  current.corporate_name?.trim()  || current.razao_social?.trim()  || '',
+      email:         current.email                   || null,
+      phone:         current.phone                   || null,
+      website:       current.website                 || null,
+      updated_at:    new Date().toISOString(),
     }
     let savedId = isv.id
     if (isv.id) {
@@ -171,10 +177,10 @@ export default function EmpresaISV() {
       if (error) { alert('Erro ao salvar: ' + error.message); setSaving(false); return }
       savedId = data.id
     }
-    setIsv({ ...payload, id: savedId })
+    setIsv({ ...isv, ...payload, id: savedId })
 
-    if (!temMatriz && payload.name) {
-      await saveBranch({ name: payload.name, custom_fields: { is_matriz: true } })
+    if (!temMatriz && payload.nome_fantasia) {
+      await saveBranch({ name: payload.nome_fantasia, custom_fields: { is_matriz: true } })
     }
     setSaving(false)
     setForm(null)
@@ -362,7 +368,7 @@ export default function EmpresaISV() {
   return (
     <FullPageEdit
       title="Empresa / ISV"
-      subtitle={isv.corporate_name || isv.name}
+      subtitle={isv.razao_social || isv.nome_fantasia}
       onSave={podeGravar ? handleSaveOrg : undefined}
       onCancel={() => setForm(null)}
       saving={saving}
