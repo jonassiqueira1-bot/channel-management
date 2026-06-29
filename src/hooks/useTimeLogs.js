@@ -76,9 +76,10 @@ export function useTimeLogs() {
     // Lê logs locais (podem ter sido salvos enquanto Supabase estava vazio)
     let localLogs = []
     try { const s = localStorage.getItem(LS_KEY); localLogs = s ? JSON.parse(s) : [] } catch {}
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
     const localOnly = localLogs.filter(l =>
-      !mapped.find(r => r.id === l.id) &&                         // não duplicar
-      l.project_id && typeof l.project_id === 'string' && l.project_id.includes('-') // apenas reais
+      !mapped.find(r => r.id === l.id) &&
+      l.project_id && UUID_RE.test(l.project_id) // apenas logs com project_id UUID real
     )
 
     // Migra logs locais para Supabase se existirem
