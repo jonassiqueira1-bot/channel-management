@@ -138,13 +138,14 @@ export function usePartnerScores(parceiros, params) {
     // ── Busca dados de todas as origens ──────────────────────────────────────
     // sellers: vínculo via custom_fields.franquia_id → parceiro.id
     // oportunidades: vínculo via owner_id → seller → franquia_id
-    // contracts: vínculo via owner_id → seller → franquia_id
+    // contracts: vínculo via company_id → companies.custom_fields.franquia_ar_id → parceiro.id
     // actions: vínculo via custom_fields.empresa_id → parceiro.id
     // habilitacoes: vínculo via partner_habilitacoes table
-    const [sellersRes, oppsRes, contractsRes, actionsRes, habLinksRes] = await Promise.all([
+    const [sellersRes, oppsRes, contractsRes, companiesRes, actionsRes, habLinksRes] = await Promise.all([
       supabase.from('sellers').select('id, custom_fields, status'),
       supabase.from('oportunidades').select('id, owner_id, situacao, created_at'),
-      supabase.from('contracts').select('id, owner_id, status'),
+      supabase.from('contracts').select('id, company_id, status'),
+      supabase.from('companies').select('id, custom_fields'),
       supabase.from('actions').select('id, custom_fields, created_at'),
       supabase.from('partner_habilitacoes').select('parceiro_id, habilitacao_id'),
     ])
@@ -152,6 +153,7 @@ export function usePartnerScores(parceiros, params) {
     const sellers   = sellersRes.data   || []
     const opps      = oppsRes.data      || []
     const contracts = contractsRes.data || []
+    const companies = companiesRes.data || []
     const actions   = actionsRes.data   || []
     const habLinks  = habLinksRes.data  || []
 
@@ -162,6 +164,13 @@ export function usePartnerScores(parceiros, params) {
       if (!fid) return
       if (!parceiroSellers[fid]) parceiroSellers[fid] = new Set()
       parceiroSellers[fid].add(s.id)
+    })
+
+    // Índice: company_id → parceiro_id (via campo Canal da Empresa)
+    const companyParceiro = {}
+    companies.forEach(c => {
+      const fid = c.custom_fields?.franquia_ar_id
+      if (fid) companyParceiro[c.id] = fid
     })
 
     // Índice: parceiro_id → count de habilitações vinculadas
@@ -189,10 +198,10 @@ export function usePartnerScores(parceiros, params) {
             sellerIds.has(o.owner_id) && o.situacao === 'em_andamento'
           ).length
 
-        // Contratos ativos de sellers do parceiro
+        // Contratos ativos de empresas vinculadas ao parceiro via campo Canal
         case 'contracts':
           return contracts.filter(c =>
-            sellerIds.has(c.owner_id) && c.status === 'ativo'
+            companyParceiro[c.company_id] === parceiro_id && c.status === 'ativo'
           ).length
 
         // Ações registradas para este parceiro (via empresa_id no custom_fields)
