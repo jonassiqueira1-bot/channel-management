@@ -2211,9 +2211,10 @@ export default function Comissoes() {
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
       {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
-      <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16, marginBottom:24, flexWrap:'wrap' }}>
-        <div>
-          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:14 }}>
+      <div style={{ marginBottom:20 }}>
+        {/* Linha 1: título + ações */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:16, flexWrap:'wrap' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
               <DollarSign size={17} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
             </div>
@@ -2222,20 +2223,22 @@ export default function Comissoes() {
               {totalPendente > 0 && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{fmt(totalPendente)} pendente de pagamento</div>}
             </div>
           </div>
-          {/* Toggle de abas — fixo centralizado, estilo Projetos */}
-          <div style={{ position:'fixed', top:16, left:'50%', transform:'translateX(-50%)', zIndex:200, display:'flex', gap:2, background:'var(--surface)', borderRadius:10, padding:3, border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
-            {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s' }}>{t.label}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingTop:4 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           {tab !== 'aprovacao' && <PeriodPopover value={period} onChange={setPeriod} />}
           {tab !== 'aprovacao' && (isAdmin || tab !== 'repasses') && (
             <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={() => tab==='repasses' ? openPayment('new') : openRule('new')}>
               {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
             </Button>
           )}
+          </div>
+        </div>
+        {/* Linha 2: abas centralizadas */}
+        <div style={{ display:'flex', justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:2, background:'var(--surface)', borderRadius:10, padding:3, border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,0.10)' }}>
+            {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
+              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s', whiteSpace:'nowrap' }}>{t.label}</button>
+            ))}
+          </div>
         </div>
       </div>
 
