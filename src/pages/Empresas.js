@@ -937,7 +937,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             )
           })}
 
-          {projetos.length === 0 && !adicionando && (
+          {projetos.length === 0 && (
             <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
               Nenhum projeto vinculado a esta empresa
             </div>
