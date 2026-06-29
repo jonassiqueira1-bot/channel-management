@@ -250,12 +250,12 @@ function CondicoesEditor({ origem, condicoes, operadorLogico, onChangeCondicoes,
         const campo = campos.find(f => f.key === c.campo)
         const ops   = campo ? (OPS[campo.tipo] || OPS.text) : []
         return (
-          <div key={c.id} style={{ display: 'flex', gap: 6, alignItems: 'flex-start' }}>
-            <Sel value={c.campo} onChange={v => update(c.id, { campo: v })} style={{ flex: '0 0 200px' }}>
+          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, alignItems: 'center' }}>
+            <Sel value={c.campo} onChange={v => update(c.id, { campo: v })}>
               <option value="">Campo…</option>
               {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
             </Sel>
-            <Sel value={c.operador} onChange={v => update(c.id, { operador: v })} style={{ flex: '0 0 200px' }}>
+            <Sel value={c.operador} onChange={v => update(c.id, { operador: v })}>
               <option value="">Operador…</option>
               {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </Sel>
