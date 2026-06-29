@@ -10,9 +10,10 @@ import {
   MOCK_CUSTOMER_HEALTH, LAER_STAGES, TOUCH_MODELS, healthColor, STORAGE_KEY,
 } from '../data/mockCustomerSuccess'
 import { HeartPulse, Plus, Trash2, Circle, CheckCircle2, Paperclip, Download, X, AlertTriangle } from 'lucide-react'
-import { PB_STORAGE_KEY } from '../data/mockPlaybooks'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
+import { usePlaybooks } from '../hooks/usePlaybooks'
+import SearchSelect from '../components/SearchSelect'
 
 const ACCENT = 'var(--accent)'
 
@@ -505,15 +506,204 @@ function AnexosBlock({ attachments = [], onChange }) {
 }
 
 // ─── Detail (novo + edição) ───────────────────────────────────────────────────
+// ─── CS Playbook Panel ────────────────────────────────────────────────────────
+function CSPlaybookPanel({ form, patch }) {
+  const { playbooks } = usePlaybooks()
+  const csPlaybooks = useMemo(
+    () => playbooks.filter(p => p.tipo === 'sucesso' || p.tipo === 'cs' || (p.segment||'').toLowerCase().includes('sucesso') || (p.segment||'').toLowerCase().includes('cs')),
+    [playbooks]
+  )
+  const pb       = useMemo(() => csPlaybooks.find(p => p.id === form.playbook_id) || null, [csPlaybooks, form.playbook_id])
+  const allSteps = useMemo(() => pb ? (pb.steps || []) : [], [pb])
+  const resources= useMemo(() => pb ? (pb.resources || []) : [], [pb])
+  const refs     = useMemo(() => pb ? (pb.refs || []) : [], [pb])
+
+  const laerStage = form.laer_stage || ''
+  const stepsDoEstágio = useMemo(() => {
+    if (!pb) return []
+    return allSteps.filter(s => !s.status_contrato || s.status_contrato === laerStage || s.status_contrato === 'todos')
+  }, [pb, allSteps, laerStage])
+
+  const S = {
+    root:      { display:'flex', flexDirection:'column', gap:20 },
+    sLabel:    { fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em',
+                 color:'var(--text-muted)', display:'flex', alignItems:'center', gap:6 },
+    line:      { flex:1, height:1, background:'var(--border2)' },
+    stepCard:  { background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:10, padding:'14px 16px' },
+    stepTitle: { fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:8 },
+    badge:     { display:'inline-flex', padding:'2px 8px', borderRadius:10, fontSize:10, fontWeight:700 },
+    mdP:       { fontSize:13, color:'var(--text-soft)', lineHeight:1.7, margin:'0 0 6px' },
+    mdH2:      { fontSize:13, fontWeight:700, color:'var(--text)', margin:'12px 0 4px', borderBottom:'1px solid var(--border2)', paddingBottom:4 },
+    mdH3:      { fontSize:12, fontWeight:700, color:'var(--text)', margin:'10px 0 4px' },
+    mdLi:      { fontSize:13, color:'var(--text-soft)', lineHeight:1.65, marginBottom:3 },
+    resGrid:   { display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px, 1fr))', gap:8 },
+    resCard:   { border:'1px solid var(--border2)', borderRadius:9, padding:'10px 12px',
+                 background:'var(--surface)', display:'flex', flexDirection:'column', gap:6 },
+    resTitle:  { fontSize:12, fontWeight:600, color:'var(--text)', lineHeight:1.35 },
+    resLink:   { fontSize:11, color:'var(--accent)', textDecoration:'none', fontWeight:600, marginTop:'auto' },
+    refCard:   { border:'1px solid var(--border2)', borderRadius:9, padding:'12px 14px',
+                 background:'var(--surface)', display:'flex', alignItems:'flex-start', gap:10 },
+    refLogo:   { width:32, height:32, borderRadius:7, display:'flex', alignItems:'center',
+                 justifyContent:'center', fontWeight:800, fontSize:11, flexShrink:0 },
+    empty:     { padding:'16px 0', textAlign:'center', color:'var(--text-muted)', fontSize:13 },
+  }
+
+  function MiniMd({ content }) {
+    if (!content) return null
+    return (
+      <div>
+        {(content || '').split('\n').map((line, i) => {
+          if (line.startsWith('## '))  return <div key={i} style={S.mdH2}>{line.slice(3)}</div>
+          if (line.startsWith('### ')) return <div key={i} style={S.mdH3}>{line.slice(4)}</div>
+          if (line.startsWith('- ') || line.startsWith('* '))
+            return <div key={i} style={{ display:'flex', gap:6, marginBottom:3 }}>
+              <span style={{ color:'var(--accent)', flexShrink:0 }}>•</span>
+              <span style={S.mdLi}>{line.slice(2)}</span>
+            </div>
+          if (line.startsWith('> '))
+            return <div key={i} style={{ borderLeft:'3px solid var(--accent)', paddingLeft:10,
+              margin:'6px 0', background:'var(--accent-glow)', borderRadius:'0 6px 6px 0', padding:'6px 10px' }}>
+              <span style={{ fontSize:13, color:'var(--text-soft)', fontStyle:'italic' }}>{line.slice(2)}</span>
+            </div>
+          if (line.trim() === '') return null
+          return <p key={i} style={S.mdP}>{line}</p>
+        })}
+      </div>
+    )
+  }
+
+  function SH({ icon, label, badge }) {
+    return (
+      <div style={{ ...S.sLabel, marginBottom:8 }}>
+        {icon && <span>{icon}</span>}
+        <span>{label}</span>
+        {badge}
+        <span style={S.line} />
+      </div>
+    )
+  }
+
+  return (
+    <div style={S.root}>
+      {/* Seletor */}
+      <div>
+        <SH label="Playbook de CS" />
+        <SearchSelect
+          options={csPlaybooks.map(p => ({ id: p.id, label: p.title||p.titulo, sublabel: p.description||p.segment||'', color:'var(--accent)' }))}
+          value={form.playbook_id || null}
+          onChange={id => patch('playbook_id', id || null)}
+          placeholder="Pesquisar playbook de CS…"
+          noResults="Nenhum playbook do tipo CS/Sucesso encontrado"
+        />
+        {csPlaybooks.length === 0 && (
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8, padding:'8px 12px',
+            background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border2)' }}>
+            Nenhum playbook do tipo <strong>Sucesso do Cliente</strong> cadastrado. Crie um em Playbooks.
+          </div>
+        )}
+      </div>
+
+      {pb && (
+        <>
+          {/* Header */}
+          <div style={{ display:'flex', alignItems:'center', gap:10, paddingBottom:16, borderBottom:'1px solid var(--border2)' }}>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', letterSpacing:'-0.2px' }}>{pb.title}</div>
+              {pb.description && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{pb.description}</div>}
+            </div>
+            {laerStage && <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:10,
+              background:'var(--accent-glow)', color:'var(--accent)' }}>{laerStage}</span>}
+          </div>
+
+          {/* Atividades do estágio atual */}
+          <div>
+            <SH icon="🎯" label="Atividades para este estágio LAER"
+              badge={laerStage && <span style={{ ...S.badge, background:'var(--accent-glow)', color:'var(--accent)' }}>{laerStage}</span>} />
+            {stepsDoEstágio.length === 0 ? (
+              <div style={S.empty}>Nenhuma atividade configurada para o estágio <strong>{laerStage}</strong> neste playbook.</div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {stepsDoEstágio.map((s, i) => (
+                  <div key={s.id || i} style={S.stepCard}>
+                    <div style={S.stepTitle}>{s.icone && <span style={{ marginRight:6 }}>{s.icone}</span>}{s.title||s.titulo}</div>
+                    <MiniMd content={s.content} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Todas as atividades */}
+          {allSteps.length > 0 && (
+            <div>
+              <SH icon="📋" label="Todas as atividades do playbook" />
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                {allSteps.map((s, i) => {
+                  const isActive = !s.status_contrato || s.status_contrato === laerStage || s.status_contrato === 'todos'
+                  return (
+                    <div key={s.id || i} style={{ ...S.stepCard, opacity: isActive ? 1 : 0.45 }}>
+                      <div style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)', marginBottom: s.content && isActive ? 6 : 0 }}>
+                        {s.icone && <span style={{ marginRight:6 }}>{s.icone}</span>}{s.title||s.titulo}
+                      </div>
+                      {isActive && <MiniMd content={s.content} />}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Materiais */}
+          {resources.length > 0 && (
+            <div>
+              <SH icon="📂" label="Materiais de Apoio" />
+              <div style={S.resGrid}>
+                {resources.map((res, i) => (
+                  <div key={res.id || i} style={S.resCard}>
+                    <div style={S.resTitle}>{res.title}</div>
+                    {res.url && <a href={res.url} target="_blank" rel="noreferrer" style={S.resLink}>↗ Abrir</a>}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Referências */}
+          {refs.length > 0 && (
+            <div>
+              <SH icon="🏆" label="Clientes de Referência" />
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {refs.map((ref, i) => (
+                  <div key={ref.id || i} style={S.refCard}>
+                    <div style={{ ...S.refLogo, background:(ref.logo_color||'var(--accent)')+'22', color:ref.logo_color||'var(--accent)', border:`1px solid ${ref.logo_color||'var(--accent)'}44` }}>
+                      {ref.logo_initials || (ref.company_name||'').slice(0,2).toUpperCase()}
+                    </div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{ref.company_name}</div>
+                      {ref.summary && <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{ref.summary}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 const EMPTY_FORM = {
   company_id: null, company_name: '', company_city: '', company_uf: '',
   laer_stage: 'Land', touch_model: 'Mid-Touch', health_score: 75,
   csm: '', renewal_date: '', notes: '', action_plans: [], checkins: [],
   contract_id: null, contract_numero: '', attachments: [],
+  playbook_id: null,
 }
 
 function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contratos = [] }) {
   const isNew = !item?.id
+  const [tab, setTab] = useState('dados')
   const [form, setForm] = useState(item ? { ...EMPTY_FORM, ...item } : { ...EMPTY_FORM })
 
   // Contratos vinculados à empresa selecionada
@@ -546,8 +736,34 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
 
   const days = daysUntil(form.renewal_date)
 
+  const tabs = [{ key: 'dados', label: 'Dados' }, { key: 'playbook', label: 'Playbook' }]
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      {/* Tabs */}
+      {!isNew && (
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border2)', gap: 0 }}>
+          {tabs.map(t => (
+            <button key={t.key} onClick={() => setTab(t.key)}
+              style={{ padding: '8px 16px', fontSize: 13, fontWeight: tab === t.key ? 700 : 400,
+                color: tab === t.key ? 'var(--accent)' : 'var(--text-muted)',
+                borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+                background: 'none', border: 'none', borderBottom: tab === t.key ? '2px solid var(--accent)' : '2px solid transparent',
+                cursor: 'pointer', fontFamily: 'var(--font)', marginBottom: -1 }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Aba Playbook */}
+      {!isNew && tab === 'playbook' && (
+        <CSPlaybookPanel form={form} patch={patch} />
+      )}
+
+      {/* Aba Dados */}
+      <div style={{ display: isNew || tab === 'dados' ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
+
       {/* Header: ring + nome + badges (somente edição) */}
       {!isNew && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -706,6 +922,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
           Criar Check-in
         </Button>
       )}
+      </div>{/* fim aba dados */}
     </div>
   )
 }

@@ -68,6 +68,7 @@ export function useCustomerHealth() {
       attachments:     r.attachments     || [],
       contract_id:     isUuid(r.contract_id) ? r.contract_id : null,
       contract_numero: r.contract_numero || null,
+      playbook_id:     r.playbook_id     || null,
       criado_em:       r.criado_em       || new Date().toISOString().slice(0, 10),
       updated_at:      new Date().toISOString(),
     })
