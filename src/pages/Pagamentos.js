@@ -6,6 +6,7 @@ import { useContracts } from '../hooks/useContracts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useProducts } from '../hooks/useProducts'
 import EmpresaSearch from '../components/EmpresaSearch'
+// eslint-disable-next-line no-unused-vars
 import { RULES_STORAGE_KEY, PAYMENTS_STORAGE_KEY as COMISSOES_PAYMENTS_KEY, MOCK_RULES, MOCK_PAYMENTS as MOCK_COM_PAYMENTS } from '../data/mockComissoes'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
@@ -1016,7 +1017,7 @@ export default function Pagamentos() {
   const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
   const { registrar: log } = useAuditLog()
   const { contratos } = useContracts()
-  const { savePayment: saveCommissionPayment } = useCommissions()
+  const { savePayment: saveCommissionPayment, rules: commissionRules } = useCommissions()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1134,56 +1135,55 @@ export default function Pagamentos() {
   // Gera repasses de comissão para um pagamento recém marcado como pago
   function gerarRepasses(pag) {
     try {
-      const rawRules = localStorage.getItem(RULES_STORAGE_KEY)
-      const rules = rawRules ? JSON.parse(rawRules) : MOCK_RULES
-      const rawCom = localStorage.getItem(COMISSOES_PAYMENTS_KEY)
-      const comPagamentos = rawCom ? JSON.parse(rawCom) : MOCK_COM_PAYMENTS
+      const ref    = pag.reference_month || ''
+      const parts  = ref.slice(0, 7).split('-')
+      const periodo_ano = parts[0] ? Number(parts[0]) : new Date().getFullYear()
+      const periodo_mes = parts[1] ? Number(parts[1]) : new Date().getMonth() + 1
 
-      const hoje = new Date().toISOString().slice(0, 10)
-      const novos = []
+      const regrasAtivas = (commissionRules || []).filter(r => r.ativo !== false && r.status !== 'inativa')
 
-      rules.filter(r => r.ativo !== false).forEach(rule => {
-        // Verifica filtro de produto
+      regrasAtivas.forEach(rule => {
+        // Filtra por produto se a regra tiver filtro
         if (rule.produto_filtro_tipo === 'produto' && rule.produto_ids?.length > 0) {
           if (!rule.produto_ids.map(String).includes(String(pag.produto_id))) return
         }
 
         const percs = rule.persona_percentuais || []
         percs.forEach(pp => {
-          if (!pp.persona_id) return
-          const cdu_val      = (pag.amount_cdu      || 0) * (pp.cdu_pct      || 0) / 100
-          const sms_val      = (pag.amount_sms      || 0) * (pp.sms_pct      || 0) / 100
-          const servicos_val = (pag.amount_services || 0) * (pp.servicos_pct || 0) / 100
-          const valor = cdu_val + sms_val + servicos_val
-          if (valor <= 0) return
+          if (!pp.persona_id && !pp.persona_slug) return
+          const cdu_val      = (pag.amount_cdu      || 0) * (Number(pp.cdu_pct)      || 0) / 100
+          const sms_val      = (pag.amount_sms      || 0) * (Number(pp.sms_pct)      || 0) / 100
+          const servicos_val = (pag.amount_services || 0) * (Number(pp.servicos_pct) || 0) / 100
+          const valor_comissao = cdu_val + sms_val + servicos_val
+          if (valor_comissao <= 0) return
 
-          novos.push({
-            id: `rep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-            rule_id: rule.id,
-            rule_nome: rule.nome,
-            persona_id: pp.persona_id,
-            contract_id: pag.contract_id || null,
-            contract_numero: pag.contract_numero || '',
-            company_id: pag.company_id || null,
-            company_nome: pag.company_nome || '',
-            produto_id: pag.produto_id || null,
-            produto_nome: pag.produto_nome || '',
-            descricao: `Repasse — pagamento ${pag.contract_numero} (${pag.company_nome})`,
-            valor,
-            base_cdu: cdu_val, base_sms: sms_val, base_servicos: servicos_val,
-            reference_month: pag.reference_month,
-            data_geracao: hoje,
-            status: 'pendente',
-            pagamento_id: pag.id,
+          saveCommissionPayment({
+            rule_id:           rule.id,
+            company_id:        pag.company_id  || null,
+            contract_id:       pag.contract_id || null,
+            beneficiario_id:   pp.persona_id   || null,
+            beneficiario_nome: pp.persona_nome  || pp.persona_slug || '',
+            persona_slug:      pp.persona_slug  || '',
+            periodo_mes,
+            periodo_ano,
+            valor_bruto:       Number(pag.amount_total_net) || 0,
+            valor_comissao,
+            status:            'pendente',
+            observacoes:       `Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`,
+            custom_fields: {
+              base_cdu:              cdu_val,
+              base_sms:              sms_val,
+              base_servicos:         servicos_val,
+              contract_numero:       pag.contract_numero || '',
+              company_nome:          pag.company_nome    || '',
+              produto_nome:          pag.produto_nome    || '',
+              origem_pagamento_id:   pag.id,
+            },
           })
         })
       })
-
-      if (novos.length > 0) {
-        localStorage.setItem(COMISSOES_PAYMENTS_KEY, JSON.stringify([...comPagamentos, ...novos]))
-      }
     } catch (e) {
-      console.warn('Erro ao gerar repasses:', e)
+      console.warn('[gerarRepasses]', e)
     }
   }
 
@@ -1246,25 +1246,24 @@ export default function Pagamentos() {
       valor_bruto:       Number(pag.amount_total_net) || 0,
       valor_comissao:    0,
       beneficiario_id:   null,
-      beneficiario_nome: '',
-      persona_slug:      '',
+      beneficiario_nome: null,
+      persona_slug:      null,
       rule_id:           null,
-      company_id:        pag.company_id   || null,
-      contract_id:       pag.contract_id  || null,
+      company_id:        pag.company_id  || null,
+      contract_id:       pag.contract_id || null,
       periodo_mes,
       periodo_ano,
       observacoes:       descricao,
       custom_fields: {
         receita_tipo,
-        descricao,
-        origem:            isFromProjeto ? 'projeto' : 'venda',
+        origem:              isFromProjeto ? 'projeto' : 'venda',
         origem_pagamento_id: pag.id,
-        contract_numero:   pag.contract_numero || '',
-        company_nome:      pag.company_nome    || '',
-        produto_nome:      pag.produto_nome    || '',
-        amount_cdu:        cdu,
-        amount_sms:        sms,
-        amount_services:   services,
+        contract_numero:     pag.contract_numero || '',
+        company_nome:        pag.company_nome    || '',
+        produto_nome:        pag.produto_nome    || '',
+        amount_cdu:          cdu,
+        amount_sms:          sms,
+        amount_services:     services,
       },
     })
   }
