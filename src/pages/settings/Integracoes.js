@@ -505,14 +505,25 @@ function gerarWebhookToken() {
 
 // ─── Campos de oportunidade mapeáveis ────────────────────────────────────────
 const OPP_CAMPOS_MAPEAVEIS = [
-  { key: 'titulo',        label: 'Título da oportunidade' },
-  { key: 'empresa_nome',  label: 'Empresa' },
-  { key: 'contato_nome',  label: 'Nome do contato' },
-  { key: 'contato_email', label: 'E-mail do contato' },
-  { key: 'contato_fone',  label: 'Telefone' },
-  { key: 'valor',         label: 'Valor (R$)' },
-  { key: 'descricao',     label: 'Descrição / Observações' },
-  { key: 'origem',        label: 'Origem' },
+  // ── Identificação ──────────────────────────────────────────────────
+  { key: 'titulo',              label: 'Título da oportunidade',  native: true },
+  { key: 'empresa_nome',        label: 'Empresa',                  native: true },
+  { key: 'contato_nome',        label: 'Nome do contato',          native: true },
+  { key: 'contato_email',       label: 'E-mail do contato',        native: true },
+  { key: 'contato_fone',        label: 'Telefone do contato',      native: true },
+  // ── Valores ────────────────────────────────────────────────────────
+  { key: 'valor',               label: 'Valor total (R$)',         native: true },
+  { key: 'valor_cdu',           label: 'Valor CDU (R$)',           native: true },
+  { key: 'valor_sms',           label: 'Valor SMS (R$)',           native: true },
+  { key: 'valor_servico',       label: 'Valor Serviços (R$)',      native: true },
+  { key: 'valor_desconto',      label: 'Desconto (R$)',            native: true },
+  // ── Pipeline ───────────────────────────────────────────────────────
+  { key: 'origem',              label: 'Origem do lead',           native: true },
+  { key: 'responsavel',         label: 'Responsável (vendedor)',   native: true },
+  { key: 'prazo',               label: 'Previsão de fechamento',   native: true },
+  { key: 'situacao',            label: 'Situação',                 native: true },
+  // ── Descrição ──────────────────────────────────────────────────────
+  { key: 'descricao',           label: 'Descrição / Observações',  native: true },
 ]
 
 // ─── Métodos de conexão disponíveis ──────────────────────────────────────────
@@ -827,13 +838,20 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                       </thead>
                       <tbody>
                         {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
-                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', width: '40%' }}>{campo.label}</td>
+                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: campo.native ? 'var(--surface)' : 'transparent' }}>
+                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', width: '42%' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                {campo.label}
+                                {campo.native && (
+                                  <span title="Campo nativo — não pode ser removido" style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--accent-glow)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>nativo</span>
+                                )}
+                              </div>
+                            </td>
                             <td style={{ padding: '3px 6px' }}>
                               <input
                                 value={mapeamento[campo.key] || ''}
                                 onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
-                                placeholder={campo.key === 'titulo' ? 'lead.name' : campo.key === 'contato_email' ? 'email' : campo.key}
+                                placeholder={campo.key}
                                 style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
                               />
                             </td>
@@ -1431,12 +1449,16 @@ export default function Integracoes() {
 
   const allBuiltin = useMemo(() => PROVIDERS.filter(p => !hiddenIds.includes(p.id)), [hiddenIds])
 
-  const allProviders = useMemo(() => [...allBuiltin, ...customProviders].map(p => ({
-    ...p,
-    setting: getSetting(p.id),
-    status: getSetting(p.id).status,
+  const allProviders = useMemo(() => [...allBuiltin, ...customProviders].map(p => {
+    const s = getSetting(p.id)
+    return {
+      ...p,
+      name: s.config?.nome_integracao || p.name, // reflete nome editado
+      setting: s,
+      status: s.status,
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  })), [settings, allBuiltin, customProviders])
+  }), [settings, allBuiltin, customProviders])
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
