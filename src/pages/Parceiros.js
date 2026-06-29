@@ -3,6 +3,10 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useActions } from '../hooks/useActions'
 import { usePartnerMaturity, usePartnerScores, usePartnerHabilitacoes } from '../hooks/usePartnerMaturity'
 import { useHabilitacoes } from '../hooks/useHabilitacoes'
+import { useSellers } from '../hooks/useSellers'
+import { useCompanies } from '../hooks/useCompanies'
+import { useOpportunities } from '../hooks/useOpportunities'
+import { useProjects } from '../hooks/useProjects'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import BrowseLayout from '../components/BrowseLayout'
@@ -450,6 +454,189 @@ function TabHabilitacoes({ parceiro_id }) {
   )
 }
 
+const STATUS_BADGE_DEFAULT = { bg: '#F3F4F6', text: '#374151' }
+
+function StatusPill({ label }) {
+  if (!label) return null
+  return (
+    <span style={{
+      fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
+      background: STATUS_BADGE_DEFAULT.bg, color: STATUS_BADGE_DEFAULT.text, whiteSpace: 'nowrap',
+    }}>
+      {label}
+    </span>
+  )
+}
+
+function EmptyTab({ text }) {
+  return (
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 32, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
+      {text}
+    </div>
+  )
+}
+
+// ─── Aba Contatos (editável) ───────────────────────────────────────────────────
+function TabContatos({ parceiro_id }) {
+  const { sellers, loading, save } = useSellers()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState({ nome: '', email: '', telefone: '', role: 'seller' })
+  const [saving, setSaving] = useState(false)
+
+  const contatos = (sellers || []).filter(s => s.franquia_id === parceiro_id)
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })) }
+
+  async function handleSave() {
+    if (!form.nome.trim()) return
+    setSaving(true)
+    await save({ ...form, franquia_id: parceiro_id })
+    setSaving(false)
+    setForm({ nome: '', email: '', telefone: '', role: 'seller' })
+    setShowForm(false)
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {showForm ? (
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface-alt)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Novo Contato</div>
+          <FormGrid cols={2}>
+            <FormField label="Nome *" style={{ gridColumn: 'span 2' }}>
+              <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome do contato" />
+            </FormField>
+            <FormField label="E-mail">
+              <input className="so-field" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com" />
+            </FormField>
+            <FormField label="Telefone">
+              <input className="so-field" value={form.telefone} onChange={e => set('telefone', e.target.value)} placeholder="(00) 00000-0000" />
+            </FormField>
+            <FormField label="Cargo / Papel" style={{ gridColumn: 'span 2' }}>
+              <select className="so-field" value={form.role} onChange={e => set('role', e.target.value)}>
+                <option value="seller">Vendedor</option>
+                <option value="franchise_manager">Gestor de Franquia</option>
+                <option value="pre_sales">Pré-vendas</option>
+                <option value="project_manager">Gerente de Projetos</option>
+              </select>
+            </FormField>
+          </FormGrid>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancelar</Button>
+            <Button size="sm" loading={saving} onClick={handleSave}>Salvar contato</Button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+          <Button size="sm" onClick={() => setShowForm(true)}>+ Novo contato</Button>
+        </div>
+      )}
+
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {loading ? (
+          <EmptyTab text="Carregando..." />
+        ) : contatos.length === 0 ? (
+          <EmptyTab text="Nenhum contato vinculado a este parceiro." />
+        ) : contatos.map(c => (
+          <div key={c.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-alt)', border: '1px solid var(--border2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.nome}</div>
+              <StatusPill label={c.status} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              {c.role} {c.email ? `· ${c.email}` : ''} {c.telefone ? `· ${c.telefone}` : ''}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Aba Empresas (somente visualização) ───────────────────────────────────────
+function TabEmpresas({ parceiro_id }) {
+  const { companies, loading } = useCompanies()
+  const vinculadas = (companies || []).filter(c => c.franquia_ar_id === parceiro_id)
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {loading ? (
+        <EmptyTab text="Carregando..." />
+      ) : vinculadas.length === 0 ? (
+        <EmptyTab text="Nenhuma empresa vinculada a este parceiro." />
+      ) : vinculadas.map(c => (
+        <div key={c.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-alt)', border: '1px solid var(--border2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.razao || c.nome_fantasia}</div>
+            <StatusPill label={c.status} />
+          </div>
+          {c.cnpj && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{c.cnpj}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Aba Oportunidades (somente visualização) ──────────────────────────────────
+function TabOportunidades({ parceiro_id }) {
+  const { companies }      = useCompanies()
+  const { opps, loading }  = useOpportunities()
+
+  const empresaIds = new Set((companies || []).filter(c => c.franquia_ar_id === parceiro_id).map(c => c.id))
+  const lista = (opps || []).filter(o => empresaIds.has(o.empresa_id))
+
+  function fmtMoeda(v) {
+    if (v == null) return '—'
+    return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+  }
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {loading ? (
+        <EmptyTab text="Carregando..." />
+      ) : lista.length === 0 ? (
+        <EmptyTab text="Nenhuma oportunidade vinculada a este parceiro." />
+      ) : lista.map(o => (
+        <div key={o.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-alt)', border: '1px solid var(--border2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{o.titulo}</div>
+            <StatusPill label={o.situacao} />
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+            {fmtMoeda(o.valor_total ?? o.valor)}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// ─── Aba Projetos (somente visualização) ───────────────────────────────────────
+function TabProjetos({ parceiro_id }) {
+  const { companies }        = useCompanies()
+  const { projetos, loading } = useProjects()
+
+  const empresaIds = new Set((companies || []).filter(c => c.franquia_ar_id === parceiro_id).map(c => c.id))
+  const lista = (projetos || []).filter(p => empresaIds.has(p.company_id))
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {loading ? (
+        <EmptyTab text="Carregando..." />
+      ) : lista.length === 0 ? (
+        <EmptyTab text="Nenhum projeto vinculado a este parceiro." />
+      ) : lista.map(p => (
+        <div key={p.id} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface-alt)', border: '1px solid var(--border2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{p.produto_nome || p.nome || 'Projeto'}</div>
+            <StatusPill label={p.status || p.phase} />
+          </div>
+          {p.company_nome && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{p.company_nome}</div>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── SlideOver principal ──────────────────────────────────────────────────────
 function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, onSaveAcao, onClose }) {
   const [tab, setTab] = useState('visao')
@@ -462,10 +649,14 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
   if (!parceiro) return null
 
   const TABS = [
-    { key: 'visao',         label: 'Visão Geral' },
-    { key: 'acoes',         label: 'Ações',         badge: acoesParceiro.length || undefined },
-    { key: 'habilitacoes',  label: 'Habilitações',  badge: linkedIds.size || undefined },
-    { key: 'historico',     label: 'Histórico',     badge: history.length || undefined },
+    { key: 'visao',          label: 'Visão Geral' },
+    { key: 'acoes',          label: 'Ações',          badge: acoesParceiro.length || undefined },
+    { key: 'contatos',       label: 'Contatos' },
+    { key: 'oportunidades',  label: 'Oportunidades' },
+    { key: 'projetos',       label: 'Projetos' },
+    { key: 'empresas',       label: 'Empresas' },
+    { key: 'habilitacoes',   label: 'Habilitações',   badge: linkedIds.size || undefined },
+    { key: 'historico',      label: 'Histórico',      badge: history.length || undefined },
   ]
 
   return (
@@ -474,15 +665,19 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       onClose={onClose}
       title={parceiro.nome}
       subtitle={parceiro.segmento || parceiro.tipo || extractEstado(parceiro)}
-      width={560}
+      width={580}
       tabs={TABS}
       activeTab={tab}
       onTabChange={setTab}
     >
-      {tab === 'visao'        && <TabVisaoGeral    parceiro={parceiro} scoreData={scoreData} params={params} />}
-      {tab === 'acoes'        && <TabAcoes         parceiro={parceiro} acoes={acoes} onSaveAcao={onSaveAcao} />}
-      {tab === 'habilitacoes' && <TabHabilitacoes  parceiro_id={parceiro.id} />}
-      {tab === 'historico'    && <TabHistorico     history={history} params={params} />}
+      {tab === 'visao'         && <TabVisaoGeral    parceiro={parceiro} scoreData={scoreData} params={params} />}
+      {tab === 'acoes'         && <TabAcoes         parceiro={parceiro} acoes={acoes} onSaveAcao={onSaveAcao} />}
+      {tab === 'contatos'      && <TabContatos      parceiro_id={parceiro.id} />}
+      {tab === 'oportunidades' && <TabOportunidades parceiro_id={parceiro.id} />}
+      {tab === 'projetos'      && <TabProjetos      parceiro_id={parceiro.id} />}
+      {tab === 'empresas'      && <TabEmpresas      parceiro_id={parceiro.id} />}
+      {tab === 'habilitacoes'  && <TabHabilitacoes  parceiro_id={parceiro.id} />}
+      {tab === 'historico'     && <TabHistorico     history={history} params={params} />}
     </SlideOver>
   )
 }
