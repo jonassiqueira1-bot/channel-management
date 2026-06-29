@@ -141,6 +141,97 @@ export default function MaturidadeParceiros() {
     { label: 'Editar', onClick: (row) => openEdit(row) },
   ]
 
+  if (slideOpen) {
+    return (
+      <FullPageEdit
+        title={editando ? 'Editar parâmetro' : 'Novo parâmetro'}
+        breadcrumb={[{ label: 'Maturidade de Parceiros', onClick: () => { setSlideOpen(false); setEditando(null) } }]}
+        onCancel={() => { setSlideOpen(false); setEditando(null) }}
+        onSave={handleSave}
+        saving={saving}
+        onDelete={editando ? handleRemove : undefined}
+      >
+        <FPESection title="Identificação">
+          <FPEField label="Nome *" error={errs.nome} span={2}>
+            <input
+              value={form.nome}
+              onChange={e => set('nome', e.target.value)}
+              placeholder="Ex: Contatos mapeados"
+              style={inputS}
+            />
+          </FPEField>
+          <FPEField label="Descrição" span={2}>
+            <input
+              value={form.descricao}
+              onChange={e => set('descricao', e.target.value)}
+              placeholder="Breve explicação do que este parâmetro avalia"
+              style={inputS}
+            />
+          </FPEField>
+        </FPESection>
+
+        <FPESection title="Regra de avaliação">
+          <FPEField label="Origem dos dados" span={2}>
+            <select value={form.origem} onChange={e => set('origem', e.target.value)} style={inputS}>
+              {ORIGENS.map(o => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </FPEField>
+
+          <FPEField label="Condição" span={2}>
+            <select value={form.condicao} onChange={e => set('condicao', e.target.value)} style={inputS}>
+              {CONDICOES.map(c => (
+                <option key={c.value} value={c.value}>{c.label}</option>
+              ))}
+            </select>
+          </FPEField>
+
+          {form.condicao !== 'exists' && (
+            <FPEField label="Quantidade mínima (N)" error={errs.valor_min}>
+              <input
+                type="number" min={1}
+                value={form.valor_min}
+                onChange={e => set('valor_min', parseInt(e.target.value) || 1)}
+                style={inputS}
+              />
+            </FPEField>
+          )}
+
+          {form.condicao === 'count_gte_days' && (
+            <FPEField label="Janela de dias (X)">
+              <input
+                type="number" min={1}
+                value={form.janela_dias || ''}
+                onChange={e => set('janela_dias', parseInt(e.target.value) || null)}
+                placeholder="Ex: 90"
+                style={inputS}
+              />
+            </FPEField>
+          )}
+        </FPESection>
+
+        <FPESection title="Peso e status">
+          <FPEField label="Peso (pontos)" error={errs.peso}>
+            <input
+              type="number" min={1} max={100}
+              value={form.peso}
+              onChange={e => set('peso', parseInt(e.target.value) || 1)}
+              style={inputS}
+            />
+          </FPEField>
+
+          <FPEField label="Ativo">
+            <select value={form.ativo ? 'sim' : 'nao'} onChange={e => set('ativo', e.target.value === 'sim')} style={inputS}>
+              <option value="sim">Sim</option>
+              <option value="nao">Não</option>
+            </select>
+          </FPEField>
+        </FPESection>
+      </FullPageEdit>
+    )
+  }
+
   return (
     <>
       <SettingsLayout
@@ -159,93 +250,6 @@ export default function MaturidadeParceiros() {
         emptyLabel="Nenhum parâmetro configurado. Crie parâmetros para calcular a maturidade dos parceiros."
       />
 
-      {slideOpen && (
-        <FullPageEdit
-          title={editando ? 'Editar parâmetro' : 'Novo parâmetro'}
-          onCancel={() => { setSlideOpen(false); setEditando(null) }}
-          onSave={handleSave}
-          saving={saving}
-          onDelete={editando ? handleRemove : null}
-        >
-          <FPESection title="Identificação">
-            <FPEField label="Nome *" error={errs.nome} span={2}>
-              <input
-                value={form.nome}
-                onChange={e => set('nome', e.target.value)}
-                placeholder="Ex: Contatos mapeados"
-                style={inputS}
-              />
-            </FPEField>
-            <FPEField label="Descrição" span={2}>
-              <input
-                value={form.descricao}
-                onChange={e => set('descricao', e.target.value)}
-                placeholder="Breve explicação do que este parâmetro avalia"
-                style={inputS}
-              />
-            </FPEField>
-          </FPESection>
-
-          <FPESection title="Regra de avaliação">
-            <FPEField label="Origem dos dados" span={2}>
-              <select value={form.origem} onChange={e => set('origem', e.target.value)} style={inputS}>
-                {ORIGENS.map(o => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </FPEField>
-
-            <FPEField label="Condição" span={2}>
-              <select value={form.condicao} onChange={e => set('condicao', e.target.value)} style={inputS}>
-                {CONDICOES.map(c => (
-                  <option key={c.value} value={c.value}>{c.label}</option>
-                ))}
-              </select>
-            </FPEField>
-
-            {form.condicao !== 'exists' && (
-              <FPEField label="Quantidade mínima (N)" error={errs.valor_min}>
-                <input
-                  type="number" min={1}
-                  value={form.valor_min}
-                  onChange={e => set('valor_min', parseInt(e.target.value) || 1)}
-                  style={inputS}
-                />
-              </FPEField>
-            )}
-
-            {form.condicao === 'count_gte_days' && (
-              <FPEField label="Janela de dias (X)">
-                <input
-                  type="number" min={1}
-                  value={form.janela_dias || ''}
-                  onChange={e => set('janela_dias', parseInt(e.target.value) || null)}
-                  placeholder="Ex: 90"
-                  style={inputS}
-                />
-              </FPEField>
-            )}
-          </FPESection>
-
-          <FPESection title="Peso e status">
-            <FPEField label="Peso (pontos)" error={errs.peso}>
-              <input
-                type="number" min={1} max={100}
-                value={form.peso}
-                onChange={e => set('peso', parseInt(e.target.value) || 1)}
-                style={inputS}
-              />
-            </FPEField>
-
-            <FPEField label="Ativo">
-              <select value={form.ativo ? 'sim' : 'nao'} onChange={e => set('ativo', e.target.value === 'sim')} style={inputS}>
-                <option value="sim">Sim</option>
-                <option value="nao">Não</option>
-              </select>
-            </FPEField>
-          </FPESection>
-        </FullPageEdit>
-      )}
     </>
   )
 }
