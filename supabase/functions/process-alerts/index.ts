@@ -281,7 +281,7 @@ const ORIGEM_CONFIG: Record<string, { select: string; entidade_tipo: string; lin
     titulo: r => `Contrato vencendo · ${r.id}`,
   },
   oportunidades: {
-    select: 'id, titulo, responsavel, responsavel_id, situacao, valor, updated_at, prazo, company_id, custom_fields',
+    select: 'id, titulo, responsavel, responsavel_id, situacao, valor, valor_sms, valor_cdu, valor_servico, valor_desconto, updated_at, prazo, company_id, custom_fields',
     entidade_tipo: 'oportunidade', link: '/pipeline',
     titulo: r => `Oportunidade · ${r.titulo}`,
   },
