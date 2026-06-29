@@ -317,6 +317,7 @@ function AcoesEditor({ acoes, onChange }) {
               <div style={lbl}>Tipo</div>
               <Sel value={a.tipo} onChange={v => update(a.id, { tipo: v })}>
                 <option value="notificar">Notificar no painel</option>
+                <option value="email">Enviar e-mail</option>
                 <option value="tarefa">Criar tarefa</option>
               </Sel>
             </div>
@@ -332,6 +333,21 @@ function AcoesEditor({ acoes, onChange }) {
               <div style={lbl}>Email</div>
               <input value={a.email_fixo} onChange={e => update(a.id, { email_fixo: e.target.value })}
                 placeholder="email@exemplo.com" style={inp} type="email" />
+            </div>
+          )}
+          {a.tipo === 'email' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+              <div>
+                <div style={lbl}>Assunto</div>
+                <input value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
+                  style={inp} placeholder="Ex: Alerta: contrato vencendo" />
+              </div>
+              <div>
+                <div style={lbl}>Mensagem</div>
+                <textarea value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
+                  style={{ ...inp, minHeight: 72, resize: 'vertical' }}
+                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}, {link}." />
+              </div>
             </div>
           )}
           {a.tipo === 'tarefa' && (
