@@ -2,8 +2,10 @@ import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useParceiros } from '../hooks/useParceiros'
 import { useActions } from '../hooks/useActions'
 import { usePartnerMaturity, usePartnerScores } from '../hooks/usePartnerMaturity'
+import { useLocalState } from '../hooks/useLocalState'
+import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import BrowseLayout from '../components/BrowseLayout'
-import SlideOver from '../components/ui/SlideOver'
+import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -85,50 +87,34 @@ function AvatarCell({ nome, sub }) {
   )
 }
 
-// ─── SlideOver de detalhes do parceiro ────────────────────────────────────────
-function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, onClose }) {
-  const acoesParceiro = useMemo(
-    () => (acoes || []).filter(a => a.empresa_id === parceiro?.id).slice(0, 5),
-    [acoes, parceiro?.id]
-  )
+const STORAGE_KEY_TIPOS = 'settings:tipos_acao_v2'
+const EMPTY_ACAO = { titulo: '', tipo: 'treinamento', data_inicio: '', data_fim: '', descricao: '', status: 'agendado' }
 
-  if (!parceiro) return null
+function fmtDate(d) {
+  if (!d) return '—'
+  const [y, m, dia] = d.slice(0, 10).split('-')
+  return `${dia}/${m}/${y}`
+}
 
+// ─── Aba Visão Geral ──────────────────────────────────────────────────────────
+function TabVisaoGeral({ parceiro, scoreData, params }) {
   const score_pct = scoreData?.score_pct ?? null
   const detalhes  = scoreData?.detalhes  ?? {}
 
-  function fmtDate(d) {
-    if (!d) return '—'
-    const [y, m, dia] = d.slice(0, 10).split('-')
-    return `${dia}/${m}/${y}`
-  }
-
   return (
-    <SlideOver
-      open={open}
-      onClose={onClose}
-      title={parceiro.nome}
-      subtitle={parceiro.segmento || parceiro.tipo || ''}
-      width={520}
-      columns={1}
-    >
-      {/* KPIs topo */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, flexWrap: 'wrap' }}>
+    <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 20, overflowY: 'auto', flex: 1 }}>
+      {/* KPIs */}
+      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         {[
           { label: 'Estado',     value: extractEstado(parceiro) },
           { label: 'Status',     value: parceiro.situacao || parceiro.status || 'ativo' },
           { label: 'Maturidade', value: score_pct !== null ? `${score_pct}%` : '—', color: score_pct !== null ? scoreColor(score_pct) : undefined },
         ].map(k => (
           <div key={k.label} style={{
-            flex: '1 1 80px', minWidth: 80,
-            background: 'var(--surface-alt)', border: '1px solid var(--border2)',
-            borderRadius: 8, padding: '10px 12px', textAlign: 'center',
+            flex: '1 1 80px', background: 'var(--surface-alt)',
+            border: '1px solid var(--border2)', borderRadius: 8, padding: '10px 12px', textAlign: 'center',
           }}>
-            <div style={{
-              fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono)',
-              color: k.color || 'var(--text)',
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
+            <div style={{ fontSize: 16, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color || 'var(--text)' }}>
               {k.value}
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
@@ -140,7 +126,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
 
       {/* Score por parâmetro */}
       {params.filter(p => p.ativo).length > 0 && (
-        <div style={{ marginBottom: 24 }}>
+        <div>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 10 }}>
             Score de Maturidade
           </div>
@@ -164,9 +150,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     {d.valor !== undefined && (
-                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>
-                        {d.valor} reg.
-                      </span>
+                      <span style={{ fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)' }}>{d.valor} reg.</span>
                     )}
                     <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700, color: ok ? '#10B981' : '#9CA3AF' }}>
                       {ok ? `+${p.peso}` : `0/${p.peso}`}
@@ -176,50 +160,240 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
               )
             })}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
-          {history.length > 1 && (
-            <div style={{ marginTop: 12 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                Evolução recente
-              </div>
-              <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 40 }}>
-                {history.slice(-10).map((h, i) => (
-                  <div key={i} title={`${fmtDate(h.calculado_em)}: ${h.score_pct}%`} style={{
-                    flex: 1, height: `${Math.max(10, h.score_pct)}%`,
-                    background: scoreColor(h.score_pct), borderRadius: 3,
-                  }} />
+// ─── Aba Ações ────────────────────────────────────────────────────────────────
+function TabAcoes({ parceiro, acoes, onSaveAcao }) {
+  const [tiposRaw] = useLocalState(STORAGE_KEY_TIPOS, [])
+  const tiposMap = useMemo(() => {
+    const base = { ...TIPOS_ACAO_DEFAULT }
+    tiposRaw.forEach(t => { base[t.slug || t.id] = t })
+    return base
+  }, [tiposRaw])
+
+  const acoesParceiro = useMemo(
+    () => (acoes || []).filter(a => a.empresa_id === parceiro?.id).sort((a, b) => (b.data_inicio || '').localeCompare(a.data_inicio || '')),
+    [acoes, parceiro?.id]
+  )
+
+  const [form, setForm] = useState({ ...EMPTY_ACAO })
+  const [saving, setSaving] = useState(false)
+  const [showForm, setShowForm] = useState(false)
+  const [errs, setErrs] = useState({})
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(e => ({ ...e, [k]: '' })) }
+
+  async function handleSave() {
+    const e = {}
+    if (!form.titulo.trim()) e.titulo = 'Título obrigatório'
+    if (!form.data_inicio) e.data_inicio = 'Data obrigatória'
+    if (Object.keys(e).length) { setErrs(e); return }
+    setSaving(true)
+    await onSaveAcao({ ...form, empresa_id: parceiro.id, empresa_nome: parceiro.nome })
+    setSaving(false)
+    setForm({ ...EMPTY_ACAO })
+    setShowForm(false)
+    setErrs({})
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+      {/* Formulário de nova ação */}
+      {showForm ? (
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', background: 'var(--surface-alt)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', marginBottom: 2 }}>Nova Ação</div>
+          <FormGrid cols={2}>
+            <FormField label="Título *" style={{ gridColumn: 'span 2' }}>
+              <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)}
+                placeholder="Ex: Treinamento de vendas" style={{ borderColor: errs.titulo ? 'var(--red)' : undefined }} />
+              {errs.titulo && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errs.titulo}</div>}
+            </FormField>
+            <FormField label="Tipo">
+              <select className="so-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+                {Object.entries(tiposMap).filter(([,v]) => v.uso !== 'tarefa').map(([k, v]) => (
+                  <option key={k} value={k}>{v.icon || ''} {v.label}</option>
                 ))}
-              </div>
-            </div>
-          )}
+              </select>
+            </FormField>
+            <FormField label="Status">
+              <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
+                {Object.entries(STATUS_ACAO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+              </select>
+            </FormField>
+            <FormField label="Data início *">
+              <input className="so-field" type="date" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
+                style={{ borderColor: errs.data_inicio ? 'var(--red)' : undefined }} />
+              {errs.data_inicio && <div style={{ fontSize: 11, color: 'var(--red)', marginTop: 3 }}>{errs.data_inicio}</div>}
+            </FormField>
+            <FormField label="Data fim">
+              <input className="so-field" type="date" value={form.data_fim} onChange={e => set('data_fim', e.target.value)} />
+            </FormField>
+            <FormField label="Descrição" style={{ gridColumn: 'span 2' }}>
+              <textarea className="so-field" value={form.descricao} onChange={e => set('descricao', e.target.value)}
+                rows={2} placeholder="Detalhes da ação..." style={{ resize: 'vertical' }} />
+            </FormField>
+          </FormGrid>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <Button size="sm" variant="ghost" onClick={() => { setShowForm(false); setForm({ ...EMPTY_ACAO }); setErrs({}) }}>Cancelar</Button>
+            <Button size="sm" loading={saving} onClick={handleSave}>Salvar ação</Button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+          <Button size="sm" onClick={() => setShowForm(true)}>+ Nova ação</Button>
         </div>
       )}
 
-      {/* Ações recentes */}
-      <div>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 10 }}>
-          Últimas Ações
-        </div>
+      {/* Lista de ações */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
         {acoesParceiro.length === 0 ? (
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '12px 0' }}>
+          <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontSize: 13 }}>
             Nenhuma ação registrada para este parceiro.
           </div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {acoesParceiro.map(a => (
-              <div key={a.id} style={{
-                padding: '8px 12px', borderRadius: 8,
+        ) : acoesParceiro.map(a => {
+          const tipoCfg = tiposMap[a.tipo] || { icon: '◎', color: '#6B7280', bg: '#F3F4F6', label: a.tipo }
+          const stsCfg  = STATUS_ACAO[a.status] || { label: a.status, color: '#9CA3AF', bg: '#F3F4F6', text: '#374151' }
+          return (
+            <div key={a.id} style={{
+              padding: '10px 14px', borderRadius: 8,
+              background: 'var(--surface-alt)', border: '1px solid var(--border2)',
+              borderLeft: `4px solid ${tipoCfg.color || '#6B7280'}`,
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{a.titulo}</div>
+                <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 7px', borderRadius: 20,
+                  background: stsCfg.bg, color: stsCfg.text, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                  {stsCfg.label}
+                </span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                {tipoCfg.icon} {tipoCfg.label} · {fmtDate(a.data_inicio)}{a.data_fim && a.data_fim !== a.data_inicio ? ` → ${fmtDate(a.data_fim)}` : ''}
+              </div>
+              {a.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{a.descricao}</div>}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── Aba Histórico de Score ───────────────────────────────────────────────────
+function TabHistorico({ history, params }) {
+  if (history.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13, padding: 32, textAlign: 'center' }}>
+        Nenhum score calculado ainda.<br />Clique em "↻ Calcular scores" na tela de Parceiros.
+      </div>
+    )
+  }
+
+  const maxScore = Math.max(...history.map(h => h.score_pct), 1)
+
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Gráfico de barras */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 12 }}>
+          Evolução do Score
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 100, padding: '0 4px' }}>
+          {history.slice(-20).map((h, i) => {
+            const pct = h.score_pct
+            const barH = Math.max(8, Math.round((pct / 100) * 100))
+            return (
+              <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                <div title={`${fmtDate(h.calculado_em)}: ${pct}%`} style={{
+                  width: '100%', height: barH, background: scoreColor(pct),
+                  borderRadius: '3px 3px 0 0', transition: 'height 0.3s',
+                }} />
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--mono)', writingMode: 'vertical-rl', transform: 'rotate(180deg)', height: 32, overflow: 'hidden' }}>
+                  {fmtDate(h.calculado_em).slice(0, 5)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Linha do tempo */}
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 10 }}>
+          Linha do Tempo
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[...history].reverse().map((h, i) => {
+            const prev = history[history.length - 2 - i]
+            const delta = prev != null ? Math.round(h.score_pct - prev.score_pct) : null
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px', borderRadius: 8,
                 background: 'var(--surface-alt)', border: '1px solid var(--border2)',
               }}>
-                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{a.titulo}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                  {fmtDate(a.data_inicio)} · {a.tipo}
+                <div style={{
+                  width: 44, height: 44, borderRadius: 8, flexShrink: 0,
+                  background: scoreBg(h.score_pct),
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 14, fontWeight: 800, fontFamily: 'var(--mono)', color: scoreColor(h.score_pct),
+                }}>
+                  {Math.round(h.score_pct)}%
                 </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{scoreLabel(h.score_pct)}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{fmtDate(h.calculado_em)}</div>
+                </div>
+                {delta !== null && (
+                  <span style={{
+                    fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                    color: delta > 0 ? '#10B981' : delta < 0 ? '#EF4444' : '#9CA3AF',
+                  }}>
+                    {delta > 0 ? `+${delta}%` : delta < 0 ? `${delta}%` : '—'}
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            )
+          })}
+        </div>
       </div>
+    </div>
+  )
+}
+
+// ─── SlideOver principal ──────────────────────────────────────────────────────
+function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, onSaveAcao, onClose }) {
+  const [tab, setTab] = useState('visao')
+
+  useEffect(() => { if (open) setTab('visao') }, [open])
+
+  const acoesParceiro = (acoes || []).filter(a => a.empresa_id === parceiro?.id)
+
+  if (!parceiro) return null
+
+  const TABS = [
+    { key: 'visao',    label: 'Visão Geral' },
+    { key: 'acoes',    label: 'Ações', badge: acoesParceiro.length || undefined },
+    { key: 'historico', label: 'Histórico', badge: history.length || undefined },
+  ]
+
+  return (
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      title={parceiro.nome}
+      subtitle={parceiro.segmento || parceiro.tipo || extractEstado(parceiro)}
+      width={540}
+      tabs={TABS}
+      activeTab={tab}
+      onTabChange={setTab}
+    >
+      {tab === 'visao'     && <TabVisaoGeral   parceiro={parceiro} scoreData={scoreData} params={params} />}
+      {tab === 'acoes'     && <TabAcoes        parceiro={parceiro} acoes={acoes} onSaveAcao={onSaveAcao} />}
+      {tab === 'historico' && <TabHistorico    history={history} params={params} />}
     </SlideOver>
   )
 }
@@ -227,7 +401,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Parceiros() {
   const { parceiros, loading: loadingP } = useParceiros()
-  const { acoes }                        = useActions()
+  const { acoes, save: saveAcao }        = useActions()
   const { params, loading: loadingParams } = usePartnerMaturity()
   const { scores, calculating, calculate, getHistory } = usePartnerScores(parceiros, params)
 
@@ -425,6 +599,7 @@ export default function Parceiros() {
         params={params}
         history={history}
         acoes={acoes}
+        onSaveAcao={saveAcao}
         onClose={() => { setSlideOpen(false); setSelected(null) }}
       />
     </>
