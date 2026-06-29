@@ -367,7 +367,7 @@ export default function EmpresaISV() {
   // ── View principal ──
   return (
     <FullPageEdit
-      title="Empresa / ISV"
+      title="Empresa"
       subtitle={isv.razao_social || isv.nome_fantasia}
       onSave={podeGravar ? handleSaveOrg : undefined}
       onCancel={() => setForm(null)}
