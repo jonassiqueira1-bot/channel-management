@@ -402,6 +402,14 @@ function CheckinBlock({ checkins, onChange, produtos = [], onAddActionPlans }) {
                   </span>
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.5 }}>{ci.summary}</div>
+                {ci.projeto_nome && (
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 5,
+                    fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface2)',
+                    border: '1px solid var(--border)', borderRadius: 6, padding: '2px 8px',
+                    fontFamily: 'var(--mono)' }}>
+                    <span style={{ opacity: 0.6 }}>📁</span> {ci.projeto_nome}
+                  </div>
+                )}
               </div>
             </div>
           )
