@@ -1870,19 +1870,18 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
 // ─── Página principal ─────────────────────────────────────────────────────────
 // ─── Aprovação de Lotes ───────────────────────────────────────────────────────
 function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
-  const [periodo, setPeriodo]         = useState(() => new Date().toISOString().slice(0, 7))
+  const [periodo, setPeriodo]   = useState(() => new Date().toISOString().slice(0, 7))
   const { aprovacoes, upsert: upsertAprovacao } = useCommissionApprovals()
-  const [obsModal, setObsModal]       = useState(null) // { key } para rejeição com obs
+  const [selected, setSelected] = useState(new Set())
+  const [obsModal, setObsModal] = useState(null)
 
   const fmtMes = p => { if (!p) return ''; const [y, m] = p.split('-'); const ns = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${ns[parseInt(m,10)-1]}/${y}` }
   const hoje = () => new Date().toISOString().slice(0, 10)
 
-  // Lançamentos do período
   const lancamentos = useMemo(() =>
     payments.filter(p => (p.data_competencia || p.data_vencimento || '').slice(0, 7) === periodo),
   [payments, periodo])
 
-  // Agrupa por beneficiário
   const porBenef = useMemo(() => {
     const map = {}
     lancamentos.forEach(p => {
@@ -1909,13 +1908,6 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
     upsertAprovacao(record)
   }
 
-  function handleEnviar(nome) {
-    const grupo = porBenef.find(g => g.nome === nome)
-    const total = grupo?.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0) || 0
-    upsert(nome, { status: 'enviado', enviado_em: hoje(), total_valor: total, payment_ids: grupo?.items.map(p => p.id) || [] })
-    onLog?.('enviar', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote enviado para aprovação: ${nome} — ${fmtMes(periodo)}` })
-  }
-
   function handleAprovar(nome) {
     upsert(nome, { status: 'aprovado', aprovado_em: hoje() })
     const grupo = porBenef.find(g => g.nome === nome)
@@ -1935,135 +1927,184 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
     onLog?.('reabrir', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote reaberto: ${nome} — ${fmtMes(periodo)}` })
   }
 
-  const totalPeriodo     = lancamentos.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-  const totalAprovado    = porBenef.filter(g => getAprov(g.nome)?.status === 'aprovado').reduce((s, g) => s + g.items.reduce((si, p) => si + Number(p.valor_comissao || 0), 0), 0)
-  const totalAguardando  = porBenef.filter(g => getAprov(g.nome)?.status === 'enviado').length
+  // Seleção via checkbox — opera sobre lancamentos individuais
+  const allIds = lancamentos.map(p => p.id)
+  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
+  const someSelected = allIds.some(id => selected.has(id))
+
+  function toggleAll() {
+    setSelected(allSelected ? new Set() : new Set(allIds))
+  }
+  function toggleOne(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  function aprovarSelecionados() {
+    // Agrupa selecionados por beneficiário e aprova cada grupo
+    const nomesAfetados = new Set()
+    lancamentos.filter(p => selected.has(p.id)).forEach(p => nomesAfetados.add(p.beneficiario_nome || 'Sem nome'))
+    nomesAfetados.forEach(nome => handleAprovar(nome))
+    setSelected(new Set())
+  }
+
+  const totalPeriodo    = lancamentos.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const totalAprovado   = lancamentos.filter(p => getAprov(p.beneficiario_nome || 'Sem nome')?.status === 'aprovado').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const countSelecionados = selected.size
+  const valorSelecionados = lancamentos.filter(p => selected.has(p.id)).reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+
+  // Estilo zebra / linha compacta
+  const ROW = { display:'grid', gridTemplateColumns:'32px 1fr 140px 100px 100px 110px 90px', alignItems:'center', gap:8, padding:'7px 12px', borderBottom:'1px solid var(--border)', fontSize:12 }
+  const TH  = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-      {/* Seletor de período */}
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {/* Período + KPIs */}
       <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <Calendar size={14} strokeWidth={1.75} style={{ color:'var(--text-muted)' }} />
-          <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
-            style={{ padding:'6px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:13, fontFamily:'var(--font)', outline:'none' }} />
-          <span style={{ fontSize:13, color:'var(--text-muted)', fontWeight:600 }}>{fmtMes(periodo)}</span>
+          <Calendar size={13} strokeWidth={1.75} style={{ color:'var(--text-muted)' }} />
+          <input type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setSelected(new Set()) }}
+            style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
+          <span style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>{fmtMes(periodo)}</span>
         </div>
-        <div style={{ display:'flex', gap:10, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
           {[
-            { label:'Total no período', value: fmt(totalPeriodo), color:'var(--text)' },
-            { label:'Aprovado',         value: fmt(totalAprovado), color:'#10B981' },
-            { label:'Aguard. aprovação',value: totalAguardando,    color:'#F59E0B' },
+            { label:'Total', value: fmt(totalPeriodo), color:'var(--text)' },
+            { label:'Aprovado', value: fmt(totalAprovado), color:'#10B981' },
+            { label:'Lançamentos', value: lancamentos.length, color:'var(--text-muted)' },
           ].map(k => (
-            <div key={k.label} style={{ padding:'6px 14px', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:8, display:'flex', flexDirection:'column' }}>
-              <span style={{ fontSize:10, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</span>
-              <span style={{ fontSize:15, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.value}</span>
+            <div key={k.label} style={{ padding:'4px 12px', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:7, display:'flex', flexDirection:'column' }}>
+              <span style={{ fontSize:9, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</span>
+              <span style={{ fontSize:13, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.value}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {porBenef.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'60px 20px', color:'var(--text-muted)', fontSize:14 }}>
-          <DollarSign size={36} strokeWidth={1} style={{ marginBottom:14, opacity:0.25, display:'block', margin:'0 auto 14px' }} />
+      {/* Barra de ação em lote — aparece quando há seleção */}
+      {countSelecionados > 0 && (
+        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 14px', background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.25)', borderRadius:9 }}>
+          <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)', flex:1 }}>
+            {countSelecionados} selecionado{countSelecionados !== 1 ? 's' : ''} · {fmt(valorSelecionados)}
+          </span>
+          {isAdmin && (
+            <button onClick={aprovarSelecionados}
+              style={{ padding:'5px 14px', borderRadius:7, border:'none', background:'#10B981', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
+              <CheckCircle2 size={12} strokeWidth={2.5} /> Aprovar selecionados
+            </button>
+          )}
+          <button onClick={() => setSelected(new Set())}
+            style={{ padding:'5px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+            Limpar
+          </button>
+        </div>
+      )}
+
+      {lancamentos.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:13 }}>
+          <DollarSign size={32} strokeWidth={1} style={{ opacity:0.2, display:'block', margin:'0 auto 12px' }} />
           Nenhum lançamento em {fmtMes(periodo)}.
         </div>
-      ) : porBenef.map(grupo => {
-        const aprov  = getAprov(grupo.nome)
-        const status = aprov?.status || 'aberto'
-        const cfg    = APROV_STATUS_CFG[status]
-        const total  = grupo.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-        const isLocked = status === 'aprovado'
-
-        return (
-          <div key={grupo.nome} style={{ background:'var(--surface)', border:`1px solid ${isLocked ? '#6EE7B7' : 'var(--border)'}`, borderRadius:14, overflow:'hidden', opacity: isLocked ? 0.9 : 1 }}>
-            {/* Header do beneficiário */}
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'14px 20px', borderBottom:'1px solid var(--border)', flexWrap:'wrap', gap:10 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <div style={{ width:34, height:34, borderRadius:99, background:'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, fontWeight:700, color:'var(--accent)', flexShrink:0 }}>
-                  {grupo.nome.slice(0,2).toUpperCase()}
-                </div>
-                <div>
-                  <div style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{grupo.nome}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>{grupo.items.length} lançamento{grupo.items.length !== 1 ? 's' : ''} · {fmtMes(periodo)}</div>
-                </div>
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                <AprovStatusBadge status={status} />
-                <span style={{ fontSize:16, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(total)}</span>
-                {/* Ações por status */}
-                {status === 'aberto' && (
-                  <button onClick={() => handleEnviar(grupo.nome)}
-                    style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-                    Enviar para aprovação
-                  </button>
-                )}
-                {status === 'rejeitado' && (
-                  <button onClick={() => handleReabrir(grupo.nome)}
-                    style={{ padding:'6px 14px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
-                    Reabrir
-                  </button>
-                )}
-                {isAdmin && status === 'enviado' && (
-                  <>
-                    <button onClick={() => handleAprovar(grupo.nome)}
-                      style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#10B981', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
-                      <CheckCircle2 size={13} strokeWidth={2.5} /> Aprovar
-                    </button>
-                    <button onClick={() => setObsModal({ nome: grupo.nome, obs: '' })}
-                      style={{ padding:'6px 14px', borderRadius:8, border:'1px solid #FCA5A5', background:'rgba(239,68,68,0.06)', color:'#EF4444', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
-                      <XCircle size={13} strokeWidth={2.5} /> Rejeitar
-                    </button>
-                  </>
-                )}
-                {isAdmin && status === 'aberto' && (
-                  <button onClick={() => handleAprovar(grupo.nome)}
-                    style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'#10B981', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
-                    <CheckCircle2 size={13} strokeWidth={2.5} /> Aprovar direto
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Observação de rejeição */}
-            {status === 'rejeitado' && aprov?.obs && (
-              <div style={{ padding:'10px 20px', background:'#FEF2F2', borderBottom:'1px solid #FCA5A5', display:'flex', alignItems:'center', gap:8 }}>
-                <AlertCircle size={13} strokeWidth={2} style={{ color:'#EF4444', flexShrink:0 }} />
-                <span style={{ fontSize:12, color:'#EF4444' }}><strong>Motivo:</strong> {aprov.obs}</span>
-              </div>
-            )}
-
-            {/* Lista de lançamentos */}
-            <div style={{ display:'flex', flexDirection:'column' }}>
-              {grupo.items.map((p, i) => (
-                <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 20px',
-                  borderBottom: i < grupo.items.length - 1 ? '1px solid var(--border)' : 'none',
-                  background: i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)' }}>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.descricao || p.receita_tipo || '—'}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)' }}>Competência: {p.data_competencia ? fmtDate(p.data_competencia) : '—'} · Venc.: {p.data_vencimento ? fmtDate(p.data_vencimento) : '—'}</div>
-                  </div>
-                  <div style={{ textAlign:'right', flexShrink:0 }}>
-                    <div style={{ fontSize:13, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text)' }}>{fmt(p.valor_comissao || 0)}</div>
-                    <StatusTag status={p.status} />
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Datas de auditoria */}
-            {aprov && (
-              <div style={{ padding:'8px 20px', background:'var(--surface2)', display:'flex', gap:16, flexWrap:'wrap', borderTop:'1px solid var(--border)' }}>
-                {aprov.enviado_em   && <span style={{ fontSize:11, color:'var(--text-muted)' }}>Enviado em: <strong>{fmtDate(aprov.enviado_em)}</strong></span>}
-                {aprov.aprovado_em  && <span style={{ fontSize:11, color:'#10B981' }}>Aprovado em: <strong>{fmtDate(aprov.aprovado_em)}</strong></span>}
-                {aprov.rejeitado_em && <span style={{ fontSize:11, color:'#EF4444' }}>Rejeitado em: <strong>{fmtDate(aprov.rejeitado_em)}</strong></span>}
-              </div>
-            )}
+      ) : (
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+          {/* Cabeçalho da tabela */}
+          <div style={{ ...ROW, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+            <input type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
+              onChange={toggleAll} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
+            <span style={TH}>Beneficiário / Descrição</span>
+            <span style={{ ...TH, textAlign:'center' }}>Competência</span>
+            <span style={{ ...TH, textAlign:'center' }}>Vencimento</span>
+            <span style={{ ...TH, textAlign:'right' }}>Valor</span>
+            <span style={{ ...TH, textAlign:'center' }}>Status</span>
+            <span style={{ ...TH, textAlign:'right' }}>Ações</span>
           </div>
-        )
-      })}
 
-      {/* Modal de rejeição com obs */}
+          {/* Linhas agrupadas por beneficiário */}
+          {porBenef.map(grupo => {
+            const aprov   = getAprov(grupo.nome)
+            const status  = aprov?.status || 'aberto'
+            const isLocked = status === 'aprovado'
+            const grupoTotal = grupo.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+            const grupoSelecionados = grupo.items.filter(p => selected.has(p.id)).length
+            const grupoAllSelected  = grupoSelecionados === grupo.items.length
+            const toggleGrupo = () => {
+              setSelected(prev => {
+                const n = new Set(prev)
+                grupoAllSelected ? grupo.items.forEach(p => n.delete(p.id)) : grupo.items.forEach(p => n.add(p.id))
+                return n
+              })
+            }
+
+            return (
+              <div key={grupo.nome}>
+                {/* Linha de cabeçalho do grupo */}
+                <div style={{ display:'grid', gridTemplateColumns:'32px 1fr auto', alignItems:'center', gap:8, padding:'6px 12px', background: isLocked ? 'rgba(16,185,129,0.06)' : 'rgba(0,0,0,0.02)', borderBottom:'1px solid var(--border)' }}>
+                  <input type="checkbox" checked={grupoAllSelected}
+                    ref={el => { if (el) el.indeterminate = grupoSelecionados > 0 && !grupoAllSelected }}
+                    onChange={toggleGrupo} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <div style={{ width:22, height:22, borderRadius:99, background:'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'var(--accent)', flexShrink:0 }}>
+                      {grupo.nome.slice(0,2).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>{grupo.nome}</span>
+                    <span style={{ fontSize:10, color:'var(--text-muted)' }}>{grupo.items.length} lanç.</span>
+                    <AprovStatusBadge status={status} />
+                    {status === 'rejeitado' && aprov?.obs && (
+                      <span style={{ fontSize:10, color:'#EF4444' }}>— {aprov.obs}</span>
+                    )}
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:12, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(grupoTotal)}</span>
+                    {isAdmin && !isLocked && (
+                      <button onClick={() => handleAprovar(grupo.nome)}
+                        style={{ padding:'3px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
+                        <CheckCircle2 size={11} strokeWidth={2.5} /> Aprovar lote
+                      </button>
+                    )}
+                    {isAdmin && status === 'aberto' && (
+                      <button onClick={() => setObsModal({ nome: grupo.nome, obs: '' })}
+                        style={{ padding:'3px 10px', borderRadius:6, border:'1px solid #FCA5A5', background:'rgba(239,68,68,0.06)', color:'#EF4444', fontSize:11, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4 }}>
+                        <XCircle size={11} strokeWidth={2.5} /> Rejeitar
+                      </button>
+                    )}
+                    {status === 'rejeitado' && (
+                      <button onClick={() => handleReabrir(grupo.nome)}
+                        style={{ padding:'3px 10px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                        Reabrir
+                      </button>
+                    )}
+                    {aprov?.aprovado_em && <span style={{ fontSize:10, color:'#10B981' }}>✓ {fmtDate(aprov.aprovado_em)}</span>}
+                  </div>
+                </div>
+
+                {/* Linhas dos lançamentos */}
+                {grupo.items.map((p, i) => {
+                  const isSel = selected.has(p.id)
+                  return (
+                    <div key={p.id} onClick={() => toggleOne(p.id)}
+                      style={{ ...ROW, cursor:'pointer', background: isSel ? 'rgba(99,102,241,0.06)' : i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)', transition:'background 0.1s' }}>
+                      <input type="checkbox" checked={isSel} onChange={() => toggleOne(p.id)}
+                        onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
+                      <div style={{ minWidth:0 }}>
+                        <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                          {p.descricao || p.observacoes || p.receita_tipo || '—'}
+                        </div>
+                        <div style={{ fontSize:10, color:'var(--text-muted)' }}>{p.beneficiario_nome}</div>
+                      </div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>{p.data_competencia ? fmtDate(p.data_competencia) : '—'}</div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>{p.data_vencimento ? fmtDate(p.data_vencimento) : '—'}</div>
+                      <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text)', textAlign:'right' }}>{fmt(p.valor_comissao || 0)}</div>
+                      <div style={{ textAlign:'center' }}><StatusTag status={p.status} /></div>
+                      <div />
+                    </div>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Modal de rejeição */}
       {obsModal && (
         <div style={{ position:'fixed', inset:0, zIndex:700, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.55)', padding:16 }}>
           <div style={{ background:'var(--surface)', borderRadius:14, width:'100%', maxWidth:420, padding:24, display:'flex', flexDirection:'column', gap:16, boxShadow:'var(--shadow)' }}>
