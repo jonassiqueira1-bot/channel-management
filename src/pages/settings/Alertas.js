@@ -185,8 +185,8 @@ async function executarEngine(tenantId) {
     dados[origem] = data || []
   }
 
-  const { data: existentes } = await supabase.from('alerts').select('rule_id, origem_id').eq('tenant_id', tenantId).eq('resolvido', false)
-  const jaAlertado = new Set((existentes || []).map(a => `${a.rule_id}:${a.origem_id}`))
+  const { data: existentes } = await supabase.from('alerts').select('rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
+  const jaAlertado = new Set((existentes || []).map(a => `${a.rule_id}:${a.entidade_id}`))
 
   const novos = []
   for (const rule of rules) {
@@ -199,15 +199,17 @@ async function executarEngine(tenantId) {
       if (!avaliarRegra(fullRule, reg)) continue
       const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.gatilho_nome || reg.beneficiario_nome || `#${reg.id?.slice(0,8)}`
       novos.push({
-        tenant_id:   tenantId,
-        rule_id:     rule.id,
-        origem:      rule.origem,
-        origem_id:   reg.id,
-        titulo:      rule.gatilho_nome,
-        mensagem:    `Regra "${rule.gatilho_nome}" acionada para: ${nomeReg}`,
-        resolvido:   false,
-        usuario_id:  null,
-        created_at:  new Date().toISOString(),
+        tenant_id:     tenantId,
+        rule_id:       rule.id,
+        gatilho:       rule.gatilho_nome,
+        entidade_tipo: rule.origem,
+        entidade_id:   String(reg.id),
+        entidade_nome: nomeReg,
+        titulo:        rule.gatilho_nome,
+        mensagem:      `Regra "${rule.gatilho_nome}" acionada para: ${nomeReg}`,
+        prioridade:    'media',
+        resolvido:     false,
+        created_at:    new Date().toISOString(),
       })
     }
   }
