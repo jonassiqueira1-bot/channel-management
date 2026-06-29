@@ -16,6 +16,7 @@ import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/Sl
 import BrowseLayout from '../components/BrowseLayout'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissions } from '../hooks/useCommissions'
+import { useProjects } from '../hooks/useProjects'
 import ActionFeedback from '../components/ActionFeedback'
 
 const ACCENT = 'var(--accent)'
@@ -317,7 +318,7 @@ function ImportModal({ onClose, onImport }) {
 }
 
 // ─── PagamentoDetail (SlideOver) ─────────────────────────────────────────────
-function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = [] }) {
+function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = [], projetos = [] }) {
   const [form, setForm] = useState({
     amount_cdu:      pagamento.amount_cdu,
     amount_sms:      pagamento.amount_sms,
@@ -487,17 +488,32 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
         </div>
       )}
 
-      <FormSection label="Contrato" />
+      <FormSection label="Contrato / Origem" />
       <FormGrid cols={3}>
         <FormField label="Empresa">
           <input className="so-field" value={pagamento.company_nome} readOnly disabled />
         </FormField>
         <FormField label="Contrato">
-          <input className="so-field" value={pagamento.contract_numero} readOnly disabled style={{ fontFamily:'var(--mono)' }} />
+          <input className="so-field" value={pagamento.contract_numero || '—'} readOnly disabled style={{ fontFamily:'var(--mono)' }} />
         </FormField>
         <FormField label="Competência">
           <input className="so-field" value={periodoLabel(parsePeriodo(pagamento.reference_month))} readOnly disabled style={{ fontFamily:'var(--mono)' }} />
         </FormField>
+        {(pagamento.origin_type === 'projeto' || pagamento.project_id) && (() => {
+          const proj = projetos.find(p => p.id === pagamento.project_id)
+          return (
+            <FormField label="Projeto" style={{ gridColumn: 'span 2' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                <span style={{ padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:700,
+                  background:'rgba(16,185,129,0.12)', color:'#10B981',
+                  textTransform:'uppercase', letterSpacing:'0.06em', flexShrink:0 }}>
+                  projeto
+                </span>
+                <input className="so-field" value={proj?.name || pagamento.contract_numero || '—'} readOnly disabled />
+              </div>
+            </FormField>
+          )
+        })()}
       </FormGrid>
 
       <FormSection label="Observações" />
@@ -1018,6 +1034,7 @@ export default function Pagamentos() {
   const { registrar: log } = useAuditLog()
   const { contratos } = useContracts()
   const { savePayment: saveCommissionPayment, rules: commissionRules } = useCommissions()
+  const { projetos } = useProjects()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1454,6 +1471,7 @@ export default function Pagamentos() {
               onSave={handleSave}
               onClose={() => setDetalheModal(null)}
               pagamentosExistentes={pagamentos}
+              projetos={projetos || []}
             />
           </div>
         )}
