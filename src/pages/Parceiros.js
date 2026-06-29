@@ -3,7 +3,7 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useActions } from '../hooks/useActions'
 import { usePartnerMaturity, usePartnerScores } from '../hooks/usePartnerMaturity'
 import BrowseLayout from '../components/BrowseLayout'
-import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
+import SlideOver from '../components/ui/SlideOver'
 import Button from '../components/Button'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -26,9 +26,12 @@ function scoreLabel(pct) {
 }
 
 function ScoreBar({ pct }) {
+  if (pct === null || pct === undefined) {
+    return <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Não calculado</span>
+  }
   const color = scoreColor(pct)
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 100 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 120 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, fontWeight: 700, color }}>
           {pct}%
@@ -40,7 +43,7 @@ function ScoreBar({ pct }) {
           {scoreLabel(pct)}
         </span>
       </div>
-      <div style={{ height: 5, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ height: 5, background: 'var(--border)', borderRadius: 4, overflow: 'hidden', width: 120 }}>
         <div style={{
           height: '100%', width: `${pct}%`, background: color,
           borderRadius: 4, transition: 'width 0.4s ease',
@@ -52,6 +55,14 @@ function ScoreBar({ pct }) {
 
 function initials(nome) {
   return (nome || '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+function extractEstado(parceiro) {
+  if (parceiro.estado) return parceiro.estado
+  if (parceiro.uf) return parceiro.uf
+  // extrai estado entre colchetes no nome, ex: "TOTVS SP - [SP]" → "SP"
+  const match = (parceiro.nome || '').match(/\[([A-Z]{2})\]/)
+  return match ? match[1] : '—'
 }
 
 function AvatarCell({ nome, sub }) {
@@ -103,15 +114,18 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       {/* KPIs topo */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginBottom: 24 }}>
         {[
-          { label: 'Estado', value: parceiro.estado || parceiro.uf || '—' },
-          { label: 'Status', value: parceiro.situacao || parceiro.status || '—' },
-          { label: 'Maturidade', value: score_pct !== null ? `${score_pct}%` : '—' },
+          { label: 'Estado',      value: parceiro.estado || parceiro.uf || '—' },
+          { label: 'Status',      value: parceiro.situacao || parceiro.status || '—' },
+          { label: 'Maturidade',  value: score_pct !== null ? `${score_pct}%` : '—' },
         ].map(k => (
           <div key={k.label} style={{
             background: 'var(--surface-alt)', border: '1px solid var(--border2)',
             borderRadius: 8, padding: '10px 12px', textAlign: 'center',
           }}>
-            <div style={{ fontSize: 18, fontWeight: 800, color: k.label === 'Maturidade' && score_pct !== null ? scoreColor(score_pct) : 'var(--text)', fontFamily: 'var(--mono)' }}>
+            <div style={{
+              fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)',
+              color: k.label === 'Maturidade' && score_pct !== null ? scoreColor(score_pct) : 'var(--text)',
+            }}>
               {k.value}
             </div>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
@@ -122,7 +136,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       </div>
 
       {/* Score por parâmetro */}
-      {params.length > 0 && (
+      {params.filter(p => p.ativo).length > 0 && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 10 }}>
             Score de Maturidade
@@ -139,7 +153,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
                   border: `1px solid ${ok ? '#10B98133' : '#EF444433'}`,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontSize: 14 }}>{ok ? '✓' : '✗'}</span>
+                    <span style={{ fontSize: 14, color: ok ? '#10B981' : '#EF4444' }}>{ok ? '✓' : '✗'}</span>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{p.nome}</div>
                       {p.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{p.descricao}</div>}
@@ -151,10 +165,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
                         {d.valor} reg.
                       </span>
                     )}
-                    <span style={{
-                      fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700,
-                      color: ok ? '#10B981' : '#9CA3AF',
-                    }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: 11, fontWeight: 700, color: ok ? '#10B981' : '#9CA3AF' }}>
                       {ok ? `+${p.peso}` : `0/${p.peso}`}
                     </span>
                   </div>
@@ -163,23 +174,18 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
             })}
           </div>
 
-          {/* Histórico simplificado */}
           {history.length > 1 && (
             <div style={{ marginTop: 12 }}>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                 Evolução recente
               </div>
               <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 40 }}>
-                {history.slice(-10).map((h, i) => {
-                  const pct = h.score_pct
-                  return (
-                    <div key={i} title={`${fmtDate(h.calculado_em)}: ${pct}%`} style={{
-                      flex: 1, height: `${Math.max(10, pct)}%`,
-                      background: scoreColor(pct), borderRadius: 3,
-                      transition: 'height 0.3s',
-                    }} />
-                  )
-                })}
+                {history.slice(-10).map((h, i) => (
+                  <div key={i} title={`${fmtDate(h.calculado_em)}: ${h.score_pct}%`} style={{
+                    flex: 1, height: `${Math.max(10, h.score_pct)}%`,
+                    background: scoreColor(h.score_pct), borderRadius: 3,
+                  }} />
+                ))}
               </div>
             </div>
           )}
@@ -222,9 +228,11 @@ export default function Parceiros() {
   const { params, loading: loadingParams } = usePartnerMaturity()
   const { scores, calculating, calculate, getHistory } = usePartnerScores(parceiros, params)
 
-  const [selected, setSelected] = useState(null)
-  const [slideOpen, setSlideOpen] = useState(false)
-  const [history, setHistory]   = useState([])
+  const [selected, setSelected]     = useState(null)
+  const [slideOpen, setSlideOpen]   = useState(false)
+  const [history, setHistory]       = useState([])
+  const [search, setSearch]         = useState('')
+  const [activeFilters, setActiveFilters] = useState({})
 
   async function openParceiro(p) {
     setSelected(p)
@@ -239,12 +247,11 @@ export default function Parceiros() {
     ? Math.round(scoreList.reduce((a, b) => a + b, 0) / scoreList.length)
     : null
   const baixasMaturidade = scoreList.filter(s => s < 50).length
-  const total = parceiros.length
 
   const kpis = (
-    <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
       {[
-        { label: 'Total de Parceiros', value: total, color: 'var(--accent)' },
+        { label: 'Total de Parceiros', value: parceiros.length, color: 'var(--accent)' },
         { label: 'Maturidade Média',   value: mediaScore !== null ? `${mediaScore}%` : '—', color: mediaScore !== null ? scoreColor(mediaScore) : 'var(--text-muted)' },
         { label: 'Score < 50%',        value: baixasMaturidade, color: baixasMaturidade > 0 ? '#EF4444' : '#10B981' },
       ].map(k => (
@@ -262,24 +269,54 @@ export default function Parceiros() {
         variant="outline"
         loading={calculating}
         onClick={calculate}
-        style={{ alignSelf: 'flex-end', marginLeft: 'auto' }}
+        style={{ marginBottom: 2 }}
       >
         {calculating ? 'Calculando…' : '↻ Calcular scores'}
       </Button>
     </div>
   )
 
-  // ── Enriquecer parceiros com score ────────────────────────────────────────
-  const parceirosComScore = useMemo(() => parceiros.map(p => ({
-    ...p,
-    score_pct: scores[p.id]?.score_pct ?? null,
-    score_calculado: scores[p.id]?.calculado_em ?? null,
-  })).sort((a, b) => {
-    if (a.score_pct === null && b.score_pct === null) return 0
-    if (a.score_pct === null) return 1
-    if (b.score_pct === null) return -1
-    return a.score_pct - b.score_pct  // menos maduros primeiro
-  }), [parceiros, scores])
+  // ── Enriquecer e filtrar parceiros ────────────────────────────────────────
+  const parceirosComScore = useMemo(() => {
+    return parceiros
+      .map(p => ({
+        ...p,
+        score_pct: scores[p.id]?.score_pct ?? null,
+      }))
+      .filter(p => {
+        // score_range é filtro customizado fora do BrowseLayout
+        const sr = activeFilters.score_range
+        if (sr) {
+          const s = p.score_pct
+          if (sr === 'sem_score' && s !== null) return false
+          if (sr === 'critico'   && (s === null || s >= 40)) return false
+          if (sr === 'medio'     && (s === null || s < 40 || s >= 75)) return false
+          if (sr === 'maduro'    && (s === null || s < 75)) return false
+        }
+        // busca simples
+        if (search) {
+          const q = search.toLowerCase()
+          const match = (p.nome || '').toLowerCase().includes(q) ||
+                        (p.estado || p.uf || '').toLowerCase().includes(q) ||
+                        (p.segmento || p.tipo || '').toLowerCase().includes(q)
+          if (!match) return false
+        }
+        // filtro de estado
+        if (activeFilters.estado && extractEstado(p) !== activeFilters.estado) return false
+        // filtro de situacao
+        if (activeFilters.situacao) {
+          const s = p.situacao || p.status || 'ativo'
+          if (s !== activeFilters.situacao) return false
+        }
+        return true
+      })
+      .sort((a, b) => {
+        if (a.score_pct === null && b.score_pct === null) return 0
+        if (a.score_pct === null) return 1
+        if (b.score_pct === null) return -1
+        return a.score_pct - b.score_pct
+      })
+  }, [parceiros, scores, activeFilters, search])
 
   // ── columns ───────────────────────────────────────────────────────────────
   const columns = [
@@ -293,7 +330,7 @@ export default function Parceiros() {
       label: 'Estado',
       render: (val, row) => (
         <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>
-          {val || row.uf || '—'}
+          {extractEstado(row)}
         </span>
       ),
     },
@@ -302,16 +339,16 @@ export default function Parceiros() {
       label: 'Status',
       render: (val, row) => {
         const s = val || row.status || 'ativo'
-        const color = s === 'ativo' ? '#10B981' : '#9CA3AF'
+        const ok = s === 'ativo'
         return (
           <span style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             padding: '2px 9px', borderRadius: 20,
-            background: s === 'ativo' ? '#D1FAE5' : '#F3F4F6',
-            color: s === 'ativo' ? '#065F46' : '#374151',
+            background: ok ? '#D1FAE5' : '#F3F4F6',
+            color: ok ? '#065F46' : '#374151',
             fontSize: 11, fontWeight: 600,
           }}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, display: 'inline-block' }} />
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: ok ? '#10B981' : '#9CA3AF', display: 'inline-block' }} />
             {s.charAt(0).toUpperCase() + s.slice(1)}
           </span>
         )
@@ -320,14 +357,12 @@ export default function Parceiros() {
     {
       key: 'score_pct',
       label: 'Maturidade',
-      render: (val) => val !== null ? <ScoreBar pct={val} /> : (
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Não calculado</span>
-      ),
+      render: (val) => <ScoreBar pct={val} />,
     },
   ]
 
   // ── filters ───────────────────────────────────────────────────────────────
-  const estados = [...new Set(parceiros.map(p => p.estado || p.uf).filter(Boolean))].sort()
+  const estados = [...new Set(parceiros.map(p => extractEstado(p)).filter(e => e !== '—'))].sort()
 
   const filters = [
     {
@@ -348,40 +383,36 @@ export default function Parceiros() {
       key: 'score_range',
       label: 'Maturidade',
       options: [
-        { value: 'critico',     label: '< 40% (Iniciante)'          },
-        { value: 'medio',       label: '40–74% (Em desenvolvimento)' },
-        { value: 'maduro',      label: '≥ 75% (Maduro)'             },
-        { value: 'sem_score',   label: 'Não calculado'              },
+        { value: 'critico',   label: '< 40% — Iniciante'           },
+        { value: 'medio',     label: '40–74% — Em desenvolvimento'  },
+        { value: 'maduro',    label: '≥ 75% — Maduro'              },
+        { value: 'sem_score', label: 'Não calculado'               },
       ],
     },
   ]
 
-  function applyExtraFilter(row, activeFilters) {
-    const sr = activeFilters?.score_range
-    if (!sr) return true
-    const s = row.score_pct
-    if (sr === 'sem_score') return s === null
-    if (sr === 'critico')   return s !== null && s < 40
-    if (sr === 'medio')     return s !== null && s >= 40 && s < 75
-    if (sr === 'maduro')    return s !== null && s >= 75
-    return true
-  }
-
   return (
     <>
       <BrowseLayout
-        title="Parceiros"
-        subtitle="Visão de maturidade e distribuição da rede de parceiros"
-        loading={loadingP || loadingParams}
-        items={parceirosComScore}
+        storageKey="parceiros"
+        kpis={kpis}
+        kpisLabel="Visão Geral"
         columns={columns}
+        data={parceirosComScore}
+        keyField="id"
+        search={search}
+        onSearchChange={setSearch}
         filters={filters}
-        searchKeys={['nome', 'estado', 'uf', 'segmento', 'tipo']}
-        customFilterFn={applyExtraFilter}
-        headerExtra={kpis}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
         onRowClick={openParceiro}
-        emptyMessage="Nenhum parceiro encontrado. Cadastre parceiros em Configurações → Parceiros."
-        primaryAction={null}
+        emptyState={
+          <div style={{ textAlign: 'center', padding: '48px 24px', color: 'var(--text-muted)' }}>
+            <div style={{ fontSize: 32, marginBottom: 12 }}>◎</div>
+            <div style={{ fontWeight: 600, marginBottom: 6 }}>Nenhum parceiro encontrado</div>
+            <div style={{ fontSize: 13 }}>Cadastre parceiros em Configurações → Parceiros.</div>
+          </div>
+        }
       />
 
       <ParceirSlideOver
