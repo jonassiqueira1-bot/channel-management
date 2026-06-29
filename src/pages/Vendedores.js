@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
-import { MOCK_COMPANIES, COMPANY_TYPE_CFG, COMPANIES_STORAGE_KEY } from '../data/mockCompanies'
 import { useSellers } from '../hooks/useSellers'
+import { useParceiros } from '../hooks/useParceiros'
 import { useAuditLog } from '../hooks/useAuditLog'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -426,17 +426,20 @@ function AvatarCell({ nome, email }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Vendedores() {
-  const [companies]   = useLocalState(COMPANIES_STORAGE_KEY, MOCK_COMPANIES)
-  const [franquiasCad] = useLocalState('settings:franquias_v2', [])
+  const { parceiros }                                                        = useParceiros()
   const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany } = useSellers()
   const { registrar: log } = useAuditLog()
 
+  const franquiasMap = useMemo(
+    () => Object.fromEntries((parceiros || []).map(p => [String(p.id), p])),
+    [parceiros]
+  )
+
   const franquiasOpts = useMemo(() =>
-    franquiasCad.length > 0
-      ? franquiasCad.filter(f => f.classificacao !== 'unidade' && f.situacao !== 'inativo')
-          .map(f => ({ id: String(f.id), label: f.nome, sublabel: f.codigo || '' }))
-      : companies.filter(c => c.type === 'FRANCHISE').map(c => ({ id: String(c.id), label: c.name, sublabel: '' }))
-  , [franquiasCad, companies])
+    (parceiros || [])
+      .filter(p => p.classificacao !== 'unidade' && p.situacao !== 'inativo')
+      .map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))
+  , [parceiros])
 
   const [search, setSearch]           = useLocalState('contatos_canais:search', '')
   const [filterStatus, setFilterStatus] = useLocalState('contatos_canais:status', '')
@@ -451,18 +454,17 @@ export default function Vendedores() {
     let list = sellers
     if (search) {
       const q = search.toLowerCase()
-      const companyMap = Object.fromEntries(companies.map(c => [c.id, c]))
       list = list.filter(f =>
         f.nome?.toLowerCase().includes(q) ||
         f.email?.toLowerCase().includes(q) ||
         f.cpf?.includes(q) ||
-        companyMap[f.company_id]?.name?.toLowerCase().includes(q)
+        franquiasMap[String(f.franquia_id)]?.nome?.toLowerCase().includes(q)
       )
     }
     if (filterStatus) list = list.filter(f => f.status === filterStatus)
     if (filterRole)   list = list.filter(f => f.role === filterRole)
     return [...list].sort((a, b) => (a.nome || '').localeCompare(b.nome || ''))
-  }, [sellers, companies, search, filterStatus, filterRole])
+  }, [sellers, franquiasMap, search, filterStatus, filterRole])
 
   // ── CRUD ─────────────────────────────────────────────────────────────────────
   function handleSave(form) {
@@ -484,11 +486,10 @@ export default function Vendedores() {
 
   // ── Export ───────────────────────────────────────────────────────────────────
   function handleExport() {
-    const companyMap = Object.fromEntries(companies.map(c => [c.id, c]))
-    const headers = ['nome','email','telefone','cpf','role','regiao','status','empresa','meta_mensal','criado']
+    const headers = ['nome','email','telefone','cpf','role','regiao','status','franquia','meta_mensal','criado']
     const csv = [headers.join(';'), ...filtered.map(f => [
       f.nome, f.email||'', f.telefone||'', f.cpf||'', f.role||'', f.regiao||'', f.status||'',
-      companyMap[f.company_id]?.name || '', f.meta_mensal||'', f.criado||''
+      franquiasMap[String(f.franquia_id)]?.nome || f.franquia_nome || '', f.meta_mensal||'', f.criado||''
     ].join(';'))].join('\n')
     const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -533,16 +534,15 @@ export default function Vendedores() {
       render: (val) => <RoleBadge role={val} />,
     },
     {
-      key: 'company_id',
-      label: 'Empresa',
-      render: (val) => {
-        const c = companies.find(co => co.id === val)
-        if (!c) return <span style={{ color:'var(--border)', fontSize:12 }}>—</span>
-        const tc = COMPANY_TYPE_CFG[c.type] || {}
+      key: 'franquia_id',
+      label: 'Franquia / Equipe',
+      render: (val, row) => {
+        const f = franquiasMap[String(val)]
+        const nome = f?.nome || row.franquia_nome
+        if (!nome) return <span style={{ color:'var(--border)', fontSize:12 }}>—</span>
         return (
           <span style={{ display:'inline-flex', alignItems:'center', gap:6, fontSize:12 }}>
-            <span style={{ fontSize:10, fontWeight:700, padding:'1px 6px', borderRadius:4, background:tc.bg, color:tc.color, letterSpacing:'0.04em' }}>{tc.label}</span>
-            <span style={{ color:'var(--text-soft)', fontWeight:500 }}>{c.name}</span>
+            <span style={{ color:'var(--text-soft)', fontWeight:500 }}>{nome}</span>
           </span>
         )
       },
@@ -598,8 +598,7 @@ export default function Vendedores() {
 
   // ── Card render ───────────────────────────────────────────────────────────────
   function renderCard(row) {
-    const company = companies.find(c => c.id === row.company_id)
-    const tc = company ? (COMPANY_TYPE_CFG[company.type] || {}) : {}
+    const franquiaNome = franquiasMap[String(row.franquia_id)]?.nome || row.franquia_nome
     return (
       <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -615,10 +614,9 @@ export default function Vendedores() {
           <RoleBadge role={row.role} />
           <StatusBadge status={row.status} />
         </div>
-        {company && (
+        {franquiaNome && (
           <div style={{ fontSize:12, color:'var(--text-soft)', display:'flex', alignItems:'center', gap:6 }}>
-            <span style={{ fontSize:10, fontWeight:700, padding:'1px 5px', borderRadius:4, background:tc.bg, color:tc.color }}>{tc.label}</span>
-            {company.name}
+            {franquiaNome}
           </div>
         )}
         {row.regiao && <div style={{ fontSize:11, color:'var(--text-muted)' }}>📍 {row.regiao}</div>}
