@@ -530,7 +530,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
   function handleCreate() {
     if (!form.company_name.trim()) return
     onSave({
-      ...form, id: uid(), tenant_id: 't1',
+      ...form,
       criado_em: new Date().toISOString().slice(0, 10),
     })
     onClose()

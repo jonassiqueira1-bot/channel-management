@@ -38,23 +38,31 @@ export function useCustomerHealth() {
 
   useEffect(() => { fetch() }, [fetch])
 
+  const isUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(id)
+
   const save = useCallback(async (record) => {
     if (isMock.current) {
       setRecords(prev => {
         const idx = prev.findIndex(r => r.id === record.id)
-        const next = idx >= 0 ? prev.map(r => r.id === record.id ? record : r) : [...prev, record]
+        const next = idx >= 0 ? prev.map(r => r.id === record.id ? record : r) : [...prev, { ...record, id: record.id || `ph_${Date.now()}` }]
         persist(next)
         return next
       })
       return { ok: true }
     }
-    const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
-    const { error } = await supabase.from('customer_health').upsert(row, { onConflict: 'id' })
-    if (error) return { ok: false, message: error.message }
-    setRecords(prev => {
-      const idx = prev.findIndex(r => r.id === record.id)
-      return idx >= 0 ? prev.map(r => r.id === record.id ? record : r) : [...prev, record]
-    })
+    const { id, ...rest } = record
+    const base = { ...rest, tenant_id: tid.current, updated_at: new Date().toISOString() }
+    if (isUuid(id)) {
+      // UPDATE
+      const { error } = await supabase.from('customer_health').update(base).eq('id', id)
+      if (error) return { ok: false, message: error.message }
+      setRecords(prev => prev.map(r => r.id === id ? { ...r, ...record } : r))
+    } else {
+      // INSERT — deixa DB gerar UUID
+      const { data, error } = await supabase.from('customer_health').insert(base).select().single()
+      if (error) return { ok: false, message: error.message }
+      setRecords(prev => [...prev, { ...record, id: data.id }])
+    }
     return { ok: true }
   }, [])
 
