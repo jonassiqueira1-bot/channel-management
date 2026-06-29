@@ -3709,6 +3709,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       : { ...EMPTY_OPP, etapa_id: etapas[0]?.id || null, itens: [] }
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [moverFunilPopup, setMoverFunilPopup] = useState(null) // { novoFunil, etapaId }
   const [cfFields, cfActions] = useCustomFields('oportunidade')
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
@@ -3961,9 +3962,11 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
             value={form.funil_id || ''}
             onChange={e => {
               const novoFunilId = e.target.value
+              if (!novoFunilId || novoFunilId === String(form.funil_id)) return
               const novoFunil = funis.find(f => String(f.id) === novoFunilId)
-              set('funil_id', novoFunilId)
-              if (novoFunil?.etapas?.length) set('etapa_id', novoFunil.etapas[0].id)
+              if (!novoFunil) return
+              // Abre popup para escolher a etapa de destino
+              setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
             }}
             style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
               border:'1px solid var(--border)', background:'var(--surface2)',
@@ -3972,6 +3975,61 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
             <option value="">— Funil —</option>
             {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
           </select>
+        )}
+
+        {/* Popup: escolher etapa no funil de destino */}
+        {moverFunilPopup && (
+          <div style={{ position:'fixed', inset:0, zIndex:9000, display:'flex', alignItems:'center', justifyContent:'center',
+            background:'rgba(0,0,0,0.4)', backdropFilter:'blur(2px)' }}
+            onClick={e => { if (e.target === e.currentTarget) setMoverFunilPopup(null) }}
+          >
+            <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:14,
+              padding:'28px 32px', minWidth:340, maxWidth:420, boxShadow:'0 20px 60px rgba(0,0,0,0.25)' }}>
+              <div style={{ fontSize:16, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
+                Mover para "{moverFunilPopup.novoFunil.nome}"
+              </div>
+              <div style={{ fontSize:13, color:'var(--text-muted)', marginBottom:20 }}>
+                Em qual etapa deste funil a oportunidade deve entrar?
+              </div>
+              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:24 }}>
+                {(moverFunilPopup.novoFunil.etapas || []).map(etapa => (
+                  <label key={etapa.id} style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer',
+                    padding:'10px 14px', borderRadius:8, border:`2px solid ${moverFunilPopup.etapaId === etapa.id ? etapa.cor : 'var(--border)'}`,
+                    background: moverFunilPopup.etapaId === etapa.id ? etapa.cor + '18' : 'var(--surface2)',
+                    transition:'all 0.15s' }}>
+                    <input type="radio" name="etapa_destino"
+                      checked={moverFunilPopup.etapaId === etapa.id}
+                      onChange={() => setMoverFunilPopup(p => ({ ...p, etapaId: etapa.id }))}
+                      style={{ accentColor: etapa.cor }} />
+                    <span style={{ width:10, height:10, borderRadius:'50%', background: etapa.cor, flexShrink:0 }} />
+                    <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{etapa.nome}</span>
+                    <span style={{ marginLeft:'auto', fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                      {etapa.probabilidade}%
+                    </span>
+                  </label>
+                ))}
+              </div>
+              <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
+                <button onClick={() => setMoverFunilPopup(null)}
+                  style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none',
+                    color:'var(--text-muted)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  Cancelar
+                </button>
+                <button
+                  disabled={!moverFunilPopup.etapaId}
+                  onClick={() => {
+                    set('funil_id', String(moverFunilPopup.novoFunil.id))
+                    set('etapa_id', moverFunilPopup.etapaId)
+                    setMoverFunilPopup(null)
+                  }}
+                  style={{ padding:'8px 22px', borderRadius:8, border:'none', background:'var(--accent)',
+                    color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)',
+                    opacity: moverFunilPopup.etapaId ? 1 : 0.4 }}>
+                  Confirmar
+                </button>
+              </div>
+            </div>
+          </div>
         )}
         {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
         {dataFmt && (nItens > 0 || liq > 0) && dot}
@@ -5270,7 +5328,7 @@ const k = {
 }
 
 // ─── List View ────────────────────────────────────────────────────────────────
-function ListView({ opps, etapas, onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected }) {
+function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected }) {
   return (
     <div style={p.tableWrap}>
       <table style={p.table}>
@@ -5279,17 +5337,18 @@ function ListView({ opps, etapas, onEdit, selected, onToggleAll, onToggleOne, al
             <th style={{ ...p.th, width:40, textAlign:'center' }}>
               <Checkbox checked={allSelected} indeterminate={someSelected} onChange={onToggleAll} title={allSelected?'Desmarcar todos':'Selecionar todos'} />
             </th>
-            {['Oportunidade','Situação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
+            {['Oportunidade','Funil','Situação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
               <th key={h} style={p.th}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {opps.length===0 && (
-            <tr><td colSpan={9} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma oportunidade encontrada</td></tr>
+            <tr><td colSpan={10} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma oportunidade encontrada</td></tr>
           )}
           {opps.map(o => {
             const etapa    = etapas.find(e => e.id===o.etapa_id)
+            const funilOpp = funis.find(f => String(f.id) === String(o.funil_id))
             const isSel    = selected.has(o.id)
             const dias     = diasRestantes(o.prazo)
             const atrasado = dias!==null && dias<0
@@ -5307,6 +5366,17 @@ function ListView({ opps, etapas, onEdit, selected, onToggleAll, onToggleOne, al
                     </div>
                     <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.empresa_nome}</span>
                   </div>
+                </td>
+                <td style={p.td}>
+                  {funilOpp ? (
+                    <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20,
+                      background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)',
+                      whiteSpace:'nowrap' }}>
+                      {funilOpp.nome}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize:11, color:'var(--red)', fontWeight:600 }}>Sem funil</span>
+                  )}
                 </td>
                 <td style={p.td}><SituacaoBadge situacao={o.situacao||'em_andamento'} /></td>
                 <td style={p.td}><EtapaBadge etapa={etapa} /></td>
@@ -5595,7 +5665,9 @@ export default function Pipeline() {
   // ── estado persistido em localStorage ───────────────────────────────────
   const { funis: todosOsFunis } = useFunnels()
   const FUNIS_ATIVOS = todosOsFunis.filter(f => f.status === 'ativo')
-  const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', FUNIS_ATIVOS[0]?.id || null)
+  const funis        = FUNIS_ATIVOS  // alias conveniente para uso no handleSave
+  const funilPadrao  = FUNIS_ATIVOS.find(f => f.is_padrao) || FUNIS_ATIVOS[0]
+  const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
   const [view, setView]                 = useLocalState('pipeline:view', 'kanban')
   const [search, setSearch]             = useLocalState('pipeline:search', '')
   const [filterOrigem, setFilterOrigem]       = useLocalState('pipeline:filterOrigem', '')
@@ -5749,7 +5821,13 @@ export default function Pipeline() {
   // ── save/delete ───────────────────────────────────────────────────────────
   function handleSave(data) {
     const isNew = !opps.find(o => o.id === data.id)
-    saveOpp({ ...data, funil_nome: funil?.nome || '' })
+    // Garante funil definido — fallback para funil padrão ou primeiro ativo
+    const funilFinal = funis.find(f => String(f.id) === String(data.funil_id))
+      || funilPadrao
+      || FUNIS_ATIVOS[0]
+    const funil_id   = funilFinal?.id || funilAtivo
+    const funil_nome = funilFinal?.nome || funil?.nome || ''
+    saveOpp({ ...data, funil_id, funil_nome })
     log(isNew ? 'criar' : 'editar', 'oportunidade', data.id, { descricao: `Oportunidade ${isNew ? 'criada' : 'editada'}: ${data.nome || data.titulo || ''}` })
   }
   function handleFechamento(opp) { setFechamentoModal(opp) }
@@ -5987,7 +6065,7 @@ export default function Pipeline() {
       {/* ── Views ── */}
       {view==='list' && (
         <ListView
-          opps={filtered} etapas={etapas}
+          opps={filtered} etapas={etapas} funis={FUNIS_ATIVOS}
           onEdit={o=>setModal(o)}
           selected={selected} onToggleAll={toggleAll} onToggleOne={toggleOne}
           allSelected={allSelected} someSelected={someSelected}

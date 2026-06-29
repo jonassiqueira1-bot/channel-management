@@ -156,7 +156,7 @@ const ed = {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 const EMPTY_FUNIL = {
-  nome: '', descricao: '', status: 'ativo',
+  nome: '', descricao: '', status: 'ativo', is_padrao: false,
   etapas: [
     { id: novoId(), nome: 'Prospecção',    ordem: 1, cor: '#6B7280', probabilidade: 10 },
     { id: novoId(), nome: 'Qualificação',  ordem: 2, cor: '#3B82F6', probabilidade: 30 },
@@ -195,9 +195,18 @@ export default function Funis() {
     if (form.etapas.length === 0) return alert('O funil precisa ter ao menos uma etapa')
     if (form.etapas.some(e => !e.nome.trim())) return alert('Todas as etapas precisam ter um nome')
     const isNew = editando === 'novo'
-    const saved = { ...form, nome: form.nome.trim(), id: isNew ? novoId() : editando.id }
+    const savedId = isNew ? novoId() : editando.id
+    const saved = { ...form, nome: form.nome.trim(), id: savedId }
+    // Se marcando como padrão, desmarca os demais
+    if (saved.is_padrao) {
+      funis.forEach(f => {
+        if (String(f.id) !== String(savedId) && f.is_padrao) {
+          saveFunil({ ...f, is_padrao: false })
+        }
+      })
+    }
     saveFunil(saved)
-    log(isNew ? 'criar' : 'editar', 'funil', saved.id, { descricao: `Funil ${isNew ? 'criado' : 'editado'}: ${saved.nome}` })
+    log(isNew ? 'criar' : 'editar', 'funil', saved.id, { descricao: `Funil ${isNew ? 'criado' : 'editado'}: ${saved.nome}${saved.is_padrao ? ' [Padrão]' : ''}` })
     setEditando(null)
   }
 
@@ -232,6 +241,26 @@ export default function Funis() {
               </select>
             </FPEField>
           </FPEGrid>
+          <FPEField label="Funil Padrão">
+            <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', userSelect:'none' }}>
+              <div
+                onClick={() => set('is_padrao', !form.is_padrao)}
+                style={{
+                  width:40, height:22, borderRadius:11, position:'relative', cursor:'pointer', flexShrink:0, transition:'background 0.2s',
+                  background: form.is_padrao ? 'var(--accent)' : 'var(--border)',
+                }}
+              >
+                <div style={{
+                  position:'absolute', top:3, left: form.is_padrao ? 21 : 3,
+                  width:16, height:16, borderRadius:'50%', background:'#fff',
+                  boxShadow:'0 1px 3px rgba(0,0,0,0.25)', transition:'left 0.2s',
+                }} />
+              </div>
+              <span style={{ fontSize:13, color: form.is_padrao ? 'var(--accent)' : 'var(--text-muted)', fontWeight: form.is_padrao ? 600 : 400 }}>
+                {form.is_padrao ? 'Este funil é o padrão para novas oportunidades' : 'Marcar como funil padrão'}
+              </span>
+            </label>
+          </FPEField>
           <FPEField label="Descrição">
             <textarea className="fpe-field" style={{ minHeight: 64, resize: 'vertical' }}
               value={form.descricao}
@@ -281,7 +310,17 @@ export default function Funis() {
       title="Funis de Vendas"
       description="Configure os funis e etapas do pipeline de vendas do canal."
       columns={[
-        { key: 'nome', label: 'Funil' },
+        { key: 'nome', label: 'Funil', render: (v, row) => (
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span>{v}</span>
+            {row.is_padrao && (
+              <span style={{ fontSize:10, fontWeight:700, padding:'1px 7px', borderRadius:20,
+                background:'var(--accent)', color:'#fff', letterSpacing:'0.04em', whiteSpace:'nowrap' }}>
+                PADRÃO
+              </span>
+            )}
+          </div>
+        )},
         { key: 'status', label: 'Status', render: (v) => <StatusBadge status={v} />, width: 100 },
         { key: 'etapas', label: 'Etapas', render: (v) => (
           <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>

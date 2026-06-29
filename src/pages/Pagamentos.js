@@ -14,6 +14,7 @@ import SearchSelect from '../components/SearchSelect'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useCommissions } from '../hooks/useCommissions'
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -1002,6 +1003,7 @@ export default function Pagamentos() {
   const { pagamentos, setPagamentos } = usePayments()
   const { registrar: log } = useAuditLog()
   const { contratos } = useContracts()
+  const { savePayment: saveCommissionPayment } = useCommissions()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1179,9 +1181,65 @@ export default function Pagamentos() {
     }
   }
 
+  function gerarLancamentoComissao(pag) {
+    // Determina origem (projeto vs venda)
+    const isFromProjeto = pag._origem === 'fechamento_horas' ||
+      (pag.notes || '').toLowerCase().includes('fechamento de horas')
+
+    // Tipo de receita dominante
+    const cdu      = Number(pag.amount_cdu)      || 0
+    const sms      = Number(pag.amount_sms)      || 0
+    const services = Number(pag.amount_services) || 0
+    let receita_tipo = 'Serviços'
+    if (!isFromProjeto) {
+      if (cdu >= sms && cdu >= services && cdu > 0)      receita_tipo = 'CDU'
+      else if (sms >= cdu && sms >= services && sms > 0) receita_tipo = 'SMS'
+      else if (services > 0)                             receita_tipo = 'Serviços'
+    }
+
+    // Descrição/origem descritiva
+    const descricao = isFromProjeto
+      ? `Comissão de Serviços — Projeto: ${pag.contract_numero || 'N/D'}`
+      : `Comissão de Vendas — Contrato: ${pag.contract_numero || 'N/D'} — ${pag.company_nome || ''}`
+
+    // Extrai mês/ano do reference_month (formato YYYY-MM-DD)
+    const ref   = pag.reference_month || pag.data_emissao || ''
+    const parts = ref.slice(0, 7).split('-')
+    const periodo_ano = parts[0] ? Number(parts[0]) : new Date().getFullYear()
+    const periodo_mes = parts[1] ? Number(parts[1]) : new Date().getMonth() + 1
+
+    saveCommissionPayment({
+      status:            'pendente',
+      valor_bruto:       Number(pag.amount_total_net) || 0,
+      valor_comissao:    0,
+      beneficiario_id:   null,
+      beneficiario_nome: '',
+      persona_slug:      '',
+      rule_id:           null,
+      company_id:        pag.company_id   || null,
+      contract_id:       pag.contract_id  || null,
+      periodo_mes,
+      periodo_ano,
+      observacoes:       descricao,
+      custom_fields: {
+        receita_tipo,
+        descricao,
+        origem:            isFromProjeto ? 'projeto' : 'venda',
+        origem_pagamento_id: pag.id,
+        contract_numero:   pag.contract_numero || '',
+        company_nome:      pag.company_nome    || '',
+        produto_nome:      pag.produto_nome    || '',
+        amount_cdu:        cdu,
+        amount_sms:        sms,
+        amount_services:   services,
+      },
+    })
+  }
+
   function handleNovoPagamento(pag) {
     setPagamentos(prev=>[pag, ...prev])
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
+    gerarLancamentoComissao(pag)
     // navega para o período do novo pagamento
     const ref = parsePeriodo(pag.reference_month)
     setPeriodo(ref)

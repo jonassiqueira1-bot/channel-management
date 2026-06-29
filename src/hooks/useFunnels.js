@@ -6,12 +6,13 @@ import { useProfile } from './useProfile'
 function rowToFunil(row) {
   const cf = row.custom_fields || {}
   return {
-    id:       row.id,
-    nome:     row.name || cf.nome || '',
-    descricao:row.description || cf.descricao || '',
-    status:   row.status || 'ativo',
-    criado:   row.created_at?.slice(0, 10) || '',
-    etapas:   cf.etapas || [],
+    id:        row.id,
+    nome:      row.name || cf.nome || '',
+    descricao: row.description || cf.descricao || '',
+    status:    row.status || 'ativo',
+    is_padrao: cf.is_padrao || false,
+    criado:    row.created_at?.slice(0, 10) || '',
+    etapas:    cf.etapas || [],
   }
 }
 
@@ -22,9 +23,10 @@ function funilToRow(f, tenantId) {
     description: f.descricao || null,
     status:      f.status || 'ativo',
     custom_fields: {
-      nome:    f.nome,
+      nome:      f.nome,
       descricao: f.descricao,
-      etapas:  f.etapas || [],
+      etapas:    f.etapas || [],
+      is_padrao: f.is_padrao || false,
     },
   }
 }
