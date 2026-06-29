@@ -1209,8 +1209,8 @@ export default function Pagamentos() {
     const anterior = pagamentos.find(p => p.id === pag.id)
     savePagamento(pag)
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
+    console.log('[handleSave] status:', pag.status, '| anterior:', anterior?.status, '| vai mostrar popup:', pag.status === 'pago' && anterior?.status !== 'pago')
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
-      // Abre popup de confirmação antes de gerar comissões
       setConfirmComissao(pag)
     }
   }
