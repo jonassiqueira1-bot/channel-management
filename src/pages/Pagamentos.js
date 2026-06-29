@@ -1510,16 +1510,28 @@ export default function Pagamentos() {
                   />
                 </FormField>
                 <FormField label="Produto">
-                  <SearchSelect
-                    options={produtosNovo.map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))}
-                    value={form.produto_id ? String(form.produto_id) : null}
-                    onChange={id => {
-                      const prod = produtosNovo.find(p => String(p.id) === id)
-                      setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '' }))
-                    }}
-                    placeholder="Buscar produto…"
-                    inputStyle={{ height:40, border:'1px solid var(--border)', borderRadius:7, padding:'0 12px', fontSize:13, width:'100%', boxSizing:'border-box', background:'var(--surface2)', fontFamily:'var(--font)', color:'var(--text)' }}
-                  />
+                  {(() => {
+                    const contratoSel = form.contract_id ? contratos.find(c => c.id === form.contract_id) : null
+                    const idsDoContrato = contratoSel
+                      ? [...(contratoSel.itens_adesao||[]), ...(contratoSel.itens_mrr||[]), ...(contratoSel.itens_servico||[])]
+                          .map(i => String(i.produto_id)).filter(Boolean)
+                      : []
+                    const opcoesDisponiveis = idsDoContrato.length > 0
+                      ? produtosNovo.filter(p => idsDoContrato.includes(String(p.id)))
+                      : produtosNovo
+                    return (
+                      <SearchSelect
+                        options={opcoesDisponiveis.map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))}
+                        value={form.produto_id ? String(form.produto_id) : null}
+                        onChange={id => {
+                          const prod = opcoesDisponiveis.find(p => String(p.id) === id)
+                          setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '' }))
+                        }}
+                        placeholder={idsDoContrato.length > 0 ? `${idsDoContrato.length} produto(s) do contrato…` : 'Buscar produto…'}
+                        inputStyle={{ height:40, border:'1px solid var(--border)', borderRadius:7, padding:'0 12px', fontSize:13, width:'100%', boxSizing:'border-box', background:'var(--surface2)', fontFamily:'var(--font)', color:'var(--text)' }}
+                      />
+                    )
+                  })()}
                 </FormField>
                 <FormField label="Status">
                   <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
