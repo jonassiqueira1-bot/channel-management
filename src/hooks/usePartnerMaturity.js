@@ -141,13 +141,14 @@ export function usePartnerScores(parceiros, params) {
     // contracts: vínculo via company_id → companies.custom_fields.franquia_ar_id → parceiro.id
     // actions: vínculo via custom_fields.empresa_id → parceiro.id
     // habilitacoes: vínculo via partner_habilitacoes table
-    const [sellersRes, oppsRes, contractsRes, companiesRes, actionsRes, habLinksRes] = await Promise.all([
+    const [sellersRes, oppsRes, contractsRes, companiesRes, actionsRes, habLinksRes, contactsRes] = await Promise.all([
       supabase.from('sellers').select('id, custom_fields, status'),
-      supabase.from('oportunidades').select('id, owner_id, situacao, created_at'),
+      supabase.from('oportunidades').select('id, company_id, owner_id, situacao, created_at'),
       supabase.from('contracts').select('id, company_id, status'),
       supabase.from('companies').select('id, custom_fields'),
       supabase.from('actions').select('id, custom_fields, created_at'),
       supabase.from('partner_habilitacoes').select('parceiro_id, habilitacao_id'),
+      supabase.from('contacts').select('id, company_id'),
     ])
 
     const sellers   = sellersRes.data   || []
@@ -156,6 +157,7 @@ export function usePartnerScores(parceiros, params) {
     const companies = companiesRes.data || []
     const actions   = actionsRes.data   || []
     const habLinks  = habLinksRes.data  || []
+    const contacts  = contactsRes.data  || []
 
     // Índice: parceiro_id → Set<seller_id>
     const parceiroSellers = {}
@@ -185,18 +187,21 @@ export function usePartnerScores(parceiros, params) {
       const sellerIds = parceiroSellers[parceiro_id] || new Set()
 
       switch (origem) {
-        // Vendedores vinculados ao parceiro (alias legado: 'contacts')
-        case 'sellers':
+        // Contatos das empresas vinculadas ao parceiro (qualquer cargo)
         case 'contacts':
+          return contacts.filter(c => companyParceiro[c.company_id] === parceiro_id).length
+
+        // Vendedores vinculados ao parceiro
+        case 'sellers':
           return sellers.filter(s => {
             const fid = s.custom_fields?.franquia_id
             return fid === parceiro_id && s.status !== 'inativo'
           }).length
 
-        // Oportunidades ativas de sellers do parceiro
+        // Oportunidades das empresas vinculadas ao parceiro
         case 'oportunidades': {
           let list = opps.filter(o =>
-            sellerIds.has(o.owner_id) && o.situacao === 'em_andamento'
+            companyParceiro[o.company_id] === parceiro_id && o.situacao === 'em_andamento'
           )
           if (param.janela_dias) {
             const cutoff = new Date(now - param.janela_dias * 86400000)
