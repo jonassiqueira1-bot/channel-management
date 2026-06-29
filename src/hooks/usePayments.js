@@ -5,8 +5,16 @@ import { useProfile } from './useProfile'
 
 // Chave exclusiva para provisões geradas pela integração (separada de dados mock)
 export const PROVISOES_LS_KEY = 'pagamentos:provisoes_v1'
+const PAYMENTS_LS_KEY = 'pagamentos:lista_v1'
+
 function loadProvisoes() {
   try { return JSON.parse(localStorage.getItem(PROVISOES_LS_KEY) || '[]') } catch { return [] }
+}
+function loadLS() {
+  try { return JSON.parse(localStorage.getItem(PAYMENTS_LS_KEY) || '[]') } catch { return [] }
+}
+function saveLS(list) {
+  try { localStorage.setItem(PAYMENTS_LS_KEY, JSON.stringify(list)) } catch {}
 }
 
 function rowToPayment(row) {
@@ -29,8 +37,8 @@ function rowToPayment(row) {
     data_baixa:       cf.data_baixa || '',
     valor_recebido:   cf.valor_recebido || 0,
     parcela:          cf.parcela || '',
-    reference_month:  row.data_pagamento || '',
-    due_date:         row.vencimento || '',
+    reference_month:  row.reference_month || '',
+    due_date:         row.due_date || '',
     status:           row.status || 'pendente',
     processed:        cf.processed || false,
     notes:            row.descricao || '',
@@ -46,8 +54,8 @@ function paymentToRow(p, tenantId, branchId) {
     company_id:      p.company_id || null,
     contract_id:     p.contract_id || null,
     status:          p.status || 'pendente',
-    vencimento:      p.due_date || null,
-    data_pagamento:  p.reference_month || null,
+    due_date:        p.due_date || null,
+    reference_month: p.reference_month || null,
     descricao:       p.notes || '',
     custom_fields: {
       contract_numero:  p.contract_numero,
@@ -84,7 +92,10 @@ export function usePayments() {
     setLoading(true)
     if (!session?.user) {
       isMockMode.current = true
-      setPagamentos(loadProvisoes())
+      const ls = loadLS()
+      const provisoes = loadProvisoes()
+      const lsOnly = provisoes.filter(p => !ls.some(x => x.id === p.id))
+      setPagamentos([...ls, ...lsOnly])
       setLoading(false)
       return
     }
@@ -92,13 +103,13 @@ export function usePayments() {
     const { data, error } = await supabase
       .from('payments')
       .select('*, companies(nome_fantasia, razao_social)')
-      .order('vencimento', { ascending: false })
+      .order('due_date', { ascending: false })
 
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
     const fromDB = (data || []).map(rowToPayment)
-    // Mescla entradas do localStorage que ainda não estão no Supabase (geradas em modo offline/fallback)
+    // Mescla entradas do localStorage que ainda não estão no Supabase
     const fromLS = loadProvisoes()
     const lsOnly = fromLS.filter(ls =>
       !fromDB.some(db =>
@@ -107,31 +118,47 @@ export function usePayments() {
         String(db.produto_id) === String(ls.produto_id)
       )
     )
-    setPagamentos([...fromDB, ...lsOnly])
+    const merged = [...fromDB, ...lsOnly]
+    setPagamentos(merged)
+    saveLS(merged)
     setLoading(false)
   }, [session])
 
   useEffect(() => { load() }, [load])
 
   const save = useCallback(async (p) => {
-    if (isMockMode.current) {
-      setPagamentos(prev => prev.map(x => x.id === p.id ? p : x))
-      return { ok: true }
-    }
+    // Atualiza estado e localStorage imediatamente (otimista)
+    setPagamentos(prev => {
+      const next = prev.map(x => x.id === p.id ? { ...x, ...p } : x)
+      saveLS(next)
+      return next
+    })
+    if (isMockMode.current) return { ok: true }
+
     const row = paymentToRow(p, tenantId, branchId)
     const { error } = await supabase.from('payments').update(row).eq('id', p.id)
-    if (error) return { ok: false, message: error.message }
-    setPagamentos(prev => prev.map(x => x.id === p.id ? { ...x, ...p } : x))
+    if (error) {
+      console.error('[usePayments.save]', error.message)
+      return { ok: false, message: error.message }
+    }
     return { ok: true }
   }, [tenantId, branchId])
 
   const removeMany = useCallback(async (ids) => {
-    setPagamentos(prev => prev.filter(p => !ids.includes(p.id)))
+    setPagamentos(prev => {
+      const next = prev.filter(p => !ids.includes(p.id))
+      saveLS(next)
+      return next
+    })
     if (!isMockMode.current) await supabase.from('payments').delete().in('id', ids)
   }, [])
 
   const bulkSetProcessed = useCallback(async (ids) => {
-    setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p))
+    setPagamentos(prev => {
+      const next = prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p)
+      saveLS(next)
+      return next
+    })
     if (!isMockMode.current) {
       const patch = { custom_fields: { processed: true } }
       await supabase.from('payments').update(patch).in('id', ids)
@@ -139,7 +166,11 @@ export function usePayments() {
   }, [])
 
   const bulkSetPago = useCallback(async (ids) => {
-    setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'pago' } : p))
+    setPagamentos(prev => {
+      const next = prev.map(p => ids.includes(p.id) ? { ...p, status: 'pago' } : p)
+      saveLS(next)
+      return next
+    })
     if (!isMockMode.current) await supabase.from('payments').update({ status: 'pago' }).in('id', ids)
   }, [])
 
