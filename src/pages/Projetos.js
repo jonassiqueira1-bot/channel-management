@@ -20,6 +20,7 @@ import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useTimeLogs } from '../hooks/useTimeLogs'
+import { useCustomerHealth } from '../hooks/useCustomerHealth'
 
 const ACCENT = 'var(--accent)'
 
@@ -4389,6 +4390,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 export default function Projetos() {
   const { projetos, phases, tasks, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTask, saveTasks, removeTask, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTasks, setTimeLogs, setIssues, setMembers } = useProjects()
   const { save: saveTimeLogRemote, remove: removeTimeLogRemote } = useTimeLogs()
+  const { records: csRecords, save: saveHealth } = useCustomerHealth()
   const { registrar: log } = useAuditLog()
   const { opps } = useOpportunities()
   const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
@@ -4555,12 +4557,52 @@ export default function Projetos() {
     const { merged } = integrationPending
     setDrawer(d => d?.id === merged.id ? { ...d, ...merged } : d)
     await saveProjeto(merged)
-    if (criarCSCheckin) criarCheckinCS(merged)
+
+    let csStep
+    if (criarCSCheckin) {
+      const hoje = new Date().toISOString().slice(0, 10)
+      const checkin = {
+        id:           'ci_prj_' + Date.now(),
+        date:         hoje,
+        type:         'Reunião',
+        summary:      `Projeto "${merged.name}" concluído. Check-in gerado automaticamente.`,
+        produto_id:   null,
+        produto_nome: merged.produto_nome || '',
+      }
+      const csExistente = csRecords.find(r => String(r.company_id) === String(merged.company_id))
+      if (csExistente) {
+        // Atualiza check-ins do CS existente
+        const res = await saveHealth({
+          ...csExistente,
+          checkins: [checkin, ...(csExistente.checkins || [])],
+        })
+        csStep = res?.ok === false
+          ? { id: 'cs', label: 'Erro ao atualizar check-in CS', sublabel: res.message, error: true }
+          : { id: 'cs', label: 'Check-in adicionado em Sucesso do Cliente', sublabel: `Empresa: ${merged.company_nome}` }
+      } else {
+        // Cria novo registro CS para esta empresa
+        const res = await saveHealth({
+          company_id:      merged.company_id || null,
+          company_name:    merged.company_nome || '',
+          laer_stage:      'Land',
+          touch_model:     'Tech-Touch',
+          health_score:    75,
+          notes:           `Cliente adicionado ao concluir o projeto "${merged.name}".`,
+          checkins:        [checkin],
+          action_plans:    [],
+          attachments:     [],
+        })
+        csStep = res?.ok === false
+          ? { id: 'cs', label: 'Erro ao criar registro CS', sublabel: res.message, error: true }
+          : { id: 'cs', label: 'Registro criado em Sucesso do Cliente', sublabel: `${merged.company_nome} · estágio Land` }
+      }
+    } else {
+      csStep = { id: 'cs', label: 'Check-in CS ignorado', skip: true }
+    }
+
     setFeedbackSteps([
       { id: 'projeto', label: `Projeto "${merged.name}" finalizado`, sublabel: merged.company_nome },
-      criarCSCheckin
-        ? { id: 'cs', label: 'Check-in criado em Sucesso do Cliente', sublabel: `Empresa: ${merged.company_nome}` }
-        : { id: 'cs', label: 'Check-in CS ignorado', skip: true },
+      csStep,
     ])
     setIntegrationPending(null)
   }
