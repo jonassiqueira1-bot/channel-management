@@ -18,7 +18,7 @@ export function usePendingInvites() {
     const { data } = await supabase
       .from('pending_invites')
       .select('*')
-      .order('criado_em', { ascending: false })
+      .order('criado_em', { ascending: false, nullsFirst: false })
     setInvites(data || [])
     setLoading(false)
   }, [session])

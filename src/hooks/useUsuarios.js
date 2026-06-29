@@ -36,7 +36,7 @@ export function useUsuarios() {
   useEffect(() => {
     async function fetch() {
       if (!session?.user) { isMock.current = true; setUsuarios(load()); return }
-      const { data, error } = await supabase.from('profiles').select('*').order('nome')
+      const { data, error } = await supabase.from('profiles').select('*').order('nome', { ascending: true })
       if (error) { isMock.current = true; setUsuarios(load()) }
       else {
         isMock.current = false
