@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocalState } from '../hooks/useLocalState'
 import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
 import { usePayments } from '../hooks/usePayments'
@@ -1619,9 +1620,9 @@ export default function Pagamentos() {
         const pag = confirmComissao
         const temValores = (pag.amount_cdu||0) + (pag.amount_sms||0) + (pag.amount_services||0) > 0
         const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' || (pag.notes||'').toLowerCase().includes('fechamento de horas')
-        return (
+        return createPortal(
           <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
-            display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+            display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:9999 }}>
             <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
               boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
               {/* Header */}
@@ -1682,7 +1683,8 @@ export default function Pagamentos() {
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )
       })()}
     </>
