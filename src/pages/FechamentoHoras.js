@@ -1,11 +1,13 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useProfile } from '../hooks/useProfile'
-import { MOCK_TIME_LOGS } from '../data/mockProjetos'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useFechamentosHoras } from '../hooks/useFechamentosHoras'
+import { useTimeLogs } from '../hooks/useTimeLogs'
+import { useCommissions } from '../hooks/useCommissions'
+import { PROVISOES_LS_KEY } from '../hooks/usePayments'
+import ActionFeedback from '../components/ActionFeedback'
 
-const TIMELOGS_KEY   = 'projetos:timeLogs_v1'
 const PROJETOS_KEY   = 'projetos:lista_v2'
 export const FECHAMENTOS_KEY = 'projects:fechamentos_v1'
 
@@ -52,11 +54,14 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   const [periodo, setPeriodo] = useState(() => new Date().toISOString().slice(0, 7))
   const [expandido, setExpandido] = useState({})
   const [obsModal, setObsModal] = useState(null) // { fec, obs } para rejeição
+  const [integrationSteps, setIntegrationSteps] = useState(null)
+  const [integrationTitle, setIntegrationTitle] = useState('')
 
   // Dados brutos
-  const [timeLogs] = useLocalState(TIMELOGS_KEY, MOCK_TIME_LOGS)
+  const { logs: timeLogs } = useTimeLogs()
   const [projetos]  = useLocalState(PROJETOS_KEY, [])
   const { fechamentos, upsert: upsertFecRemote } = useFechamentosHoras()
+  const { rules, personas, savePayment } = useCommissions()
 
   // Logs do período
   const logsNoPeriodo = useMemo(() =>
@@ -102,7 +107,7 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
     const ids = new Set(log_ids)
     const hoje = new Date().toISOString().slice(0, 10)
     const updated = timeLogs.map(l => ids.has(l.id) ? { ...l, fechado: true, fechado_em: hoje } : l)
-    localStorage.setItem(TIMELOGS_KEY, JSON.stringify(updated))
+    localStorage.setItem('projetos:timeLogs_v1', JSON.stringify(updated))
   }
 
   function handleEnviar(user_name) {
@@ -117,11 +122,119 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
     log('enviar', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento enviado: ${user_name} — ${periodo} (${horas.toFixed(1)}h)` })
   }
 
-  function handleAprovar(user_name) {
+  async function gerarComissoes(fec, user_name) {
+    if (!fec || !fec.horas_total) return
+    const logsDoFec = timeLogs.filter(l => (fec.log_ids || []).includes(l.id))
+    const user_id   = logsDoFec.find(l => l.user_id)?.user_id || null
+    const personasDoUsuario = user_id ? personas.filter(p => p.usuario_id === user_id) : []
+    if (personasDoUsuario.length === 0) return
+
+    const personaIds = personasDoUsuario.map(p => p.id)
+    const hoje       = new Date().toISOString().slice(0, 10)
+    const mes        = parseInt(fec.periodo?.slice(5, 7), 10)
+    const ano        = parseInt(fec.periodo?.slice(0, 4), 10)
+    const horas      = Number(fec.horas_total) || 0
+
+    const regrasAtivas = rules.filter(r => {
+      if (r.status !== 'ativa') return false
+      if (r.vigencia_fim && r.vigencia_fim < hoje) return false
+      return (r.persona_percentuais || []).some(
+        pp => personaIds.includes(pp.persona_id) && (pp.servicos_pct || 0) > 0
+      )
+    })
+
+    for (const regra of regrasAtivas) {
+      const pp = (regra.persona_percentuais || []).find(p => personaIds.includes(p.persona_id))
+      if (!pp) continue
+      const servicos_pct   = pp.servicos_pct || 0
+      const valor_comissao = parseFloat((horas * servicos_pct / 100).toFixed(2))
+      await savePayment({
+        rule_id:          regra.id,
+        beneficiario_id:  user_id,
+        beneficiario_nome: user_name,
+        persona_slug:     personasDoUsuario[0]?.slug || '',
+        periodo_mes:      mes,
+        periodo_ano:      ano,
+        valor_bruto:      horas,
+        valor_comissao,
+        status:           'pendente',
+        observacoes:      `Fechamento de horas — ${fec.periodo} — ${horas.toFixed(1)}h × ${servicos_pct}% (${regra.nome})`,
+        custom_fields: {
+          origem:        'fechamento_horas',
+          fechamento_id: fec.id,
+          horas_total:   horas,
+          servicos_pct,
+          receita_tipo:  'Serviços',
+          periodo:       fec.periodo,
+        },
+      })
+    }
+  }
+
+  async function gerarProvisaoPagamento(fec, user_name) {
+    const steps = []
+    const logsDoFec   = timeLogs.filter(l => (fec?.log_ids || []).includes(l.id))
+    const horas       = Number(fec?.horas_total) || 0
+    const hoje        = new Date().toISOString().slice(0, 10)
+
+    // Descobre projetos únicos dos logs
+    const projectIds  = [...new Set(logsDoFec.map(l => l.project_id).filter(Boolean))]
+    const projDoFec   = projectIds.map(pid => projetos.find(p => p.id === pid)).filter(Boolean)
+
+    steps.push({ id: 'busca',    label: 'Buscando projeto associado ao fechamento' })
+    steps.push({ id: 'calculo',  label: `Calculando horas aprovadas — ${horas.toFixed(1)}h` })
+    steps.push({ id: 'provisao', label: 'Gerando provisão de pagamento pendente' })
+    steps.push({ id: 'comissao', label: 'Verificando comissões do período',
+      skip: !(rules?.length > 0 && personas?.length > 0) })
+
+    if (projDoFec.length === 0) {
+      // Provisão genérica sem projeto vinculado
+      projDoFec.push({ id: null, name: `Serviços — ${periodo}`, company_nome: '', company_id: null })
+    }
+
+    for (const proj of projDoFec) {
+      const provisao = {
+        id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        contract_numero: proj.name,
+        company_nome:    proj.company_nome || '',
+        company_id:      proj.company_id || null,
+        produto_nome:    'Serviços',
+        amount_cdu:      0,
+        amount_sms:      0,
+        amount_services: horas,
+        amount_discount: 0,
+        amount_total_net: horas,
+        data_emissao:    hoje,
+        due_date:        hoje,
+        reference_month: periodo + '-01',
+        status:          'pendente',
+        parcela:         '1/1',
+        num_documento:   '',
+        notes:           `Fechamento de horas — ${periodo} — ${user_name} — ${horas.toFixed(1)}h`,
+        processed:       false,
+        _origem:         'fechamento_horas',
+        _fechamento_id:  fec?.id,
+      }
+      try {
+        const prev = JSON.parse(localStorage.getItem(PROVISOES_LS_KEY) || '[]')
+        localStorage.setItem(PROVISOES_LS_KEY, JSON.stringify([provisao, ...prev]))
+      } catch {}
+    }
+
+    return steps
+  }
+
+  async function handleAprovar(user_name) {
     const fec = getFec(user_name)
     upsertFec(user_name, { status: 'aprovado', aprovado_em: new Date().toISOString().slice(0, 10) })
     if (fec?.log_ids?.length) marcarLogsAprovados(fec.log_ids)
     log('aprovar', 'fechamento_horas', `${periodo}_${user_name}`, { descricao: `Fechamento aprovado: ${user_name} — ${periodo}` })
+
+    const steps = await gerarProvisaoPagamento(fec, user_name)
+    await gerarComissoes(fec, user_name)
+
+    setIntegrationTitle(`Fechamento aprovado — ${user_name}`)
+    setIntegrationSteps(steps)
   }
 
   function handleRejeitar(user_name, obs) {
@@ -422,6 +535,18 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Popup de integração: steps ao aprovar fechamento */}
+      {integrationSteps && (
+        <ActionFeedback
+          title={integrationTitle}
+          subtitle="Provisão gerada em Pagamentos · Comissões processadas"
+          steps={integrationSteps}
+          onClose={() => setIntegrationSteps(null)}
+          stepDelay={800}
+          autoClose={4000}
+        />
       )}
     </div>
   )

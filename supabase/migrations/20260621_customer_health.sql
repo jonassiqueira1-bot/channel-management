@@ -31,7 +31,11 @@ CREATE TABLE IF NOT EXISTS public.customer_health (
 
 CREATE INDEX IF NOT EXISTS idx_customer_health_tenant    ON public.customer_health(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_customer_health_company   ON public.customer_health(company_id);
-CREATE INDEX IF NOT EXISTS idx_customer_health_csm       ON public.customer_health(csm_id);
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='customer_health' AND column_name='csm_id') THEN
+    CREATE INDEX IF NOT EXISTS idx_customer_health_csm ON public.customer_health(csm_id);
+  END IF;
+END $$;
 CREATE INDEX IF NOT EXISTS idx_customer_health_renewal   ON public.customer_health(renewal_date);
 
 -- Garante uma linha por empresa por tenant

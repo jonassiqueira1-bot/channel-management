@@ -3,6 +3,12 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 
+// Chave exclusiva para provisões geradas pela integração (separada de dados mock)
+export const PROVISOES_LS_KEY = 'pagamentos:provisoes_v1'
+function loadProvisoes() {
+  try { return JSON.parse(localStorage.getItem(PROVISOES_LS_KEY) || '[]') } catch { return [] }
+}
+
 function rowToPayment(row) {
   const cf = row.custom_fields || {}
   return {
@@ -76,7 +82,12 @@ export function usePayments() {
 
   const load = useCallback(async () => {
     setLoading(true)
-    if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    if (!session?.user) {
+      isMockMode.current = true
+      setPagamentos(loadProvisoes())
+      setLoading(false)
+      return
+    }
 
     const { data, error } = await supabase
       .from('payments')
@@ -86,7 +97,17 @@ export function usePayments() {
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
-    setPagamentos((data || []).map(rowToPayment))
+    const fromDB = (data || []).map(rowToPayment)
+    // Mescla entradas do localStorage que ainda não estão no Supabase (geradas em modo offline/fallback)
+    const fromLS = loadProvisoes()
+    const lsOnly = fromLS.filter(ls =>
+      !fromDB.some(db =>
+        String(db.contract_id) === String(ls.contract_id) &&
+        db.due_date === ls.due_date &&
+        String(db.produto_id) === String(ls.produto_id)
+      )
+    )
+    setPagamentos([...fromDB, ...lsOnly])
     setLoading(false)
   }, [session])
 

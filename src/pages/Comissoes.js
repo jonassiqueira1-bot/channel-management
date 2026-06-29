@@ -1987,13 +1987,13 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
                 <AprovStatusBadge status={status} />
                 <span style={{ fontSize:16, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(total)}</span>
                 {/* Ações por status */}
-                {!isAdmin && status === 'aberto' && (
+                {status === 'aberto' && (
                   <button onClick={() => handleEnviar(grupo.nome)}
                     style={{ padding:'6px 14px', borderRadius:8, border:'none', background:'var(--accent)', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
                     Enviar para aprovação
                   </button>
                 )}
-                {!isAdmin && status === 'rejeitado' && (
+                {status === 'rejeitado' && (
                   <button onClick={() => handleReabrir(grupo.nome)}
                     style={{ padding:'6px 14px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-soft)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
                     Reabrir

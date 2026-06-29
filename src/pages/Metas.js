@@ -912,34 +912,66 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, categ
               const val = realizadoValues[g.id] ?? ''
               const p   = pctReal(parseInput(val), g.valor_alvo)
               const cor = corBarra(Math.min(p,100))
+              const lancamentos = (g.custom_fields?.lancamentos || [])
+                .filter(l => l.mes === g.periodo_mes && l.ano === g.periodo_ano)
               return (
-                <div key={g.id} style={{ display:'grid', gridTemplateColumns:'90px 1fr 70px',
-                  alignItems:'center', gap:10, padding:'8px 10px',
-                  borderRadius:9, background:'var(--surface2)', border:'1px solid var(--border)' }}>
-                  <div>
-                    <div style={{ fontSize:12, fontWeight:800, color:'var(--text)' }}>
-                      {MESES[g.periodo_mes-1].slice(0,3)} {g.periodo_ano}
+                <div key={g.id} style={{ borderRadius:9, background:'var(--surface2)', border:'1px solid var(--border)', overflow:'hidden' }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'90px 1fr 70px',
+                    alignItems:'center', gap:10, padding:'8px 10px' }}>
+                    <div>
+                      <div style={{ fontSize:12, fontWeight:800, color:'var(--text)' }}>
+                        {MESES[g.periodo_mes-1].slice(0,3)} {g.periodo_ano}
+                      </div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                        Meta: {alvoFmt}
+                      </div>
                     </div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-                      Meta: {alvoFmt}
+                    <div style={{ position:'relative' }}>
+                      {showPfx && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
+                      <input type="text" inputMode="numeric"
+                        placeholder={g.valor_atual > 0 ? fmtInput(String(g.valor_atual)) : '0'}
+                        value={val}
+                        onChange={e => setRealizadoValues(prev => ({ ...prev, [g.id]: fmtInput(e.target.value) }))}
+                        style={{ width:'100%', boxSizing:'border-box',
+                          padding: showPfx ? '7px 10px 7px 26px' : '7px 10px',
+                          borderRadius:7, border:`1.5px solid ${val ? cor : 'var(--border)'}`,
+                          background:'var(--surface)', fontSize:13, fontWeight:700,
+                          color:'var(--text)', fontFamily:'var(--mono)', outline:'none' }} />
+                    </div>
+                    <div style={{ textAlign:'right' }}>
+                      {val ? <span style={{ fontSize:12, fontWeight:800, color:cor }}>{p}%</span>
+                           : <span style={{ fontSize:11, color:'var(--text-muted)' }}>—</span>}
                     </div>
                   </div>
-                  <div style={{ position:'relative' }}>
-                    {showPfx && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
-                    <input type="text" inputMode="numeric"
-                      placeholder={g.valor_atual > 0 ? fmtInput(String(g.valor_atual)) : '0'}
-                      value={val}
-                      onChange={e => setRealizadoValues(prev => ({ ...prev, [g.id]: fmtInput(e.target.value) }))}
-                      style={{ width:'100%', boxSizing:'border-box',
-                        padding: showPfx ? '7px 10px 7px 26px' : '7px 10px',
-                        borderRadius:7, border:`1.5px solid ${val ? cor : 'var(--border)'}`,
-                        background:'var(--surface)', fontSize:13, fontWeight:700,
-                        color:'var(--text)', fontFamily:'var(--mono)', outline:'none' }} />
-                  </div>
-                  <div style={{ textAlign:'right' }}>
-                    {val ? <span style={{ fontSize:12, fontWeight:800, color:cor }}>{p}%</span>
-                         : <span style={{ fontSize:11, color:'var(--text-muted)' }}>—</span>}
-                  </div>
+                  {lancamentos.length > 0 && (
+                    <div style={{ borderTop:'1px solid var(--border)', padding:'6px 10px 8px' }}>
+                      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>
+                        Origem dos lançamentos
+                      </div>
+                      {lancamentos.map((l, i) => (
+                        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                          fontSize:11, padding:'3px 0',
+                          borderBottom: i < lancamentos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                          <div>
+                            <span style={{ fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{l.contrato_numero}</span>
+                            <span style={{ color:'var(--text-muted)', margin:'0 5px' }}>·</span>
+                            <span style={{ color:'var(--text-soft)' }}>{l.empresa_nome}</span>
+                            {l.produto_nome && (
+                              <span style={{ color:'var(--text-muted)', marginLeft:5 }}>({l.produto_nome})</span>
+                            )}
+                          </div>
+                          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                            <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                              {l.data ? new Date(l.data + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : ''}
+                            </span>
+                            <span style={{ fontWeight:700, color:'#10B981', fontFamily:'var(--mono)' }}>
+                              +{l.valor.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 })}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )
             })}

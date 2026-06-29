@@ -10,6 +10,7 @@ import { useProjects } from '../hooks/useProjects'
 import { useOpportunities } from '../hooks/useOpportunities'
 import SearchSelect from '../components/SearchSelect'
 import { useSellers } from '../hooks/useSellers'
+import { useProfile } from '../hooks/useProfile'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
@@ -18,6 +19,7 @@ import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/moc
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useTimeLogs } from '../hooks/useTimeLogs'
 
 const ACCENT = 'var(--accent)'
 
@@ -88,14 +90,14 @@ const pg = {
   newBtn:     { padding: '8px 16px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 7, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
   kpis:       { display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12, paddingBottom: 4 },
   kpi:        { background: 'var(--surface)', borderRadius: 10, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)' },
-  toolbar:    { background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'nowrap' },
-  tbLeft:     { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 1, minWidth: 0 },
-  tbRight:    { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 },
-  tbDivider:  { width: 1, height: 24, background: 'var(--border)', flexShrink: 0, margin: '0 4px' },
-  searchWrap: { position: 'relative', width: 220, flexShrink: 0 },
+  toolbar:    { background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'nowrap', overflowX: 'auto' },
+  tbLeft:     { display: 'flex', alignItems: 'center', gap: 6, flex: '1 1 auto', minWidth: 0, flexWrap: 'nowrap' },
+  tbRight:    { display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'nowrap', marginLeft: 'auto' },
+  tbDivider:  { width: 1, height: 24, background: 'var(--border)', flexShrink: 0, margin: '0 2px' },
+  searchWrap: { position: 'relative', flex: '1 1 160px', minWidth: 120, maxWidth: 260 },
   searchIcon: { position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: 14, pointerEvents: 'none' },
   searchInput:{ width: '100%', height: 36, padding: '0 10px 0 28px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, outline: 'none', fontFamily: 'var(--font)', boxSizing: 'border-box' },
-  select:     { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, outline: 'none', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 0 },
+  select:     { height: 36, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, outline: 'none', cursor: 'pointer', fontFamily: 'var(--font)', flexShrink: 1, minWidth: 80 },
   viewToggle: { display: 'flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden', flexShrink: 0 },
   viewBtn:    { width: 34, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', transition: 'all 0.15s' },
   viewBtnOn:  { background: 'var(--accent-glow)', color: 'var(--accent)' },
@@ -395,7 +397,7 @@ const ROLE_COLORS = {
 function roleColor(role) { return ROLE_COLORS[role] || { bg: 'var(--surface2)', text: 'var(--text-muted)' } }
 
 // ─── Tab 0: Projeto (identificação + comercial + equipe) ─────────────────────
-function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRemoveMember }) {
+function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRemoveMember, onFormChange }) {
   const [form, setForm] = useState({ ...projeto })
   const [saved, setSaved] = useState(false)
   const [oppSearch, setOppSearch] = useState('')
@@ -408,6 +410,11 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   const todosUsuarios = sellers.length > 0 ? sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' })) : perfisStore
 
   const { opps: allOpps } = useOpportunities()
+
+  // Re-sync form when projeto changes externally (e.g., phase advanced in Cronograma)
+  useEffect(() => { setForm(prev => ({ ...prev, phase: projeto.phase, current_phase_index: projeto.current_phase_index, status: projeto.status })) }, [projeto.phase, projeto.current_phase_index, projeto.status])
+  // Notifica ProjetoDrawer sobre mudanças no form para o botão Salvar do rodapé
+  useEffect(() => { if (onFormChange) onFormChange(form) }, [form]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
   const myMembers = members.filter(m => m.project_id === projeto.id)
@@ -503,9 +510,6 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
               <textarea className="so-field" style={{ height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
             </FormField>
           </FormGrid>
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-            <Button onClick={handleSave}>{saved ? '✓ Salvo' : 'Salvar alterações'}</Button>
-          </div>
         </div>
       </NotionSection>
 
@@ -889,7 +893,6 @@ function ImportProjectModal({ projeto, myPhases, onApply, onClose }) {
 // ─── Tab: Proposta de Implantação ────────────────────────────────────────────
 function TabProposta({ projeto, onUpdate }) {
   const [propostas, setPropostas] = useLocalState(PROPOSTAS_KEY, [])
-  const [busca, setBusca]         = useState('')
 
   const propostaVinculada = useMemo(() => {
     if (!propostas.length) return null
@@ -902,18 +905,8 @@ function TabProposta({ projeto, onUpdate }) {
       .sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
   }, [propostas, projeto.proposta_id, projeto.opportunity_id])
 
-  const disponiveis = useMemo(() =>
-    propostas.filter(p => {
-      if (propostaVinculada && p.id === propostaVinculada.id) return false
-      const q = busca.toLowerCase()
-      return !q || (p.titulo||'').toLowerCase().includes(q) || (p.empresa_nome||'').toLowerCase().includes(q)
-    }),
-    [propostas, propostaVinculada, busca]
-  )
-
   function vincular(p) {
     onUpdate({ ...projeto, proposta_id: p.id })
-    setBusca('')
   }
   function desvincular() {
     onUpdate({ ...projeto, proposta_id: null })
@@ -954,41 +947,26 @@ function TabProposta({ projeto, onUpdate }) {
         </div>
       )}
 
-      {/* Vincular manualmente */}
-      <div>
-        <div style={{ ...ms.sectionLbl, marginBottom:8 }}>Vincular proposta</div>
-        <input
-          style={{ ...ms.inp, marginBottom:8 }}
-          placeholder="Buscar por título ou empresa..."
-          value={busca}
-          onChange={e => setBusca(e.target.value)}
-        />
-        {disponiveis.length === 0 && busca && (
-          <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'8px 0' }}>Nenhuma proposta encontrada.</div>
-        )}
-        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-          {disponiveis.slice(0,10).map(p => (
-            <div key={p.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
-              border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)', cursor:'pointer' }}
-              onClick={() => vincular(p)}
-            >
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{p.titulo || '(sem título)'}</div>
-                {p.empresa_nome && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.empresa_nome}</div>}
-              </div>
-              <span style={{ fontSize:11, fontWeight:600, color: STATUS_COLOR[p.status] || 'var(--text-muted)', flexShrink:0 }}>{STATUS_LABEL[p.status] || p.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      {/* Vincular manualmente — dropdown com pesquisa */}
+      <PropostaSelectField
+        propostas={propostas}
+        value={propostaVinculada?.id || null}
+        onChange={id => {
+          if (!id) desvincular()
+          else { const p = propostas.find(x => String(x.id) === String(id)); if (p) vincular(p) }
+        }}
+        statusLabel={STATUS_LABEL}
+        statusColor={STATUS_COLOR}
+      />
     </div>
   )
 }
 
 // ─── Tab 1: Cronograma MIT ────────────────────────────────────────────────────
-function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhases, onAddMember }) {
+function TabCronograma({ projeto, phases, tasks, timeLogs, onAdvancePhase, onUpdatePhases, onSyncTasks, onAddMember }) {
   const [showImport, setShowImport] = useState(false)
   const [syncFeedback, setSyncFeedback] = useState(false)
+  const syncTimer = useRef(null)
   const [propostas]   = useLocalState(PROPOSTAS_KEY, [])
   const myPhases = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
 
@@ -1002,34 +980,68 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
     return candidates.sort((a, b) => (ranking[a.status] ?? 9) - (ranking[b.status] ?? 9))[0] || null
   }, [propostas, projeto.opportunity_id, projeto.proposta_id])
 
+  // helper: monta tasks de nivel 2 para um conjunto de fases
+  function buildTasks(allItens, fases) {
+    const result = []
+    fases.forEach((fase, i) => {
+      const phId   = `ph_${projeto.id}_${i + 1}`
+      const filhos = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+      filhos.forEach((f, j) => {
+        result.push({
+          id:              `task_${projeto.id}_${i + 1}_${j + 1}`,
+          project_id:      projeto.id,
+          phase_id:        phId,
+          proposta_item_id: f.id || null,
+          task_name:       f.titulo || f.descricao || `Atividade ${j + 1}`,
+          tipo_hora:       f.tipo_hora || '',
+          hr_analista:     Number(f.hr_analista) || 0,
+          hr_coord:        Number(f.hr_coord)     || 0,
+          task_order:      j + 1,
+          is_completed:    false,
+          completed_at:    null,
+        })
+      })
+    })
+    return result
+  }
+
   // auto-sincronizar fases quando o projeto ainda não tem fases mas tem proposta
   useEffect(() => {
     if (myPhases.length === 0 && propostaVinculada) {
-      const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+      const allItens = propostaVinculada.itens || []
+      const fases = allItens.filter(i => i.nivel === 1)
       if (!fases.length) return
-      const updated = fases.map((fase, i) => ({
-        id:                 `ph_${projeto.id}_${i + 1}`,
-        project_id:         projeto.id,
-        tenant_id:          't1',
-        phase_name:         fase.titulo,
-        phase_order:        i + 1,
-        start_date_planned: '',
-        end_date_planned:   '',
-        hours_estimated:    Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 0,
-        is_completed:       false,
-        completed_at:       null,
-      }))
+      const updated = fases.map((fase, i) => {
+        const filhos = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+        const horas  = filhos.reduce((s, f) => s + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
+        return {
+          id:                 `ph_${projeto.id}_${i + 1}`,
+          project_id:         projeto.id,
+          tenant_id:          't1',
+          phase_name:         fase.titulo,
+          phase_order:        i + 1,
+          start_date_planned: '',
+          end_date_planned:   '',
+          hours_estimated:    Math.round(horas) || 0,
+          is_completed:       false,
+          completed_at:       null,
+        }
+      })
       onUpdatePhases(updated)
+      if (onSyncTasks) onSyncTasks(buildTasks(allItens, fases))
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projeto.id])
 
   function handleSyncFromProposta() {
     if (!propostaVinculada) return
-    const fases = (propostaVinculada.itens || []).filter(i => i.nivel === 1)
+    const allItens = propostaVinculada.itens || []
+    const fases = allItens.filter(i => i.nivel === 1)
     if (fases.length === 0) { alert('A proposta não tem escopo WBS definido.'); return }
     const updated = fases.map((fase, i) => {
       const existing = myPhases[i]
+      const filhos   = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+      const horas    = filhos.reduce((s, f) => s + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
       return {
         id:                  existing?.id || `ph_${projeto.id}_${i + 1}`,
         project_id:          projeto.id,
@@ -1038,12 +1050,13 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
         phase_order:         i + 1,
         start_date_planned:  existing?.start_date_planned || '',
         end_date_planned:    existing?.end_date_planned   || '',
-        hours_estimated:     Math.round((fase.hr_analista || 0) + (fase.hr_coord || 0)) || 20,
+        hours_estimated:     Math.round(horas) || 0,
         is_completed:        existing?.is_completed || false,
         completed_at:        existing?.completed_at || null,
       }
     })
     onUpdatePhases(updated)
+    if (onSyncTasks) onSyncTasks(buildTasks(allItens, fases))
     // equipe da proposta → adicionar membros ausentes
     if (onAddMember) {
       const equipe = propostaVinculada.equipe || []
@@ -1052,14 +1065,25 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
       })
     }
     setSyncFeedback(true)
-    setTimeout(() => setSyncFeedback(false), 2500)
+    if (syncTimer.current) clearTimeout(syncTimer.current)
+    syncTimer.current = setTimeout(() => setSyncFeedback(false), 2500)
   }
   const currentIdx = projeto.current_phase_index
+  const myTasks    = (tasks || []).filter(t => t.project_id === projeto.id)
+  const [expandedPhases, setExpandedPhases] = useState({})
 
   const execByPhase = useMemo(() => {
     const map = {}
     timeLogs.filter(l => l.project_id === projeto.id).forEach(l => {
       map[l.phase_id] = (map[l.phase_id] || 0) + Number(l.hours_executed)
+    })
+    return map
+  }, [timeLogs, projeto.id])
+
+  const execByTask = useMemo(() => {
+    const map = {}
+    timeLogs.filter(l => l.project_id === projeto.id && l.task_id).forEach(l => {
+      map[l.task_id] = (map[l.task_id] || 0) + Number(l.hours_executed)
     })
     return map
   }, [timeLogs, projeto.id])
@@ -1101,15 +1125,19 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
 
       {/* ── Cabeçalho com botões ── */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-        {propostaVinculada && (
-          <button onClick={handleSyncFromProposta}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
-              borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
-              fontSize: 12, fontWeight: 700, transition: 'background 0.2s',
-              background: syncFeedback ? '#10B981' : 'var(--accent)', color: '#fff' }}>
-            {syncFeedback ? '✓ Sincronizado' : '⟳ Sincronizar com Proposta'}
-          </button>
-        )}
+        <button
+          onClick={propostaVinculada ? handleSyncFromProposta : undefined}
+          disabled={!propostaVinculada}
+          title={propostaVinculada ? 'Sincronizar fases com o escopo da proposta' : 'Vincule uma proposta para habilitar'}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
+            borderRadius: 8, border: 'none', fontFamily: 'var(--font)', fontSize: 12, fontWeight: 700,
+            transition: 'background 0.2s',
+            cursor: propostaVinculada ? 'pointer' : 'not-allowed',
+            background: syncFeedback ? '#10B981' : propostaVinculada ? 'var(--accent)' : 'var(--surface3)',
+            color: propostaVinculada ? '#fff' : 'var(--text-muted)',
+            opacity: propostaVinculada ? 1 : 0.6 }}>
+          {syncFeedback ? '✓ Sincronizado' : '⟳ Sincronizar com Proposta'}
+        </button>
         <button onClick={() => setShowImport(true)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px',
             borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)',
@@ -1180,11 +1208,14 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
           const isFuture = ph.phase_order > currentIdx
           const { left, width } = phasePct(ph.start_date_planned, ph.end_date_planned)
 
+          const phaseTasks = myTasks.filter(t => t.phase_id === ph.id).sort((a, b) => a.task_order - b.task_order)
+          const isExpanded = expandedPhases[ph.id]
+
           return (
-            <div key={ph.id} style={{ display: 'grid', gridTemplateColumns: '140px 1fr',
-              borderBottom: i < myPhases.length - 1 ? '1px solid var(--border2)' : 'none',
-              background: isActive ? `${fase.color}08` : 'transparent',
-              transition: 'background 0.2s' }}>
+            <div key={ph.id} style={{ borderBottom: i < myPhases.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+              {/* Linha da fase */}
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr',
+                background: isActive ? `${fase.color}08` : 'transparent', transition: 'background 0.2s' }}>
 
               {/* Nome da fase */}
               <div style={{ padding: '12px 16px', borderRight: '1px solid var(--border2)',
@@ -1196,9 +1227,22 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
                     color: isDone ? '#10B981' : isActive ? fase.color : isFuture ? 'var(--text-muted)' : 'var(--text)' }}>
                     {ph.phase_name}
                   </span>
+                  {phaseTasks.length > 0 && (
+                    <button onClick={() => setExpandedPhases(p => ({ ...p, [ph.id]: !p[ph.id] }))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                        fontSize: 10, color: 'var(--text-muted)', lineHeight: 1 }}>
+                      {isExpanded ? '▲' : '▼'} {phaseTasks.length}
+                    </button>
+                  )}
                 </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', paddingLeft: 14 }}>
-                  {isDone ? '✓ Concluída' : isActive ? `${pct}% · ${exe.toFixed(1)}h` : est ? `${est}h` : '—'}
+                <div style={{ fontSize: 10, color: exe > 0 && !isActive && !isDone ? '#F59E0B' : 'var(--text-muted)', paddingLeft: 14 }}>
+                  {isDone
+                    ? `✓ Concluída${exe > 0 ? ` · ${exe.toFixed(1)}h` : ''}`
+                    : isActive
+                      ? `${pct}% · ${exe.toFixed(1)}h${est ? ` / ${est}h` : ''}`
+                      : exe > 0
+                        ? `${exe.toFixed(1)}h exec.${est ? ` / ${est}h est.` : ''}`
+                        : est ? `${est}h est.` : '—'}
                 </div>
               </div>
 
@@ -1239,6 +1283,38 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
                   </div>
                 )}
               </div>
+            </div>{/* fim linha da fase */}
+
+              {/* Tarefas expansíveis */}
+              {isExpanded && phaseTasks.length > 0 && (
+                <div style={{ background: 'var(--surface2)', borderTop: '1px solid var(--border2)' }}>
+                  {phaseTasks.map(task => {
+                    const texe = execByTask[task.id] || 0
+                    const test = (task.hr_analista || 0) + (task.hr_coord || 0)
+                    const tpct = test > 0 ? Math.min(100, Math.round((texe / test) * 100)) : 0
+                    return (
+                      <div key={task.id} style={{ display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '7px 16px 7px 32px', borderBottom: '1px solid var(--border2)',
+                        fontSize: 11 }}>
+                        <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>◦</span>
+                        <span style={{ flex: 1, color: 'var(--text)', fontWeight: 500 }}>{task.task_name}</span>
+                        {task.tipo_hora && (
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--surface)',
+                            border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px' }}>
+                            {task.tipo_hora}
+                          </span>
+                        )}
+                        <span style={{ fontFamily: 'var(--mono)', fontSize: 10,
+                          color: texe > 0 ? (tpct >= 100 ? '#EF4444' : '#10B981') : 'var(--text-muted)',
+                          minWidth: 80, textAlign: 'right' }}>
+                          {texe > 0 ? `${texe.toFixed(1)}h` : '—'}{test > 0 ? ` / ${test}h` : ''}
+                          {tpct > 0 ? ` (${tpct}%)` : ''}
+                        </span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )
         })}
@@ -1280,38 +1356,58 @@ function TabCronograma({ projeto, phases, timeLogs, onAdvancePhase, onUpdatePhas
 }
 
 // ─── Tab 2: Timesheet ─────────────────────────────────────────────────────────
-function TabTimesheet({ projeto, phases, timeLogs, members, onAddLog }) {
-  const myPhases   = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
+function TabTimesheet({ projeto, phases, tasks, timeLogs, members, onAddLog, onRemoveLog }) {
+  const rawPhases  = phases.filter(p => p.project_id === projeto.id).sort((a, b) => a.phase_order - b.phase_order)
+  // Se não há fases sincronizadas ainda, gera as 6 fases MIT automaticamente
+  const myPhases   = rawPhases.length > 0 ? rawPhases : FASES_MIT.map((f, i) => ({
+    id: `ph_${projeto.id}_${i + 1}`, project_id: projeto.id,
+    phase_order: i + 1, phase_name: f.label, is_completed: i + 1 < projeto.current_phase_index,
+  }))
+  const myTasks    = (tasks || []).filter(t => t.project_id === projeto.id).sort((a, b) => a.task_order - b.task_order)
   const myLogs     = timeLogs.filter(l => l.project_id === projeto.id).sort((a, b) => b.logged_at.localeCompare(a.logged_at))
   const currentPhId = `ph_${projeto.id}_${projeto.current_phase_index}`
 
   const myMembers = (members || []).filter(m => m.project_id === projeto.id)
 
   const { sellers } = useSellers()
-  const todosUsuarios = sellers.length > 0 ? sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' })) : []
+  const { profile } = useProfile()
+  const todosUsuarios = sellers.length > 0
+    ? sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' }))
+    : profile?.id ? [{ id: profile.id, nome: profile.nome || profile.email || 'Eu', cargo: profile.papel || '' }] : []
   const usuarios = myMembers.length > 0
     ? myMembers.map(m => ({ id: m.user_id || m.id, nome: m.name, cargo: m.role, avatar: m.name?.[0] }))
     : todosUsuarios
 
+  // Pre-seleciona o usuário logado se só houver um
+  const defaultUserId   = usuarios.length === 1 ? usuarios[0].id   : null
+  const defaultUserName = usuarios.length === 1 ? usuarios[0].nome  : ''
+
   const [form, setForm] = useState({
     phase_id: currentPhId,
+    task_id: '',
     hours_executed: '',
     logged_at: new Date().toISOString().slice(0, 10),
     description: '',
-    user_id: null,
-    user_name: '',
+    user_id: defaultUserId,
+    user_name: defaultUserName,
   })
   const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }))
 
+  // Tarefas disponíveis para a fase selecionada
+  const tasksForPhase = myTasks.filter(t => t.phase_id === form.phase_id)
+
   function handleSubmit() {
     if (!form.hours_executed || !form.description.trim()) return
+    const selectedTask = myTasks.find(t => t.id === form.task_id)
+    const phase_id = selectedTask ? selectedTask.phase_id : form.phase_id
     onAddLog({
       id: 'tl_' + Date.now(),
       project_id: projeto.id,
-      phase_id: form.phase_id,
+      phase_id,
+      task_id: form.task_id || null,
       tenant_id: 't1',
-      user_id: form.user_id,
-      user_name: form.user_name || 'Não informado',
+      user_id: form.user_id || defaultUserId,
+      user_name: form.user_name || defaultUserName || 'Não informado',
       hours_executed: Number(form.hours_executed),
       description: form.description.trim(),
       logged_at: form.logged_at,
@@ -1321,100 +1417,190 @@ function TabTimesheet({ projeto, phases, timeLogs, members, onAddLog }) {
 
   const totalExe = myLogs.reduce((s, l) => s + Number(l.hours_executed), 0)
 
+  // Agrupar logs por fase para o resumo
+  const horasPorFase = myPhases.map(ph => ({
+    ph,
+    fase: FASES_MIT[ph.phase_order - 1],
+    horas: myLogs.filter(l => l.phase_id === ph.id).reduce((s, l) => s + Number(l.hours_executed), 0),
+  })).filter(x => x.horas > 0)
+
+  const canSubmit = form.hours_executed && form.description.trim()
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Form */}
-      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={ms.sectionLbl}>Lançar horas</div>
-        <div style={ms.row}>
-          <div style={{ ...ms.fg, flex: 2 }}>
-            <label style={ms.lbl}>Fase</label>
-            <select style={ms.inp} value={form.phase_id} onChange={set('phase_id')}>
-              {myPhases.map(p => (
-                <option key={p.id} value={p.id}>{p.phase_order}. {p.phase_name}</option>
-              ))}
-            </select>
+
+      {/* KPIs rápidos */}
+      {myLogs.length > 0 && (
+        <div style={{ display: 'flex', gap: 10 }}>
+          <div style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Total Executado</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{totalExe % 1 === 0 ? totalExe : totalExe.toFixed(1)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3, color: 'var(--text-muted)' }}>h</span></div>
           </div>
-          <div style={{ ...ms.fg, flex: 2 }}>
-            <label style={ms.lbl}>Usuário</label>
-            <SearchSelect
-              options={usuarios.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo || u.perfil, avatar: u.avatar || (u.nome?.[0] || '?'), color: 'var(--accent)' }))}
-              value={form.user_id}
-              onChange={(id, nome) => setForm(f => ({ ...f, user_id: id, user_name: nome }))}
-              placeholder="Pesquisar usuário…"
-              inputStyle={ms.inp}
-            />
+          <div style={{ flex: 1, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>Apontamentos</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{myLogs.length}</div>
           </div>
-          <div style={{ ...ms.fg, flex: 1 }}>
-            <label style={ms.lbl}>Horas</label>
-            <input style={ms.inp} type="number" step="0.5" min="0.5" value={form.hours_executed} onChange={set('hours_executed')} placeholder="2.5" />
-          </div>
-          <div style={{ ...ms.fg, flex: 1.5 }}>
-            <label style={ms.lbl}>Data</label>
-            <input style={ms.inp} type="date" value={form.logged_at} onChange={set('logged_at')} />
-          </div>
+          {horasPorFase.length > 1 && (
+            <div style={{ flex: 2, background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Por fase</div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {horasPorFase.map(({ ph, fase, horas }) => (
+                  <span key={ph.id} style={{ fontSize: 10, fontWeight: 600, background: fase?.bg || 'var(--surface)', color: fase?.text || 'var(--text)', borderRadius: 20, padding: '2px 8px' }}>
+                    {ph.phase_name} {horas % 1 === 0 ? horas : horas.toFixed(1)}h
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
-        <div style={ms.fg}>
-          <label style={ms.lbl}>Descrição da atividade *</label>
-          <textarea
-            style={{ ...ms.inp, height: 64, resize: 'vertical' }}
-            placeholder="Descreva o que foi realizado..."
-            value={form.description}
-            onChange={set('description')}
-          />
+      )}
+
+      {/* Form de lançamento */}
+      <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden' }}>
+        <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0 }} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Lançar horas</span>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button onClick={handleSubmit}>Registrar horas</Button>
+        <div style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Linha 1: Fase + Atividade + Usuário + Horas + Data */}
+          <div style={{ display: 'grid', gridTemplateColumns: tasksForPhase.length > 0 ? '1.4fr 1.8fr 1.6fr 0.7fr 1fr' : '1.6fr 1.8fr 0.8fr 1.1fr', gap: 10, alignItems: 'end' }}>
+            <div>
+              <label style={{ ...ms.lbl, marginBottom: 5 }}>Fase</label>
+              <select style={ms.inp} value={form.phase_id}
+                onChange={e => setForm(f => ({ ...f, phase_id: e.target.value, task_id: '' }))}>
+                {myPhases.map(p => (
+                  <option key={p.id} value={p.id}>{p.phase_order}. {p.phase_name}</option>
+                ))}
+              </select>
+            </div>
+            {tasksForPhase.length > 0 && (
+              <div>
+                <label style={{ ...ms.lbl, marginBottom: 5 }}>Atividade</label>
+                <select style={ms.inp} value={form.task_id} onChange={set('task_id')}>
+                  <option value="">— Geral —</option>
+                  {tasksForPhase.map(t => (
+                    <option key={t.id} value={t.id}>{t.task_name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div>
+              <label style={{ ...ms.lbl, marginBottom: 5 }}>Consultor</label>
+              <SearchSelect
+                options={usuarios.map(u => ({ id: u.id, label: u.nome, sublabel: u.cargo || u.perfil, avatar: u.avatar || (u.nome?.[0] || '?'), color: 'var(--accent)' }))}
+                value={form.user_id}
+                onChange={(id, nome) => setForm(f => ({ ...f, user_id: id, user_name: nome }))}
+                placeholder="Pesquisar…"
+                inputStyle={ms.inp}
+              />
+            </div>
+            <div>
+              <label style={{ ...ms.lbl, marginBottom: 5 }}>Horas</label>
+              <input style={{ ...ms.inp, textAlign: 'center' }} type="number" step="0.5" min="0.5" value={form.hours_executed} onChange={set('hours_executed')} placeholder="0" />
+            </div>
+            <div>
+              <label style={{ ...ms.lbl, marginBottom: 5 }}>Data</label>
+              <input style={ms.inp} type="date" value={form.logged_at} onChange={set('logged_at')} />
+            </div>
+          </div>
+          {/* Linha 2: Descrição + botão */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ ...ms.lbl, marginBottom: 5 }}>Descrição do que foi realizado <span style={{ color: '#EF4444' }}>*</span></label>
+              <textarea
+                style={{ ...ms.inp, height: 60, resize: 'none', lineHeight: 1.5 }}
+                placeholder="Ex: Reunião de mapeamento de processos AS-IS com o cliente…"
+                value={form.description}
+                onChange={set('description')}
+              />
+            </div>
+            <button
+              onClick={handleSubmit}
+              disabled={!canSubmit}
+              style={{
+                height: 60, padding: '0 20px', borderRadius: 8, border: 'none',
+                background: canSubmit ? 'var(--accent)' : 'var(--border)',
+                color: canSubmit ? '#fff' : 'var(--text-muted)',
+                fontSize: 13, fontWeight: 600, fontFamily: 'var(--font)',
+                cursor: canSubmit ? 'pointer' : 'not-allowed',
+                whiteSpace: 'nowrap', flexShrink: 0, transition: 'all 0.15s',
+              }}
+            >
+              + Registrar
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Histórico */}
       {myLogs.length > 0 && (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <div style={ms.sectionLbl}>Histórico de apontamentos</div>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{totalExe.toFixed(1)}h total</span>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+            Histórico — {myLogs.length} {myLogs.length === 1 ? 'apontamento' : 'apontamentos'}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {myLogs.map(log => {
-              const ph = myPhases.find(p => p.id === log.phase_id)
+              const ph   = myPhases.find(p => p.id === log.phase_id)
               const fase = ph ? FASES_MIT[ph.phase_order - 1] : null
+              const task = log.task_id ? myTasks.find(t => t.id === log.task_id) : null
+              const initials = (log.user_name || '??').slice(0, 2).toUpperCase()
+              const hrs = Number(log.hours_executed)
               return (
-                <div key={log.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px 14px', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                  <div style={{ flexShrink: 0, textAlign: 'center' }}>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{Number(log.hours_executed).toFixed(1)}</div>
-                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>horas</div>
+                <div key={log.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '11px 14px', display: 'flex', gap: 14, alignItems: 'flex-start' }}>
+                  {/* Horas badge */}
+                  <div style={{ flexShrink: 0, width: 44, height: 44, borderRadius: 10, background: 'var(--accent-lite, #EDE9FE)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                    <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent)', lineHeight: 1 }}>{hrs % 1 === 0 ? hrs : hrs.toFixed(1)}</span>
+                    <span style={{ fontSize: 8, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>horas</span>
                   </div>
+                  {/* Conteúdo */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, color: 'var(--text)', lineHeight: 1.4 }}>{log.description}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
-                      {fase && <span style={{ fontSize: 10, fontWeight: 700, background: fase.bg, color: fase.text, borderRadius: 20, padding: '1px 7px' }}>{ph.phase_name}</span>}
-                      {log.user_name && (() => {
-                        const u = usuarios.find(u => u.id === log.user_id)
-                        const initials = (log.user_name || '').slice(0, 2).toUpperCase()
-                        return (
-                          <span style={{ display:'inline-flex', alignItems:'center', gap:4 }}>
-                            <span style={{ width:16, height:16, borderRadius:'50%', background:'#EDE9FE', color:'var(--accent)',
-                              display:'inline-flex', alignItems:'center', justifyContent:'center',
-                              fontSize:8, fontWeight:800, fontFamily:'var(--mono)', flexShrink:0 }}>
-                              {u?.avatar || initials}
-                            </span>
-                            <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{log.user_name}</span>
+                    <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.45, marginBottom: 6 }}>{log.description}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      {fase && (
+                        <span style={{ fontSize: 10, fontWeight: 700, background: fase.bg, color: fase.text, borderRadius: 20, padding: '2px 8px' }}>
+                          {ph.phase_name}
+                        </span>
+                      )}
+                      {task && (
+                        <span style={{ fontSize: 10, color: 'var(--text-soft)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 20, padding: '2px 8px' }}>
+                          {task.task_name}
+                        </span>
+                      )}
+                      {log.user_name && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ width: 16, height: 16, borderRadius: '50%', background: '#EDE9FE', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 8, fontWeight: 800, fontFamily: 'var(--mono)', flexShrink: 0 }}>
+                            {initials}
                           </span>
-                        )
-                      })()}
-                      <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>·</span>
-                      <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{fmtDate(log.logged_at)}</span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{log.user_name}</span>
+                        </span>
+                      )}
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto' }}>{fmtDate(log.logged_at)}</span>
                     </div>
                   </div>
+                  {/* Excluir */}
+                  {onRemoveLog && (
+                    <button
+                      onClick={() => { if (window.confirm('Excluir este apontamento?')) onRemoveLog(log.id) }}
+                      title="Excluir"
+                      style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16, lineHeight: 1, padding: '2px 6px', borderRadius: 5, alignSelf: 'center', transition: 'color 0.15s' }}
+                      onMouseEnter={e => e.currentTarget.style.color = '#EF4444'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                      ×
+                    </button>
+                  )}
                 </div>
               )
             })}
           </div>
         </div>
       )}
+
       {myLogs.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontSize: 13 }}>Nenhum apontamento registrado.</div>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>⏱</div>
+          <div style={{ fontSize: 13, fontWeight: 500 }}>Nenhum apontamento registrado</div>
+          <div style={{ fontSize: 12, marginTop: 4 }}>Use o formulário acima para registrar horas neste projeto.</div>
+        </div>
       )}
     </div>
   )
@@ -1856,7 +2042,16 @@ const DRAWER_TABS = [
   { key: 'documentos', label: 'Documentos'     },
 ]
 
-function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onUpdatePhases, onAddLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember, onDelete }) {
+function ProjetoDrawer({ projeto, phases, tasks, timeLogs, issues, attachments, members, blockedIds, onClose, onUpdate, onUpdateOpp, onAdvancePhase, onUpdatePhases, onSyncTasks, onAddLog, onRemoveLog, onAddIssue, onResolveIssue, onAddMember, onRemoveMember, onDelete }) {
+  const [pendingForm, setPendingForm] = useState(null)
+  const [saved, setSaved]             = useState(false)
+
+  function handleSaveFooter() {
+    const toSave = pendingForm || projeto
+    onUpdate(toSave)
+    setSaved(true)
+    setTimeout(() => setSaved(false), 2000)
+  }
   const [tab, setTab] = useState('projeto')
   const fase        = FASES_MIT[projeto.current_phase_index - 1] || FASES_MIT[0]
   const isBlocked   = blockedIds.has(projeto.id)
@@ -1895,17 +2090,17 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
     >
       {/* Conteúdo rolável por tab */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
-        {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} />}
-        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} onAddMember={onAddMember} />}
+        {tab === 'projeto'    && <TabProjeto    projeto={projeto} members={members} onUpdate={onUpdate} onUpdateOpp={onUpdateOpp} onAddMember={onAddMember} onRemoveMember={onRemoveMember} onFormChange={setPendingForm} />}
+        {tab === 'cronograma' && <TabCronograma projeto={projeto} phases={phases} tasks={tasks} timeLogs={timeLogs} onAdvancePhase={onAdvancePhase} onUpdatePhases={onUpdatePhases} onSyncTasks={onSyncTasks} onAddMember={onAddMember} />}
         {tab === 'proposta'   && <TabProposta   projeto={projeto} onUpdate={onUpdate} />}
-        {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} timeLogs={timeLogs} members={members} onAddLog={onAddLog} />}
+        {tab === 'timesheet'  && <TabTimesheet  projeto={projeto} phases={phases} tasks={tasks} timeLogs={timeLogs} members={members} onAddLog={onAddLog} onRemoveLog={onRemoveLog} />}
         {tab === 'financeiro' && <TabFinanceiro projeto={projeto} timeLogs={timeLogs} onUpdate={onUpdate} />}
         {tab === 'bloqueios'  && <TabBloqueios  projeto={projeto} issues={issues} onAddIssue={onAddIssue} onResolveIssue={onResolveIssue} />}
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
       </div>
 
-      {/* Rodapé com excluir */}
-      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end' }}>
+      {/* Rodapé fixo */}
+      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', flexShrink: 0 }}>
         <button
           onClick={() => { if (window.confirm(`Excluir o projeto "${projeto.name}"? Esta ação não pode ser desfeita.`)) onDelete(projeto.id) }}
           style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
@@ -1913,6 +2108,12 @@ function ProjetoDrawer({ projeto, phases, timeLogs, issues, attachments, members
           onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
         >
           Excluir projeto
+        </button>
+        <button
+          onClick={handleSaveFooter}
+          style={{ background: saved ? '#10B981' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', transition: 'background 0.2s', minWidth: 120 }}
+        >
+          {saved ? '✓ Salvo' : 'Salvar'}
         </button>
       </div>
     </SlideOver>
@@ -2059,11 +2260,15 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
   const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
   const [filtroStatus, setFiltroStatus] = useState('todos')
   const { sellers } = useSellers()
+  const { profile } = useProfile()
 
-  // Pool de usuários: dados reais do Supabase
+  // Pool de usuários: sellers do Supabase; fallback para profile do usuário atual
   const usuariosCad = useMemo(() => {
-    return sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' }))
-  }, [sellers])
+    if (sellers.length > 0) return sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' }))
+    // sellers vazio → mostra pelo menos o usuário logado
+    if (profile?.id) return [{ id: profile.id, nome: profile.nome || profile.email || 'Usuário', cargo: profile.papel || '' }]
+    return []
+  }, [sellers, profile])
 
   // Horas apontadas por user_id (ou user_name como fallback) no mês de referência
   const horasPorUser = useMemo(() => {
@@ -2708,6 +2913,65 @@ const PROP_ESC_STATUS = {
   opcional: { label: 'Opcional', bg: '#FEF3C7', color: '#92400E', border: '#F59E0B' },
 }
 function tmplUid() { return `tmpl-${Date.now()}-${Math.random().toString(36).slice(2,5)}` }
+
+function PropostaSelectField({ propostas, value, onChange, statusLabel, statusColor }) {
+  const [query, setQuery] = useState('')
+  const [open,  setOpen]  = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selecionada = propostas.find(p => String(p.id) === String(value)) || null
+  const lista = propostas.filter(p => {
+    if (selecionada && p.id === selecionada.id) return false
+    const q = query.toLowerCase()
+    return !q || (p.titulo||'').toLowerCase().includes(q) || (p.empresa_nome||'').toLowerCase().includes(q)
+  }).slice(0, 12)
+
+  return (
+    <div>
+      <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.05em', color:'var(--text-muted)', marginBottom:6 }}>Vincular proposta</div>
+      <div ref={ref} style={{ position:'relative' }}>
+        <div style={{ display:'flex', alignItems:'center', border:'1px solid var(--border)', borderRadius:8, background:'var(--surface)', overflow:'hidden' }}>
+          {selecionada ? (
+            <div style={{ flex:1, display:'flex', alignItems:'center', gap:8, padding:'8px 12px' }}>
+              <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{selecionada.titulo || '(sem título)'}</span>
+              {selecionada.status && <span style={{ fontSize:11, fontWeight:600, color: statusColor[selecionada.status] || 'var(--text-muted)', flexShrink:0 }}>{statusLabel[selecionada.status] || selecionada.status}</span>}
+            </div>
+          ) : (
+            <input value={query} onChange={e=>{setQuery(e.target.value);setOpen(true)}} onFocus={()=>setOpen(true)}
+              placeholder="Buscar proposta por título ou empresa…"
+              style={{ flex:1, padding:'9px 12px', border:'none', background:'none', color:'var(--text)', fontSize:13, outline:'none', fontFamily:'var(--font)' }}/>
+          )}
+          {selecionada
+            ? <button onClick={()=>onChange(null)} style={{ padding:'0 12px', background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, lineHeight:1 }}>✕</button>
+            : <span style={{ padding:'0 10px', color:'var(--text-muted)', fontSize:12, pointerEvents:'none' }}>▾</span>
+          }
+        </div>
+        {open && !selecionada && (
+          <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
+            {lista.length === 0
+              ? <div style={{ padding:'12px 14px', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhuma proposta encontrada</div>
+              : lista.map(p => (
+                <div key={p.id} onClick={()=>{onChange(p.id);setQuery('');setOpen(false)}}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 14px', cursor:'pointer', borderBottom:'1px solid var(--border2)' }}
+                  onMouseEnter={e=>e.currentTarget.style.background='var(--surface3)'}
+                  onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{p.titulo || '(sem título)'}</div>
+                    {p.empresa_nome && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.empresa_nome}</div>}
+                  </div>
+                  {p.status && <span style={{ fontSize:11, fontWeight:600, color: statusColor[p.status] || 'var(--text-muted)', flexShrink:0 }}>{statusLabel[p.status] || p.status}</span>}
+                </div>
+              ))
+            }
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 function ProdutoSearch({ produto_id, onChange }) {
   const [query, setQuery] = useState('')
@@ -3527,7 +3791,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     const tmplTabs = [
       { id:'wbs',     label:'WBS / Escopo'   },
       { id:'tarifas', label:'Tarifas'         },
-      { id:'produtos',label:'Produtos'        },
+      { id:'produtos',label:'Produto'         },
       { id:'blocos',  label:'Blocos de Texto' },
       { id:'regras',  label:'Regras'          },
       { id:'estilo',  label:'Estilo Doc.'     },
@@ -3544,38 +3808,39 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
         {importing && <ImportModal tmplId={st.id} onClose={()=>setImporting(false)}/>}
 
         {/* Header */}
-        <div style={{display:'flex',alignItems:'center',gap:12,flexWrap:'wrap'}}>
-          <button onClick={()=>{setSelectedTmpl(null);setTmplTab('wbs')}} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>
+        <div>
+          <button onClick={()=>{setSelectedTmpl(null);setTmplTab('wbs')}}
+            style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:11,padding:'0 0 6px',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:4}}>
             ← Templates
           </button>
-          <div style={{flex:1,minWidth:0}}>
-            <input value={st.nome} onChange={e=>salvarTemplate({...st,nome:e.target.value})}
-              style={{fontSize:17,fontWeight:800,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0}}/>
-            <input value={st.descricao||''} onChange={e=>salvarTemplate({...st,descricao:e.target.value})}
-              placeholder="Descrição do template…"
-              style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:3}}/>
+          <div style={{display:'flex',alignItems:'flex-start',gap:12}}>
+            <div style={{flex:1,minWidth:0}}>
+              <input value={st.nome} onChange={e=>salvarTemplate({...st,nome:e.target.value})}
+                style={{fontSize:18,fontWeight:700,color:'var(--text)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,letterSpacing:'-0.3px'}}/>
+              <input value={st.descricao||''} onChange={e=>salvarTemplate({...st,descricao:e.target.value})}
+                placeholder="Descrição do template…"
+                style={{fontSize:12,color:'var(--text-muted)',border:'none',outline:'none',background:'none',fontFamily:'var(--font)',width:'100%',padding:0,marginTop:2}}/>
+              <div style={{display:'flex',gap:14,marginTop:8,fontSize:12,color:'var(--text-muted)',flexWrap:'wrap'}}>
+                <span>{(st.itens||[]).filter(i=>i.nivel===1).length} fases · {(st.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
+                <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
+                <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
+                <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
+                {invest>0 && <span>Investimento: <strong style={{color:'#10B981'}}>{fmtBRL2(invest)}</strong></span>}
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,flexShrink:0,alignItems:'center',marginTop:4}}>
+              <button onClick={()=>setImporting(true)} style={{padding:'6px 12px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+                ↑ Importar WBS
+              </button>
+              <button onClick={()=>excluirTemplate(st.id)} style={{padding:'6px 10px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
+                Excluir
+              </button>
+              <button onClick={()=>{salvarTemplate(selectedTmpl);setTmplSaved(true);setTimeout(()=>setTmplSaved(false),2000)}}
+                style={{padding:'6px 16px',background:tmplSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:72}}>
+                {tmplSaved ? '✓ Salvo' : 'Salvar'}
+              </button>
+            </div>
           </div>
-          <div style={{display:'flex',gap:8,flexShrink:0,alignItems:'center'}}>
-            <button onClick={()=>setImporting(true)} style={{padding:'7px 14px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
-              ↑ Importar WBS
-            </button>
-            <button onClick={()=>excluirTemplate(st.id)} style={{padding:'7px 12px',border:'1px solid #EF444444',borderRadius:7,background:'none',color:'#EF4444',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>
-              Excluir
-            </button>
-            <button onClick={()=>{salvarTemplate(selectedTmpl);setTmplSaved(true);setTimeout(()=>setTmplSaved(false),2000)}}
-              style={{padding:'7px 18px',background:tmplSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:80}}>
-              {tmplSaved ? '✓ Salvo' : 'Salvar'}
-            </button>
-          </div>
-        </div>
-
-        {/* KPI strip */}
-        <div style={{display:'flex',gap:16,padding:'10px 14px',background:'var(--surface2)',borderRadius:9,fontSize:12,color:'var(--text-muted)',flexWrap:'wrap'}}>
-          <span>{(st.itens||[]).filter(i=>i.nivel===1).length} fases · {(st.itens||[]).filter(i=>i.nivel===2).length} atividades</span>
-          <span>Analista: <strong style={{color:'var(--text)'}}>{decToHHMM(tA)}</strong></span>
-          <span>Coord.: <strong style={{color:'var(--text)'}}>{decToHHMM(tC)}</strong></span>
-          <span>Total: <strong style={{color:'var(--accent)'}}>{decToHHMM(tA+tC)}</strong></span>
-          {invest>0 && <span style={{marginLeft:'auto'}}>Investimento estimado: <strong style={{color:'#10B981'}}>{fmtBRL2(invest)}</strong></span>}
         </div>
 
         {/* Sub-tabs */}
@@ -4122,7 +4387,8 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function Projetos() {
-  const { projetos, phases, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTimeLogs, setIssues, setMembers } = useProjects()
+  const { projetos, phases, tasks, timeLogs, issues, members, save: saveProjeto, remove: removeProjeto, savePhase, saveTask, saveTasks, removeTask, saveTimeLog, saveIssue, removeIssue, setProjetos, setPhases, setTasks, setTimeLogs, setIssues, setMembers } = useProjects()
+  const { save: saveTimeLogRemote, remove: removeTimeLogRemote } = useTimeLogs()
   const { registrar: log } = useAuditLog()
   const { opps } = useOpportunities()
   const [attachments] = useState(MOCK_PROJECT_ATTACHMENTS)
@@ -4183,7 +4449,11 @@ export default function Projetos() {
   function handleDrop(e, toPhase, toOrder) {
     e.preventDefault()
     if (!dragId) return
-    setProjetos(ps => ps.map(p => p.id === dragId ? { ...p, phase: toPhase, current_phase_index: toOrder } : p))
+    const proj = projetos.find(p => p.id === dragId)
+    if (!proj) { setDragId(null); return }
+    const updated = { ...proj, phase: toPhase, current_phase_index: toOrder }
+    setProjetos(ps => ps.map(p => p.id === dragId ? updated : p))
+    saveProjeto(updated)
     setDragId(null)
   }
 
@@ -4267,9 +4537,9 @@ export default function Projetos() {
     const merged  = {
       ...current,
       ...updated,
-      phase:               current.phase               ?? updated.phase,
-      current_phase_index: current.current_phase_index ?? updated.current_phase_index,
-      total_hours_executed: current.total_hours_executed ?? updated.total_hours_executed,
+      phase:               updated.phase               ?? current.phase,
+      current_phase_index: updated.current_phase_index ?? current.current_phase_index,
+      total_hours_executed: updated.total_hours_executed ?? current.total_hours_executed,
     }
     // Integração CS: ao finalizar projeto, mostra confirm antes de salvar
     if (merged.status === 'concluido' && current.status !== 'concluido') {
@@ -4316,9 +4586,17 @@ export default function Projetos() {
     setDrawer(null)
   }
 
-  async function handleAddLog(log) {
-    await saveTimeLog(log)
-    setDrawer(d => d?.id === log.project_id ? { ...d, total_hours_executed: Number(d.total_hours_executed) + Number(log.hours_executed) } : d)
+  async function handleAddLog(entry) {
+    saveTimeLog(entry) // atualiza estado local imediatamente
+    await saveTimeLogRemote(entry) // persiste no Supabase
+    setDrawer(d => d?.id === entry.project_id ? { ...d, total_hours_executed: Number(d.total_hours_executed) + Number(entry.hours_executed) } : d)
+  }
+
+  function handleRemoveLog(id) {
+    const entry = timeLogs.find(l => l.id === id)
+    setTimeLogs(prev => prev.filter(l => l.id !== id))
+    removeTimeLogRemote(id)
+    if (entry) setDrawer(d => d?.id === entry.project_id ? { ...d, total_hours_executed: Math.max(0, Number(d.total_hours_executed) - Number(entry.hours_executed)) } : d)
   }
 
   async function handleAddIssue(iss)    { await saveIssue(iss) }
@@ -4386,39 +4664,30 @@ export default function Projetos() {
           <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
         </div>}
 
-        {/* Toolbar — igual Pipeline */}
-        <div style={{ ...pg.toolbar, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro' || tab === 'propostas') ? 'none' : undefined }}>
-
-          {/* ── Esquerda ── */}
-          <div style={pg.tbLeft}>
-            {/* Search */}
-            <div style={pg.searchWrap}>
+        {/* Toolbar */}
+        {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' && (
+        <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 0, minHeight: 52 }}>
+          {/* Grupo esquerdo */}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1, minWidth: 0 }}>
+            <div style={{ position: 'relative', width: 200, flexShrink: 1, minWidth: 100 }}>
               <span style={pg.searchIcon}>⌕</span>
               <input style={pg.searchInput} placeholder="Buscar projeto ou empresa…" value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-
-            {/* Canal */}
             <select style={pg.select} value={filtros.franchise} onChange={e => setFiltros(f => ({ ...f, franchise: e.target.value }))}>
               <option value="">Todos os canais</option>
               {[...new Set(projetos.map(p => p.franchise_nome).filter(Boolean))].map(fr => (
                 <option key={fr} value={fr}>{fr}</option>
               ))}
             </select>
-
-            {/* Status */}
             <select style={pg.select} value={filtros.status} onChange={e => setFiltros(f => ({ ...f, status: e.target.value }))}>
               <option value="">Todos os status</option>
               {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
             </select>
           </div>
 
-          {/* ── Separador ── */}
-          <div style={pg.tbDivider} />
-
-          {/* ── Direita ── */}
-          <div style={pg.tbRight}>
-
-            {/* Filtros avançados — padrão BrowseLayout */}
+          {/* Grupo direito */}
+          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 0, marginLeft: 12 }}>
+            <div style={pg.tbDivider} />
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
@@ -4441,16 +4710,12 @@ export default function Projetos() {
               </button>
               <FiltrosPopover open={filtrosOpen} onClose={() => setFiltrosOpen(false)} filtros={filtros} setFiltros={setFiltros} projetos={projetos} />
             </div>
-
-            {/* Sort */}
-            <select style={{ ...pg.select, color: 'var(--text-muted)' }} value={sortBy} onChange={e => setSortBy(e.target.value)}>
+            <select style={pg.select} value={sortBy} onChange={e => setSortBy(e.target.value)}>
               <option value="recente">Mais recentes</option>
               <option value="prazo">Prazo mais próximo</option>
               <option value="horas">Mais horas</option>
               <option value="nome">Nome A–Z</option>
             </select>
-
-            {/* View toggle */}
             <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 7, overflow: 'hidden' }}>
               {[{ v: 'kanban', Icon: LayoutGrid, title: 'Kanban' }, { v: 'list', Icon: LayoutList, title: 'Lista' }].map(({ v, Icon, title }) => (
                 <button key={v} type="button" title={title} onClick={() => setViewMode(v)}
@@ -4461,8 +4726,6 @@ export default function Projetos() {
                 </button>
               ))}
             </div>
-
-            {/* Limpar */}
             {hasFilters && (
               <button onClick={() => { setFiltros({ status: '', franchise: '' }); setSearch('') }} style={pg.ghostBtn}>
                 Limpar
@@ -4470,6 +4733,7 @@ export default function Projetos() {
             )}
           </div>
         </div>
+        )}
 
         {/* Contagem */}
         <div style={{ ...pg.resultRow, display: (tab === 'fechamento' || tab === 'recursos' || tab === 'financeiro' || tab === 'propostas') ? 'none' : undefined }}>
@@ -4585,6 +4849,7 @@ export default function Projetos() {
         <ProjetoDrawer
           projeto={drawer}
           phases={phases}
+          tasks={tasks}
           timeLogs={timeLogs}
           issues={issues}
           attachments={attachments}
@@ -4594,8 +4859,13 @@ export default function Projetos() {
           onUpdate={handleUpdate}
           onUpdateOpp={handleUpdateOpp}
           onAdvancePhase={handleAdvancePhase}
-          onUpdatePhases={savePhase}
+          onUpdatePhases={phasesOrPhase => {
+            const arr = Array.isArray(phasesOrPhase) ? phasesOrPhase : [phasesOrPhase]
+            arr.forEach(ph => savePhase(ph))
+          }}
+          onSyncTasks={saveTasks}
           onAddLog={handleAddLog}
+          onRemoveLog={handleRemoveLog}
           onAddIssue={handleAddIssue}
           onResolveIssue={handleResolveIssue}
           onAddMember={handleAddMember}

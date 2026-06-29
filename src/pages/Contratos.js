@@ -3,8 +3,10 @@ import { useContracts } from '../hooks/useContracts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProducts } from '../hooks/useProducts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useGoals } from '../hooks/useGoals'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
+import { PROVISOES_LS_KEY } from '../hooks/usePayments'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
@@ -13,6 +15,7 @@ import ActionFeedback from '../components/ActionFeedback'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
 import { usePlaybooks } from '../hooks/usePlaybooks'
+import { useLocalState } from '../hooks/useLocalState'
 import SearchSelect from '../components/SearchSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -54,13 +57,69 @@ const SLOTS = [
 const EMPTY_FORM = {
   numero: '', empresa_id: null, empresa_nome: '',
   status: 'rascunho',
-  primeira_compra: false,
+  vendedor: '',
+  tipo_venda: '',
   vigencia_inicio: '', vigencia_fim: '',
   itens_adesao: [], itens_mrr: [], itens_servico: [],
   responsavel: '', observacoes: '',
   origem: '',
-  data_pag_cdu: '', data_pag_sms: '',
   opportunity_id: null, opportunity_titulo: '',
+}
+
+const TIPO_VENDA_KEY = 'contratos:tipo_venda_opts'
+const TIPO_VENDA_DEFAULT = ['Nova venda', 'Renovação', 'Expansão', 'Upsell', 'Cross-sell']
+
+function TipoVendaField({ value, onChange }) {
+  const [opts, setOpts] = useLocalState(TIPO_VENDA_KEY, TIPO_VENDA_DEFAULT)
+  const [editing, setEditing] = useState(false)
+  const [newOpt, setNewOpt] = useState('')
+
+  function addOpt() {
+    const v = newOpt.trim()
+    if (!v || opts.includes(v)) return
+    setOpts([...opts, v])
+    setNewOpt('')
+  }
+
+  function removeOpt(o) {
+    setOpts(opts.filter(x => x !== o))
+    if (value === o) onChange('')
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <select className="so-field" value={value || ''} onChange={e => onChange(e.target.value)} style={{ flex: 1 }}>
+          <option value="">— Selecionar —</option>
+          {opts.map(o => <option key={o} value={o}>{o}</option>)}
+        </select>
+        <button type="button" onClick={() => setEditing(e => !e)}
+          title="Editar opções"
+          style={{ padding: '0 10px', borderRadius: 6, border: '1px solid var(--border)', background: editing ? 'var(--accent-glow)' : 'var(--surface)', color: editing ? 'var(--accent)' : 'var(--text-muted)', cursor: 'pointer', fontSize: 12, flexShrink: 0 }}>
+          ⚙
+        </button>
+      </div>
+      {editing && (
+        <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', background: 'var(--surface3)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {opts.map(o => (
+            <div key={o} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ flex: 1, fontSize: 12, color: 'var(--text)' }}>{o}</span>
+              <button type="button" onClick={() => removeOpt(o)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: '0 4px', lineHeight: 1 }}>✕</button>
+            </div>
+          ))}
+          <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+            <input value={newOpt} onChange={e => setNewOpt(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && addOpt()}
+              placeholder="Nova opção…"
+              style={{ flex: 1, padding: '4px 8px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 12, background: 'var(--surface)', color: 'var(--text)', outline: 'none', fontFamily: 'var(--font)' }} />
+            <button type="button" onClick={addOpt}
+              style={{ padding: '4px 12px', borderRadius: 5, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 12, cursor: 'pointer', fontWeight: 600, fontFamily: 'var(--font)' }}>+</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -132,8 +191,15 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const STATUS_ITEM_OPTS = [
+    { value: 'ativo',      label: 'Ativo' },
+    { value: 'pendente',   label: 'Pendente' },
+    { value: 'suspenso',   label: 'Suspenso' },
+    { value: 'cancelado',  label: 'Cancelado' },
+  ]
+
   function addItem(p) {
-    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false }])
+    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '', primeira_compra: false }])
     setAddingQuery(''); setAddingOpen(false); setShowAll(false)
   }
 
@@ -209,6 +275,29 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
               <button type="button" onClick={() => removeItem(idx)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
+            {/* status + vencimento + primeira compra por produto */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', flexWrap: 'wrap' }}>
+              <select
+                value={item.status_item || 'ativo'}
+                onChange={e => updateItem(idx, { status_item: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                {STATUS_ITEM_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>1º pagamento:</label>
+              <input
+                type="date"
+                value={item.vencimento_primeiro_pagamento || ''}
+                onChange={e => updateItem(idx, { vencimento_primeiro_pagamento: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
+                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={!!item.primeira_compra} onChange={e => updateItem(idx, { primeira_compra: e.target.checked })}
+                  style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
+                1ª compra
+              </label>
+            </div>
             {/* autorização de desconto */}
             {desc > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', background: item.desconto_autorizado ? 'var(--green-bg)' : 'var(--red-bg)' }}>
@@ -276,79 +365,114 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
 }
 
 
-// ─── Provisões de pagamento (Supabase) ───────────────────────────────────────
+// ─── Provisões de pagamento ───────────────────────────────────────────────────
 async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
-  const toRefMonth = date => date.slice(0, 7) + '-01'
-  const cduRef  = contrato.data_pag_cdu ? toRefMonth(contrato.data_pag_cdu) : null
-  const smsRef  = contrato.data_pag_sms ? toRefMonth(contrato.data_pag_sms) : null
-  const valorCdu = (contrato.itens_adesao||[]).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-  const valorSms = (contrato.itens_mrr||[]).reduce((s,i)   => s + (parseFloat(i.valor)||0), 0)
-  const prodCdu  = contrato.itens_adesao?.[0] || {}
-  const prodSms  = contrato.itens_mrr?.[0]    || {}
+  const tid = tenantId || 't1'
 
-  // Checa duplicatas já no banco
-  const { data: existentes } = await supabase
-    .from('payments')
-    .select('id, data_pagamento, custom_fields')
-    .eq('contract_id', contrato.id)
+  // Uma provisão por produto ativo com data de 1º pagamento preenchida
+  const slots = [
+    ...(contrato.itens_adesao  || []).map(i => ({ ...i, tipo_item: 'adesao' })),
+    ...(contrato.itens_mrr     || []).map(i => ({ ...i, tipo_item: 'mrr' })),
+    ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_item: 'servico' })),
+  ]
 
-  const jaExiste = (ref, campo) =>
-    (existentes || []).some(p => p.data_pagamento === ref && (p.custom_fields?.[campo] || 0) > 0)
+  const candidatos = slots.filter(
+    i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0
+  )
 
-  const base = {
-    tenant_id:    tenantId,
-    branch_id:    branchId || null,
-    contract_id:  contrato.id,
-    company_id:   contrato.empresa_id || null,
-    status:       'pendente',
-    descricao:    `Provisão automática — contrato ${contrato.numero}`,
-    custom_fields: {
-      contract_numero: contrato.numero,
-      company_nome:    contrato.empresa_nome,
-      parcela:         '1/1',
-      amount_services: 0,
-      amount_discount: 0,
-      processed:       false,
-    },
-  }
+  if (!candidatos.length) return 0
 
-  const inserir = []
+  // Tenta inserir via Supabase
+  let qtd = 0
+  try {
+    // Checa duplicatas já no banco
+    const { data: existentes } = await supabase
+      .from('payments')
+      .select('id, custom_fields')
+      .eq('contract_id', String(contrato.id))
 
-  if (cduRef && valorCdu > 0 && !jaExiste(cduRef, 'amount_cdu')) {
-    if (cduRef === smsRef && valorSms > 0) {
-      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
-        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
-          amount_cdu: valorCdu, amount_sms: valorSms, amount_total_net: valorCdu + valorSms } })
-    } else {
-      inserir.push({ ...base, data_pagamento: cduRef, vencimento: contrato.data_pag_cdu,
-        custom_fields: { ...base.custom_fields, produto_id: prodCdu.produto_id, produto_nome: prodCdu.nome,
-          amount_cdu: valorCdu, amount_sms: 0, amount_total_net: valorCdu } })
+    const jaExiste = (produtoId, vencimento) =>
+      (existentes || []).some(p =>
+        String(p.custom_fields?.produto_id) === String(produtoId) &&
+        p.custom_fields?.vencimento_primeiro_pagamento === vencimento
+      )
+
+    const base = {
+      tenant_id:   tid,
+      branch_id:   branchId || null,
+      contract_id: contrato.id,
+      company_id:  contrato.empresa_id || null,
+      status:      'pendente',
+      descricao:   `Provisão automática — contrato ${contrato.numero}`,
     }
-  }
-  if (smsRef && valorSms > 0 && cduRef !== smsRef && !jaExiste(smsRef, 'amount_sms')) {
-    inserir.push({ ...base, data_pagamento: smsRef, vencimento: contrato.data_pag_sms,
-      custom_fields: { ...base.custom_fields, produto_id: prodSms.produto_id, produto_nome: prodSms.nome,
-        amount_cdu: 0, amount_sms: valorSms, amount_total_net: valorSms } })
-  }
 
-  // Fallback: nenhuma data configurada mas tem valor
-  if (inserir.length === 0) {
-    const total = [...(contrato.itens_adesao||[]), ...(contrato.itens_mrr||[]), ...(contrato.itens_servico||[])]
-      .reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
-    if (total > 0) {
-      const dueDate = contrato.vigencia_inicio || new Date().toISOString().slice(0,10)
-      const ref     = dueDate.slice(0,7) + '-01'
-      if (!jaExiste(ref, 'amount_cdu')) {
-        inserir.push({ ...base, data_pagamento: ref, vencimento: dueDate,
-          custom_fields: { ...base.custom_fields, amount_cdu: total, amount_sms: 0, amount_total_net: total } })
-      }
+    const inserir = candidatos
+      .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+      .map(i => ({
+        ...base,
+        vencimento:     i.vencimento_primeiro_pagamento,
+        data_pagamento: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        custom_fields: {
+          contract_numero:               contrato.numero,
+          company_nome:                  contrato.empresa_nome,
+          produto_id:                    i.produto_id || null,
+          produto_nome:                  i.nome || '',
+          tipo_item:                     i.tipo_item,
+          amount_total_net:              parseFloat(i.valor) || 0,
+          primeira_compra:               i.primeira_compra || false,
+          vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
+          processed:                     false,
+        },
+      }))
+
+    if (inserir.length) {
+      const { error } = await supabase.from('payments').insert(inserir)
+      if (error) throw new Error(error.message)
+      qtd = inserir.length
     }
+  } catch (err) {
+    console.warn('[gerarProvisoesPagamento] Supabase indisponível, usando localStorage:', err.message)
   }
 
-  if (!inserir.length) return 0
-  const { error } = await supabase.from('payments').insert(inserir)
-  if (error) console.error('[gerarProvisoesPagamento]', error.message)
-  return inserir.length
+  // Fallback localStorage — chave dedicada, separada de dados mock
+  try {
+    const raw = localStorage.getItem(PROVISOES_LS_KEY)
+    const existentesLS = raw ? JSON.parse(raw) : []
+    const novos = candidatos
+      .filter(i => !existentesLS.some(p =>
+        p.contract_id === contrato.id &&
+        p.produto_id  === i.produto_id &&
+        p.due_date    === i.vencimento_primeiro_pagamento
+      ))
+      .map(i => ({
+        id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        contract_id:     contrato.id,
+        contract_numero: contrato.numero,
+        company_id:      contrato.empresa_id || null,
+        company_nome:    contrato.empresa_nome || '',
+        produto_id:      i.produto_id || null,
+        produto_nome:    i.nome || '',
+        amount_cdu:      i.tipo_item === 'adesao' ? parseFloat(i.valor) || 0 : 0,
+        amount_sms:      i.tipo_item === 'mrr'    ? parseFloat(i.valor) || 0 : 0,
+        amount_services: i.tipo_item === 'servico' ? parseFloat(i.valor) || 0 : 0,
+        amount_discount: 0,
+        amount_total_net: parseFloat(i.valor) || 0,
+        reference_month: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        due_date:        i.vencimento_primeiro_pagamento,
+        status:          'pendente',
+        processed:       false,
+        notes:           `Provisão automática — contrato ${contrato.numero}`,
+        tenant_id:       tid,
+      }))
+    if (novos.length) {
+      localStorage.setItem(PROVISOES_LS_KEY, JSON.stringify([...existentesLS, ...novos]))
+      if (!qtd) qtd = novos.length
+    }
+  } catch (err) {
+    console.error('[gerarProvisoesPagamento] localStorage:', err.message)
+  }
+
+  return qtd
 }
 
 // ─── Provisões de comissão (Supabase) ────────────────────────────────────────
@@ -453,17 +577,64 @@ async function gerarProvisoesComissao(contrato, tenantId, branchId) {
 }
 
 // ─── Formulário (SlideOver) ───────────────────────────────────────────────────
-function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, onShowFeedback }) {
+function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, activeTab, onTabChange, onShowFeedback }) {
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [confirmData, setConfirmData] = useState(null)
+  const [ativarData, setAtivarData] = useState(null)
   const [gerarProvisao, setGerarProvisao] = useState(true)
-  const [activeTab, setActiveTab] = useState('dados')
+  const [somarMetas, setSomarMetas] = useState(true)
   const [playbookOpen, setPlaybookOpen] = useState(false)
+
+  const { goals, save: saveGoals } = useGoals()
+
+  // Determina mês/ano da venda a partir de vigencia_inicio do contrato (data da venda, não pagamento)
+  function periodoVenda(contratoData) {
+    const ref = contratoData.vigencia_inicio || new Date().toISOString().slice(0, 10)
+    const d = new Date(ref + 'T00:00:00')
+    return { mes: d.getMonth() + 1, ano: d.getFullYear() }
+  }
+
+  function calcMetasMatch(contratoData) {
+    const { mes, ano } = periodoVenda(contratoData)
+    const todosItens = [
+      ...(contratoData.itens_adesao  || []),
+      ...(contratoData.itens_mrr     || []),
+      ...(contratoData.itens_servico || []),
+    ].filter(i => i.status_item !== 'inativo')
+
+    const goalsAtivos = goals.filter(g =>
+      g.status === 'ativa' &&
+      g.periodo_mes === mes &&
+      g.periodo_ano === ano &&
+      g.tipo_meta === 'valor'
+    )
+
+    const matched = [] // { goal, item, valor }
+    for (const item of todosItens) {
+      const valor = parseFloat(item.valor) || 0
+      if (!valor) continue
+      const prod = produtos.find(p => String(p.id) === String(item.produto_id))
+
+      // por produto específico
+      const gProd = goalsAtivos.find(g =>
+        g.tipo_alvo === 'produto' && String(g.product_id) === String(item.produto_id)
+      )
+      if (gProd) { matched.push({ goal: gProd, item, valor, mes, ano }); continue }
+
+      // por categoria do produto (campo `categoria` é string como 'CRM', igual ao category_id da goal)
+      if (prod?.categoria) {
+        const gCat = goalsAtivos.find(g =>
+          g.tipo_alvo === 'categoria' && g.category_id === prod.categoria
+        )
+        if (gCat) { matched.push({ goal: gCat, item, valor, mes, ano }); continue }
+      }
+    }
+    return matched
+  }
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({ ...p, [field]: '' })) }
 
-  const totalRec = [...(form.itens_mrr||[]), ...(form.itens_servico||[])].reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
 
   async function handleSave() {
     const e = {}
@@ -474,14 +645,99 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       const dup = contratos.find(c => c.id !== form.id && c.numero?.toUpperCase() === num)
       if (dup) e.numero = `Número já existe: ${dup.numero} (${dup.empresa_nome})`
     }
+    // Bloqueio: Rascunho → Ativo requer data de 1º pagamento em todos os itens
+    const ativando = !isNew
+      ? (contratos.find(c => c.id === form.id)?.status === 'rascunho' && form.status === 'ativo')
+      : form.status === 'ativo'
+    if (ativando) {
+      const todosItens = [...(form.itens_adesao||[]), ...(form.itens_mrr||[]), ...(form.itens_servico||[])]
+      const semData = todosItens.filter(i => !i.vencimento_primeiro_pagamento)
+      if (semData.length > 0) {
+        e.vencimento_itens = `Preencha a data de 1º pagamento em todos os produtos (${semData.length} sem data)`
+      }
+    }
     if (Object.keys(e).length) { setErrs(e); return }
     if (isNew) {
       // mostra confirm de integração antes de criar
       setConfirmData({ ...form, id: Date.now(), criado: new Date().toISOString().slice(0, 10) })
       return
     }
+    if (ativando) {
+      // mostra confirm antes de ativar contrato existente
+      setAtivarData(form)
+      return
+    }
     setSaving(true)
     try { onSave(form); onClose() } finally { setSaving(false) }
+  }
+
+  async function aplicarMetas(contratoData, steps) {
+    const metasMatch = calcMetasMatch(contratoData)
+    if (!somarMetas) {
+      steps.push({ id: 'metas', label: 'Registro em Metas ignorado', skip: true })
+      return
+    }
+    if (metasMatch.length === 0) {
+      steps.push({ id: 'metas', label: 'Sem meta definida para os produtos deste contrato', skip: true })
+      return
+    }
+    // Agrupa por goal, soma valores e acumula lançamentos de origem
+    const byGoal = {}
+    for (const { goal, item, valor, mes, ano } of metasMatch) {
+      if (!byGoal[goal.id]) byGoal[goal.id] = { goal, soma: 0, lancamentos: [] }
+      byGoal[goal.id].soma += valor
+      byGoal[goal.id].lancamentos.push({
+        contrato_numero: contratoData.numero,
+        empresa_nome:    contratoData.empresa_nome,
+        produto_nome:    item.nome || '',
+        valor,
+        data:  contratoData.vigencia_inicio || new Date().toISOString().slice(0, 10),
+        mes,
+        ano,
+      })
+    }
+    const updates = Object.values(byGoal).map(({ goal, soma, lancamentos }) => {
+      const existentes = goal.custom_fields?.lancamentos || []
+      return {
+        ...goal,
+        valor_atual: (goal.valor_atual || 0) + soma,
+        custom_fields: {
+          ...(goal.custom_fields || {}),
+          lancamentos: [...existentes, ...lancamentos],
+        },
+      }
+    })
+    await saveGoals(updates)
+    const totalSomado = Object.values(byGoal).reduce((s, { soma }) => s + soma, 0)
+    const { mes, ano } = periodoVenda(contratoData)
+    steps.push({
+      id: 'metas',
+      label: `Realizado somado em ${updates.length} meta(s)`,
+      sublabel: `+${totalSomado.toLocaleString('pt-BR', { style:'currency', currency:'BRL' })} · ${mes.toString().padStart(2,'0')}/${ano}`,
+    })
+  }
+
+  async function executarAtivacao() {
+    setSaving(true)
+    try {
+      const todosItens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+        .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
+      const steps = [{ id: 'contrato', label: `Contrato ${ativarData.numero} ativado`, sublabel: ativarData.empresa_nome }]
+      await onSave(ativarData, {
+        gerarProvisao,
+        onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
+      })
+      if (!gerarProvisao) {
+        steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
+      } else if (todosItens.length === 0) {
+        steps.push({ id: 'provisao', label: 'Nenhum produto com data de pagamento', skip: true })
+      }
+      await aplicarMetas(ativarData, steps)
+      onShowFeedback(steps)
+      onClose()
+    } finally {
+      setSaving(false)
+    }
   }
 
   async function executarSave() {
@@ -492,9 +748,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
       })
       if (!gerarProvisao) steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
-      onShowFeedback([
-        ...steps,
-      ])
+      await aplicarMetas(confirmData, steps)
+      onShowFeedback(steps)
       onClose()
     } finally {
       setSaving(false)
@@ -553,6 +808,32 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
                 <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro pendente criado em Pagamentos (D+0 da vigência)</div>
               </div>
             </div>
+            {/* Metas — opcional */}
+            {(() => {
+              const mm = calcMetasMatch(confirmData)
+              const { mes, ano } = periodoVenda(confirmData)
+              return (
+                <div style={chkRow(somarMetas)} onClick={() => setSomarMetas(g => !g)}>
+                  <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                    border:`2px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                    background: somarMetas ? 'var(--accent)' : 'transparent',
+                    display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                    {somarMetas && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Somar realizado em Metas</div>
+                    {mm.length > 0
+                      ? <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                          {mm.length} produto(s) com meta · período {mes.toString().padStart(2,'0')}/{ano} (data da venda)
+                        </div>
+                      : <div style={{ fontSize:11.5, color:'#F59E0B', marginTop:2 }}>
+                          Nenhuma meta definida para os produtos deste contrato — será ignorado
+                        </div>
+                    }
+                  </div>
+                </div>
+              )
+            })()}
           </div>
           {/* Actions */}
           <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
@@ -564,20 +845,103 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       </div>
     )}
 
-    {/* ── Playbook hint (flag recolhida) ── */}
-    <ContratoPlaybookHint form={form} open={playbookOpen} onToggle={() => setPlaybookOpen(o => !o)} onGoTab={() => { setPlaybookOpen(false); setActiveTab('playbook') }} />
+    {/* ─── Confirm popup: Rascunho → Ativo ─────────────────────────────── */}
+    {ativarData && (
+      <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.7)', backdropFilter:'blur(4px)',
+        display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:2200 }}>
+        <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:460,
+          boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+          {/* Header */}
+          <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+            <div style={{ width:42, height:42, borderRadius:12, background:'#D1FAE5', display:'flex',
+              alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>✓</div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Ativar contrato</div>
+              <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
+                Ao ativar <strong style={{ color:'var(--text)' }}>{ativarData.numero}</strong>, as seguintes ações serão executadas:
+              </div>
+            </div>
+          </div>
+          {/* Itens que gerarão provisão */}
+          <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+            {/* Contrato — sempre */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10,
+              border:'1.5px solid var(--accent)', background:'var(--accent-glow)' }}>
+              <div style={{ width:18, height:18, borderRadius:4, background:'var(--accent)',
+                display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
+                <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>
+              </div>
+              <div>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Status alterado para Ativo</div>
+                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>{ativarData.numero} · {ativarData.empresa_nome}</div>
+              </div>
+            </div>
+            {/* Provisões por produto */}
+            <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+              border:`1.5px solid ${gerarProvisao ? 'var(--accent)' : 'var(--border)'}`,
+              background: gerarProvisao ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}
+              onClick={() => setGerarProvisao(g => !g)}>
+              <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                border:`2px solid ${gerarProvisao ? 'var(--accent)' : 'var(--border)'}`,
+                background: gerarProvisao ? 'var(--accent)' : 'transparent',
+                display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                {gerarProvisao && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+              </div>
+              <div style={{ flex:1 }}>
+                <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar provisões de pagamento</div>
+                {(() => {
+                  const itens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+                    .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
+                  return (
+                    <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                      {itens.length} produto(s) com data de 1º pagamento · uma provisão por produto em Pagamentos
+                    </div>
+                  )
+                })()}
+              </div>
+            </div>
+            {/* Metas — opcional */}
+            {(() => {
+              const mm = calcMetasMatch(ativarData)
+              const { mes, ano } = periodoVenda(ativarData)
+              return (
+                <div style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px', borderRadius:10, cursor:'pointer',
+                  border:`1.5px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                  background: somarMetas ? 'var(--accent-glow)' : 'var(--surface2)', transition:'all 0.15s' }}
+                  onClick={() => setSomarMetas(g => !g)}>
+                  <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+                    border:`2px solid ${somarMetas ? 'var(--accent)' : 'var(--border)'}`,
+                    background: somarMetas ? 'var(--accent)' : 'transparent',
+                    display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+                    {somarMetas && <span style={{ color:'#fff', fontSize:11, fontWeight:800 }}>✓</span>}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Somar realizado em Metas</div>
+                    {mm.length > 0
+                      ? <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
+                          {mm.length} produto(s) com meta · período {mes.toString().padStart(2,'0')}/{ano} (data da venda)
+                        </div>
+                      : <div style={{ fontSize:11.5, color:'#F59E0B', marginTop:2 }}>
+                          Nenhuma meta definida para os produtos deste contrato — será ignorado
+                        </div>
+                    }
+                  </div>
+                </div>
+              )
+            })()}
+          </div>
+          {/* Actions */}
+          <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)',
+            display:'flex', justifyContent:'flex-end', gap:10 }}>
+            <Button variant="ghost" onClick={() => setAtivarData(null)}>Voltar</Button>
+            <Button onClick={executarAtivacao} disabled={saving}>{saving ? 'Ativando…' : 'Ativar contrato'}</Button>
+          </div>
+        </div>
+      </div>
+    )}
 
-    {/* ── Tabs ── */}
-    <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:4 }}>
-      {[{ key:'dados', label:'Dados' }, { key:'playbook', label:'Playbook' }].map(t => (
-        <button key={t.key} onClick={() => setActiveTab(t.key)} style={{
-          padding:'10px 18px', fontSize:13, fontWeight: activeTab===t.key ? 700 : 400,
-          color: activeTab===t.key ? 'var(--accent)' : 'var(--text-muted)',
-          background:'none', border:'none', borderBottom: activeTab===t.key ? '2px solid var(--accent)' : '2px solid transparent',
-          cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1,
-        }}>{t.label}</button>
-      ))}
-    </div>
+    {/* ── Playbook hint (flag recolhida) ── */}
+    <ContratoPlaybookHint form={form} open={playbookOpen} onToggle={() => setPlaybookOpen(o => !o)} onGoTab={() => { setPlaybookOpen(false); onTabChange('playbook') }} />
 
     {activeTab === 'playbook' && (
       <ContratoPlaybookPanel form={form} setForm={setForm} />
@@ -585,12 +949,11 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
 
     <div style={{ display: activeTab === 'dados' ? 'flex' : 'none', flexDirection: 'column', gap: 24 }}>
       {/* Resumo financeiro */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
         {[
-          { label: 'Adesão',     val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
-          { label: 'MRR',        val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
-          { label: 'Serviço',    val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
-          { label: 'Recorrente', val: totalRec, suffix: '/mês', bold: true },
+          { label: 'Adesão',  val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'MRR',     val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
+          { label: 'Serviço', val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
         ].map(({ label, val, suffix, bold }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
@@ -647,6 +1010,9 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           <FormField label="Responsável">
             <input className="so-field" value={form.responsavel || ''} onChange={e => set('responsavel', e.target.value)} placeholder="Nome do responsável" />
           </FormField>
+          <FormField label="Vendedor">
+            <input className="so-field" value={form.vendedor || ''} onChange={e => set('vendedor', e.target.value)} placeholder="Nome do vendedor" />
+          </FormField>
           <FormField label="Origem">
             <select className="so-field" value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
               <option value="">— Não definida —</option>
@@ -655,11 +1021,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
               <option value="incentivada">Incentivada</option>
             </select>
           </FormField>
-          <FormField label="Primeira compra">
-            <select className="so-field" value={form.primeira_compra ? 'sim' : 'nao'} onChange={e => set('primeira_compra', e.target.value === 'sim')}>
-              <option value="sim">Sim</option>
-              <option value="nao">Não</option>
-            </select>
+          <FormField label="Tipo de venda">
+            <TipoVendaField value={form.tipo_venda || ''} onChange={v => set('tipo_venda', v)} />
           </FormField>
         </FormGrid>
       </FormSection>
@@ -672,14 +1035,16 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           <FormField label="Data de cancelamento">
             <input type="date" className="so-field" value={form.vigencia_fim || ''} onChange={e => set('vigencia_fim', e.target.value)} />
           </FormField>
-          <FormField label="Início pagamento CDU">
-            <input type="date" className="so-field" value={form.data_pag_cdu || ''} onChange={e => set('data_pag_cdu', e.target.value)} />
-          </FormField>
-          <FormField label="Início pagamento SMS">
-            <input type="date" className="so-field" value={form.data_pag_sms || ''} onChange={e => set('data_pag_sms', e.target.value)} />
-          </FormField>
         </FormGrid>
       </FormSection>
+
+      {errs.vencimento_itens && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', borderRadius:8,
+          background:'#FEF2F2', border:'1px solid #EF4444', fontSize:12, color:'#991B1B', lineHeight:1.5 }}>
+          <span style={{ fontSize:16, flexShrink:0 }}>⚠</span>
+          <span><strong>Ativação bloqueada:</strong> {errs.vencimento_itens}</span>
+        </div>
+      )}
 
       <FormSection label="Produtos contratados">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -1008,6 +1373,7 @@ export default function Contratos() {
   const [search, setSearch]           = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [editando, setEditando]       = useState(null)
+  const [contratoTab, setContratoTab] = useState('dados')
   const [feedbackSteps, setFeedbackSteps] = useState(null)
 
   const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
@@ -1061,9 +1427,9 @@ export default function Contratos() {
     })
 
     // Dispara provisões ao ativar (Rascunho → Ativo) ou ao criar já como Ativo
-    const tenantId = profile?.tenant_id
+    const tenantId = profile?.tenant_id || null
     const branchId = profile?.branch_id || null
-    if ((ativando || (isNew && data.status === 'ativo')) && tenantId) {
+    if ((ativando || (isNew && data.status === 'ativo')) && opts.gerarProvisao !== false) {
       const steps = []
       const [qtdPag, qtdCom] = await Promise.all([
         gerarProvisoesPagamento(contratoFinal, tenantId, branchId),
@@ -1165,24 +1531,31 @@ export default function Contratos() {
 
       <SlideOver
         open={!!editando}
-        onClose={() => setEditando(null)}
+        onClose={() => { setEditando(null); setContratoTab('dados') }}
         title={isNew ? 'Novo contrato' : (editando?.numero || 'Contrato')}
         subtitle={editando?.empresa_nome || 'Dados contratuais'}
         defaultWidth={720}
         showFooter={false}
+        tabs={[{ key: 'dados', label: 'Dados' }, { key: 'playbook', label: 'Playbook' }]}
+        activeTab={contratoTab}
+        onTabChange={setContratoTab}
       >
         {editando && (
-          <ContratoForm
-            form={editando}
-            setForm={setEditando}
-            onSave={handleSave}
-            onDelete={handleDelete}
-            onClose={() => setEditando(null)}
-            isNew={isNew}
-            contratos={contratos}
-            produtos={produtos}
-            onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
-          />
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 0 }}>
+            <ContratoForm
+              form={editando}
+              setForm={setEditando}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              onClose={() => { setEditando(null); setContratoTab('dados') }}
+              isNew={isNew}
+              contratos={contratos}
+              produtos={produtos}
+              activeTab={contratoTab}
+              onTabChange={setContratoTab}
+              onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
+            />
+          </div>
         )}
       </SlideOver>
 

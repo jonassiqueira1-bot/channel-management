@@ -3426,12 +3426,13 @@ function FechamentoModal({ opp, onClose }) {
   const { save: saveProjeto, projetos }         = useProjects()
   const [implPropostas]                         = useLocalState('projects:propostas_v1', [])
 
-  const propostaImplantacao = useMemo(
+  const propostasImplantacao = useMemo(
     () => implPropostas
       .filter(p => String(p.opp_id) === String(opp.id))
-      .sort((a, b) => ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[a.status]??9) - ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[b.status]??9))[0] || null,
+      .sort((a, b) => ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[a.status]??9) - ({ aceita:0, enviada:1, rascunho:2, recusada:3 }[b.status]??9)),
     [implPropostas, opp.id]
   )
+  const propostaImplantacao = propostasImplantacao[0] || null
 
   const temServico = (opp.valor_servico > 0) ||
     (opp.itens||[]).some(it => it.tipo === 'servico' || it.slot === 'servico' || it.tipo === 'consultoria')
@@ -3484,47 +3485,53 @@ function FechamentoModal({ opp, onClose }) {
     }
 
     if (gerarProjeto) {
-      // Fases MIT da proposta de implantação vinculada
-      const fasesPropostaWBS = propostaImplantacao
-        ? (propostaImplantacao.itens || []).filter(i => i.nivel === 1)
-        : []
-      const totalHorasEstimadas = fasesPropostaWBS.reduce(
-        (s, f) => s + Math.round((f.hr_analista||0) + (f.hr_coord||0)), 0
-      )
+      // Um projeto por proposta de implantação vinculada
       const itensServico = (opp.itens||[]).filter(i => ['servico','consultoria'].includes(i.tipo))
-      const res = await saveProjeto({
-        name:                  opp.titulo,
-        company_id:            opp.empresa_id || null,
-        company_nome:          opp.empresa_nome,
-        franchise_nome:        '',
-        phase:                 'iniciacao',
-        current_phase_index:   1,
-        status:                'em_andamento',
-        total_hours_estimated: totalHorasEstimadas || 0,
-        total_hours_executed:  0,
-        start_date:            hoje,
-        end_date_estimated:    '',
-        responsavel:           opp.responsavel || '',
-        opportunity_id:        opp.id,
-        proposta_id:           propostaImplantacao?.id || null,
-        notes: [
-          `Projeto criado a partir da oportunidade: ${opp.titulo}`,
-          opp.empresa_nome ? `Cliente: ${opp.empresa_nome}` : '',
-          itensServico.length ? `Serviços: ${itensServico.map(i => i.produto_nome||i.nome).join(', ')}` : '',
-          propostaImplantacao ? `Proposta de implantação: ${propostaImplantacao.titulo || propostaImplantacao.id}` : '',
-        ].filter(Boolean).join('\n'),
-        // Fases MIT pré-populadas da proposta WBS
-        _fasesWBS: fasesPropostaWBS.map((fase, i) => ({
-          phase_name:          fase.titulo,
-          phase_order:         i + 1,
-          hours_estimated:     Math.round((fase.hr_analista||0) + (fase.hr_coord||0)) || 0,
-          start_date_planned:  '',
-          end_date_planned:    '',
-          is_completed:        false,
-        })),
-      })
-      if (res.ok) resultados.projeto = opp.titulo
-      else resultados.projetoErro = res.message
+      const projetosGerados = []
+      const projetosErros   = []
+      const listaPropostas  = propostasImplantacao.length > 0 ? propostasImplantacao : [null]
+      for (const prop of listaPropostas) {
+        const allItens = prop ? (prop.itens || []) : []
+        const fases    = allItens.filter(i => i.nivel === 1)
+        const totalHoras = fases.reduce((s, fase) => {
+          const filhos = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+          return s + filhos.reduce((a, f) => a + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
+        }, 0)
+        const nomeProjeto = prop
+          ? `${opp.titulo}${propostasImplantacao.length > 1 ? ` — ${prop.titulo || prop.id}` : ''}`
+          : opp.titulo
+        const res = await saveProjeto({
+          name:                  nomeProjeto,
+          company_id:            opp.empresa_id || null,
+          company_nome:          opp.empresa_nome,
+          franchise_nome:        '',
+          phase:                 'iniciacao',
+          current_phase_index:   1,
+          status:                'em_andamento',
+          total_hours_estimated: Math.round(totalHoras) || 0,
+          total_hours_executed:  0,
+          start_date:            hoje,
+          end_date_estimated:    '',
+          responsavel:           opp.responsavel || '',
+          opportunity_id:        opp.id,
+          proposta_id:           prop?.id || null,
+          notes: [
+            `Projeto criado a partir da oportunidade: ${opp.titulo}`,
+            opp.empresa_nome ? `Cliente: ${opp.empresa_nome}` : '',
+            itensServico.length ? `Serviços: ${itensServico.map(i => i.produto_nome||i.nome).join(', ')}` : '',
+            prop ? `Proposta de implantação: ${prop.titulo || prop.id}` : '',
+          ].filter(Boolean).join('\n'),
+          _fasesWBS: fases.map((fase, i) => {
+            const filhos = allItens.filter(f => f.nivel === 2 && f.parent_id === fase.id)
+            const horas  = filhos.reduce((a, f) => a + (Number(f.hr_analista)||0) + (Number(f.hr_coord)||0), 0)
+            return { phase_name: fase.titulo, phase_order: i + 1, hours_estimated: Math.round(horas) || 0, start_date_planned: '', end_date_planned: '', is_completed: false }
+          }),
+        })
+        if (res.ok) projetosGerados.push(nomeProjeto)
+        else projetosErros.push(res.message || 'Erro')
+      }
+      if (projetosGerados.length) resultados.projetos = projetosGerados
+      if (projetosErros.length)   resultados.projetosErros = projetosErros
     }
 
     setSalvando(false)
@@ -3554,12 +3561,17 @@ function FechamentoModal({ opp, onClose }) {
         sublabel: feito.contrato    ? 'Pendente de auditoria' : feito.contratoErro,
         error:    !!feito.contratoErro,
       }] : []),
-      ...(gerarProjeto ? [{
-        id: 'projeto',
-        label:    feito.projeto     ? `Projeto "${feito.projeto}" criado` : `Erro ao criar projeto`,
-        sublabel: feito.projeto     ? 'Etapa: Iniciação' : feito.projetoErro,
-        error:    !!feito.projetoErro,
-      }] : []),
+      ...(gerarProjeto && feito.projetos ? feito.projetos.map((nome, i) => ({
+        id: `projeto_${i}`,
+        label: `Projeto "${nome}" criado`,
+        sublabel: 'Etapa: Iniciação',
+      })) : []),
+      ...(gerarProjeto && feito.projetosErros ? feito.projetosErros.map((err, i) => ({
+        id: `projeto_err_${i}`,
+        label: 'Erro ao criar projeto',
+        sublabel: err,
+        error: true,
+      })) : []),
     ]
     return (
       <ActionFeedback
@@ -3623,9 +3635,11 @@ function FechamentoModal({ opp, onClose }) {
                   🗂 Gerar Projeto
                 </div>
                 <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
-                  {propostaImplantacao
-                    ? <>Proposta <strong>{propostaImplantacao.titulo || 'vinculada'}</strong> — fases MIT serão pré-populadas automaticamente.</>
-                    : 'Cria um projeto na etapa Iniciação para os serviços desta venda.'}
+                  {propostasImplantacao.length > 1
+                    ? <>{propostasImplantacao.length} propostas vinculadas — <strong>um projeto por proposta</strong> será criado com fases MIT.</>
+                    : propostaImplantacao
+                      ? <>Proposta <strong>{propostaImplantacao.titulo || 'vinculada'}</strong> — fases MIT serão pré-populadas automaticamente.</>
+                      : 'Cria um projeto na etapa Iniciação para os serviços desta venda.'}
                 </div>
                 {!propostaImplantacao && (
                   <div style={{ marginTop:6, padding:'6px 10px', borderRadius:6,
