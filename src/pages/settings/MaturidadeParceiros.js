@@ -162,7 +162,7 @@ export default function MaturidadeParceiros() {
       {slideOpen && (
         <FullPageEdit
           title={editando ? 'Editar parâmetro' : 'Novo parâmetro'}
-          onClose={() => { setSlideOpen(false); setEditando(null) }}
+          onCancel={() => { setSlideOpen(false); setEditando(null) }}
           onSave={handleSave}
           saving={saving}
           onDelete={editando ? handleRemove : null}
