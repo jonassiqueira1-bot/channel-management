@@ -65,8 +65,15 @@ function rowToPayment(row) {
 }
 
 function paymentToRow(p, tenantId, branchId) {
-  const mes = p.periodo_mes ? String(p.periodo_mes).padStart(2, '0') : '01'
-  const ano = p.periodo_ano ? String(p.periodo_ano) : String(new Date().getFullYear())
+  // Deriva período de periodo_mes/ano ou, como fallback, de data_competencia
+  const compStr = (p.data_competencia || '').slice(0, 7) // 'YYYY-MM'
+  const [compAno, compMes] = compStr.split('-')
+  const mes = p.periodo_mes
+    ? String(p.periodo_mes).padStart(2, '0')
+    : (compMes || String(new Date().getMonth() + 1).padStart(2, '0'))
+  const ano = p.periodo_ano
+    ? String(p.periodo_ano)
+    : (compAno || String(new Date().getFullYear()))
   return {
     tenant_id:        tenantId,
     branch_id:        branchId || null,
