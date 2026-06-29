@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import {
-  DollarSign, Percent, Calendar, Plus, ChevronDown,
+  DollarSign, Percent, Calendar, Plus, ChevronDown, FileText,
   CheckCircle2, Clock, XCircle, Pencil, Trash2, X,
   TrendingUp, AlertCircle, Loader2,
   Zap, BarChart2, Link2, RotateCcw, Info, ChevronRight,
@@ -772,18 +772,30 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
     finally { setSaving(false) }
   }
 
+  // Origem do pagamento (contrato ou projeto) — campos gravados em custom_fields via gerarRepasses
+  const origemContrato = form.contract_numero || form.custom_fields?.contract_numero || ''
+  const origemEmpresa  = form.company_nome    || form.custom_fields?.company_nome    || ''
+  const origemProduto  = form.produto_nome    || form.custom_fields?.produto_nome    || ''
+  const temOrigem      = origemContrato || origemEmpresa
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-      {/* Preview de cálculo */}
-      <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'12px 16px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <div style={{ fontSize:12, color:'var(--text-muted)' }}>
-          {fmt(parseFloat(form.valor_base)||0)} × {fmtPct(parseFloat(form.percentual)||0)}
+      {/* Origem — exibição read-only quando vier de integração */}
+      {temOrigem && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px', background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.18)', borderRadius:9 }}>
+          <div style={{ width:28, height:28, borderRadius:7, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+            <FileText size={13} strokeWidth={2} style={{ color:'var(--accent)' }} />
+          </div>
+          <div style={{ flex:1, minWidth:0 }}>
+            <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:1 }}>Origem</div>
+            <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {origemContrato && <span>Contrato {origemContrato}</span>}
+              {origemEmpresa  && <span style={{ color:'var(--text-muted)' }}> · {origemEmpresa}</span>}
+              {origemProduto  && <span style={{ color:'var(--text-muted)', fontSize:11 }}> · {origemProduto}</span>}
+            </div>
+          </div>
         </div>
-        <div style={{ textAlign:'right' }}>
-          <div style={{ fontSize:10, color:'var(--text-muted)' }}>Comissão calculada</div>
-          <div style={{ fontSize:22, fontWeight:800, fontFamily:'var(--mono)', color:'#10B981' }}>{fmt(comissaoCalculada)}</div>
-        </div>
-      </div>
+      )}
 
       <FormSection label="Beneficiário">
         <FormGrid cols={2}>
