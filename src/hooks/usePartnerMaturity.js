@@ -185,18 +185,25 @@ export function usePartnerScores(parceiros, params) {
       const sellerIds = parceiroSellers[parceiro_id] || new Set()
 
       switch (origem) {
-        // Vendedores vinculados ao parceiro
+        // Vendedores vinculados ao parceiro (alias legado: 'contacts')
         case 'sellers':
+        case 'contacts':
           return sellers.filter(s => {
             const fid = s.custom_fields?.franquia_id
             return fid === parceiro_id && s.status !== 'inativo'
           }).length
 
         // Oportunidades ativas de sellers do parceiro
-        case 'oportunidades':
-          return opps.filter(o =>
+        case 'oportunidades': {
+          let list = opps.filter(o =>
             sellerIds.has(o.owner_id) && o.situacao === 'em_andamento'
-          ).length
+          )
+          if (param.janela_dias) {
+            const cutoff = new Date(now - param.janela_dias * 86400000)
+            list = list.filter(o => new Date(o.created_at) >= cutoff)
+          }
+          return list.length
+        }
 
         // Contratos ativos de empresas vinculadas ao parceiro via campo Canal
         case 'contracts':
