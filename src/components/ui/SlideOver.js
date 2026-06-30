@@ -146,6 +146,15 @@ export default function SlideOver({
           @keyframes soFadeIn   { from { opacity: 0 } to { opacity: 1 } }
           @keyframes soSlideIn  { from { transform: translateX(100%) } to { transform: translateX(0) } }
 
+          /* ─── Tab bar: esconde scrollbar em webkit/iOS ───────────── */
+          .so-tabbar::-webkit-scrollbar { display: none }
+          .so-tabbar { -webkit-overflow-scrolling: touch }
+
+          /* ─── Tabs menores em mobile ─────────────────────────────── */
+          @media (max-width: 480px) {
+            .so-tab-btn { padding: 10px 8px 9px !important; font-size: 11.5px !important; }
+          }
+
           /* ─── Inputs dentro do SlideOver ─────────────────────────── */
           .so-field {
             width: 100%;
@@ -261,7 +270,7 @@ export default function SlideOver({
 
         {/* ── Tab bar (optional) ────────────────────────────────────── */}
         {hasTabs && (
-          <div style={{
+          <div className="so-tabbar" style={{
             display: 'flex', flexShrink: 0,
             padding: '0 16px', overflowX: 'auto', overflowY: 'hidden',
             scrollbarWidth: 'none', msOverflowStyle: 'none',
@@ -276,6 +285,7 @@ export default function SlideOver({
                 <button
                   key={t.key}
                   type="button"
+                  className="so-tab-btn"
                   onClick={() => onTabChange?.(t.key)}
                   style={{
                     padding: '11px 11px 10px',
