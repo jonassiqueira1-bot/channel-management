@@ -63,6 +63,7 @@ export function useTiposAcao(defaults = []) {
       color:      record.color || null,
       bg:         record.bg || null,
       text_color: record.text || record.text_color || null,
+      ativo:      record.ativo !== false,
     }
     if (isNew) {
       const { data, error } = await supabase.from('tipos_acao').insert(row).select().single()
