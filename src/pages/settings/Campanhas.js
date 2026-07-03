@@ -615,7 +615,7 @@ export default function Campanhas() {
         columns={[
           {
             key: 'name',
-            label: 'Campanha',
+            label: 'Campanhas',
             render: (v, row) => (
               <div>
                 <div style={{ fontWeight: 700, fontSize: 13 }}>{v}</div>

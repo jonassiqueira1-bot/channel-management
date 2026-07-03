@@ -31,7 +31,17 @@ export function useCampanhas(seeds = []) {
       setCampanhas(load() ?? seeds)
     } else {
       isMock.current = false
-      setCampanhas(data && data.length > 0 ? data : (load() ?? seeds))
+      // Mapeia colunas do banco → campos esperados pelo form
+      const mapped = (data || []).map(r => ({
+        ...r,
+        name:        r.name        || r.nome      || '',
+        objective:   r.objective   || r.objetivo  || '',
+        description: r.description || r.descricao || '',
+        start_date:  r.start_date  || r.inicio    || '',
+        end_date:    r.end_date    || r.fim        || '',
+        materials:   r.materials   || (r.extra ? JSON.parse(r.extra) : []),
+      }))
+      setCampanhas(mapped.length > 0 ? mapped : (load() ?? seeds))
     }
     setLoading(false)
   }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -48,7 +58,20 @@ export function useCampanhas(seeds = []) {
       })
       return { ok: true }
     }
-    const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
+    // Mapeamento campos do form → colunas do banco
+    const row = {
+      id:           record.id,
+      tenant_id:    tid.current,
+      nome:         record.name      || record.nome      || '',
+      objetivo:     record.objective || record.objetivo  || '',
+      descricao:    record.description || record.descricao || '',
+      inicio:       record.start_date || record.inicio   || null,
+      fim:          record.end_date  || record.fim       || null,
+      status:       record.status    || 'rascunho',
+      pontua_metas: record.pontua_metas ?? false,
+      extra:        record.materials  ? JSON.stringify(record.materials) : (record.extra || null),
+      updated_at:   new Date().toISOString(),
+    }
     const { error } = await supabase.from('campanhas').upsert(row, { onConflict: 'id' })
     if (error) return { ok: false, message: error.message }
     setCampanhas(prev => {
