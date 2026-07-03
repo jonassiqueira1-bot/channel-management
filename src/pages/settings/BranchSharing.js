@@ -41,8 +41,6 @@ const PERMISSAO_OPTIONS = [
   { value: 'leitura_escrita',label: 'Leitura e escrita', desc: 'Visualizar e criar/editar registros entre as filiais' },
 ]
 
-const CHIP_ON  = { display:'inline-flex', alignItems:'center', padding:'4px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', border:'none', fontFamily:'var(--font)', background:'var(--accent)20', color:'var(--accent)' }
-const CHIP_OFF = { display:'inline-flex', alignItems:'center', padding:'4px 12px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer', border:'none', fontFamily:'var(--font)', background:'var(--surface2)', color:'var(--text-muted)' }
 
 const EMPTY = {
   filial_ids:   [],   // filiais envolvidas no compartilhamento
@@ -58,16 +56,23 @@ function uid() { return Date.now() + Math.floor(Math.random() * 9999) }
 const moduloLabel = key => MODULOS.find(m => m.key === key)?.label || key
 
 // ─── SearchableMultiSelect ────────────────────────────────────────────────────
-function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…' }) {
+function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…', groups }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const ref = useRef(null)
+  const btnRef = useRef(null)
+  const [rect, setRect] = useState(null)
 
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  function handleOpen() {
+    if (!open && btnRef.current) setRect(btnRef.current.getBoundingClientRect())
+    setOpen(o => !o)
+  }
 
   const filteredOpts = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
   const selected = options.filter(o => value.includes(o.value))
@@ -76,9 +81,56 @@ function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'S
     onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val])
   }
 
+  // Group filtered options by o.group if groups mode
+  const renderList = () => {
+    if (!groups || search) {
+      return filteredOpts.map(o => {
+        const checked = value.includes(o.value)
+        return (
+          <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent', borderBottom:'1px solid var(--border2)' }}>
+            <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+            <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{o.label}</span>
+            {o.sub && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.sub}</span>}
+          </label>
+        )
+      })
+    }
+    return groups.map(g => {
+      const gopts = filteredOpts.filter(o => o.group === g)
+      if (!gopts.length) return null
+      return (
+        <div key={g}>
+          <div style={{ padding:'6px 12px 3px', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', background:'var(--surface2)' }}>{g}</div>
+          {gopts.map(o => {
+            const checked = value.includes(o.value)
+            return (
+              <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent', borderBottom:'1px solid var(--border2)' }}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+                <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{o.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      )
+    })
+  }
+
+  const dropdownStyle = rect ? {
+    position: 'fixed',
+    top: rect.bottom + 4,
+    left: rect.left,
+    width: rect.width,
+    zIndex: 9999,
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 10,
+    boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+    overflow: 'hidden',
+  } : {}
+
   return (
     <div ref={ref} style={{ position: 'relative', width: '100%' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
+      <button ref={btnRef} type="button" onClick={handleOpen}
         style={{ width:'100%', minHeight:38, padding:'6px 10px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', display:'flex', alignItems:'center', flexWrap:'wrap', gap:4, cursor:'pointer', textAlign:'left', fontFamily:'var(--font)' }}>
         {selected.length === 0
           ? <span style={{ fontSize:13, color:'var(--text-muted)' }}>{placeholder}</span>
@@ -92,24 +144,15 @@ function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'S
         <span style={{ marginLeft:'auto', fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>▾</span>
       </button>
       {open && (
-        <div style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:200, marginTop:4, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, boxShadow:'0 8px 24px rgba(0,0,0,0.12)', overflow:'hidden' }}>
+        <div style={dropdownStyle}>
           <div style={{ padding:'8px 10px', borderBottom:'1px solid var(--border2)' }}>
             <input autoFocus value={search} onChange={e => setSearch(e.target.value)}
               placeholder="Pesquisar…" className="fpe-field" style={{ height:30, fontSize:12 }} />
           </div>
-          <div style={{ maxHeight:220, overflowY:'auto' }}>
+          <div style={{ maxHeight:260, overflowY:'auto' }}>
             {filteredOpts.length === 0
               ? <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)' }}>Nenhum resultado</div>
-              : filteredOpts.map(o => {
-                const checked = value.includes(o.value)
-                return (
-                  <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
-                    <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
-                    <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{o.label}</span>
-                    {o.sub && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.sub}</span>}
-                  </label>
-                )
-              })
+              : renderList()
             }
           </div>
           {value.length > 0 && (
@@ -232,26 +275,13 @@ export default function BranchSharing() {
 
         {/* Módulos */}
         <FPESection title="O que será compartilhado" description="Selecione os módulos cujos dados ficarão visíveis entre as filiais." columns={1}>
-          {GRUPOS_MODULOS.map(grupo => (
-            <div key={grupo} style={{ marginBottom:4 }}>
-              <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', marginBottom:6 }}>{grupo}</div>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
-                {MODULOS.filter(m => m.grupo === grupo).map(m => (
-                  <button key={m.key} type="button"
-                    style={form.modulos.includes(m.key) ? CHIP_ON : CHIP_OFF}
-                    onClick={() => set('modulos', form.modulos.includes(m.key) ? form.modulos.filter(k => k !== m.key) : [...form.modulos, m.key])}>
-                    {m.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ))}
-          {form.modulos.length > 0 && (
-            <button type="button" onClick={() => set('modulos', [])}
-              style={{ alignSelf:'flex-start', fontSize:11, color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', marginTop:4 }}>
-              Limpar seleção ({form.modulos.length})
-            </button>
-          )}
+          <SearchableMultiSelect
+            options={MODULOS.map(m => ({ value: m.key, label: m.label, group: m.grupo }))}
+            value={form.modulos}
+            onChange={ids => set('modulos', ids)}
+            placeholder="Selecionar módulos…"
+            groups={GRUPOS_MODULOS}
+          />
         </FPESection>
 
         {/* Permissão */}
@@ -291,17 +321,12 @@ export default function BranchSharing() {
 
           {form.acesso === 'perfis' && (
             <FPEField label="Perfis com acesso" required>
-              <div style={{ display:'flex', flexWrap:'wrap', gap:8, paddingTop:4 }}>
-                {perfisRoles.map(p => (
-                  <button key={p.id} type="button"
-                    style={form.perfil_ids.includes(p.id)
-                      ? { ...CHIP_ON, borderLeft:`3px solid ${p.cor || 'var(--accent)'}` }
-                      : CHIP_OFF}
-                    onClick={() => set('perfil_ids', form.perfil_ids.includes(p.id) ? form.perfil_ids.filter(x => x !== p.id) : [...form.perfil_ids, p.id])}>
-                    {p.nome}
-                  </button>
-                ))}
-              </div>
+              <SearchableMultiSelect
+                options={perfisRoles.map(p => ({ value: p.id, label: p.nome }))}
+                value={form.perfil_ids}
+                onChange={ids => set('perfil_ids', ids)}
+                placeholder="Selecionar perfis…"
+              />
             </FPEField>
           )}
 

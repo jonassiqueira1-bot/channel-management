@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useProducts } from '../../hooks/useProducts'
 import { useFunnels } from '../../hooks/useFunnels'
@@ -7,6 +7,107 @@ import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 export const INDICADORES_KEY = 'settings:indicadores_v2'
+
+// ── MultiSelectDropdown ───────────────────────────────────────────────────────
+function MultiSelectDropdown({ label, options = [], selected = [], onChange, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ]       = useState('')
+  const ref             = useRef(null)
+
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+
+  const sel     = selected.map(String)
+  const visible = options.filter(o => !q || o.label.toLowerCase().includes(q.toLowerCase()))
+
+  function toggle(id) {
+    const sid = String(id)
+    onChange(sel.includes(sid) ? sel.filter(x => x !== sid) : [...sel, sid])
+  }
+
+  const selectedLabels = options.filter(o => sel.includes(String(o.id))).map(o => o.label)
+  const summary = selectedLabels.length === 0
+    ? (placeholder || `Todos os ${label.toLowerCase()}`)
+    : selectedLabels.length <= 2
+      ? selectedLabels.join(', ')
+      : `${selectedLabels.length} selecionados`
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        width: '100%', padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
+        border: '1px solid var(--border)', background: open ? 'var(--surface2)' : 'var(--surface)',
+        fontSize: 13, color: selectedLabels.length ? 'var(--text)' : 'var(--text-muted)',
+        fontFamily: 'var(--font)', textAlign: 'left', gap: 8,
+      }}>
+        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {summary}
+        </span>
+        {selectedLabels.length > 0 && (
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 10,
+            background: 'var(--accent-lite)', color: 'var(--accent)', flexShrink: 0 }}>
+            {selectedLabels.length}
+          </span>
+        )}
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 200,
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.10)', overflow: 'hidden',
+        }}>
+          {options.length > 6 && (
+            <div style={{ padding: '8px 10px 4px', borderBottom: '1px solid var(--border2)' }}>
+              <input autoFocus value={q} onChange={e => setQ(e.target.value)}
+                placeholder="Filtrar…"
+                style={{ width: '100%', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)',
+                  fontSize: 12, background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none' }} />
+            </div>
+          )}
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {visible.length === 0 && (
+              <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>
+            )}
+            {visible.map(o => {
+              const checked = sel.includes(String(o.id))
+              return (
+                <label key={o.id} style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  padding: '7px 12px', cursor: 'pointer', fontSize: 13,
+                  background: checked ? 'var(--accent-glow)' : 'transparent',
+                  borderBottom: '1px solid var(--border2)',
+                }}
+                  onMouseEnter={e => { if (!checked) e.currentTarget.style.background = 'var(--surface2)' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = checked ? 'var(--accent-glow)' : 'transparent' }}
+                >
+                  <input type="checkbox" checked={checked} onChange={() => toggle(o.id)}
+                    style={{ accentColor: 'var(--accent)', width: 14, height: 14, flexShrink: 0, cursor: 'pointer' }} />
+                  <span style={{ flex: 1, color: checked ? 'var(--accent)' : 'var(--text)', fontWeight: checked ? 600 : 400 }}>
+                    {o.label}
+                  </span>
+                  {o.sublabel && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.sublabel}</span>}
+                </label>
+              )
+            })}
+          </div>
+          {sel.length > 0 && (
+            <div style={{ padding: '6px 10px', borderTop: '1px solid var(--border2)', textAlign: 'right' }}>
+              <button type="button" onClick={() => { onChange([]); setOpen(false) }}
+                style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px' }}>
+                Limpar seleção
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export const MODULOS = [
   { value: 'pipeline',   label: 'Pipeline' },
@@ -772,63 +873,47 @@ export default function SettingsIndicadores() {
 
         {form.modulo === 'pipeline' && (
           <FPESection title="Filtros" description="Todos opcionais. Em branco = considera tudo.">
-            {(produtos || []).filter(p => p.status === 'ativo').length > 0 && (
-              <FPEField label="Produtos" style={{ gridColumn: '1/-1' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {(produtos || []).filter(p => p.status === 'ativo').map(p => (
-                    <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer',
-                      padding: '3px 8px', borderRadius: 6,
-                      background: (form.produto_ids || []).map(String).includes(String(p.id)) ? 'var(--accent-lite)' : 'transparent' }}>
-                      <input type="checkbox"
-                        checked={(form.produto_ids || []).map(String).includes(String(p.id))}
-                        onChange={() => toggleArr('produto_ids', p.id)} />
-                      {p.nome}
-                    </label>
-                  ))}
+            <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
+              {(produtos || []).filter(p => p.status === 'ativo').length > 0 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Produtos</div>
+                  <MultiSelectDropdown
+                    label="Produtos"
+                    options={(produtos || []).filter(p => p.status === 'ativo').map(p => ({ id: p.id, label: p.nome }))}
+                    selected={form.produto_ids || []}
+                    onChange={ids => set('produto_ids', ids)}
+                  />
                 </div>
-              </FPEField>
-            )}
-            {(funis || []).length > 1 && (
-              <FPEField label="Funis" style={{ gridColumn: '1/-1' }}>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {(funis || []).map(f => (
-                    <label key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer',
-                      padding: '3px 8px', borderRadius: 6,
-                      background: (form.funil_ids || []).map(String).includes(String(f.id)) ? 'var(--accent-lite)' : 'transparent' }}>
-                      <input type="checkbox"
-                        checked={(form.funil_ids || []).map(String).includes(String(f.id))}
-                        onChange={() => toggleArr('funil_ids', f.id)} />
-                      {f.nome}
-                    </label>
-                  ))}
+              )}
+              {(funis || []).length > 1 && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Funis</div>
+                  <MultiSelectDropdown
+                    label="Funis"
+                    options={(funis || []).map(f => ({ id: f.id, label: f.nome }))}
+                    selected={form.funil_ids || []}
+                    onChange={ids => set('funil_ids', ids)}
+                  />
                 </div>
-              </FPEField>
-            )}
-            {mostraEtapas && (
-              <FPEField label="Etapas" style={{ gridColumn: '1/-1' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {(funis || []).map(f => (
-                    <div key={f.id}>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                        letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 6 }}>{f.nome}</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                        {(f.etapas || []).map((e, idx) => (
-                          <label key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, cursor: 'pointer',
-                            padding: '3px 8px', borderRadius: 6,
-                            background: (form.etapa_ids || []).map(String).includes(String(e.id)) ? 'var(--accent-lite)' : 'transparent' }}>
-                            <input type="checkbox"
-                              checked={(form.etapa_ids || []).map(String).includes(String(e.id))}
-                              onChange={() => toggleArr('etapa_ids', e.id)} />
-                            <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 2 }}>{idx + 1}.</span>
-                            {e.nome}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
+              )}
+              {mostraEtapas && (
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Etapas</div>
+                  <MultiSelectDropdown
+                    label="Etapas"
+                    options={(funis || []).flatMap(f =>
+                      (f.etapas || []).map((e, idx) => ({
+                        id: e.id,
+                        label: e.nome,
+                        sublabel: f.nome,
+                      }))
+                    )}
+                    selected={form.etapa_ids || []}
+                    onChange={ids => set('etapa_ids', ids)}
+                  />
                 </div>
-              </FPEField>
-            )}
+              )}
+            </div>
           </FPESection>
         )}
 
