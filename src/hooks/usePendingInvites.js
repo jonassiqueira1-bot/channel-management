@@ -12,7 +12,7 @@ export function usePendingInvites() {
 
   useEffect(() => { tid.current = profile?.tenant_id }, [profile?.tenant_id])
 
-  const fetch = useCallback(async () => {
+  const loadInvites = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { setInvites([]); setLoading(false); return }
     const { data } = await supabase
@@ -23,12 +23,12 @@ export function usePendingInvites() {
     setLoading(false)
   }, [session])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { loadInvites() }, [loadInvites])
 
   const invite = useCallback(async (record) => {
     if (!session?.access_token) return { ok: false, message: 'Não autenticado' }
     const FNURL = `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/invite-user`
-    const res = await fetch(FNURL, {
+    const res = await window.fetch(FNURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -39,10 +39,9 @@ export function usePendingInvites() {
     })
     const json = await res.json()
     if (!res.ok) return { ok: false, message: json.error || 'Erro ao enviar convite' }
-    // Recarrega lista para pegar o registro recém-inserido pela Edge Function
-    await fetch()
+    await loadInvites()
     return { ok: true }
-  }, [session, fetch])
+  }, [session, loadInvites])
 
   const remove = useCallback(async (id) => {
     const { error } = await supabase.from('pending_invites').delete().eq('id', id)
@@ -51,5 +50,5 @@ export function usePendingInvites() {
     return { ok: true }
   }, [])
 
-  return { invites, loading, invite, remove, reload: fetch }
+  return { invites, loading, invite, remove, reload: loadInvites }
 }

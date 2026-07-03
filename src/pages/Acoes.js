@@ -5,7 +5,7 @@ import { useActions } from '../hooks/useActions'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useBranches } from '../hooks/useBranches'
 import { useParceiros } from '../hooks/useParceiros'
-import { STORAGE_KEY as TIPOS_KEY } from './settings/TiposAcao'
+import { useTiposAcao } from '../hooks/useTiposAcao'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -23,7 +23,7 @@ function fmtPeriodo(inicio, fim) {
 }
 function novoId(lista) { return Math.max(0, ...lista.map(a => a.id)) + 1 }
 function listToMap(lista) {
-  return Object.fromEntries(lista.map(t => [t.key || t.id, t]))
+  return Object.fromEntries(lista.map(t => [t.slug || t.key || t.id, t]))
 }
 function initials(nome) {
   return (nome || '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
@@ -223,10 +223,10 @@ export default function Acoes() {
   const { parceiros: franquiasCad } = useParceiros()
   const { branches }   = useBranches()
   const [usuariosCad]  = useLocalState('settings:perfis_v2', [])
-  const [tiposLista]   = useLocalState(TIPOS_KEY, [])
+  const { tipos: tiposLista } = useTiposAcao()
   const tiposMap = useMemo(() => {
     const base = tiposLista.length ? tiposLista : Object.entries(TIPOS_ACAO_DEFAULT).map(([k, v]) => ({ ...v, slug: k, uso: 'acao' }))
-    const filtrados = base.filter(t => !t.uso || t.uso === 'acao' || t.uso === 'ambos')
+    const filtrados = base.filter(t => t.ativo !== false && (!t.uso || t.uso === 'acao' || t.uso === 'ambos'))
     return filtrados.length ? listToMap(filtrados) : TIPOS_ACAO_DEFAULT
   }, [tiposLista])
 

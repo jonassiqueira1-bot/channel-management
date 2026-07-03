@@ -86,7 +86,7 @@ function RowMenu({ actions, row }) {
               onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
             >
               {a.icon && <span style={{ flexShrink:0 }}>{a.icon}</span>}
-              {a.label}
+              {typeof a.label === 'function' ? a.label(row) : a.label}
             </button>
           ))}
         </div>
@@ -294,6 +294,7 @@ export default function SettingsLayout({
   bulkEditFields,
   onBulkEdit,
   bulkActions   = [],
+  headerExtra,
 }) {
   const [localSearch, setLocalSearch] = useState(search)
   const debounced = useDebounce(localSearch, 250)
@@ -403,6 +404,7 @@ export default function SettingsLayout({
               <SortDropdown options={resolvedSortOptions} sort={effectiveSort} onChange={effectiveChange} />
             )}
             <div style={{ flex:1 }} />
+            {headerExtra}
             <GlobalMenu onExportCsv={onExportCsv} onExportExcel={onExportExcel} onImport={onImport} />
             {onNew && (
               <button type="button" onClick={onNew}

@@ -4022,7 +4022,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         {label}
       </span>
     )
-    const dataAbertura = initial.criado || initial.created_at
+    const dataAbertura = initial?.criado || initial?.created_at
     const dataFmt = dataAbertura
       ? new Date(dataAbertura).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' })
       : null

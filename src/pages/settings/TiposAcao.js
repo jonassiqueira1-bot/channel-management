@@ -240,9 +240,13 @@ export default function SettingsTiposAcao() {
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
   const [busca, setBusca] = useState('')
+  const [mostrarInativos, setMostrarInativos] = useState(false)
   const [importModal, setImportModal] = useState(false)
 
-  const filtered = tipos.filter(t => !busca || t.label.toLowerCase().includes(busca.toLowerCase()))
+  const filtered = tipos.filter(t =>
+    (mostrarInativos || t.ativo !== false) &&
+    (!busca || t.label.toLowerCase().includes(busca.toLowerCase()))
+  )
 
   function handleImport(rows) { rows.forEach(r => saveTipo(r)) }
 
@@ -264,9 +268,15 @@ export default function SettingsTiposAcao() {
     downloadText(`${header}\n${body}`, 'tipos_acao.xls', 'application/vnd.ms-excel')
   }
 
+  async function handleToggleAtivo(tipo) {
+    const updated = { ...tipo, ativo: tipo.ativo === false }
+    await saveTipo(updated)
+    log('editar', 'tipo_acao', tipo.id, { descricao: `Tipo de ação ${updated.ativo ? 'ativado' : 'desativado'}: ${tipo.label}` })
+  }
+
   function abrirNovo() {
     const p = PALETTE[0]
-    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text, uso: 'acao' })
+    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text, uso: 'acao', ativo: true })
     setEditando('novo')
   }
 
@@ -334,6 +344,31 @@ export default function SettingsTiposAcao() {
           </FPEField>
         </FPESection>
 
+        <FPESection title="Status">
+          <FPEField label="Situação">
+            <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+              <button type="button"
+                onClick={() => set('ativo', form.ativo !== false ? false : true)}
+                style={{
+                  display:'inline-flex', alignItems:'center', gap:8,
+                  padding:'7px 16px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
+                  fontSize:12, fontWeight:600, border:'1.5px solid',
+                  borderColor: form.ativo !== false ? '#10B981' : '#EF4444',
+                  background:  form.ativo !== false ? '#D1FAE5' : '#FEE2E2',
+                  color:       form.ativo !== false ? '#065F46' : '#991B1B',
+                  transition:'all 0.15s',
+                }}>
+                {form.ativo !== false ? '✓ Ativo' : '✕ Inativo'}
+              </button>
+              <span style={{ fontSize:12, color:'var(--text-muted)' }}>
+                {form.ativo !== false
+                  ? 'Aparece nos seletores de tipo de ação'
+                  : 'Oculto nos seletores — não pode ser usado em novos registros'}
+              </span>
+            </div>
+          </FPEField>
+        </FPESection>
+
         <FPESection title="Aparência">
           <FPEField label="Ícone">
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -383,6 +418,17 @@ export default function SettingsTiposAcao() {
         columns={[
           { key: 'label', label: 'Tipo', render: (v, row) => <TipoBadge label={row.label} icon={row.icon} bg={row.bg} text={row.text} color={row.color} /> },
           { key: 'uso',   label: 'Usado em', render: val => <UsoBadge uso={val || 'acao'} /> },
+          { key: 'ativo', label: 'Status', render: (val, row) => (
+            <span style={{
+              display:'inline-flex', alignItems:'center', padding:'2px 8px', borderRadius:20,
+              fontSize:11, fontWeight:600,
+              background: val !== false ? '#D1FAE5' : '#FEE2E2',
+              color:      val !== false ? '#065F46' : '#991B1B',
+              border: `1px solid ${val !== false ? '#10B98133' : '#EF444433'}`,
+            }}>
+              {val !== false ? 'Ativo' : 'Inativo'}
+            </span>
+          )},
           { key: 'slug',  label: 'Slug', muted: true, priority: 2 },
         ]}
         data={filtered}
@@ -392,10 +438,20 @@ export default function SettingsTiposAcao() {
         newLabel="+ Novo tipo"
         rowActions={[
           { label: 'Editar',  onClick: abrirEdicao },
+          { label: row => row.ativo !== false ? 'Desativar' : 'Ativar', onClick: handleToggleAtivo },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
         search={busca}
         onSearchChange={setBusca}
+        headerExtra={
+          <button type="button" onClick={() => setMostrarInativos(v => !v)}
+            style={{ fontSize:12, padding:'6px 12px', borderRadius:8, cursor:'pointer',
+              border:`1px solid ${mostrarInativos ? 'var(--accent)' : 'var(--border)'}`,
+              background: mostrarInativos ? 'var(--accent-glow)' : 'var(--surface2)',
+              color: mostrarInativos ? 'var(--accent)' : 'var(--text-muted)', fontWeight:600 }}>
+            {mostrarInativos ? 'Ocultar inativos' : 'Mostrar inativos'}
+          </button>
+        }
         onImport={() => setImportModal(true)}
         onExportCsv={exportCSV}
         onExportExcel={exportExcel}
