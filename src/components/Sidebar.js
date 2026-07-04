@@ -3,13 +3,14 @@ import logoBoostly from '../assets/logo-boostly.svg'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLocalState } from '../hooks/useLocalState'
+import { useBranchContext } from '../contexts/BranchContext'
 import AlertsInbox from './AlertsInbox'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
-  Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw,
+  Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw, GitBranch,
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -50,6 +51,99 @@ const ICON_SIZE = 15
 
 let _gid = 0
 function newGroupId() { return `grp_${Date.now()}_${++_gid}` }
+
+function BranchSelector({ collapsed }) {
+  const { branches, activeBranch, setActiveBranch } = useBranchContext()
+  const [open, setOpen] = useState(false)
+
+  if (branches.length === 0) return null
+
+  const label = activeBranch?.name || 'Todas as filiais'
+
+  if (collapsed) {
+    return (
+      <div style={{ position: 'relative', margin: '1px 6px' }}>
+        <button
+          title={label}
+          onClick={() => setOpen(v => !v)}
+          style={{
+            width: '100%', height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            background: 'none', border: 'none', cursor: 'pointer', borderRadius: 7,
+            color: activeBranch ? 'var(--accent-mid, #7aadee)' : 'var(--sb-muted)',
+          }}>
+          <GitBranch size={15} />
+        </button>
+        {open && (
+          <div style={{
+            position: 'absolute', bottom: '100%', left: '100%', marginLeft: 6, zIndex: 400,
+            background: 'var(--sb-bg)', border: '1px solid var(--sb-border)', borderRadius: 8,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.3)', minWidth: 180, overflow: 'hidden',
+          }}>
+            <DropdownItems branches={branches} activeBranch={activeBranch} setActiveBranch={setActiveBranch} onClose={() => setOpen(false)} />
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ position: 'relative', margin: '1px 8px' }}>
+      <button
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+          padding: '7px 10px', borderRadius: 7, border: '1px solid var(--sb-border)',
+          background: activeBranch ? 'rgba(79,142,247,0.1)' : 'rgba(255,255,255,0.04)',
+          cursor: 'pointer', fontFamily: 'var(--font)',
+        }}>
+        <GitBranch size={13} color={activeBranch ? 'var(--accent-mid, #7aadee)' : 'var(--sb-muted)'} />
+        <span style={{
+          flex: 1, textAlign: 'left', fontSize: 12, fontWeight: 500,
+          color: activeBranch ? '#e2eeff' : 'var(--sb-muted)',
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {label}
+        </span>
+        <ChevronDown size={11} color="var(--sb-muted)" style={{ flexShrink: 0, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 400,
+          background: 'var(--sb-bg)', border: '1px solid var(--sb-border)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden',
+        }}>
+          <DropdownItems branches={branches} activeBranch={activeBranch} setActiveBranch={setActiveBranch} onClose={() => setOpen(false)} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+function DropdownItems({ branches, activeBranch, setActiveBranch, onClose }) {
+  function pick(id) { setActiveBranch(id); onClose() }
+  const itemStyle = (active) => ({
+    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
+    padding: '9px 12px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
+    background: active ? 'rgba(79,142,247,0.15)' : 'none',
+    color: active ? '#e2eeff' : 'var(--sb-muted)',
+    fontSize: 12, fontWeight: active ? 600 : 400, textAlign: 'left',
+  })
+  return (
+    <>
+      <button style={itemStyle(!activeBranch)} onClick={() => pick(null)}>
+        <GitBranch size={12} />
+        Todas as filiais
+      </button>
+      {branches.map(b => (
+        <button key={b.id} style={itemStyle(activeBranch?.id === b.id)} onClick={() => pick(b.id)}>
+          <GitBranch size={12} />
+          {b.name}
+        </button>
+      ))}
+    </>
+  )
+}
 
 export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const [groups, setGroups]         = useLocalState('sidebar:groups_v8', INITIAL_GROUPS)
@@ -374,8 +468,9 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         )}
       </nav>
 
-      {/* ── Bottom: Pendências + Configurações + Recolher + Sair ── */}
+      {/* ── Bottom: Filial + Pendências + Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
+        <BranchSelector collapsed={collapsed} />
         <AlertsInbox collapsed={collapsed} />
         <NavLink
           to="/settings"

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
+import { BranchProvider } from './contexts/BranchContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
 import Login from './pages/Login'
@@ -58,7 +59,9 @@ export default function App() {
           <Route
             element={
               <ProtectedRoute>
-                <AppLayout />
+                <BranchProvider>
+                  <AppLayout />
+                </BranchProvider>
               </ProtectedRoute>
             }
           >
