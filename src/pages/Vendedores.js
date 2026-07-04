@@ -189,7 +189,9 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
   function handleSave() {
     const e = {}
     if (!form.nome.trim()) e.nome = 'Nome é obrigatório'
-    if (form.email?.trim()) {
+    if (!form.email?.trim()) {
+      e.email = 'E-mail é obrigatório'
+    } else {
       const emailLow = form.email.trim().toLowerCase()
       const dup = todos.find(s => s.id !== initial?.id && s.email?.toLowerCase() === emailLow)
       if (dup) e.email = `E-mail já cadastrado: ${dup.nome}`
@@ -228,7 +230,7 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
             style={{ borderColor: errs.nome ? '#DC2626' : '' }} />
         </FormField>
 
-        <FormField label="E-mail" error={errs.email}>
+        <FormField label="E-mail" required error={errs.email}>
           <input className="so-field" type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@empresa.com"
             style={{ borderColor: errs.email ? '#DC2626' : '' }} />
         </FormField>
