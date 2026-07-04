@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useLocalState } from '../hooks/useLocalState'
 import { FileText, CheckCircle2, Clock, Link } from 'lucide-react'
 import { CATEGORIA_CFG, STATUS_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
@@ -271,8 +272,8 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Documentos() {
   const { docs, save: saveDoc, remove: deleteDoc, uploadFile, removeFile } = useDocuments()
-  const [search, setSearch] = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch] = useLocalState('browse:documentos_browse:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:documentos_browse:filters', {})
   const [drawer, setDrawer] = useState(null) // null | 'novo' | doc object
 
   function validadeStyle(prazo_validade) {

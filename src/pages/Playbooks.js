@@ -1199,8 +1199,8 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
 
 // ─── List View ────────────────────────────────────────────────────────────────
 function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew, onBulkEditPb }) {
-  const [search, setSearch]               = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch]               = useLocalState('browse:playbooks:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:playbooks:filters', {})
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
