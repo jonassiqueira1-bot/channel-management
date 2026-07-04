@@ -1319,23 +1319,17 @@ export default function Metas() {
 
       {/* ── Top bar ── */}
       <div style={s.topBar}>
-        {/* Esquerda: título + toggle KPIs */}
+        {/* Esquerda: toggle KPIs */}
         <div>
-          <div style={s.breadcrumb}>
-            Comercial <span style={{ margin:'0 5px', opacity:.4 }}>›</span> Metas
-          </div>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <h1 style={s.title}>Metas Comerciais</h1>
-            <button
-              onClick={() => setShowKpis(v => !v)}
-              title={showKpis ? 'Ocultar indicadores' : 'Exibir indicadores'}
-              style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                width:28, height:28, borderRadius:7, border:'1px solid var(--border)',
-                background:'var(--surface)', color:'var(--text-muted)',
-                cursor:'pointer', flexShrink:0, marginTop:2 }}>
-              {showKpis ? <ChevronDown size={14} /> : <ChevronDown size={14} style={{ transform:'rotate(-90deg)' }} />}
-            </button>
-          </div>
+          <button
+            onClick={() => setShowKpis(v => !v)}
+            title={showKpis ? 'Ocultar indicadores' : 'Exibir indicadores'}
+            style={{ display:'flex', alignItems:'center', justifyContent:'center',
+              width:28, height:28, borderRadius:7, border:'1px solid var(--border)',
+              background:'var(--surface)', color:'var(--text-muted)',
+              cursor:'pointer', flexShrink:0 }}>
+            {showKpis ? <ChevronDown size={14} /> : <ChevronDown size={14} style={{ transform:'rotate(-90deg)' }} />}
+          </button>
         </div>
 
         {/* Direita: filtros + CTA */}

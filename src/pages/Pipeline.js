@@ -5912,15 +5912,6 @@ export default function Pipeline() {
   return (
     <div style={{ ...p.page, ...(view==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
 
-      {/* ── Page header ── */}
-      <PageHeader
-        breadcrumb={['Comercial', 'Pipeline']}
-        title={null}
-        showKpis={showMetrics}
-        onToggleKpis={() => setShowMetrics(v => !v)}
-        kpisLabel="métricas"
-        actions={<Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>+ Nova oportunidade</Button>}
-      />
 
       {/* ── KPIs retráteis ── */}
       <div style={{
@@ -6027,6 +6018,9 @@ export default function Pipeline() {
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
             </button>
           </div>
+
+          {/* Nova oportunidade */}
+          <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>Nova oportunidade</Button>
 
           {/* ⋯ Menu de ações */}
           <div ref={acoesRef} style={{ position:'relative' }}>

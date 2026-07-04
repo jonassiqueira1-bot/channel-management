@@ -561,15 +561,7 @@ function BrowseView({ relatorios, onOpen, onNew, onDelete, onFromTemplate }) {
   return (
     <div style={{ padding:'32px 36px', maxWidth:1100, margin:'0 auto' }}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:16, marginBottom:28 }}>
-        <div style={{ width:44, height:44, borderRadius:12, background:'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-          <BarChart2 size={22} style={{ color:'var(--accent)' }}/>
-        </div>
-        <div>
-          <div style={{ fontSize:22, fontWeight:800, color:'var(--text)' }}>Relatórios</div>
-          <div style={{ fontSize:13, color:'var(--text-muted)', marginTop:2 }}>Analise dados em tempo real de todos os módulos do sistema</div>
-        </div>
-        <div style={{ flex:1 }}/>
+      <div style={{ display:'flex', justifyContent:'flex-end', marginBottom:20 }}>
         <button onClick={onNew}
           style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 20px',
             background:'var(--accent)', color:'#fff', border:'none', borderRadius:9,
