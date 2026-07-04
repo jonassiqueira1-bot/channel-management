@@ -45,9 +45,9 @@ const Z = {
   500:      '#71717A',
   700:      '#3F3F46',
   900:      '#18181B',
-  blue:     '#1E3A5F',
-  blueHov:  '#2E5090',
-  blueLite: 'rgba(30,58,95,0.07)',
+  blue:     'var(--accent)',
+  blueHov:  'var(--accent-dark, #1d4ed8)',
+  blueLite: 'rgba(37,99,235,0.07)',
   blueFocus:'rgba(59,130,246,0.18)',
   blueBc:   '#3B82F6',
   danger:   '#DC2626',
@@ -223,91 +223,21 @@ export default function FullPageEdit({
           </nav>
         )}
 
-        {/* Título + ações top-right */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <h1 style={{
-                  margin: 0, fontSize: 18, fontWeight: 600,
-                  color: Z[900], letterSpacing: '-0.2px', lineHeight: 1.3,
-                }}>
-                  {loading ? <Skeleton w={180} h={18} /> : title}
-                </h1>
-                {badge && !loading && badge}
-              </div>
-              {subtitle && !loading && (
-                <p style={{ margin: '2px 0 0', fontSize: 12, color: Z[400] }}>
-                  {subtitle}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Ações — top right */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {onDelete && (
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={deleting || saving}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  height: 34, padding: '0 12px', borderRadius: 6,
-                  border: `1px solid ${Z[200]}`, background: Z.white,
-                  fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-                  color: Z.danger, cursor: 'pointer',
-                  opacity: deleting || saving ? 0.55 : 1,
-                  transition: 'background 0.15s, border-color 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = Z.dangerBg; e.currentTarget.style.borderColor = Z.danger }}
-                onMouseLeave={e => { e.currentTarget.style.background = Z.white; e.currentTarget.style.borderColor = Z[200] }}
-              >
-                {deleting
-                  ? <Loader2 size={13} style={{ animation: 'fpe-spin .8s linear infinite' }} />
-                  : <Trash2 size={13} />}
-                {deleteLabel}
-              </button>
-            )}
-
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={saving}
-              style={{
-                height: 34, padding: '0 14px', borderRadius: 6,
-                border: `1px solid ${Z[200]}`, background: Z.white,
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
-                color: Z[700], cursor: 'pointer',
-                opacity: saving ? 0.55 : 1,
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = Z[50]}
-              onMouseLeave={e => e.currentTarget.style.background = Z.white}
-            >
-              {cancelLabel}
-            </button>
-
-            <button
-              type="button"
-              onClick={onSave}
-              disabled={saving || deleting}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 7,
-                height: 34, padding: '0 18px', borderRadius: 6,
-                border: 'none', background: Z.blue, color: Z.white,
-                fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
-                cursor: 'pointer',
-                opacity: saving || deleting ? 0.65 : 1,
-                transition: 'background 0.15s',
-              }}
-              onMouseEnter={e => { if (!saving && !deleting) e.currentTarget.style.background = Z.blueHov }}
-              onMouseLeave={e => e.currentTarget.style.background = Z.blue}
-            >
-              {saving && <Loader2 size={13} style={{ animation: 'fpe-spin .8s linear infinite' }} />}
-              {saveLabel}
-            </button>
-          </div>
+        {/* Título */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <h1 style={{
+            margin: 0, fontSize: 18, fontWeight: 600,
+            color: Z[900], letterSpacing: '-0.2px', lineHeight: 1.3,
+          }}>
+            {loading ? <Skeleton w={180} h={18} /> : title}
+          </h1>
+          {badge && !loading && badge}
         </div>
+        {subtitle && !loading && (
+          <p style={{ margin: '2px 0 0', fontSize: 12, color: Z[400] }}>
+            {subtitle}
+          </p>
+        )}
       </div>
 
       {/* ── Body scrollável ────────────────────────────────────────────────── */}
@@ -377,6 +307,83 @@ export default function FullPageEdit({
               {aside}
             </div>
           )}
+        </div>
+      </div>
+
+      {/* ── Rodapé fixo — Excluir | Cancelar + Salvar ──────────────────────── */}
+      <div style={{
+        flexShrink: 0,
+        background: Z.white,
+        borderTop: `1px solid ${Z[200]}`,
+        padding: '12px 32px',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      }}>
+        {/* Esquerda — Excluir */}
+        <div>
+          {onDelete && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting || saving}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                height: 34, padding: '0 14px', borderRadius: 6,
+                border: '1px solid #FCA5A5', background: '#FFF5F5',
+                fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+                color: Z.danger, cursor: 'pointer',
+                opacity: deleting || saving ? 0.55 : 1,
+                transition: 'background 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = Z.dangerBg; e.currentTarget.style.borderColor = Z.danger }}
+              onMouseLeave={e => { e.currentTarget.style.background = '#FFF5F5'; e.currentTarget.style.borderColor = '#FCA5A5' }}
+            >
+              {deleting
+                ? <Loader2 size={13} style={{ animation: 'fpe-spin .8s linear infinite' }} />
+                : <Trash2 size={13} />}
+              {deleteLabel}
+            </button>
+          )}
+        </div>
+
+        {/* Direita — Cancelar + Salvar */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            style={{
+              height: 34, padding: '0 16px', borderRadius: 6,
+              border: `1px solid ${Z[200]}`, background: Z.white,
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 500,
+              color: Z[700], cursor: 'pointer',
+              opacity: saving ? 0.55 : 1,
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = Z[50]}
+            onMouseLeave={e => e.currentTarget.style.background = Z.white}
+          >
+            {cancelLabel}
+          </button>
+
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={saving || deleting}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              height: 34, padding: '0 18px', borderRadius: 6,
+              border: 'none', background: Z.blue, color: '#fff',
+              fontFamily: 'inherit', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer',
+              opacity: saving || deleting ? 0.65 : 1,
+              transition: 'background 0.15s',
+              boxShadow: '0 1px 4px rgba(37,99,235,0.30)',
+            }}
+            onMouseEnter={e => { if (!saving && !deleting) e.currentTarget.style.background = Z.blueHov }}
+            onMouseLeave={e => e.currentTarget.style.background = Z.blue}
+          >
+            {saving && <Loader2 size={13} style={{ animation: 'fpe-spin .8s linear infinite' }} />}
+            {saveLabel}
+          </button>
         </div>
       </div>
 
