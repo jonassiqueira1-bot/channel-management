@@ -14,7 +14,7 @@ import {
 } from '@dnd-kit/core'
 import {
   Lock, Plus, X, Pencil, GripVertical, ChevronUp,
-  ChevronDown, Trash2, Check, Eye, EyeOff, Search,
+  ChevronDown, Trash2, Check, Search,
   Type, AlignLeft, Hash, Calendar, ToggleLeft, List, Link2,
 } from 'lucide-react'
 import SettingsLayout from '../../components/ui/SettingsLayout'
@@ -85,147 +85,6 @@ function TipoBadge({ tipo }) {
       background: m.bg, color: m.color, fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
       {t?.label || tipo}
     </span>
-  )
-}
-
-// ─── Preview de campo individual ───────────────────────────────────────────────
-function PreviewField({ field }) {
-  if (!field) return null
-  const { field_type, label, is_required, options } = field
-  const inputBase = {
-    width: '100%', boxSizing: 'border-box', padding: '7px 10px',
-    borderRadius: 7, border: '1px solid var(--border)',
-    background: 'var(--surface2)', color: 'var(--text-muted)',
-    fontSize: 12, fontFamily: 'var(--font)', pointerEvents: 'none',
-  }
-
-  let control
-  if (field_type === 'textarea') {
-    control = (
-      <div style={{ ...inputBase, minHeight: 60, color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
-        Texto longo…
-      </div>
-    )
-  } else if (field_type === 'select') {
-    control = (
-      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
-          {options?.[0] || 'Selecione…'}
-        </span>
-        <span style={{ color: 'var(--border2)', fontSize: 10 }}>▾</span>
-      </div>
-    )
-  } else if (field_type === 'boolean') {
-    control = (
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div style={{ width: 32, height: 18, borderRadius: 9, background: 'var(--border2)', position: 'relative' }}>
-          <div style={{ position: 'absolute', top: 2, left: 2, width: 14, height: 14, borderRadius: '50%', background: '#fff' }} />
-        </div>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Não</span>
-      </div>
-    )
-  } else if (field_type === 'date') {
-    control = (
-      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>dd/mm/aaaa</span>
-        <Calendar size={11} color="var(--border2)" strokeWidth={1.75} />
-      </div>
-    )
-  } else if (field_type === 'number') {
-    control = (
-      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', gap: 6 }}>
-        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>0,00</span>
-      </div>
-    )
-  } else if (field_type === 'lookup') {
-    const target = LOOKUP_TARGETS.find(t => t.id === field.lookup_target)
-    control = (
-      <div style={{ ...inputBase, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <span style={{ color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
-          {target ? `Buscar em ${target.label}…` : 'Selecionar referência…'}
-        </span>
-        <Link2 size={11} color="var(--border2)" strokeWidth={1.75} />
-      </div>
-    )
-  } else {
-    control = (
-      <div style={{ ...inputBase, color: 'var(--border2)', fontSize: 11, fontStyle: 'italic' }}>
-        {label}…
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
-      <label style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-        textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', gap: 3, alignItems: 'center' }}>
-        {label}
-        {is_required && <span style={{ color: 'var(--red)', fontWeight: 900 }}>*</span>}
-      </label>
-      {control}
-    </div>
-  )
-}
-
-// ─── Painel de pré-visualização ────────────────────────────────────────────────
-function PreviewPanel({ sections, fieldById, entityLabel }) {
-  return (
-    <div style={{
-      width: 260, flexShrink: 0, borderLeft: '1px solid var(--border)',
-      background: 'var(--surface)', overflowY: 'auto', display: 'flex', flexDirection: 'column',
-    }}>
-      {/* Header preview */}
-      <div style={{ padding: '14px 18px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 2 }}>
-          Pré-visualização
-        </div>
-        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{entityLabel}</div>
-      </div>
-
-      {/* Conteúdo simulado */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px 18px 32px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-        {sections.length === 0 && (
-          <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 12, marginTop: 40 }}>
-            Nenhuma seção configurada
-          </div>
-        )}
-        {sections.map(sec => (
-          <div key={sec.id} style={{
-            border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden',
-            background: 'var(--surface)',
-          }}>
-            {/* Título da seção */}
-            <div style={{
-              padding: '8px 14px', background: 'var(--surface2)',
-              borderBottom: '1px solid var(--border)',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <div style={{ width: 3, height: 12, borderRadius: 2, background: ACCENT, flexShrink: 0 }} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text)' }}>{sec.label}</span>
-            </div>
-            {/* Campos */}
-            <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {sec.rows.map((row, ri) => {
-                const left  = fieldById[row[0]]
-                const right = fieldById[row[1]]
-                if (!left && !right) return null
-                return (
-                  <div key={ri} style={{ display: 'flex', gap: 10 }}>
-                    {left  ? <PreviewField field={left}  /> : <div style={{ flex: 1 }} />}
-                    {right ? <PreviewField field={right} /> : <div style={{ flex: 1 }} />}
-                  </div>
-                )
-              })}
-              {sec.rows.every(r => !r[0] && !r[1]) && (
-                <div style={{ fontSize: 11, color: 'var(--border2)', fontStyle: 'italic', textAlign: 'center', padding: '8px 0' }}>
-                  Seção vazia
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }
 
@@ -675,7 +534,6 @@ function ConfirmDeleteModal({ onClose, onConfirm }) {
 
 // ─── Editor interno (DnD 3 colunas) ───────────────────────────────────────────
 function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
-  const [showPreview, setShowPreview] = useLocalState('settings:forms_preview', true)
   const [fieldModal,  setFieldModal]  = useState(null)
   const [secModal,    setSecModal]    = useState(null)
   const [confirmDel,  setConfirmDel]  = useState(null)
@@ -830,11 +688,28 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
     const isEdit = data.id && fields.some(f => f.id === data.id)
     if (isEdit) {
       setFields(prev => prev.map(f => f.id === data.id ? { ...f, ...data } : f))
+      // Sync edit to entity-specific store
+      try {
+        const metaKey = `entity_custom_fields:${entity}`
+        const prev = JSON.parse(localStorage.getItem(metaKey) || '[]')
+        const entry = { id: data.id, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false }
+        const next = prev.map(f => f.id === data.id ? entry : f)
+        localStorage.setItem(metaKey, JSON.stringify(next))
+      } catch {}
       log('editar', 'config_campo', data.id, { descricao: `Campo editado: ${data.label} (${entity.label})` })
     } else {
       const newId = `cf_${uid()}`
       const newField = { ...data, id: newId }
       setFields(prev => [...prev, newField])
+      // Sync to entity-specific custom fields store for import/filter consumption
+      try {
+        const metaKey = `entity_custom_fields:${entity}`
+        const prev = JSON.parse(localStorage.getItem(metaKey) || '[]')
+        const exists = prev.findIndex(f => f.id === newId)
+        const entry = { id: newId, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false }
+        const next = exists >= 0 ? prev.map(f => f.id === newId ? entry : f) : [...prev, entry]
+        localStorage.setItem(metaKey, JSON.stringify(next))
+      } catch {}
       if (pendingSlot) {
         updateLayout(secs => setSlotValue(secs, pendingSlot, newId))
       }
@@ -849,6 +724,11 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
     const field = fields.find(f => f.id === id)
     setFields(prev => prev.filter(f => f.id !== id))
     updateLayout(secs => removeFieldFromLayout(secs, id))
+    try {
+      const metaKey = `entity_custom_fields:${entity}`
+      const prev = JSON.parse(localStorage.getItem(metaKey) || '[]')
+      localStorage.setItem(metaKey, JSON.stringify(prev.filter(f => f.id !== id)))
+    } catch {}
     log('excluir', 'config_campo', id, { descricao: `Campo excluído: ${field?.label || id} (${entity.label})` })
     setConfirmDel(null)
   }
@@ -869,12 +749,6 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
             <Check size={13} color="var(--green)" strokeWidth={2.5} /> Salvo
           </span>
         )}
-        <button
-          onClick={() => setShowPreview(v => !v)}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, border:'1px solid var(--border)', background: showPreview ? 'var(--accent-glow)' : 'var(--surface)', color: showPreview ? ACCENT : 'var(--text-muted)', fontSize:12, fontWeight:700, fontFamily:'var(--font)', cursor:'pointer', transition:'all 0.15s' }}>
-          {showPreview ? <EyeOff size={13} strokeWidth={1.75}/> : <Eye size={13} strokeWidth={1.75}/>}
-          {showPreview ? 'Ocultar prévia' : 'Pré-visualizar'}
-        </button>
       </div>
 
       {/* ── Layout 3 colunas ── */}
@@ -977,14 +851,6 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
             </button>
           </div>
 
-          {/* ═══ Coluna 3: Pré-visualização ═══ */}
-          {showPreview && (
-            <PreviewPanel
-              sections={sections}
-              fieldById={fieldById}
-              entityLabel={entityLabel}
-            />
-          )}
         </div>
 
         {/* ── Drag overlay ── */}
@@ -1050,7 +916,7 @@ export default function SettingsForms() {
     return (
       <FullPageEdit
         breadcrumb={[{ label: 'Configuração de Campos', onClick: () => setEditando(null) }]}
-        title={`${ent.emoji} ${ent.label}`}
+        title={ent.label}
         subtitle={`${totalFields} campo${totalFields !== 1 ? 's' : ''} · ${totalSecs} seção${totalSecs !== 1 ? 'ões' : ''} · Auto-salvo`}
         onSave={() => setEditando(null)}
         saveLabel="Concluir"
@@ -1072,11 +938,8 @@ export default function SettingsForms() {
       title="Configuração de Campos"
       description="Configure os campos e layout dos formulários de cada entidade do sistema."
       columns={[
-        { key: 'label', label: 'Entidade', render: (v, row) => (
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <span style={{ fontSize:20 }}>{row.emoji}</span>
-            <span style={{ fontWeight:700, fontSize:13, color:'var(--text)' }}>{v}</span>
-          </div>
+        { key: 'label', label: 'Entidade', render: (v) => (
+          <span style={{ fontWeight:700, fontSize:13, color:'var(--text)' }}>{v}</span>
         )},
         { key: 'id', label: 'Campos', width: 110, render: (v) => {
           const n = fields.filter(f => f.entity === v).length

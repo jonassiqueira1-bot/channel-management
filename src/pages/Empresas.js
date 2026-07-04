@@ -13,6 +13,7 @@ import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH, LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -1062,6 +1063,7 @@ export default function Empresas() {
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
   const { registrar: log } = useAuditLog()
+  const customFields = useEntityCustomFields('companies')
   const [modal, setModal]               = useState(null)
   const [soTab, setSoTab]               = useState('dados')
   const [importModal, setImportModal]   = useState(false)
@@ -1099,7 +1101,8 @@ export default function Empresas() {
   function handleExport() {
     const scope = (search || filterStatus || filterTipo || filterSeg) ? 'filtrados' : 'todos'
     const rows  = filtered
-    const headers = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status','mrr','contratos']
+    const baseExportHeaders = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status','mrr','contratos']
+    const headers = [...baseExportHeaders, ...getEntityCustomFieldKeys('companies')]
     const fileName = `empresas_${new Date().toISOString().slice(0,10)}.csv`
 
     // gravar log com status "gerando"
@@ -1132,7 +1135,8 @@ export default function Empresas() {
   }
 
   function handleDownloadTemplate() {
-    const headers = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status']
+    const baseHeaders = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status']
+    const headers = [...baseHeaders, ...getEntityCustomFieldKeys('companies')]
     const example = [
       'Empresa Exemplo Ltda','Exemplo','11.222.333/0001-44','cliente_final','Tecnologia','6201-5/00','Desenvolvimento de programas de computador','01310-100','Av. Paulista','1000','Sala 5','Bela Vista','São Paulo','SP','contato@exemplo.com','(11) 99999-0000','https://exemplo.com','Inbound','João Silva','negociacao',
     ]

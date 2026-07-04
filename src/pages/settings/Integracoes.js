@@ -546,11 +546,12 @@ const CONTATO_CAMPOS_MAPEAVEIS = [
   { key: 'job_title', label: 'Cargo'         },
 ]
 
-// ─── Métodos de conexão disponíveis ──────────────────────────────────────────
-const METODOS_CONEXAO = [
-  { id: 'webhook', label: 'Webhook', desc: 'Receba eventos em tempo real via HTTP POST', tag: 'Ativo' },
-  { id: 'api_polling', label: 'API Polling', desc: 'Consulta periódica à API do sistema', tag: 'Em breve', disabled: true },
-  { id: 'oauth2', label: 'OAuth 2.0', desc: 'Autenticação segura com fluxo de autorização', tag: 'Em breve', disabled: true },
+// ─── Campos de Contato Canal (vendedor) mapeáveis ────────────────────────────
+const VENDEDOR_CAMPOS_MAPEAVEIS = [
+  { key: 'email',  label: 'E-mail',   required: true,  hint: 'Chave de deduplicação — obrigatório' },
+  { key: 'name',   label: 'Nome',     required: false },
+  { key: 'phone',  label: 'Telefone', required: false },
+  { key: 'region', label: 'Região',   required: false },
 ]
 
 function exportarLogsCSV(logs, nomeIntegracao) {
@@ -595,11 +596,13 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   const [campanhaId, setCampanhaId]   = useState('')
   const [campanhas]                   = useLocalState('settings:campanhas_v1', [])
 
-  // Empresa e Contato
+  // Empresa, Contato e Vendedor
   const [criarEmpresa, setCriarEmpresa]             = useState(true)
   const [criarContato, setCriarContato]             = useState(true)
+  const [criarVendedor, setCriarVendedor]           = useState(false)
   const [mapeamentoEmpresa, setMapeamentoEmpresa]   = useState({})
   const [mapeamentoContato, setMapeamentoContato]   = useState({})
+  const [mapeamentoVendedor, setMapeamentoVendedor] = useState({})
 
   const [payloadLog, setPayloadLog] = useState(null)
 
@@ -624,6 +627,8 @@ function RdStationFullEdit({ provider, onClose, toast }) {
         setCriarContato(data.config?.criar_contato !== false)
         setMapeamentoEmpresa(data.config?.mapeamento_empresa || {})
         setMapeamentoContato(data.config?.mapeamento_contato || {})
+        setCriarVendedor(data.config?.criar_vendedor === true)
+        setMapeamentoVendedor(data.config?.mapeamento_vendedor || {})
       })
   }, [profile?.tenant_id]) // eslint-disable-line
 
@@ -636,7 +641,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
       tenant_id:   profile.tenant_id,
       provider:    provider.id,
       credentials: {},
-      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData, mapeamento, campanha_id: campanhaId, criar_empresa: criarEmpresa, criar_contato: criarContato, mapeamento_empresa: mapeamentoEmpresa, mapeamento_contato: mapeamentoContato },
+      config:      { funil_id: funilId, webhook_token: wToken, nome_integracao: nomeIntegracao, logo_data: logoData, mapeamento, campanha_id: campanhaId, criar_empresa: criarEmpresa, criar_contato: criarContato, mapeamento_empresa: mapeamentoEmpresa, mapeamento_contato: mapeamentoContato, criar_vendedor: criarVendedor, mapeamento_vendedor: mapeamentoVendedor },
       status:      'active',
       updated_at:  new Date().toISOString(),
     }, { onConflict: 'tenant_id,provider' })
@@ -792,36 +797,14 @@ function RdStationFullEdit({ provider, onClose, toast }) {
         </div>
       </div>
 
-      {/* ── Bloco 2: Método e configuração ─────────────────────────────────── */}
+      {/* ── Bloco 2: Webhook e configuração ─────────────────────────────────── */}
       <div style={bloco}>
-        <span style={secLabel}>Método de conexão</span>
-        <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 24, alignItems: 'start' }}>
-          {/* Lista de métodos */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {METODOS_CONEXAO.map(m => (
-              <button key={m.id} onClick={() => !m.disabled && setMetodo(m.id)} disabled={m.disabled}
-                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10,
-                  border: `1.5px solid ${metodo === m.id ? ACCENT : 'var(--border)'}`,
-                  background: metodo === m.id ? 'var(--accent-glow)' : 'var(--surface)',
-                  cursor: m.disabled ? 'not-allowed' : 'pointer', textAlign: 'left', opacity: m.disabled ? 0.5 : 1,
-                  fontFamily: 'var(--font)', transition: 'all 0.15s' }}>
-                <div style={{ width: 14, height: 14, borderRadius: '50%', border: `2px solid ${metodo === m.id ? ACCENT : 'var(--border)'}`, background: metodo === m.id ? ACCENT : 'transparent', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {metodo === m.id && <div style={{ width: 5, height: 5, borderRadius: '50%', background: '#fff' }}/>}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {m.label}
-                    {m.tag && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: metodo === m.id ? ACCENT : 'var(--surface2)', color: metodo === m.id ? '#fff' : 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m.tag}</span>}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{m.desc}</div>
-                </div>
-              </button>
-            ))}
-          </div>
-
-          {/* Configuração do método selecionado */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {metodo === 'webhook' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <span style={secLabel}>Configuração do Webhook</span>
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: 'var(--accent-glow)', color: ACCENT, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 18 }}>HTTP POST</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {true && (
               <>
                 {/* URL do Webhook */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -853,27 +836,37 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                 </div>
 
                 {/* ── Mapeamento de campos ── */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>campo externo → nosso campo</span>
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos — Oportunidade</span>
+                    <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border2)', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>Como funciona o mapeamento?</p>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        Cada integração envia dados em um formato JSON próprio. O mapeamento diz ao Boostly <strong>qual campo do JSON externo</strong> corresponde a <strong>cada campo da oportunidade</strong>.
+                      </p>
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                        Exemplo: se o sistema externo envia <code style={{ fontFamily: 'var(--mono)', background: 'var(--surface)', padding: '1px 5px', borderRadius: 4, fontSize: 11 }}>{"{ \"deal\": { \"name\": \"Proposta ABC\" } }"}</code>,
+                        escreva <code style={{ fontFamily: 'var(--mono)', background: 'var(--surface)', padding: '1px 5px', borderRadius: 4, fontSize: 11 }}>deal.name</code> no campo <em>Título da oportunidade</em>. Use ponto para acessar campos aninhados.
+                      </p>
+                      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Deixe em branco para usar o valor padrão do sistema.</p>
+                    </div>
                   </div>
                   <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                     <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
-                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo na Oportunidade (Boostly)</th>
+                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON do sistema externo</th>
                         </tr>
                       </thead>
                       <tbody>
                         {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: campo.native ? 'var(--surface)' : 'transparent' }}>
-                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap', width: '42%' }}>
+                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 {campo.label}
                                 {campo.native && (
-                                  <span title="Campo nativo — não pode ser removido" style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--accent-glow)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>nativo</span>
+                                  <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--accent-glow)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>nativo</span>
                                 )}
                               </div>
                             </td>
@@ -881,7 +874,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                               <input
                                 value={mapeamento[campo.key] || ''}
                                 onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
-                                placeholder={campo.key}
+                                placeholder={`ex: ${campo.key.replace(/_/g, '.')}`}
                                 style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
                               />
                             </td>
@@ -890,9 +883,6 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                       </tbody>
                     </table>
                   </div>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    Use ponto para aninhados: <code style={{ background: 'var(--surface2)', padding: '1px 3px', borderRadius: 3 }}>lead.name</code>. Vazio = valor padrão.
-                  </span>
                 </div>
 
                 {/* ── Campanha associada ── */}
@@ -968,19 +958,19 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                         <thead>
                           <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato (Boostly)</th>
+                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
                           </tr>
                         </thead>
                         <tbody>
                           {CONTATO_CAMPOS_MAPEAVEIS.map((campo, i) => (
                             <tr key={campo.key} style={{ borderBottom: i < CONTATO_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
-                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', width: '42%' }}>{campo.label}</td>
+                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{campo.label}</td>
                               <td style={{ padding: '3px 6px' }}>
                                 <input
                                   value={mapeamentoContato[campo.key] || ''}
                                   onChange={e => setMapeamentoContato(m => ({ ...m, [campo.key]: e.target.value }))}
-                                  placeholder={campo.key}
+                                  placeholder={`ex: contact.${campo.key}`}
                                   style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
                                 />
                               </td>
@@ -989,6 +979,61 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                         </tbody>
                       </table>
                     </div>
+                  )}
+                </div>
+
+                {/* ── Criar Contato Canal (Vendedor) ── */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div>
+                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Contato Canal</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cria ou atualiza um vendedor/canal em <strong>Contatos Canais</strong> — e-mail é obrigatório e usado para evitar duplicatas</div>
+                    </div>
+                    <button onClick={() => setCriarVendedor(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                      {criarVendedor
+                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
+                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                    </button>
+                  </div>
+                  {criarVendedor && (
+                    <>
+                      <div style={{ padding: '8px 12px', borderRadius: 8, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 11, color: '#1D4ED8', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                        <Info size={13} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }}/>
+                        <span><strong>Deduplicação por e-mail:</strong> se já existir um Contato Canal com o mesmo e-mail, os dados serão atualizados em vez de criar um novo registro. O campo e-mail é obrigatório para que isso funcione.</span>
+                      </div>
+                      <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                              <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato Canal (Boostly)</th>
+                              <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {VENDEDOR_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                              <tr key={campo.key} style={{ borderBottom: i < VENDEDOR_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: campo.required ? 'color-mix(in srgb, var(--accent) 4%, transparent)' : 'transparent' }}>
+                                <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                    {campo.label}
+                                    {campo.required && <span style={{ color: 'var(--red)', fontWeight: 900, fontSize: 13 }}>*</span>}
+                                    {campo.hint && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>({campo.hint})</span>}
+                                  </div>
+                                </td>
+                                <td style={{ padding: '3px 6px' }}>
+                                  <input
+                                    value={mapeamentoVendedor[campo.key] || ''}
+                                    onChange={e => setMapeamentoVendedor(m => ({ ...m, [campo.key]: e.target.value }))}
+                                    placeholder={`ex: lead.${campo.key}`}
+                                    style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: `1px solid ${campo.required ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
+                                  />
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>* Campo obrigatório para deduplicação</span>
+                    </>
                   )}
                 </div>
 
@@ -1034,7 +1079,6 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                 </div>
               </>
             )}
-          </div>
         </div>
       </div>
 
