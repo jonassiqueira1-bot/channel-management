@@ -21,25 +21,16 @@ BEGIN
 
   -- Verifica se há dados vinculados a esta filial nas principais tabelas
   SELECT COUNT(*) INTO v_count FROM (
-    SELECT 1 FROM public.oportunidades      WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.companies          WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.contacts           WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.tarefas            WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.acoes              WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.projects           WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.contracts          WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.commission_rules   WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.customer_health    WHERE branch_id = p_id LIMIT 1
-    UNION ALL
-    SELECT 1 FROM public.playbooks          WHERE branch_id = p_id LIMIT 1
+    (SELECT 1 FROM public.oportunidades    WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.companies        WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.contacts         WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.tarefas          WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.acoes            WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.projects         WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.contracts        WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.commission_rules WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.customer_health  WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.playbooks        WHERE branch_id = p_id LIMIT 1)
   ) sub;
 
   IF v_count > 0 THEN
