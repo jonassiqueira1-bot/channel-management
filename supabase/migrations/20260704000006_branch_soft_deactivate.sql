@@ -24,7 +24,7 @@ BEGIN
     (SELECT 1 FROM public.oportunidades    WHERE branch_id = p_id LIMIT 1) UNION ALL
     (SELECT 1 FROM public.companies        WHERE branch_id = p_id LIMIT 1) UNION ALL
     (SELECT 1 FROM public.contacts         WHERE branch_id = p_id LIMIT 1) UNION ALL
-    (SELECT 1 FROM public.tarefas          WHERE branch_id = p_id LIMIT 1) UNION ALL
+    (SELECT 1 FROM public.tasks            WHERE branch_id = p_id LIMIT 1) UNION ALL
     (SELECT 1 FROM public.acoes            WHERE branch_id = p_id LIMIT 1) UNION ALL
     (SELECT 1 FROM public.projects         WHERE branch_id = p_id LIMIT 1) UNION ALL
     (SELECT 1 FROM public.contracts        WHERE branch_id = p_id LIMIT 1) UNION ALL
