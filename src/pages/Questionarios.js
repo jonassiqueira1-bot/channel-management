@@ -3,6 +3,8 @@ import { ClipboardList, CheckCircle2, MessageSquare, ThumbsUp } from 'lucide-rea
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
+import { useCompanies } from '../hooks/useCompanies'
+import SearchSelect from '../components/SearchSelect'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
@@ -110,7 +112,7 @@ function RespostaModal({ submission, template, onClose }) {
                       {p.label}
                       {p.obrigatorio && <span style={{ color: 'var(--red)' }}>*</span>}
                     </div>
-                    {renderValor(p, submission.valores_respostas?.[p.id])}
+                    {renderValor(p, (submission.respostas || submission.valores_respostas || {})[p.id])}
                   </div>
                 ))}
               </div>
@@ -356,22 +358,25 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
 // ─── Aba: Respostas Recebidas ─────────────────────────────────────────────────
 function RespostasTab({ template, submissions, onSaveSubmission }) {
   const [selected,      setSelected]      = useState(null)
-  const [novaEmpresa,   setNovaEmpresa]   = useState('')
+  const [novaEmpresaId, setNovaEmpresaId] = useState(null)
+  const [novaEmpresaNome, setNovaEmpresaNome] = useState('')
   const [showNovaForm,  setShowNovaForm]  = useState(false)
+  const { companies } = useCompanies()
 
   const lista = submissions.filter(s => s.template_id === template.id)
-    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
 
   function criarSubmission() {
-    if (!novaEmpresa.trim()) return
+    if (!novaEmpresaNome.trim()) return
     const now = new Date().toISOString()
     onSaveSubmission({
       id: novoSubId(), tenant_id: 't1', template_id: template.id,
-      company_nome: novaEmpresa.trim(), status: 'rascunho',
-      answered_by_nome: 'Você', valores_respostas: {},
+      company_id: novaEmpresaId || null,
+      company_nome: novaEmpresaNome.trim(), status: 'rascunho',
+      respondente_nome: 'Você', respostas: {},
       created_at: now, submitted_at: null,
     })
-    setNovaEmpresa(''); setShowNovaForm(false)
+    setNovaEmpresaId(null); setNovaEmpresaNome(''); setShowNovaForm(false)
   }
 
   return (
@@ -391,10 +396,18 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
       {showNovaForm && (
         <div style={{ display: 'flex', gap: 8, padding: '12px 14px', background: 'var(--surface2)',
           borderRadius: 8, border: '1px solid var(--border)' }}>
-          <input className="so-field" style={{ flex: 1 }} value={novaEmpresa} autoFocus
-            placeholder="Nome da empresa / franquia"
-            onChange={e => setNovaEmpresa(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') criarSubmission() }} />
+          <div style={{ flex: 1 }}>
+            <SearchSelect
+              options={companies.map(c => ({ id: c.id, label: c.fantasia || c.razao, sublabel: c.cnpj || '' }))}
+              value={novaEmpresaId || null}
+              placeholder="Buscar empresa cadastrada…"
+              onChange={(id) => {
+                const emp = companies.find(c => c.id === id)
+                setNovaEmpresaId(id || null)
+                setNovaEmpresaNome(emp ? (emp.fantasia || emp.razao) : '')
+              }}
+            />
+          </div>
           <button onClick={criarSubmission}
             style={{ padding: '7px 16px', background: 'var(--accent)', color: '#fff', border: 'none',
               borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
