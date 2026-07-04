@@ -221,7 +221,7 @@ export default function SettingsMetas() {
       keyField="id"
       storageKey="settings_metas"
       onNew={() => abrir({ ...EMPTY })}
-      newLabel="+ Nova meta"
+      newLabel="Nova meta"
       onRowClick={abrir}
     />
   )

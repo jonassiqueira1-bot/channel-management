@@ -479,7 +479,8 @@ export default function Equipes() {
         keyField="id"
         emptyLabel="Nenhuma equipe cadastrada ainda."
         onNew={abrirNovo}
-        newLabel="+ Nova equipe"
+        newLabel="Nova equipe"
+        onRowClick={abrirEdicao}
         rowActions={[
           { label: 'Editar',  onClick: abrirEdicao },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },

@@ -652,7 +652,8 @@ export default function Campanhas() {
         ]}
         data={filtered}
         onNew={() => setWizard('new')}
-        newLabel="+ Nova Campanha"
+        newLabel="Nova Campanha"
+        onRowClick={row => setWizard(row)}
         rowActions={[
           { label: 'Editar', onClick: row => setWizard(row) },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },

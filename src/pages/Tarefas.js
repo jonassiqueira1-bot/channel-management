@@ -1126,7 +1126,7 @@ export default function Tarefas() {
         renderCard={row => <TarefaCard tarefa={row} onClick={() => openEdit(row)} />}
         onRowClick={row => openEdit(row)}
         onNew={() => openNew()}
-        newLabel="+ Nova tarefa"
+        newLabel="Nova tarefa"
         onImport={() => setImportModal(true)}
         onExportCsv={() => buildExportCsv(filtered)}
         secondaryActions={viewToggles}

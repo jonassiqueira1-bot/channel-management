@@ -378,7 +378,8 @@ export default function BranchSharing() {
       keyField="id"
       emptyLabel="Nenhuma regra de compartilhamento configurada."
       onNew={abrirNovo}
-      newLabel="+ Nova regra"
+      newLabel="Nova regra"
+      onRowClick={abrirEdicao}
       rowActions={[
         { label: 'Editar',  onClick: abrirEdicao },
         { label: 'Remover', danger: true, onClick: row => handleDelete(row.id) },

@@ -526,7 +526,7 @@ export default function Acoes() {
           activeFilters={activeFilters}
           onFilterChange={setActiveFilters}
           onNew={() => { setEditando(null); setSlideOpen(true) }}
-          newLabel="+ Nova Ação"
+          newLabel="Nova Ação"
           onRowClick={row => { setEditando(row); setSlideOpen(true) }}
           bulkEditFields={[
             { key: 'status', label: 'Status', type: 'select',

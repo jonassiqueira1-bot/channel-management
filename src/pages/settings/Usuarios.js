@@ -1113,7 +1113,8 @@ export default function SettingsUsuarios() {
         data={lista}
         keyField="id"
         onNew={podeCriar ? () => setModalConvite(true) : undefined}
-        newLabel="+ Convidar usuário"
+        newLabel="Convidar usuário"
+        onRowClick={row => !row._invite && setEditando(row)}
         rowActions={[
           { label: 'Editar',           visible: row => !row._invite, onClick: row => setEditando(row) },
           { label: 'Cancelar convite', visible: row => !!row._invite, danger: true, onClick: row => cancelarConvite(row.id) },

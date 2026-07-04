@@ -1338,7 +1338,7 @@ export default function Pagamentos() {
         activeFilters={activeFiltersNorm}
         onFilterChange={handleFilterChange}
         onNew={() => setNovoPagForm({ ...EMPTY_PAG, reference_month: periodoKey(periodo), due_date: periodoKey(periodo) })}
-        newLabel="+ Novo Pagamento"
+        newLabel="Novo Pagamento"
         bulkActions={[
           { label: '✓ Gerar faturas', onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p)) },
           { label: 'Marcar como recebido', onClick: ids => {

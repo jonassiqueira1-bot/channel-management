@@ -435,7 +435,8 @@ export default function SettingsTiposAcao() {
         keyField="id"
         emptyLabel="Nenhum tipo cadastrado."
         onNew={abrirNovo}
-        newLabel="+ Novo tipo"
+        newLabel="Novo tipo"
+        onRowClick={abrirEdicao}
         rowActions={[
           { label: 'Editar',  onClick: abrirEdicao },
           { label: row => row.ativo !== false ? 'Desativar' : 'Ativar', onClick: handleToggleAtivo },

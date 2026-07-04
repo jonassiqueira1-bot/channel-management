@@ -778,7 +778,8 @@ export default function Perfis() {
       keyField="id"
       emptyLabel="Nenhum perfil encontrado."
       onNew={() => { setFormNovo({ nome: '', cor: PALETA[0], desc: '' }); setEditando('novo') }}
-      newLabel="+ Novo perfil"
+      newLabel="Novo perfil"
+      onRowClick={row => setEditando(row)}
       rowActions={[
         { label: 'Editar permissões', onClick: row => setEditando(row) },
         { label: 'Excluir', danger: true, onClick: row => setConfirmDel(row.id), disabled: row => row.nativo },

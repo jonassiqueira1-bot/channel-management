@@ -1684,7 +1684,7 @@ export default function Integracoes() {
         title="Integrações e APIs"
         description="Conecte o canal a ferramentas externas e monitore os eventos em tempo real."
         onNew={() => setAddModal(true)}
-        newLabel="+ Nova integração"
+        newLabel="Nova integração"
         columns={[
           { key: 'name', label: 'Integração', render: (v, row) => (
             <div style={{ display:'flex', alignItems:'center', gap:12 }}>

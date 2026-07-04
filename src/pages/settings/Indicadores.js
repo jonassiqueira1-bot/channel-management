@@ -936,7 +936,7 @@ export default function SettingsIndicadores() {
       keyField="id"
       storageKey="settings_indicadores"
       onNew={() => abrir({ ...EMPTY })}
-      newLabel="+ Novo indicador"
+      newLabel="Novo indicador"
       onRowClick={abrir}
     />
   )

@@ -1213,7 +1213,7 @@ export default function CustomerSuccess() {
         storageKey="cs_browse"
         onRowClick={r => setModal(r)}
         onNew={() => setModal('novo')}
-        newLabel="+ Novo Check-in"
+        newLabel="Novo Check-in"
         onImport={importCSV}
         onExportCsv={exportCSV}
         kpis={kpisComExtras}

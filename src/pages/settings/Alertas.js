@@ -591,7 +591,7 @@ export default function SettingsAlertas() {
           description="Regras automáticas que geram notificações no painel ou criam tarefas."
           columns={COLS} data={filtered} keyField="id"
           loading={loading} search={search} onSearchChange={setSearch}
-          newLabel="+ Nova regra" onNew={() => setEditing(emptyRule())}
+          newLabel="Nova regra" onNew={() => setEditing(emptyRule())}
           emptyLabel="Nenhuma regra de alerta configurada."
           rowActions={[
             { label: 'Editar',  onClick: r => setEditing(r) },

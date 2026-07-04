@@ -242,7 +242,7 @@ export default function MaturidadeParceiros() {
         keyField="id"
         loading={loading}
         onNew={openNew}
-        newLabel="+ Novo parâmetro"
+        newLabel="Novo parâmetro"
         rowActions={rowActions}
         onRowClick={openEdit}
         search={search}

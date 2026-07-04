@@ -1270,7 +1270,7 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew,
       search={search}
       onSearchChange={setSearch}
       onNew={isISV ? onNew : undefined}
-      newLabel="+ Novo Playbook"
+      newLabel="Novo Playbook"
       bulkEditFields={isISV ? [
         { key: 'segment', label: 'Segmento', type: 'select',
           options: SEGMENT_OPTIONS.map(s => ({ value: s, label: s })) },
