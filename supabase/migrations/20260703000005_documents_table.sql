@@ -39,5 +39,8 @@ CREATE TRIGGER trg_documents_updated_at
   BEFORE UPDATE ON documents
   FOR EACH ROW EXECUTE FUNCTION touch_documents_updated_at();
 
+-- Grants
+GRANT SELECT, INSERT, UPDATE, DELETE ON documents TO authenticated, anon, service_role;
+
 -- Notifica PostgREST para recarregar schema
 NOTIFY pgrst, 'reload schema';
