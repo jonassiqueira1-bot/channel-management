@@ -10,15 +10,16 @@ function rowToDoc(row) {
     title:          row.title,
     description:    row.description || '',
     categoria:      row.categoria || cf.categoria || 'outro',
-    status:         row.status || 'rascunho',
-    version:        row.version || 1,
-    content:        row.content || '',
+    status:         row.status || 'ativo',
     owner_id:       row.owner_id || null,
-    opportunity_id: cf.opportunity_id || null,
-    file_url:       cf.file_url   || null,
-    file_name:      cf.file_name  || null,
-    file_size:      cf.file_size  || null,
-    file_path:      cf.file_path  || null,
+    prazo_validade: row.prazo_validade || null,
+    data_revisao:   row.data_revisao || null,
+    perfis_acesso:  row.perfis_acesso || [],
+    link_externo:   row.link_externo || null,
+    file_url:       row.file_url   || cf.file_url   || null,
+    file_name:      row.file_name  || cf.file_name  || null,
+    file_size:      row.file_size  || cf.file_size  || null,
+    file_path:      row.file_path  || cf.file_path  || null,
     criado:         row.created_at?.slice(0, 10) || '',
     atualizado:     row.updated_at?.slice(0, 10) || '',
   }
@@ -26,22 +27,22 @@ function rowToDoc(row) {
 
 function docToRow(d, tenantId, branchId) {
   return {
-    tenant_id:    tenantId,
-    branch_id:    branchId || null,
-    owner_id:     d.owner_id || null,
-    title:        d.title,
-    description:  d.description || null,
-    categoria:    d.categoria || 'outro',
-    status:       d.status || 'rascunho',
-    version:      d.version || 1,
-    content:      d.content || null,
-    custom_fields: {
-      opportunity_id: d.opportunity_id || null,
-      file_url:       d.file_url   || null,
-      file_name:      d.file_name  || null,
-      file_size:      d.file_size  || null,
-      file_path:      d.file_path  || null,
-    },
+    tenant_id:      tenantId,
+    branch_id:      branchId || null,
+    owner_id:       d.owner_id || null,
+    title:          d.title,
+    description:    d.description || null,
+    categoria:      d.categoria || 'outro',
+    status:         d.status || 'ativo',
+    prazo_validade: d.prazo_validade || null,
+    data_revisao:   d.data_revisao || null,
+    perfis_acesso:  d.perfis_acesso || [],
+    link_externo:   d.link_externo || null,
+    file_url:       d.file_url   || null,
+    file_name:      d.file_name  || null,
+    file_size:      d.file_size  || null,
+    file_path:      d.file_path  || null,
+    custom_fields:  {},
   }
 }
 
@@ -62,7 +63,6 @@ export function useDocuments() {
   const { profile } = useProfile()
 
   const [docs, setDocs]   = useState([])
-  const [logs, setLogs]   = useState([])
   const [loading, setLoading] = useState(true)
   const isMockMode        = useRef(false)
 
@@ -72,14 +72,14 @@ export function useDocuments() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const [d, l] = await Promise.all([
-      supabase.from('documents').select('*').order('updated_at', { ascending: false }),
-      supabase.from('document_logs').select('*').order('created_at', { ascending: false }),
-    ])
-    if (d.error || l.error) { isMockMode.current = false; setDocs([]); setLogs([]); setLoading(false); return }
+    const { data, error } = await supabase
+      .from('documents')
+      .select('*')
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+    if (error) { isMockMode.current = false; setDocs([]); setLoading(false); return }
     isMockMode.current = false
-    setDocs((d.data || []).map(rowToDoc))
-    setLogs((l.data || []).map(rowToLog))
+    setDocs((data || []).map(rowToDoc))
     setLoading(false)
   }, [session])
 
@@ -103,20 +103,14 @@ export function useDocuments() {
       savedId = data.id
       setDocs(prev => [...prev, rowToDoc(data)])
     }
-    if (logEvento) {
-      const logRow = { tenant_id: tenantId, document_id: savedId, evento: logEvento, user_id: session?.user?.id || null, user_nome: profile?.nome || '' }
-      const { data: logData } = await supabase.from('document_logs').insert(logRow).select().single()
-      if (logData) setLogs(prev => [rowToLog(logData), ...prev])
-    }
     return { ok: true }
-  }, [tenantId, branchId, session, profile])
+  }, [tenantId, branchId])
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setDocs(prev => prev.filter(d => d.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('documents').delete().eq('id', id)
+    const { error } = await supabase.from('documents').update({ deleted_at: new Date().toISOString() }).eq('id', id)
     if (error) return { ok: false, message: error.message }
     setDocs(prev => prev.filter(d => d.id !== id))
-    setLogs(prev => prev.filter(l => l.document_id !== id))
     return { ok: true }
   }, [])
 
@@ -145,5 +139,5 @@ export function useDocuments() {
     return { ok: true }
   }, [])
 
-  return { docs, logs, loading, reload: load, save, remove, linkToOpp, uploadFile, removeFile, setDocs, setLogs, isMock: isMockMode }
+  return { docs, loading, reload: load, save, remove, uploadFile, removeFile, setDocs, isMock: isMockMode }
 }
