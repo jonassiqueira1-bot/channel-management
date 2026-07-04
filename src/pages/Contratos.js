@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useLocalState } from '../hooks/useLocalState'
 import { useContracts } from '../hooks/useContracts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProducts } from '../hooks/useProducts'
@@ -15,7 +16,6 @@ import ActionFeedback from '../components/ActionFeedback'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
 import { usePlaybooks } from '../hooks/usePlaybooks'
-import { useLocalState } from '../hooks/useLocalState'
 import SearchSelect from '../components/SearchSelect'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -1453,8 +1453,8 @@ export default function Contratos() {
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const { profile } = useProfile()
-  const [search, setSearch]           = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
   const [contratoTab, setContratoTab] = useState('dados')
   const contratoSaveRef = useRef(null)

@@ -980,8 +980,8 @@ const FILTERS = [
 export default function CustomerSuccess() {
   const { records, setRecords, save: saveHealth, remove: removeHealth } = useCustomerHealth()
   const { registrar: log } = useAuditLog()
-  const [search, setSearch]             = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch]             = useLocalState('browse:cs_browse:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:cs_browse:filters', {})
   const [modal, setModal]               = useState(null)  // null | 'novo' | record-obj
 
   // Cadastro de usuários (CSM) e contratos (para relacionamento)

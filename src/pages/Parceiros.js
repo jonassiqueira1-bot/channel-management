@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useLocalState } from '../hooks/useLocalState'
 import { useParceiros } from '../hooks/useParceiros'
 import { useActions } from '../hooks/useActions'
 import { usePartnerMaturity, usePartnerScores, usePartnerHabilitacoes } from '../hooks/usePartnerMaturity'
@@ -7,7 +8,6 @@ import { useSellers } from '../hooks/useSellers'
 import { useCompanies } from '../hooks/useCompanies'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useProjects } from '../hooks/useProjects'
-import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -692,8 +692,8 @@ export default function Parceiros() {
   const [selected, setSelected]     = useState(null)
   const [slideOpen, setSlideOpen]   = useState(false)
   const [history, setHistory]       = useState([])
-  const [search, setSearch]         = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch]         = useLocalState('browse:parceiros:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:parceiros:filters', {})
 
   async function openParceiro(p) {
     setSelected(p)

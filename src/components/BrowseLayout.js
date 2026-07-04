@@ -338,10 +338,18 @@ export default function BrowseLayout({
   }, [])
 
   // ── estado local ─────────────────────────────────────────────────────────
-  const [kpisOpen,   setKpisOpen]   = useState(true)
-  const [view,       setView]       = useState('list')
-  const [sortKey,    setSortKey]    = useState(null)
-  const [sortDir,    setSortDir]    = useState('asc')
+  const [kpisOpen,   setKpisOpen]   = useState(() => {
+    try { const v = localStorage.getItem(storagePrefix + '_kpis'); return v === null ? true : v === 'true' } catch { return true }
+  })
+  const [view,       setView]       = useState(() => {
+    try { return localStorage.getItem(storagePrefix + '_view') || 'list' } catch { return 'list' }
+  })
+  const [sortKey,    setSortKey]    = useState(() => {
+    try { return localStorage.getItem(storagePrefix + '_sk') || null } catch { return null }
+  })
+  const [sortDir,    setSortDir]    = useState(() => {
+    try { return localStorage.getItem(storagePrefix + '_sd') || 'asc' } catch { return 'asc' }
+  })
   const [selected,   setSelected]   = useState(new Set())
   const [page,       setPage]       = useState(1)
   const [pageSize,   setPageSize]   = useState(() => {
@@ -393,6 +401,12 @@ export default function BrowseLayout({
     setOpenId(null)
     try { localStorage.setItem(storagePrefix + '_ps', String(n)) } catch {}
   }, [storagePrefix])
+
+  // ── persiste kpisOpen, view, sortKey, sortDir ───────────────────────────
+  useEffect(() => { try { localStorage.setItem(storagePrefix + '_kpis', String(kpisOpen)) } catch {} }, [storagePrefix, kpisOpen])
+  useEffect(() => { try { localStorage.setItem(storagePrefix + '_view', view) } catch {} }, [storagePrefix, view])
+  useEffect(() => { try { if (sortKey) localStorage.setItem(storagePrefix + '_sk', sortKey) } catch {} }, [storagePrefix, sortKey])
+  useEffect(() => { try { localStorage.setItem(storagePrefix + '_sd', sortDir) } catch {} }, [storagePrefix, sortDir])
 
   // ── sort ─────────────────────────────────────────────────────────────────
   const handleSort = useCallback((key) => {
