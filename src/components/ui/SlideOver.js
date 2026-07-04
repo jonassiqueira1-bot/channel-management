@@ -318,6 +318,8 @@ export default function SlideOver({
                 </button>
               )
             })}
+            {/* espaçador: garante padding-right visível em flex overflow */}
+            <div style={{ flexShrink: 0, width: 16 }} />
           </div>
         )}
 
