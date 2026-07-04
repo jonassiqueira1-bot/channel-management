@@ -28,15 +28,4 @@ RETURNS boolean LANGUAGE sql STABLE SECURITY DEFINER AS $$
     OR rec_branch_id = public.my_branch_id()
     -- Qualquer filial na lista branch_ids do usuário
     OR rec_branch_id = ANY(public.my_branch_ids())
-    -- Visibilidade explícita configurada entre filiais
-    OR EXISTS (
-      SELECT 1 FROM public.branch_table_visibility btv
-      WHERE btv.tenant_id        = public.my_tenant_id()
-        AND btv.source_branch_id = rec_branch_id
-        AND btv.target_branch_id = public.my_branch_id()
-        AND btv.entity_table     = rec_table
-        AND btv.can_view         = true
-    )
-    -- Compartilhamento explícito de registro
-    OR public.has_branch_access(rec_id, rec_table)
 $$;
