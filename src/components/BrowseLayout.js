@@ -25,9 +25,9 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Search, SlidersHorizontal, LayoutList, LayoutGrid,
-  ChevronDown, ChevronUp, MoreHorizontal, Plus,
+  ChevronDown, ChevronUp, MoreHorizontal,
   ChevronsUpDown, ArrowUp, ArrowDown, Check,
-  Columns, GripVertical, PencilLine, X,
+  Columns, GripVertical, PencilLine, X, Filter,
 } from 'lucide-react'
 
 // ── constantes ────────────────────────────────────────────────────────────────
@@ -456,6 +456,9 @@ export default function BrowseLayout({
     return pages
   }
 
+  // ── filter panel ─────────────────────────────────────────────────────────
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+
   // ── bulk edit ────────────────────────────────────────────────────────────
   const [bulkEditOpen,   setBulkEditOpen]   = useState(false)
   const [bulkEdits,      setBulkEdits]      = useState({})   // { key: value }
@@ -576,72 +579,8 @@ export default function BrowseLayout({
           </div>
         ) : (
           <>
-            {/* Centro: Filtros + Colunas */}
+            {/* Centro: Colunas */}
             <div style={s.actionCenter}>
-
-              {/* Filtros */}
-              {filters.length > 0 && (
-                <Dropdown
-                  id="filters"
-                  openId={openId}
-                  setOpenId={setOpenId}
-                  trigger={
-                    <button type="button" style={{
-                      ...s.ghostBtn,
-                      ...(activeFilterCount > 0 ? s.ghostBtnActive : {}),
-                    }}>
-                      <SlidersHorizontal size={13} />
-                      Filtros
-                      {activeFilterCount > 0 && (
-                        <span style={{
-                          fontSize: 10, fontWeight: 700,
-                          background: 'var(--accent)', color: '#fff',
-                          borderRadius: 10, padding: '0 5px',
-                        }}>
-                          {activeFilterCount}
-                        </span>
-                      )}
-                      <ChevronDown size={12} />
-                    </button>
-                  }
-                >
-                  {filters.map((f, fi) => (
-                    <div key={f.key}>
-                      {fi > 0 && <div style={s.dropdownDivider} />}
-                      <div style={s.dropdownLabel}>{f.label}</div>
-                      {f.options.map(opt => {
-                        const vals    = activeFilters[f.key] || []
-                        const checked = vals.includes(opt.value)
-                        return (
-                          <div
-                            key={opt.value}
-                            style={s.dropdownItem}
-                            onClick={e => {
-                              e.stopPropagation()
-                              const next = checked
-                                ? vals.filter(v => v !== opt.value)
-                                : [...vals, opt.value]
-                              onFilterChange?.({ ...activeFilters, [f.key]: next })
-                              setPage(1)
-                            }}
-                          >
-                            <div style={{
-                              width: 15, height: 15, borderRadius: 3,
-                              border: '1.5px solid var(--border)',
-                              background: checked ? 'var(--accent)' : 'var(--surface)',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              flexShrink: 0,
-                            }}>
-                              {checked && <Check size={10} color="#fff" />}
-                            </div>
-                            {opt.label}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ))}
-                </Dropdown>
-              )}
 
               {/* Colunas */}
               <Dropdown
@@ -699,6 +638,30 @@ export default function BrowseLayout({
               {/* Slot de ações secundárias (ex: toggle kanban) */}
               {secondaryActions}
 
+              {/* Botão Filtros — abre painel lateral direito */}
+              {filters.length > 0 && (
+                <button
+                  type="button"
+                  style={{
+                    ...s.ghostBtn,
+                    ...(activeFilterCount > 0 ? s.ghostBtnActive : {}),
+                  }}
+                  onClick={() => setFilterPanelOpen(o => !o)}
+                >
+                  <Filter size={13} />
+                  Filtros
+                  {activeFilterCount > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700,
+                      background: 'var(--accent)', color: '#fff',
+                      borderRadius: 10, padding: '0 5px', marginLeft: 2,
+                    }}>
+                      {activeFilterCount}
+                    </span>
+                  )}
+                </button>
+              )}
+
               {/* View toggle */}
               {renderCard && (
                 <div style={s.viewToggle}>
@@ -743,8 +706,7 @@ export default function BrowseLayout({
               {/* Botão primário */}
               {onNew && (
                 <button type="button" style={s.primaryBtn} onClick={onNew}>
-                  <Plus size={13} />
-                  {isMobile ? '+' : newLabel}
+                  {newLabel}
                 </button>
               )}
             </div>
@@ -764,19 +726,45 @@ export default function BrowseLayout({
         </div>
       ) : view === 'card' && renderCard ? (
         <div style={{ ...s.cardGrid, ...(isMobile ? { gridTemplateColumns: '1fr', padding: '12px' } : {}) }}>
-          {pageRows.map(row => (
-            <div key={row[keyField]} style={{ position: 'relative', cursor: onRowClick ? 'pointer' : 'default' }}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}>
-              <input
-                type="checkbox"
-                checked={selected.has(row[keyField])}
-                onChange={e => { e.stopPropagation(); toggleRow(row[keyField]) }}
-                onClick={e => e.stopPropagation()}
-                style={{ ...s.checkbox, position: 'absolute', top: 10, right: 10, zIndex: 1 }}
-              />
-              {renderCard(row, selected.has(row[keyField]))}
-            </div>
-          ))}
+          {pageRows.map(row => {
+            const sel = selected.has(row[keyField])
+            return (
+              <div
+                key={row[keyField]}
+                style={{
+                  position: 'relative', cursor: 'pointer',
+                  border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
+                  borderRadius: 'var(--radius-lg, 10px)',
+                  background: sel ? 'var(--accent-lite, #EEF2FF)' : 'var(--surface)',
+                  transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
+                  overflow: 'hidden',
+                }}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
+                onMouseEnter={e => {
+                  if (!sel) {
+                    e.currentTarget.style.borderColor = 'var(--accent)'
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.12)'
+                  }
+                }}
+                onMouseLeave={e => {
+                  if (!sel) {
+                    e.currentTarget.style.borderColor = 'var(--border)'
+                    e.currentTarget.style.boxShadow = 'none'
+                  }
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={sel}
+                  onChange={e => { e.stopPropagation(); toggleRow(row[keyField]) }}
+                  onClick={e => e.stopPropagation()}
+                  style={{ ...s.checkbox, position: 'absolute', top: 10, right: 10, zIndex: 1 }}
+                />
+                {renderCard(row, sel)}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <div style={s.tableWrap}>
@@ -821,6 +809,7 @@ export default function BrowseLayout({
                     key={id}
                     style={{ ...s.tr, ...(sel ? s.trSelected : {}), ...(onRowClick ? { cursor: 'pointer' } : {}) }}
                     onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
                     onMouseEnter={e => { if (!sel) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--accent)' } }}
                     onMouseLeave={e => { if (!sel) { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' } }}
                   >
@@ -843,6 +832,141 @@ export default function BrowseLayout({
             </tbody>
           </table>
         </div>
+      )}
+
+      {/* ── Painel de Filtros (lateral direito) ─────────────────────────── */}
+      {filterPanelOpen && filters.length > 0 && createPortal(
+        <>
+          <div
+            onClick={() => setFilterPanelOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 80, background: 'rgba(0,0,0,0.18)' }}
+          />
+          <div style={{
+            position: 'fixed', top: 0, right: 0, bottom: 0,
+            width: 340, zIndex: 81,
+            background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+            boxShadow: '-8px 0 32px rgba(0,0,0,0.10)',
+            display: 'flex', flexDirection: 'column',
+            fontFamily: 'var(--font)',
+          }}>
+            {/* Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 10,
+              padding: '16px 20px', borderBottom: '1px solid var(--border)',
+              borderTop: '3px solid var(--accent)', flexShrink: 0,
+            }}>
+              <Filter size={15} color="var(--accent)" />
+              <span style={{ flex: 1, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>
+                Filtros
+              </span>
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => { onFilterChange?.({}); setPage(1) }}
+                  style={{
+                    fontSize: 11, color: 'var(--accent)', background: 'none',
+                    border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
+                    textDecoration: 'underline', padding: 0,
+                  }}
+                >
+                  Limpar todos
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setFilterPanelOpen(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Filtros */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {filters.map(f => {
+                const vals = activeFilters[f.key] || []
+                return (
+                  <div key={f.key}>
+                    <div style={{
+                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                      letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 8,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    }}>
+                      <span>{f.label}</span>
+                      {vals.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => { onFilterChange?.({ ...activeFilters, [f.key]: [] }); setPage(1) }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 11 }}
+                        >
+                          <X size={11} />
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      {f.options.map(opt => {
+                        const checked = vals.includes(opt.value)
+                        return (
+                          <label
+                            key={opt.value}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 9,
+                              padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
+                              background: checked ? 'var(--accent-lite, #EEF2FF)' : 'transparent',
+                              transition: 'background 0.1s',
+                            }}
+                          >
+                            <div
+                              style={{
+                                width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                                border: `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                                background: checked ? 'var(--accent)' : 'var(--surface)',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}
+                              onClick={e => {
+                                e.preventDefault()
+                                const next = checked ? vals.filter(v => v !== opt.value) : [...vals, opt.value]
+                                onFilterChange?.({ ...activeFilters, [f.key]: next })
+                                setPage(1)
+                              }}
+                            >
+                              {checked && <Check size={10} color="#fff" />}
+                            </div>
+                            <span style={{ fontSize: 13, color: checked ? 'var(--accent)' : 'var(--text)', fontWeight: checked ? 600 : 400 }}>
+                              {opt.label}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '12px 20px', borderTop: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0,
+            }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {activeFilterCount > 0 ? `${activeFilterCount} filtro${activeFilterCount > 1 ? 's' : ''} ativo${activeFilterCount > 1 ? 's' : ''}` : 'Nenhum filtro ativo'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilterPanelOpen(false)}
+                style={{
+                  padding: '6px 16px', borderRadius: 7, border: 'none',
+                  background: 'var(--accent)', color: '#fff',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
+                }}
+              >
+                Aplicar
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
       )}
 
       {/* ── Painel Bulk Edit ────────────────────────────────────────────── */}
