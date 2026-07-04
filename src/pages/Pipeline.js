@@ -4236,13 +4236,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           )}
 
           <div style={m.body}>{dadosFormBody}</div>
-          <div style={m.footer}>
-            <div style={{ flex:1 }}>{extraSlot}</div>
-            <div style={{ display:'flex', gap:10 }}>
-              <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-              <Button onClick={handleSave}>Salvar alterações</Button>
-            </div>
-          </div>
         </div>
       )}
 
@@ -4251,11 +4244,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0 }}>
           <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
             <OppPlaybookTab opp={initial} etapaId={form.etapa_id} etapas={etapas} playbookId={form.playbook_id} onChangePlaybook={v => set('playbook_id', v || null)} />
-          </div>
-          <div style={{ ...m.footer }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -4279,16 +4267,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
             />
             <ValorFinanceiroSection form={form} set={set} />
           </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Fechar</Button>
-            <Button
-              onClick={() => {
-                if (!form.titulo.trim()) { setErrs({ titulo: 'Título é obrigatório' }); setTab('dados'); return }
-                onSave({ ...form, funil_id: form.funil_id || funilId, id:initial?.id||novoId(), criado:initial?.criado||new Date().toISOString().slice(0,10) })
-                onClose()
-              }}>Salvar alterações</Button>
-          </div>
         </div>
       )}
 
@@ -4304,11 +4282,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               onToggleStatus={onToggleStatus}
             />
           </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
-          </div>
         </div>
       )}
 
@@ -4317,11 +4290,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
           <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:16, paddingBottom:16 }}>
             <OppPropostaTab opp={{ ...form, id: initial.id }} />
-          </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -4337,11 +4305,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               empresaId={initial.empresa_id}
             />
           </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
-          </div>
         </div>
       )}
 
@@ -4351,11 +4314,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:4, paddingBottom:16 }}>
             <OppEquipeTab oppId={initial.id} />
           </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
-          </div>
         </div>
       )}
 
@@ -4364,11 +4322,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
           <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:4, paddingBottom:16 }}>
             <OppDocumentosTab oppId={initial.id} />
-          </div>
-          <div style={{ ...m.footer, paddingLeft:0, paddingRight:0 }}>
-            <div style={{ flex:1 }} />
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave}>Salvar alterações</Button>
           </div>
         </div>
       )}
@@ -4386,6 +4339,8 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
         open={true}
         onClose={onClose}
         onSave={handleSave}
+        onDelete={isEditing ? () => { onDelete(initial.id); onClose() } : undefined}
+        deleteConfirm={`Excluir a oportunidade "${form.titulo}"? Esta ação não pode ser desfeita.`}
         title={isEditing ? form.titulo || 'Editar oportunidade' : 'Nova oportunidade'}
         subtitle={isEditing ? form.empresa_nome : 'Oportunidade vinculada ao funil de vendas'}
         headerExtra={headerChips}

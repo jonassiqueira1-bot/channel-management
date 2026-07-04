@@ -230,7 +230,7 @@ const ar = {
 // ─── Modal de cadastro ────────────────────────────────────────────────────────
 const ACCENT = 'var(--accent)'
 
-function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados', csRecord = null }) {
+function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados', csRecord = null, saveRef }) {
   const isNew = !item?.id
   const [form, setForm]             = useState(item || EMPTY_FORM)
   const [perfisStore]               = useLocalState('settings:perfis_v2', [])
@@ -262,6 +262,27 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   }
 
   // csRecord é recebido como prop do componente pai (via useCustomerHealth)
+
+  function handleCreate() {
+    const e = {}
+    if (!form.razao.trim()) e.razao = 'Razão social é obrigatória'
+    const isDraft = form.tipo === 'rascunho'
+    const cnpjRaw = (form.cnpj || '').replace(/\D/g, '')
+    if (!isDraft && !cnpjRaw) e.cnpj = 'CNPJ é obrigatório'
+    if (!isDraft && cnpjRaw && cnpjRaw.length !== 14) e.cnpj = 'CNPJ inválido (deve ter 14 dígitos)'
+    if (!isDraft && cnpjRaw && cnpjRaw.length === 14 && checkDuplicateCNPJ(form.cnpj)) {
+      const dup = empresas.find(d => d.id !== item?.id && (d.cnpj||'').replace(/\D/g,'') === cnpjRaw)
+      e.cnpj = `CNPJ já cadastrado: ${dup?.fantasia || dup?.razao || 'outra empresa'}`
+    }
+    if (cnpjStatus?.type === 'error') e.cnpj = cnpjStatus.msg
+    if (!form.segmento) e.segmento = 'Segmento é obrigatório'
+    if (!form.telefone?.trim() && !form.email?.trim()) e.contato = 'Informe ao menos um telefone ou e-mail'
+    if (!form.cidade?.trim()) e.cidade = 'Cidade é obrigatória'
+    if (Object.keys(e).length) { setErrs(e); return }
+    onSave(form)
+  }
+
+  if (saveRef) saveRef.current = isNew ? handleCreate : null
 
   function checkDuplicateCNPJ(cnpj) {
     const raw = cnpj.replace(/\D/g, '')
@@ -641,27 +662,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
                 {Object.values(errs).filter(Boolean).map((msg, i) => <span key={i}>• {msg}</span>)}
               </div>
             )}
-            <Button onClick={() => {
-              const e = {}
-              // campos obrigatórios standard
-              if (!form.razao.trim()) e.razao = 'Razão social é obrigatória'
-              const isDraft = form.tipo === 'rascunho'
-              const cnpjRaw = (form.cnpj || '').replace(/\D/g, '')
-              if (!isDraft && !cnpjRaw) e.cnpj = 'CNPJ é obrigatório'
-              if (!isDraft && cnpjRaw && cnpjRaw.length !== 14) e.cnpj = 'CNPJ inválido (deve ter 14 dígitos)'
-              if (!isDraft && cnpjRaw && cnpjRaw.length === 14 && checkDuplicateCNPJ(form.cnpj)) {
-                const dup = empresas.find(d => d.id !== item?.id && (d.cnpj||'').replace(/\D/g,'') === cnpjRaw)
-                e.cnpj = `CNPJ já cadastrado: ${dup?.fantasia || dup?.razao || 'outra empresa'}`
-              }
-              if (cnpjStatus?.type === 'error') e.cnpj = cnpjStatus.msg
-              if (!form.segmento) e.segmento = 'Segmento é obrigatório'
-              if (!form.telefone?.trim() && !form.email?.trim()) e.contato = 'Informe ao menos um telefone ou e-mail'
-              if (!form.cidade?.trim()) e.cidade = 'Cidade é obrigatória'
-              if (Object.keys(e).length) { setErrs(e); return }
-              onSave(form)
-            }} style={{ alignSelf:'flex-start' }}>
-              Cadastrar empresa
-            </Button>
           </>
         )}
       </div>
@@ -1029,11 +1029,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
         <div style={{ display: tab === 'projetos'  ? 'contents' : 'none' }}>{TabProjetos()}</div>
         <div style={{ display: tab === 'canal'     ? 'contents' : 'none' }}>{TabCanal()}</div>
       </div>
-      {!isNew && (
-        <div style={{ padding:'12px 24px', borderTop:'1px solid var(--border2)', background:'var(--surface)', flexShrink:0 }}>
-          <DeleteZone label="Excluir cadastro" onDelete={() => { onDelete(item.id); onClose() }} />
-        </div>
-      )}
     </div>
   )
 }
@@ -1053,6 +1048,7 @@ export default function Empresas() {
   const customFields = useEntityCustomFields('companies')
   const [modal, setModal]               = useState(null)
   const [soTab, setSoTab]               = useState('dados')
+  const empresaSaveRef                  = useRef(null)
   const [importModal, setImportModal]   = useState(false)
   const [importLogs, setImportLogs]     = useState([])
   const [showLog, setShowLog]           = useState(false)
@@ -1318,10 +1314,11 @@ export default function Empresas() {
         ] : undefined}
         activeTab={soTab}
         onTabChange={setSoTab}
-        showFooter={!!modal?.editing}
-        onSave={modal?.editing ? () => setModal(null) : undefined}
-        saveLabel="Salvar alterações"
+        onSave={modal?.editing ? () => setModal(null) : () => empresaSaveRef.current?.()}
+        saveLabel={modal?.editing ? 'Salvar alterações' : 'Cadastrar empresa'}
         cancelLabel="Cancelar"
+        onDelete={modal?.editing ? () => handleDelete(modal.editing.id) : undefined}
+        deleteConfirm="Excluir esta empresa? Esta ação não pode ser desfeita."
       >
         {modal && (
           <EmpresaDetail
@@ -1332,6 +1329,7 @@ export default function Empresas() {
             empresas={empresas}
             tab={soTab}
             csRecord={modal?.editing ? (csMap[String(modal.editing.id)] || null) : null}
+            saveRef={empresaSaveRef}
           />
         )}
       </SlideOver>

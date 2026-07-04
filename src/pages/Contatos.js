@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useContacts } from '../hooks/useContacts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCompanies } from '../hooks/useCompanies'
@@ -41,7 +41,7 @@ function avatarColor(nome) {
 // ─── ContatoDetail ─────────────────────────────────────────────────────────────
 const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'', linkedin_url:'', whatsapp:'' }
 
-function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
+function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], saveRef }) {
   const isNew = !item?.id
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
   const [errs, setErrs] = useState({})
@@ -66,6 +66,8 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
     onSave({ ...form, nome: form.nome.trim() })
     onClose()
   }
+
+  if (saveRef) saveRef.current = isNew ? handleCreate : null
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
@@ -175,13 +177,6 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
         />
       </FormSection>
 
-      {/* Ações */}
-      {isNew ? (
-        <Button onClick={handleCreate} style={{ alignSelf:'flex-start' }}>Criar contato</Button>
-      ) : (
-        <DeleteZone label="Excluir contato" onDelete={() => { onDelete(item.id); onClose() }} />
-      )}
-
       {!isNew && (
         <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
           Cadastrado em {fmtData(item.criado_em)}
@@ -193,6 +188,7 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [] }) {
 
 // ─── Página principal ──────────────────────────────────────────────────────────
 export default function Contatos() {
+  const saveRef = useRef(null)
   const { contacts: contatos, save: salvarContatoBase, remove: deletarContatoBase } = useContacts()
   const { registrar: log } = useAuditLog()
   function salvarContato(c) {
@@ -351,7 +347,10 @@ export default function Contatos() {
         title={modal && modal !== 'novo' ? (modal.nome || 'Contato') : 'Novo contato'}
         subtitle={modal && modal !== 'novo' ? 'Editando contato' : 'Novo cadastro'}
         defaultWidth={560}
-        showFooter={false}
+        onSave={modal === 'novo' ? () => saveRef.current?.() : undefined}
+        saveLabel="Criar contato"
+        onDelete={modal && modal !== 'novo' ? () => { deletarContato(modal.id); setModal(null) } : undefined}
+        deleteConfirm="Excluir este contato? Esta ação não pode ser desfeita."
       >
         {modal && (
           <ContatoDetail
@@ -360,6 +359,7 @@ export default function Contatos() {
             onSave={salvarContato}
             onDelete={deletarContato}
             onClose={() => setModal(null)}
+            saveRef={saveRef}
           />
         )}
       </SlideOver>

@@ -701,7 +701,7 @@ const EMPTY_FORM = {
   playbook_id: null,
 }
 
-function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contratos = [] }) {
+function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contratos = [], saveRef }) {
   const isNew = !item?.id
   const [tab, setTab] = useState('dados')
   const [form, setForm] = useState(item ? { ...EMPTY_FORM, ...item } : { ...EMPTY_FORM })
@@ -733,6 +733,8 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
     })
     onClose()
   }
+
+  if (saveRef) saveRef.current = isNew ? handleCreate : null
 
   const days = daysUntil(form.renewal_date)
 
@@ -912,15 +914,7 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
             />
           </FormSection>
 
-          <DeleteZone label="Remover cliente" onDelete={() => { onDelete(item.id); onClose() }} />
         </>
-      )}
-
-      {isNew && (
-        <Button onClick={handleCreate} disabled={!form.company_name.trim()}
-          style={{ alignSelf: 'flex-start' }}>
-          Criar Check-in
-        </Button>
       )}
       </div>{/* fim aba dados */}
     </div>
@@ -1201,6 +1195,7 @@ export default function CustomerSuccess() {
     </div>
   )
 
+  const saveRef    = useRef(null)
   const isEditing  = modal && modal !== 'novo'
   const drawerTitle = modal === 'novo' ? 'Novo Check-in' : (isEditing ? modal.company_name : '')
 
@@ -1261,7 +1256,10 @@ export default function CustomerSuccess() {
         title={drawerTitle}
         subtitle="Customer Success"
         defaultWidth={600}
-        showFooter={false}
+        onSave={!isEditing ? () => saveRef.current?.() : undefined}
+        saveLabel="Criar Check-in"
+        onDelete={isEditing ? () => { remove(modal.id); setModal(null) } : undefined}
+        deleteConfirm="Remover este cliente do CS? Esta ação não pode ser desfeita."
       >
         {modal && (
           <PartnerDetail
@@ -1271,6 +1269,7 @@ export default function CustomerSuccess() {
             onClose={() => setModal(null)}
             profiles={profiles}
             contratos={contratos}
+            saveRef={saveRef}
           />
         )}
       </SlideOver>

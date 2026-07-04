@@ -135,21 +135,17 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
     setSaving(false)
   }
 
-  const headerActions = !isNew ? (
-    <Button variant="danger" onClick={() => {
-      if (window.confirm('Excluir esta ação?')) onDelete(initial.id)
-    }}>Excluir</Button>
-  ) : null
-
   return (
     <SlideOver
       open={open}
       onClose={onClose}
       onSave={handleSave}
+      onDelete={!isNew ? () => onDelete(initial.id) : undefined}
+      deleteConfirm="Excluir esta ação? Esta ação não pode ser desfeita."
       saving={saving}
       title={isNew ? 'Nova Ação' : form.titulo || 'Editar Ação'}
       subtitle={isNew ? 'Atividade operacional com unidade de franquia' : form.empresa_nome}
-      headerActions={headerActions}
+      saveLabel={isNew ? 'Criar Ação' : 'Salvar alterações'}
       columns={2}
     >
       <FormGrid cols={2}>

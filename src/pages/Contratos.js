@@ -577,7 +577,7 @@ async function gerarProvisoesComissao(contrato, tenantId, branchId) {
 }
 
 // ─── Formulário (SlideOver) ───────────────────────────────────────────────────
-function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, activeTab, onTabChange, onShowFeedback }) {
+function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contratos, produtos, activeTab, onTabChange, onShowFeedback, saveRef }) {
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [confirmData, setConfirmData] = useState(null)
@@ -670,6 +670,8 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
     setSaving(true)
     try { onSave(form); onClose() } finally { setSaving(false) }
   }
+
+  if (saveRef) saveRef.current = handleSave
 
   async function aplicarMetas(contratoData, steps) {
     const metasMatch = calcMetasMatch(contratoData)
@@ -1069,14 +1071,6 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
 
     </div>
 
-    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-      <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-      <Button onClick={handleSave} disabled={saving}>{saving ? 'Salvando…' : isNew ? 'Criar contrato' : 'Salvar alterações'}</Button>
-    </div>
-
-    {!isNew && (
-      <DeleteZone label="Excluir contrato" onDelete={() => { onDelete(form.id); onClose() }} />
-    )}
     </>
   )
 }
@@ -1463,6 +1457,7 @@ export default function Contratos() {
   const [activeFilters, setActiveFilters] = useState({})
   const [editando, setEditando]       = useState(null)
   const [contratoTab, setContratoTab] = useState('dados')
+  const contratoSaveRef = useRef(null)
   const [feedbackSteps, setFeedbackSteps] = useState(null)
 
   const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
@@ -1624,10 +1619,13 @@ export default function Contratos() {
         title={isNew ? 'Novo contrato' : (editando?.numero || 'Contrato')}
         subtitle={editando?.empresa_nome || 'Dados contratuais'}
         defaultWidth={720}
-        showFooter={false}
         tabs={[{ key: 'dados', label: 'Dados' }, { key: 'playbook', label: 'Playbook' }]}
         activeTab={contratoTab}
         onTabChange={setContratoTab}
+        onSave={() => contratoSaveRef.current?.()}
+        saveLabel={isNew ? 'Criar contrato' : 'Salvar alterações'}
+        onDelete={!isNew ? () => { handleDelete(editando.id); setEditando(null) } : undefined}
+        deleteConfirm="Excluir este contrato? Esta ação não pode ser desfeita."
       >
         {editando && (
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 0 }}>
@@ -1643,6 +1641,7 @@ export default function Contratos() {
               activeTab={contratoTab}
               onTabChange={setContratoTab}
               onShowFeedback={steps => { setEditando(null); setFeedbackSteps(steps) }}
+              saveRef={contratoSaveRef}
             />
           </div>
         )}
