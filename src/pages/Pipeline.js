@@ -48,7 +48,7 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useProjects } from '../hooks/useProjects'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
-import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal } from 'lucide-react'
+import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Filter, X, Check } from 'lucide-react'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
@@ -5487,205 +5487,337 @@ function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLog
   )
 }
 
-// ─── Filtros Popover ─────────────────────────────────────────────────────────
-function FiltrosPopover({
-  etapas,
-  filterEtapa, setFilterEtapa,
-  filterOrigem, setFilterOrigem,
-  filterAbertura, setFilterAbertura,
+// ─── Painel de Filtros (drawer lateral direito, padrão BrowseLayout) ──────────
+function FiltrosPanel({
+  open, onClose, onClear,
+  // campos nativos
+  etapas, responsaveis, oppsDoFunil,
+  filterEtapa,       setFilterEtapa,
+  filterOrigem,      setFilterOrigem,
+  filterSituacao,    setFilterSituacao,
+  filterResponsavel, setFilterResponsavel,
+  filterAbertura,    setFilterAbertura,
   filterAberturaIni, setFilterAberturaIni,
   filterAberturaFim, setFilterAberturaFim,
-  filterPrazo, setFilterPrazo,
-  filterPrazoIni, setFilterPrazoIni,
-  filterPrazoFim, setFilterPrazoFim,
-  filterTarefa, setFilterTarefa,
-  onClear, onClose, anchorRef,
+  filterPrazo,       setFilterPrazo,
+  filterPrazoIni,    setFilterPrazoIni,
+  filterPrazoFim,    setFilterPrazoFim,
+  filterValorMin,    setFilterValorMin,
+  filterValorMax,    setFilterValorMax,
+  filterTarefa,      setFilterTarefa,
+  // campos custom
+  cfFields,
+  filterCF,          setFilterCF,
+  activeFilterCount,
 }) {
-  const popRef = useRef(null)
   const [campanhas] = useLocalState('pipeline:campanhas', CAMPANHAS_PADRAO)
+  if (!open) return null
 
-  // Fecha ao clicar fora
-  useEffect(() => {
-    function handler(e) {
-      if (popRef.current && !popRef.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [onClose, anchorRef])
+  // Opções dinâmicas extraídas das oportunidades do funil ativo
+  const origensDisponiveis = [...new Set((oppsDoFunil||[]).map(o => o.origem).filter(Boolean))].sort()
 
-  const SectionTitle = ({ children }) => (
-    <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em',
-      color:'var(--text-muted)', marginBottom:10, paddingBottom:6,
-      borderBottom:'1px solid var(--border)' }}>
-      {children}
-    </div>
-  )
+  const inp = {
+    width:'100%', padding:'7px 10px', borderRadius:7,
+    border:'1px solid var(--border)', background:'var(--surface2)',
+    fontSize:13, color:'var(--text)', fontFamily:'var(--font)', outline:'none', boxSizing:'border-box',
+  }
+  const lbl = {
+    fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase',
+    letterSpacing:'0.07em', display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:8,
+  }
 
-  const QuickBtns = ({ options, value, onChange }) => (
-    <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-      {options.map(opt => (
-        <button key={opt.value} type="button"
-          onClick={() => onChange(value === opt.value ? '' : opt.value)}
-          style={{
-            padding:'4px 10px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer',
-            border:`1px solid ${value === opt.value ? 'var(--accent)' : 'var(--border)'}`,
-            background: value === opt.value ? 'var(--accent-glow)' : 'var(--surface2)',
-            color: value === opt.value ? 'var(--accent)' : 'var(--text-soft)',
-            transition:'all 0.12s',
-          }}>
-          {opt.label}
-        </button>
-      ))}
-    </div>
-  )
-
-  return (
-    <div ref={popRef} style={{
-      position:'absolute', top:'calc(100% + 8px)', left:0, zIndex:500,
-      width:360, background:'var(--surface)', borderRadius:12,
-      border:'1px solid var(--border)', boxShadow:'0 12px 40px rgba(0,0,0,0.14)',
-      padding:'0 0 14px',
-      animation:'fadeInDown 0.15s ease',
-    }}>
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-        padding:'14px 16px 12px', borderBottom:'1px solid var(--border)' }}>
-        <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Filtros avançados</span>
-        <button onClick={onClose} style={{ background:'none', border:'none', fontSize:16,
-          color:'var(--text-muted)', cursor:'pointer', lineHeight:1, padding:'2px 4px' }}>✕</button>
+  function CheckList({ options, values, onChange }) {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        {options.map(opt => {
+          const checked = (values||[]).includes(opt.value)
+          return (
+            <label key={opt.value} style={{
+              display:'flex', alignItems:'center', gap:9, padding:'7px 10px',
+              borderRadius:7, cursor:'pointer',
+              background: checked ? 'var(--accent-lite,#EEF2FF)' : 'transparent',
+            }}>
+              <div onClick={() => {
+                const next = checked ? (values||[]).filter(v=>v!==opt.value) : [...(values||[]), opt.value]
+                onChange(next)
+              }} style={{
+                width:15, height:15, borderRadius:3, flexShrink:0,
+                border:`1.5px solid ${checked?'var(--accent)':'var(--border)'}`,
+                background: checked?'var(--accent)':'var(--surface)',
+                display:'flex', alignItems:'center', justifyContent:'center',
+              }}>
+                {checked && <Check size={10} color="#fff"/>}
+              </div>
+              <span style={{ fontSize:13, color: checked?'var(--accent)':'var(--text)', fontWeight: checked?600:400 }}>
+                {opt.label}
+              </span>
+            </label>
+          )
+        })}
       </div>
+    )
+  }
 
-      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:18, maxHeight:'70vh', overflowY:'auto' }}>
+  function QuickBtns({ options, value, onChange }) {
+    return (
+      <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+        {options.map(opt => (
+          <button key={opt.value} type="button"
+            onClick={() => onChange(value===opt.value ? '' : opt.value)}
+            style={{
+              padding:'5px 11px', borderRadius:6, fontSize:12, fontWeight:600, cursor:'pointer',
+              border:`1px solid ${value===opt.value?'var(--accent)':'var(--border)'}`,
+              background: value===opt.value?'var(--accent-glow,#EFF6FF)':'var(--surface2)',
+              color: value===opt.value?'var(--accent)':'var(--text-soft)',
+            }}>
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    )
+  }
 
-        {/* ── Seção Geral ── */}
-        <div>
-          <SectionTitle>Geral</SectionTitle>
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            <div>
-              <label style={fp.label}>Etapa</label>
-              <select style={fp.select} value={filterEtapa} onChange={e => setFilterEtapa(e.target.value)}>
-                <option value="">Todas as etapas</option>
-                {etapas.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={fp.label}>Campanha / Origem</label>
-              <select style={fp.select} value={filterOrigem} onChange={e => setFilterOrigem(e.target.value)}>
-                <option value="">Todas</option>
-                {campanhas.map(c => <option key={c} value={c}>{c}</option>)}
-                {/* Manter origens antigas que podem estar salvas */}
-                {ORIGENS.filter(o => !campanhas.includes(o)).map(o => <option key={o} value={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
+  function Section({ title, hasValue, onClear: clr, children }) {
+    return (
+      <div>
+        <div style={lbl}>
+          <span>{title}</span>
+          {hasValue && (
+            <button type="button" onClick={clr}
+              style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}>
+              <X size={11}/>
+            </button>
+          )}
         </div>
+        {children}
+      </div>
+    )
+  }
 
-        {/* ── Seção Períodos comerciais ── */}
+  function DateRange({ ini, fim, setIni, setFim }) {
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginTop:8 }}>
         <div>
-          <SectionTitle>Períodos comerciais</SectionTitle>
-          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-
-            <div>
-              <label style={fp.label}>Data de abertura</label>
-              <QuickBtns
-                value={filterAbertura}
-                onChange={setFilterAbertura}
-                options={[
-                  { value:'mes_atual', label:'Este mês' },
-                  { value:'custom',    label:'Personalizado' },
-                ]}
-              />
-              {filterAbertura === 'custom' && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginTop:8 }}>
-                  <div>
-                    <label style={{ ...fp.label, marginBottom:3 }}>De</label>
-                    <input type="date" style={fp.input} value={filterAberturaIni}
-                      onChange={e => setFilterAberturaIni(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ ...fp.label, marginBottom:3 }}>Até</label>
-                    <input type="date" style={fp.input} value={filterAberturaFim}
-                      onChange={e => setFilterAberturaFim(e.target.value)} />
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label style={fp.label}>Previsão de fechamento</label>
-              <QuickBtns
-                value={filterPrazo}
-                onChange={setFilterPrazo}
-                options={[
-                  { value:'mes_atual', label:'Este mês' },
-                  { value:'prox30',    label:'Próximos 30 dias' },
-                  { value:'custom',    label:'Personalizado' },
-                ]}
-              />
-              {filterPrazo === 'custom' && (
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6, marginTop:8 }}>
-                  <div>
-                    <label style={{ ...fp.label, marginBottom:3 }}>De</label>
-                    <input type="date" style={fp.input} value={filterPrazoIni}
-                      onChange={e => setFilterPrazoIni(e.target.value)} />
-                  </div>
-                  <div>
-                    <label style={{ ...fp.label, marginBottom:3 }}>Até</label>
-                    <input type="date" style={fp.input} value={filterPrazoFim}
-                      onChange={e => setFilterPrazoFim(e.target.value)} />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
+          <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>De</div>
+          <input type="date" style={inp} value={ini} onChange={e=>setIni(e.target.value)}/>
         </div>
-
-        {/* ── Seção Tarefas ── */}
         <div>
-          <SectionTitle>Tarefas</SectionTitle>
-          <label style={fp.label}>Próxima atividade</label>
-          <QuickBtns
-            value={filterTarefa}
-            onChange={setFilterTarefa}
-            options={[
-              { value:'hoje',      label:'Hoje' },
-              { value:'semana',    label:'Esta semana' },
-              { value:'atrasadas', label:'Atrasadas' },
-              { value:'sem',       label:'Sem tarefas' },
-            ]}
-          />
+          <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>Até</div>
+          <input type="date" style={inp} value={fim} onChange={e=>setFim(e.target.value)}/>
         </div>
       </div>
+    )
+  }
 
-      {/* Footer */}
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-        padding:'12px 16px 0', borderTop:'1px solid var(--border)', marginTop:2 }}>
-        <button onClick={onClear} style={{ background:'none', border:'none', fontSize:12,
-          color:'var(--text-muted)', cursor:'pointer', fontWeight:600, fontFamily:'var(--font)',
-          padding:'4px 0', textDecoration:'underline' }}>
-          Limpar filtros
-        </button>
-        <button onClick={onClose} style={{ padding:'7px 20px', background:'var(--accent)', color:'#fff',
-          border:'none', borderRadius:8, fontSize:13, fontWeight:700, cursor:'pointer',
-          fontFamily:'var(--font)' }}>
-          Aplicar
-        </button>
+  return createPortal(
+    <>
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(0,0,0,0.18)' }}/>
+      <div style={{
+        position:'fixed', top:0, right:0, bottom:0, width:340, zIndex:81,
+        background:'var(--surface)', borderLeft:'1px solid var(--border)',
+        boxShadow:'-8px 0 32px rgba(0,0,0,0.10)',
+        display:'flex', flexDirection:'column', fontFamily:'var(--font)',
+      }}>
+        {/* Header */}
+        <div style={{
+          display:'flex', alignItems:'center', gap:10,
+          padding:'16px 20px', borderBottom:'1px solid var(--border)',
+          borderTop:'3px solid var(--accent)', flexShrink:0,
+        }}>
+          <Filter size={15} color="var(--accent)"/>
+          <span style={{ flex:1, fontSize:14, fontWeight:700, color:'var(--text)' }}>Filtros</span>
+          {activeFilterCount > 0 && (
+            <button type="button" onClick={onClear}
+              style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', padding:0 }}>
+              Limpar todos
+            </button>
+          )}
+          <button type="button" onClick={onClose}
+            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:4 }}>
+            <X size={15}/>
+          </button>
+        </div>
+
+        {/* Corpo */}
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:20 }}>
+
+          {/* ── Etapa ── */}
+          <Section title="Etapa" hasValue={filterEtapa.length>0} onClear={()=>setFilterEtapa([])}>
+            <CheckList
+              options={etapas.map(e=>({ value:String(e.id), label:e.nome }))}
+              values={filterEtapa}
+              onChange={setFilterEtapa}
+            />
+          </Section>
+
+          {/* ── Situação ── */}
+          <Section title="Situação" hasValue={filterSituacao.length>0} onClear={()=>setFilterSituacao([])}>
+            <CheckList
+              options={[
+                { value:'em_andamento', label:'Em andamento' },
+                { value:'ganha',        label:'Ganha'        },
+                { value:'perdida',      label:'Perdida'      },
+              ]}
+              values={filterSituacao}
+              onChange={setFilterSituacao}
+            />
+          </Section>
+
+          {/* ── Origem / Campanha ── */}
+          <Section title="Origem / Campanha" hasValue={filterOrigem.length>0} onClear={()=>setFilterOrigem([])}>
+            <CheckList
+              options={[
+                ...campanhas.map(c=>({ value:c, label:c })),
+                ...ORIGENS.filter(o=>!campanhas.includes(o)).map(o=>({ value:o, label:o })),
+                ...origensDisponiveis.filter(o=>!campanhas.includes(o)&&!ORIGENS.includes(o)).map(o=>({ value:o, label:o })),
+              ]}
+              values={filterOrigem}
+              onChange={setFilterOrigem}
+            />
+          </Section>
+
+          {/* ── Responsável ── */}
+          <Section title="Responsável" hasValue={filterResponsavel.length>0} onClear={()=>setFilterResponsavel([])}>
+            <CheckList
+              options={responsaveis.map(r=>({ value:r, label:r }))}
+              values={filterResponsavel}
+              onChange={setFilterResponsavel}
+            />
+          </Section>
+
+          {/* ── Data de abertura ── */}
+          <Section title="Data de abertura"
+            hasValue={!!filterAbertura||!!filterAberturaIni||!!filterAberturaFim}
+            onClear={()=>{ setFilterAbertura(''); setFilterAberturaIni(''); setFilterAberturaFim('') }}>
+            <QuickBtns value={filterAbertura} onChange={setFilterAbertura}
+              options={[{ value:'mes_atual', label:'Este mês' }, { value:'custom', label:'Personalizado' }]}/>
+            {filterAbertura==='custom' && (
+              <DateRange ini={filterAberturaIni} fim={filterAberturaFim} setIni={setFilterAberturaIni} setFim={setFilterAberturaFim}/>
+            )}
+          </Section>
+
+          {/* ── Previsão de fechamento ── */}
+          <Section title="Previsão de fechamento"
+            hasValue={!!filterPrazo||!!filterPrazoIni||!!filterPrazoFim}
+            onClear={()=>{ setFilterPrazo(''); setFilterPrazoIni(''); setFilterPrazoFim('') }}>
+            <QuickBtns value={filterPrazo} onChange={setFilterPrazo}
+              options={[
+                { value:'mes_atual', label:'Este mês'       },
+                { value:'prox30',    label:'Próximos 30d'   },
+                { value:'custom',    label:'Personalizado'  },
+              ]}/>
+            {filterPrazo==='custom' && (
+              <DateRange ini={filterPrazoIni} fim={filterPrazoFim} setIni={setFilterPrazoIni} setFim={setFilterPrazoFim}/>
+            )}
+          </Section>
+
+          {/* ── Valor ── */}
+          <Section title="Valor (R$)"
+            hasValue={!!filterValorMin||!!filterValorMax}
+            onClear={()=>{ setFilterValorMin(''); setFilterValorMax('') }}>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+              <div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>Mínimo</div>
+                <input type="number" style={inp} min={0} placeholder="0" value={filterValorMin}
+                  onChange={e=>setFilterValorMin(e.target.value)}/>
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>Máximo</div>
+                <input type="number" style={inp} min={0} placeholder="∞" value={filterValorMax}
+                  onChange={e=>setFilterValorMax(e.target.value)}/>
+              </div>
+            </div>
+          </Section>
+
+          {/* ── Tarefas ── */}
+          <Section title="Próxima atividade" hasValue={!!filterTarefa} onClear={()=>setFilterTarefa('')}>
+            <QuickBtns value={filterTarefa} onChange={setFilterTarefa}
+              options={[
+                { value:'hoje',      label:'Hoje'        },
+                { value:'semana',    label:'Esta semana' },
+                { value:'atrasadas', label:'Atrasadas'   },
+                { value:'sem',       label:'Sem tarefas' },
+              ]}/>
+          </Section>
+
+          {/* ── Campos personalizados ── */}
+          {cfFields.length > 0 && cfFields.map(field => {
+            const val = filterCF[field.key]
+            const hasVal = val !== undefined && val !== '' && val !== null
+            function setCFField(v) { setFilterCF(prev=>({ ...prev, [field.key]: v })) }
+            function clearCF() { setFilterCF(prev=>{ const n={...prev}; delete n[field.key]; return n }) }
+
+            if (field.type === 'select') {
+              return (
+                <Section key={field.id} title={field.label} hasValue={hasVal} onClear={clearCF}>
+                  <CheckList
+                    options={(field.options||[]).map(o=>({ value:o, label:o }))}
+                    values={hasVal ? (Array.isArray(val)?val:[val]) : []}
+                    onChange={v=>setCFField(v)}
+                  />
+                </Section>
+              )
+            }
+            if (field.type === 'boolean') {
+              return (
+                <Section key={field.id} title={field.label} hasValue={hasVal} onClear={clearCF}>
+                  <CheckList
+                    options={[{ value:'sim', label:'Sim' }, { value:'nao', label:'Não' }]}
+                    values={hasVal ? [val] : []}
+                    onChange={v=>setCFField(v[v.length-1]||'')}
+                  />
+                </Section>
+              )
+            }
+            if (field.type === 'number') {
+              return (
+                <Section key={field.id} title={field.label} hasValue={hasVal} onClear={clearCF}>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:6 }}>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>Mín.</div>
+                      <input type="number" style={inp} value={val?.min||''} placeholder="0"
+                        onChange={e=>setCFField({ ...val, min:e.target.value })}/>
+                    </div>
+                    <div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:3 }}>Máx.</div>
+                      <input type="number" style={inp} value={val?.max||''} placeholder="∞"
+                        onChange={e=>setCFField({ ...val, max:e.target.value })}/>
+                    </div>
+                  </div>
+                </Section>
+              )
+            }
+            // text / date / default
+            return (
+              <Section key={field.id} title={field.label} hasValue={hasVal} onClear={clearCF}>
+                <input
+                  type={field.type==='date'?'date':'text'}
+                  style={inp} value={val||''}
+                  placeholder={field.type==='date' ? '' : `Filtrar por ${field.label.toLowerCase()}…`}
+                  onChange={e=>setCFField(e.target.value)}
+                />
+              </Section>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div style={{
+          padding:'12px 20px', borderTop:'1px solid var(--border)',
+          display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0,
+        }}>
+          <span style={{ fontSize:12, color:'var(--text-muted)' }}>
+            {activeFilterCount > 0 ? `${activeFilterCount} filtro${activeFilterCount>1?'s':''} ativo${activeFilterCount>1?'s':''}` : 'Nenhum filtro ativo'}
+          </span>
+          <button type="button" onClick={onClose}
+            style={{ padding:'6px 16px', borderRadius:7, border:'none', background:'var(--accent)', color:'#fff', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+            Aplicar
+          </button>
+        </div>
       </div>
-    </div>
+    </>,
+    document.body
   )
-}
-
-const fp = {
-  label: { fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase',
-    letterSpacing:'0.05em', display:'block', marginBottom:6 },
-  select: { width:'100%', padding:'8px 10px', borderRadius:8, border:'1px solid var(--border)',
-    background:'var(--surface2)', fontSize:13, color:'var(--text)', fontFamily:'var(--font)',
-    outline:'none', cursor:'pointer' },
-  input: { width:'100%', padding:'7px 9px', borderRadius:7, border:'1px solid var(--border)',
-    background:'var(--surface2)', fontSize:12, color:'var(--text)', fontFamily:'var(--font)', outline:'none' },
 }
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
@@ -5698,16 +5830,20 @@ export default function Pipeline() {
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
   const [view, setView]                 = useLocalState('pipeline:view', 'kanban')
   const [search, setSearch]             = useLocalState('pipeline:search', '')
-  const [filterOrigem, setFilterOrigem]       = useLocalState('pipeline:filterOrigem', '')
-  const [filterEtapa, setFilterEtapa]         = useLocalState('pipeline:filterEtapa', '')
-  const [filterAbertura, setFilterAbertura]   = useLocalState('pipeline:filterAbertura', '')   // 'mes_atual'|'custom'|''
+  const [filterOrigem, setFilterOrigem]           = useLocalState('pipeline:filterOrigem2', [])
+  const [filterEtapa, setFilterEtapa]             = useLocalState('pipeline:filterEtapa2', [])
+  const [filterSituacao, setFilterSituacao]       = useLocalState('pipeline:filterSituacao', [])
+  const [filterResponsavel, setFilterResponsavel] = useLocalState('pipeline:filterResponsavel2', [])
+  const [filterAbertura, setFilterAbertura]       = useLocalState('pipeline:filterAbertura', '')
   const [filterAberturaIni, setFilterAberturaIni] = useLocalState('pipeline:filterAberturaIni', '')
   const [filterAberturaFim, setFilterAberturaFim] = useLocalState('pipeline:filterAberturaFim', '')
-  const [filterPrazo, setFilterPrazo]         = useLocalState('pipeline:filterPrazo', '')      // 'mes_atual'|'prox30'|'custom'|''
-  const [filterPrazoIni, setFilterPrazoIni]   = useLocalState('pipeline:filterPrazoIni', '')
-  const [filterPrazoFim, setFilterPrazoFim]   = useLocalState('pipeline:filterPrazoFim', '')
-  const [filterTarefa, setFilterTarefa]         = useLocalState('pipeline:filterTarefa', '')     // 'hoje'|'semana'|'sem'|'atrasadas'|''
-  const [filterResponsavel, setFilterResponsavel] = useLocalState('pipeline:filterResponsavel', '')
+  const [filterPrazo, setFilterPrazo]             = useLocalState('pipeline:filterPrazo', '')
+  const [filterPrazoIni, setFilterPrazoIni]       = useLocalState('pipeline:filterPrazoIni', '')
+  const [filterPrazoFim, setFilterPrazoFim]       = useLocalState('pipeline:filterPrazoFim', '')
+  const [filterValorMin, setFilterValorMin]       = useLocalState('pipeline:filterValorMin', '')
+  const [filterValorMax, setFilterValorMax]       = useLocalState('pipeline:filterValorMax', '')
+  const [filterTarefa, setFilterTarefa]           = useLocalState('pipeline:filterTarefa', '')
+  const [filterCF, setFilterCF]                   = useLocalState('pipeline:filterCF', {})
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
   // ── dados via Supabase (com fallback mock automático) ────────────────────
@@ -5720,11 +5856,12 @@ export default function Pipeline() {
     semFunil.forEach(o => saveOpp({ ...o, funil_id: funilPadrao.id, funil_nome: funilPadrao.nome }))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opps.length, funilPadrao?.id])
+  // ── campos personalizados de oportunidade (para FiltrosPanel) ───────────
+  const [cfFields] = useCustomFields('oportunidade')
   // ── estado efêmero (não persiste) ────────────────────────────────────────
   const { tarefas, save: saveTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
-  const filtrosRef                      = useRef(null)
   const [acoesOpen, setAcoesOpen]       = useState(false)
   const acoesRef                        = useRef(null)
   const [modal, setModal]               = useState(null)
@@ -5759,9 +5896,10 @@ export default function Pipeline() {
     const q = search.toLowerCase()
     let list = opps.filter(o => {
       if (String(o.funil_id) !== String(funilAtivo)) { return false }
-      if (filterOrigem      && o.origem      !== filterOrigem)      return false
-      if (filterEtapa       && String(o.etapa_id) !== filterEtapa)  return false
-      if (filterResponsavel && o.responsavel !== filterResponsavel) return false
+      if (filterOrigem.length      && !filterOrigem.includes(o.origem))                          return false
+      if (filterEtapa.length       && !filterEtapa.includes(String(o.etapa_id)))               return false
+      if (filterSituacao.length    && !filterSituacao.includes(o.situacao||'em_andamento'))     return false
+      if (filterResponsavel.length && !filterResponsavel.includes(o.responsavel))              return false
       if (q && !(o.titulo.toLowerCase().includes(q) || o.empresa_nome.toLowerCase().includes(q))) return false
 
       // Filtro data de abertura
@@ -5782,6 +5920,11 @@ export default function Pipeline() {
         if (filterPrazoFim && (!o.prazo || o.prazo > filterPrazoFim)) return false
       }
 
+      // Filtro valor
+      const val = parseFloat(o.valor)||0
+      if (filterValorMin !== '' && !isNaN(parseFloat(filterValorMin)) && val < parseFloat(filterValorMin)) return false
+      if (filterValorMax !== '' && !isNaN(parseFloat(filterValorMax)) && val > parseFloat(filterValorMax)) return false
+
       // Filtro tarefas
       if (filterTarefa) {
         const tasks = (oppTaskMap[o.id]||[]).filter(t => t.entidade_tipo==='oportunidade' && t.status!=='concluida')
@@ -5789,6 +5932,21 @@ export default function Pipeline() {
         else if (filterTarefa === 'hoje') { if (!tasks.some(t => t.prazo === todayStr)) return false }
         else if (filterTarefa === 'semana') { if (!tasks.some(t => t.prazo >= todayStr && t.prazo <= semFimStr)) return false }
         else if (filterTarefa === 'atrasadas') { if (!tasks.some(t => t.prazo && t.prazo < todayStr)) return false }
+      }
+
+      // Filtro campos personalizados
+      for (const [key, fv] of Object.entries(filterCF||{})) {
+        if (!fv || fv === '' || (Array.isArray(fv) && fv.length===0)) continue
+        const cfVal = o.custom_fields?.[key]
+        if (Array.isArray(fv)) {
+          if (!fv.includes(cfVal) && !fv.includes(cfVal===true?'sim':cfVal===false?'nao':cfVal)) return false
+        } else if (typeof fv === 'object' && (fv.min!==undefined||fv.max!==undefined)) {
+          const n = parseFloat(cfVal)
+          if (fv.min!=='' && !isNaN(parseFloat(fv.min)) && n < parseFloat(fv.min)) return false
+          if (fv.max!=='' && !isNaN(parseFloat(fv.max)) && n > parseFloat(fv.max)) return false
+        } else {
+          if (String(cfVal||'').toLowerCase().indexOf(String(fv).toLowerCase()) === -1) return false
+        }
       }
 
       return true
@@ -5800,7 +5958,7 @@ export default function Pipeline() {
       if (sortBy==='titulo')     return a.titulo.localeCompare(b.titulo)
       return new Date(b.criado)-new Date(a.criado)
     })
-  }, [opps, funilAtivo, search, filterOrigem, filterEtapa, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterTarefa, sortBy])
+  }, [opps, funilAtivo, search, filterOrigem, filterEtapa, filterSituacao, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterValorMin, filterValorMax, filterTarefa, filterCF, sortBy])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const totalValor      = filtered.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
@@ -5887,14 +6045,23 @@ export default function Pipeline() {
     [...new Set(opps.filter(o => String(o.funil_id)===String(funilAtivo)).map(o => o.responsavel).filter(Boolean))].sort()
   , [opps, funilAtivo])
 
-  const advancedFilterCount = [filterOrigem, filterEtapa, filterResponsavel, filterAbertura, filterPrazo, filterTarefa].filter(Boolean).length
+  const advancedFilterCount = [
+    filterOrigem.length, filterEtapa.length, filterSituacao.length, filterResponsavel.length,
+    filterAbertura||filterAberturaIni||filterAberturaFim ? 1 : 0,
+    filterPrazo||filterPrazoIni||filterPrazoFim ? 1 : 0,
+    filterValorMin||filterValorMax ? 1 : 0,
+    filterTarefa ? 1 : 0,
+    Object.keys(filterCF||{}).filter(k=>{ const v=filterCF[k]; return v!==''&&v!==null&&!(Array.isArray(v)&&v.length===0) }).length,
+  ].reduce((a,b)=>a+b, 0)
   const hasFilter = search || advancedFilterCount > 0
 
   function clearAllFilters() {
-    setSearch(''); setFilterOrigem(''); setFilterEtapa(''); setFilterResponsavel('')
+    setSearch('')
+    setFilterOrigem([]); setFilterEtapa([]); setFilterSituacao([]); setFilterResponsavel([])
     setFilterAbertura(''); setFilterAberturaIni(''); setFilterAberturaFim('')
     setFilterPrazo(''); setFilterPrazoIni(''); setFilterPrazoFim('')
-    setFilterTarefa('')
+    setFilterValorMin(''); setFilterValorMax('')
+    setFilterTarefa(''); setFilterCF({})
   }
 
   if (FUNIS_ATIVOS.length===0) {
@@ -5913,22 +6080,35 @@ export default function Pipeline() {
     <div style={{ ...p.page, ...(view==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
 
 
-      {/* ── KPIs retráteis ── */}
-      <div style={{
-        display:'grid',
-        gridTemplateRows: showMetrics ? '1fr' : '0fr',
-        transition:'grid-template-rows 0.25s ease',
-        overflow:'hidden',
-      }}>
-        <div style={{ minHeight:0 }}>
-          <div style={{ ...p.kpis, paddingBottom: showMetrics ? undefined : 0 }}>
-            <KpiCard label="Oportunidades"   value={filtered.length} />
-            <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
-            <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
-            <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+      {/* ── KPIs retráteis (padrão BrowseLayout) ── */}
+      <div style={{ borderBottom:'1px solid var(--border)' }}>
+        <button
+          type="button"
+          onClick={() => setShowMetrics(v => !v)}
+          style={{
+            display:'flex', alignItems:'center', justifyContent:'space-between',
+            width:'100%', padding:'8px 20px', border:'none', background:'none',
+            cursor:'pointer', fontFamily:'var(--font)',
+          }}>
+          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+            <span style={{ width:3, height:12, borderRadius:2, background:'var(--accent)', flexShrink:0, display:'inline-block' }} />
+            Indicadores
+          </span>
+          {showMetrics
+            ? <ChevronUp   size={13} color="var(--text-muted)" />
+            : <ChevronDown size={13} color="var(--text-muted)" />}
+        </button>
+        {showMetrics && (
+          <div style={{ padding:'0 20px 12px' }}>
+            <div style={{ ...p.kpis, paddingTop:4, paddingBottom:0 }}>
+              <KpiCard label="Oportunidades"   value={filtered.length} />
+              <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
+              <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
+              <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+            </div>
+            <MetricasStrip modulo="pipeline" />
           </div>
-          <MetricasStrip modulo="pipeline" />
-        </div>
+        )}
       </div>
 
       {/* ── Toolbar ── */}
@@ -5943,11 +6123,6 @@ export default function Pipeline() {
             <input style={p.searchInput} placeholder="Buscar oportunidade ou empresa…" value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
 
-          {/* Filtro por Responsável */}
-          <select style={p.select} value={filterResponsavel} onChange={e => setFilterResponsavel(e.target.value)}>
-            <option value="">Todos os responsáveis</option>
-            {responsaveis.map(r => <option key={r} value={r}>{r}</option>)}
-          </select>
         </div>
 
         {/* ── Separador ── */}
@@ -5956,49 +6131,29 @@ export default function Pipeline() {
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
         <div style={p.tbRight}>
 
-          {/* Botão Filtros avançados */}
-          <div ref={filtrosRef} style={{ position:'relative' }}>
-            <button
-              onClick={() => setFiltrosOpen(v => !v)}
-              style={{
-                display:'flex', alignItems:'center', gap:7,
-                padding:'0 13px', height:36, borderRadius:8,
-                border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
-                background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
-                color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
-                fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
-                transition:'all 0.15s',
+          {/* Botão Filtros */}
+          <button
+            onClick={() => setFiltrosOpen(v => !v)}
+            style={{
+              display:'flex', alignItems:'center', gap:7,
+              padding:'0 13px', height:36, borderRadius:8,
+              border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
+              background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
+              color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
+              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+              transition:'all 0.15s',
+            }}>
+            <SlidersHorizontal size={14} />
+            Filtros
+            {advancedFilterCount > 0 && (
+              <span style={{
+                background:'var(--accent)', color:'#fff', borderRadius:10,
+                fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
               }}>
-              <SlidersHorizontal size={14} />
-              Filtros
-              {advancedFilterCount > 0 && (
-                <span style={{
-                  background:'var(--accent)', color:'#fff', borderRadius:10,
-                  fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
-                }}>
-                  {advancedFilterCount}
-                </span>
-              )}
-            </button>
-
-            {filtrosOpen && (
-              <FiltrosPopover
-                etapas={etapas}
-                filterEtapa={filterEtapa} setFilterEtapa={setFilterEtapa}
-                filterOrigem={filterOrigem} setFilterOrigem={setFilterOrigem}
-                filterAbertura={filterAbertura} setFilterAbertura={setFilterAbertura}
-                filterAberturaIni={filterAberturaIni} setFilterAberturaIni={setFilterAberturaIni}
-                filterAberturaFim={filterAberturaFim} setFilterAberturaFim={setFilterAberturaFim}
-                filterPrazo={filterPrazo} setFilterPrazo={setFilterPrazo}
-                filterPrazoIni={filterPrazoIni} setFilterPrazoIni={setFilterPrazoIni}
-                filterPrazoFim={filterPrazoFim} setFilterPrazoFim={setFilterPrazoFim}
-                filterTarefa={filterTarefa} setFilterTarefa={setFilterTarefa}
-                onClear={clearAllFilters}
-                onClose={() => setFiltrosOpen(false)}
-                anchorRef={filtrosRef}
-              />
+                {advancedFilterCount}
+              </span>
             )}
-          </div>
+          </button>
 
           {/* Ordenação */}
           <select style={{ ...p.select, color:'var(--text-muted)' }} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
@@ -6142,6 +6297,31 @@ export default function Pipeline() {
           onImport={(rows, log)=>{ importOpps(rows); setImportLogs(prev=>[log,...prev]) }}
         />
       )}
+
+      <FiltrosPanel
+        open={filtrosOpen}
+        onClose={() => setFiltrosOpen(false)}
+        onClear={clearAllFilters}
+        etapas={etapas}
+        responsaveis={responsaveis}
+        oppsDoFunil={opps.filter(o => String(o.funil_id)===String(funilAtivo))}
+        filterEtapa={filterEtapa}             setFilterEtapa={setFilterEtapa}
+        filterSituacao={filterSituacao}       setFilterSituacao={setFilterSituacao}
+        filterOrigem={filterOrigem}           setFilterOrigem={setFilterOrigem}
+        filterResponsavel={filterResponsavel} setFilterResponsavel={setFilterResponsavel}
+        filterAbertura={filterAbertura}       setFilterAbertura={setFilterAbertura}
+        filterAberturaIni={filterAberturaIni} setFilterAberturaIni={setFilterAberturaIni}
+        filterAberturaFim={filterAberturaFim} setFilterAberturaFim={setFilterAberturaFim}
+        filterPrazo={filterPrazo}             setFilterPrazo={setFilterPrazo}
+        filterPrazoIni={filterPrazoIni}       setFilterPrazoIni={setFilterPrazoIni}
+        filterPrazoFim={filterPrazoFim}       setFilterPrazoFim={setFilterPrazoFim}
+        filterValorMin={filterValorMin}       setFilterValorMin={setFilterValorMin}
+        filterValorMax={filterValorMax}       setFilterValorMax={setFilterValorMax}
+        filterTarefa={filterTarefa}           setFilterTarefa={setFilterTarefa}
+        cfFields={cfFields}
+        filterCF={filterCF}                   setFilterCF={setFilterCF}
+        activeFilterCount={advancedFilterCount}
+      />
     </div>
   )
 }
