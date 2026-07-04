@@ -745,14 +745,18 @@ export default function Parceiros() {
         score_pct: scores[p.id]?.score_pct ?? null,
       }))
       .filter(p => {
-        // score_range é filtro customizado fora do BrowseLayout
-        const sr = activeFilters.score_range
-        if (sr) {
+        // activeFilters vem do BrowseLayout como arrays por chave: { situacao: ['ativo'], ... }
+        const srArr = activeFilters.score_range || []
+        if (srArr.length > 0) {
           const s = p.score_pct
-          if (sr === 'sem_score' && s !== null) return false
-          if (sr === 'critico'   && (s === null || s >= 40)) return false
-          if (sr === 'medio'     && (s === null || s < 40 || s >= 75)) return false
-          if (sr === 'maduro'    && (s === null || s < 75)) return false
+          const pass = srArr.some(sr => {
+            if (sr === 'sem_score') return s === null
+            if (sr === 'critico')   return s !== null && s < 40
+            if (sr === 'medio')     return s !== null && s >= 40 && s < 75
+            if (sr === 'maduro')    return s !== null && s >= 75
+            return false
+          })
+          if (!pass) return false
         }
         // busca simples
         if (search) {
@@ -762,12 +766,14 @@ export default function Parceiros() {
                         (p.segmento || p.tipo || '').toLowerCase().includes(q)
           if (!match) return false
         }
-        // filtro de estado
-        if (activeFilters.estado && extractEstado(p) !== activeFilters.estado) return false
-        // filtro de situacao
-        if (activeFilters.situacao) {
+        // filtro de estado (array)
+        const estadoArr = activeFilters.estado || []
+        if (estadoArr.length > 0 && !estadoArr.includes(extractEstado(p))) return false
+        // filtro de situacao (array)
+        const situacaoArr = activeFilters.situacao || []
+        if (situacaoArr.length > 0) {
           const s = p.situacao || p.status || 'ativo'
-          if (s !== activeFilters.situacao) return false
+          if (!situacaoArr.includes(s)) return false
         }
         return true
       })
