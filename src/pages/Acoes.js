@@ -230,8 +230,8 @@ export default function Acoes() {
   const [editando,  setEditando]  = useState(null)
   const [visao,     setVisao]     = useLocalState('acoes:visao', 'lista') // 'lista' | 'franquias'
 
-  const [search,        setSearch]        = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search,        setSearch]        = useLocalState('browse:acoes:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:acoes:filters', {})
 
   const empresasOpts = useMemo(() => {
     if (franquiasCad.length > 0)

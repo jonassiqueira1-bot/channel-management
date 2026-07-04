@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { useLocalState } from '../hooks/useLocalState'
 import {
   DollarSign, Percent, Calendar, Plus, ChevronDown, FileText,
   CheckCircle2, Clock, XCircle, Pencil, Trash2, X,
@@ -16,7 +17,6 @@ import {
   EMPTY_RULE,
 } from '../data/mockComissoes'
 import { useProducts } from '../hooks/useProducts'
-import { useLocalState } from '../hooks/useLocalState'
 import { useCommissions } from '../hooks/useCommissions'
 import { useUsuarios } from '../hooks/useUsuarios'
 import { useContacts } from '../hooks/useContacts'
@@ -1557,8 +1557,8 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
 
 // ─── Tab: Acompanhamento de Repasses ─────────────────────────────────────────
 function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 'all', isAdmin = true, profile = null }) {
-  const [search, setSearch]           = useState('')
-  const [activeFilters, setActiveFilters] = useState({})
+  const [search, setSearch]           = useLocalState('browse:comissoes_repasses:search', '')
+  const [activeFilters, setActiveFilters] = useLocalState('browse:comissoes_repasses:filters', {})
 
   // Vendedor vê apenas seus próprios lançamentos
   const paymentsMeus = useMemo(() => {
