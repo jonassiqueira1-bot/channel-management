@@ -11,7 +11,8 @@ import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
-import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH, LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
+import { LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
+import { useCustomerHealth } from '../hooks/useCustomerHealth'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
 
@@ -229,7 +230,7 @@ const ar = {
 // ─── Modal de cadastro ────────────────────────────────────────────────────────
 const ACCENT = 'var(--accent)'
 
-function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados' }) {
+function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados', csRecord = null }) {
   const isNew = !item?.id
   const [form, setForm]             = useState(item || EMPTY_FORM)
   const [perfisStore]               = useLocalState('settings:perfis_v2', [])
@@ -260,15 +261,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     if (!isNew) onSave({ ...next, id: item.id }, true)
   }
 
-  // Score CS — lê do localStorage
-  const csRecord = useMemo(() => {
-    if (!item?.id) return null
-    try {
-      const raw  = localStorage.getItem(CS_STORAGE_KEY)
-      const recs = raw ? JSON.parse(raw) : MOCK_CUSTOMER_HEALTH
-      return recs.find(r => String(r.company_id) === String(item.id)) || null
-    } catch { return null }
-  }, [item?.id])
+  // csRecord é recebido como prop do componente pai (via useCustomerHealth)
 
   function checkDuplicateCNPJ(cnpj) {
     const raw = cnpj.replace(/\D/g, '')
@@ -1021,13 +1014,6 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
             <input className="so-field" type="date" value={canal.data_credenciamento || ''}
               onChange={e => setCanal(p => ({ ...p, data_credenciamento:e.target.value }))} />
           </div>
-          <div>
-            <label className="so-label">Nível de Parceria</label>
-            <select className="so-field" value={canal.nivel_parceria || ''}
-              onChange={e => setCanal(p => ({ ...p, nivel_parceria:e.target.value }))}>
-              {nivelOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
         </div>
       </div>
     )
@@ -1062,6 +1048,7 @@ export default function Empresas() {
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
+  const { records: csRecords } = useCustomerHealth()
   const { registrar: log } = useAuditLog()
   const customFields = useEntityCustomFields('companies')
   const [modal, setModal]               = useState(null)
@@ -1175,13 +1162,7 @@ export default function Empresas() {
   const totalNegoc = empresas.filter(e => e.status === 'negociacao').length
 
   // Mapa companyId → csRecord para exibir health score na lista
-  const csMap = useMemo(() => {
-    try {
-      const raw  = localStorage.getItem(CS_STORAGE_KEY)
-      const recs = raw ? JSON.parse(raw) : MOCK_CUSTOMER_HEALTH
-      return Object.fromEntries(recs.map(r => [String(r.company_id), r]))
-    } catch { return {} }
-  }, [])
+  const csMap = useMemo(() => Object.fromEntries(csRecords.map(r => [String(r.company_id), r])), [csRecords])
 
   function handleSaveAndClose() {
     // salva o form atual via EmpresaDetail — não temos ref, então só fecha se edição inline já salvou
@@ -1350,6 +1331,7 @@ export default function Empresas() {
             onDelete={handleDelete}
             empresas={empresas}
             tab={soTab}
+            csRecord={modal?.editing ? (csMap[String(modal.editing.id)] || null) : null}
           />
         )}
       </SlideOver>
