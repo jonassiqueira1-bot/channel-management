@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
 import { ClipboardList, CheckCircle2, MessageSquare, ThumbsUp } from 'lucide-react'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPO_CFG, STATUS_CFG } from '../data/mockQuestionarios'
@@ -470,7 +470,7 @@ function RespostasTab({ template, submissions, onSaveSubmission }) {
 }
 
 // ─── Conteúdo do SlideOver ────────────────────────────────────────────────────
-function TemplateForm({ template: initial, submissions, onClose, onSave, onSaveSubmission, onDelete }) {
+function TemplateForm({ template: initial, submissions, onClose, onSave, onSaveSubmission, onDelete, saveRef }) {
   const isNew = !initial?.id
   const [draft, setDraft] = useState(() => initial || {
     id: `tpl-${uid()}`, tenant_id: 't1', title: '', description: '',
@@ -496,6 +496,9 @@ function TemplateForm({ template: initial, submissions, onClose, onSave, onSaveS
       onClose()
     }, 300)
   }
+
+  // expõe handleSave para o SlideOver pai via ref
+  if (saveRef) saveRef.current = handleSave
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -527,23 +530,6 @@ function TemplateForm({ template: initial, submissions, onClose, onSave, onSaveS
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'space-between', paddingTop: 8, borderTop: '1px solid var(--border)' }}>
-        <div>
-          {!isNew && onDelete && (
-            <button onClick={() => { if (window.confirm('Excluir este template?')) { onDelete(draft.id); onClose() } }}
-              style={{ padding: '8px 14px', borderRadius: 8, background: 'none', border: '1px solid rgba(239,68,68,0.35)',
-                color: '#EF4444', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              Excluir
-            </button>
-          )}
-        </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button loading={saving} onClick={handleSave}>
-            {isNew ? 'Criar template' : 'Salvar alterações'}
-          </Button>
-        </div>
-      </div>
     </div>
   )
 }
@@ -554,6 +540,7 @@ export default function Questionarios() {
   const [search,       setSearch]       = useState('')
   const [activeFilters, setActiveFilters] = useState({})
   const [drawer,       setDrawer]       = useState(null)  // null | 'novo' | template object
+  const tplSaveRef = useRef(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
@@ -730,7 +717,9 @@ export default function Questionarios() {
         title={drawer && drawer !== 'novo' ? (drawer.title || 'Editar questionário') : 'Novo questionário'}
         subtitle={drawer && drawer !== 'novo' ? `Atualizado ${fmtData(drawer.updated_at)}` : 'Defina a estrutura do template'}
         defaultWidth={760}
-        showFooter={false}
+        onSave={() => tplSaveRef.current?.()}
+        onDelete={drawer && drawer !== 'novo' ? () => { removeTemplate(drawer.id); setDrawer(null) } : undefined}
+        deleteConfirm="Excluir este template de questionário? Esta ação não pode ser desfeita."
       >
         {drawer && (
           <TemplateForm
@@ -740,6 +729,7 @@ export default function Questionarios() {
             onSave={saveTemplate}
             onSaveSubmission={saveSubmission}
             onDelete={removeTemplate}
+            saveRef={tplSaveRef}
           />
         )}
       </SlideOver>
