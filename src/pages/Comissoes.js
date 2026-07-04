@@ -702,7 +702,7 @@ function InfoPill({ icon, label, color }) {
 }
 
 // ─── PaymentForm (SlideOver content) ─────────────────────────────────────────
-function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios = [] }) {
+function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios = [], saveRef }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -771,6 +771,8 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
     } catch(e) { setErr(e.message||'Erro ao salvar.') }
     finally { setSaving(false) }
   }
+
+  if (saveRef) saveRef.current = submit
 
   // Origem do pagamento (contrato ou projeto) — campos gravados em custom_fields via gerarRepasses
   const origemContrato = form.contract_numero || form.custom_fields?.contract_numero || ''
@@ -917,15 +919,13 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
         </div>
       )}
 
-      <div style={{ display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap' }}>
-        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-        {form.status === 'pendente' && !isNew && (
+      {form.status === 'pendente' && !isNew && (
+        <div style={{ display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap' }}>
           <Button onClick={() => { set('status','pago'); set('data_pagamento', today()) }} style={{ background:'#10B981' }}>
             <CheckCircle2 size={14} strokeWidth={2.5} style={{ marginRight:5 }} />Marcar como pago
           </Button>
-        )}
-        <Button loading={saving} onClick={submit}>{isNew ? 'Registrar lançamento' : 'Salvar alterações'}</Button>
-      </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1262,7 +1262,7 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
 }
 
 // ─── RuleForm ─────────────────────────────────────────────────────────────────
-function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [], parceiros = [] }) {
+function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios = [], parceiros = [], saveRef }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -1311,6 +1311,8 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
       onSave({ ...form, id: form.id || `r${Date.now()}` })
     } catch(e) { setErr(e.message||'Erro ao salvar regra.'); setSaving(false) }
   }
+
+  if (saveRef) saveRef.current = submit
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -1549,10 +1551,6 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         </div>
       )}
 
-      <div style={{ display:'flex', gap:10, justifyContent:'flex-end' }}>
-        <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button loading={saving} onClick={submit}>{isNew ? 'Criar regra' : 'Salvar alterações'}</Button>
-      </div>
     </div>
   )
 }
@@ -2148,6 +2146,8 @@ export default function Comissoes() {
           savePayment: persistPayment } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
+  const paymentSaveRef = useRef(null)
+  const ruleSaveRef    = useRef(null)
   const { contacts: contatosRaw } = useContacts()
   const contatos = contatosRaw.map(c => ({ ...c, empresa_nome: c.empresa_nome || c.company_name || '' }))
   const { usuarios: usuariosRaw } = useUsuarios()
@@ -2258,7 +2258,8 @@ export default function Comissoes() {
         title={editandoPayment?.id ? (editandoPayment.beneficiario_nome || 'Editar Lançamento') : 'Novo Lançamento'}
         subtitle="Repasse de comissão"
         defaultWidth={600}
-        showFooter={false}
+        onSave={() => paymentSaveRef.current?.()}
+        saveLabel={editandoPayment?.id ? 'Salvar alterações' : 'Registrar lançamento'}
       >
         {editandoPayment && (
           <PaymentForm
@@ -2269,6 +2270,7 @@ export default function Comissoes() {
             usuarios={usuarios}
             onSave={savePayment}
             onClose={() => setEditandoPayment(null)}
+            saveRef={paymentSaveRef}
           />
         )}
       </SlideOver>
@@ -2280,7 +2282,8 @@ export default function Comissoes() {
         title={editandoRule?.id ? (editandoRule.nome || 'Editar Regra') : 'Nova Regra de Comissão'}
         subtitle="Configure o modelo de cálculo e as condições de elegibilidade"
         defaultWidth={840}
-        showFooter={false}
+        onSave={() => ruleSaveRef.current?.()}
+        saveLabel={editandoRule?.id ? 'Salvar alterações' : 'Criar regra'}
       >
         {editandoRule && (
           <RuleForm
@@ -2292,6 +2295,7 @@ export default function Comissoes() {
             parceiros={parceiros}
             onSave={saveRule}
             onClose={() => setEditandoRule(null)}
+            saveRef={ruleSaveRef}
           />
         )}
       </SlideOver>

@@ -711,7 +711,7 @@ const EMPTY_FORM = {
   status: 'ativa',
 }
 
-function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parceiros, categorias, produtos, equipes }) {
+function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unidades, parceiros, categorias, produtos, equipes, saveRef }) {
   const isEditing = !!initial
   const [activeTab, setActiveTab] = useState('meta') // 'meta' | 'execucao'
 
@@ -730,6 +730,7 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parce
     }))
     onSave(records)
   }
+
 
   const [form, setForm] = useState(() => {
     if (!initial) return { ...EMPTY_FORM }
@@ -824,6 +825,11 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parce
         .map(([mes,v]) => ({ ...base, id:`g_${ts}_${mes}`, valor_alvo:parseInput(v), valor_atual:0, periodo_mes:Number(mes) }))
       onSave(records)
     }
+  }
+
+  if (saveRef) saveRef.current = () => {
+    if (activeTab === 'execucao') handleSaveRealizado()
+    else handleSave({ preventDefault: () => {} })
   }
 
   const ALVO_OPTIONS = Object.entries(TIPOS_ALVO).map(([k,v]) => ({ val:k, label:v.label }))
@@ -984,7 +990,6 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parce
                 </div>
               )
             })}
-            <Button onClick={handleSaveRealizado} style={{ alignSelf:'flex-end', marginTop:6 }}>Salvar realizado</Button>
           </div>
         )
       })()}
@@ -1044,11 +1049,6 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parce
         </div>
       )}
 
-      {activeTab === 'meta' && (
-        <Button onClick={e => { e.preventDefault(); handleSave(e) }} style={{ alignSelf:'flex-start' }}>
-          {isEditing ? 'Salvar alterações' : `Criar ${filledCount>1?filledCount+' metas':'meta'}`}
-        </Button>
-      )}
     </div>
   )
 
@@ -1099,12 +1099,6 @@ function MetaDetail({ initial, row, onClose, onSave, vendedores, unidades, parce
         </div>
       </FormSection>
 
-      {isEditing && initial && (
-        <button type="button" onClick={onClose}
-          style={{ alignSelf:'flex-start', padding:'7px 14px', borderRadius:8, border:'1px solid var(--red)', background:'none', color:'var(--red)', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
-          Excluir meta
-        </button>
-      )}
     </div>
   )
 }
@@ -1166,6 +1160,7 @@ export default function Metas() {
   const responsavelRef = useRef(null)
 
   const [modal, setModal] = useState(null)
+  const metaSaveRef = useRef(null)
 
   // ── Colunas de meses ────────────────────────────────────────────────────
   const months = useMemo(() => {
@@ -1463,8 +1458,11 @@ export default function Metas() {
         onClose={() => setModal(null)}
         title={modal?.mode==='edit' ? (modal.goal?.nome_ref || 'Meta') : 'Nova meta'}
         subtitle="Comercial · Metas"
-        showFooter={false}
         initialSize="default"
+        onSave={() => metaSaveRef.current?.()}
+        saveLabel={modal?.mode==='edit' ? 'Salvar alterações' : 'Criar meta'}
+        onDelete={modal?.mode==='edit' && modal?.goal?.id ? () => { handleDelete(modal.goal.id); setModal(null) } : undefined}
+        deleteConfirm="Excluir esta meta? Esta ação não pode ser desfeita."
       >
         {modal && (
           <MetaDetail
@@ -1472,12 +1470,14 @@ export default function Metas() {
             row={modal.row || null}
             onClose={() => setModal(null)}
             onSave={handleSave}
+            onDelete={(id) => { handleDelete(id); setModal(null) }}
             vendedores={vendedores}
             unidades={unidades}
             parceiros={parceiros}
             categorias={categorias}
             produtos={produtos}
             equipes={equipes}
+            saveRef={metaSaveRef}
           />
         )}
       </SlideOver>

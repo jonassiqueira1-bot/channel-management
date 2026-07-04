@@ -442,12 +442,8 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
       onTabChange={setTab}
       saving={saving}
       saveLabel={initial?.id ? 'Salvar alterações' : 'Criar Playbook'}
-      headerActions={initial?.id && onDelete && (
-        <button type="button" onClick={() => onDelete(initial.id)}
-          style={{ fontSize: 12, color: 'var(--red)', background: 'none', border: '1px solid var(--red)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)', opacity: 0.8 }}>
-          Excluir
-        </button>
-      )}
+      onDelete={initial?.id && onDelete ? () => onDelete(initial.id) : undefined}
+      deleteConfirm="Excluir este playbook? Esta ação não pode ser desfeita."
     >
       {tab === 'info' && (
         <div style={tabStyle}>
@@ -509,10 +505,6 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
               </FormField>
             </FormGrid>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave} loading={saving}>{initial?.id ? 'Salvar alterações' : 'Criar Playbook'}</Button>
-          </div>
         </div>
       )}
 
@@ -523,10 +515,6 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
             onChange={v => set('objecoes', v)}
             stageCfg={slideStageCfg}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button onClick={handleSave} loading={saving}>{initial?.id ? 'Salvar alterações' : 'Criar Playbook'}</Button>
-          </div>
         </div>
       )}
     </SlideOver>
@@ -1449,7 +1437,6 @@ export default function Playbooks() {
         funis={funis || []}
         produtos={produtos || []}
         onDelete={modal?.data?.id ? (id) => {
-          if (!window.confirm('Excluir este playbook? Esta ação não pode ser desfeita.')) return
           const pb = playbooks.find(p => p.id === id)
           deletePb(id); setSelectedPb(null); setModal(null)
           log('excluir', 'playbook', id, { descricao: `Playbook excluído: ${pb?.title || pb?.nome || id}` })

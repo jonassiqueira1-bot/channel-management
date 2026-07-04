@@ -319,7 +319,7 @@ function ImportModal({ onClose, onImport }) {
 }
 
 // ─── PagamentoDetail (SlideOver) ─────────────────────────────────────────────
-function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = [], projetos = [] }) {
+function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = [], projetos = [], saveRef }) {
   const [form, setForm] = useState({
     amount_cdu:      pagamento.amount_cdu,
     amount_sms:      pagamento.amount_sms,
@@ -371,6 +371,8 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
     setSavedOk(true)
     setTimeout(() => setSavedOk(false), 2200)
   }
+
+  if (saveRef) saveRef.current = handleSave
 
   const bruto    = (Number(form.amount_cdu)||0)+(Number(form.amount_sms)||0)+(Number(form.amount_services)||0)
   const liquido  = Math.max(0, bruto-(Number(form.amount_discount)||0))
@@ -524,26 +526,6 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
           onChange={e => set('notes', e.target.value)} />
       </div>
 
-      {/* ── Rodapé Salvar ─────────────────────────────────────────────────── */}
-      <div style={{ position:'sticky', bottom:0, padding:'12px 24px',
-        borderTop:'1px solid var(--border)', background:'var(--surface)',
-        display:'flex', alignItems:'center', justifyContent:'flex-end', gap:10, flexShrink:0 }}>
-        {dirty && !savedOk && (
-          <span style={{ fontSize:11, color:'var(--text-muted)' }}>Alterações não salvas</span>
-        )}
-        <button
-          onClick={handleSave}
-          disabled={!dirty && !savedOk}
-          style={{
-            padding:'8px 20px', borderRadius:8, fontSize:13, fontWeight:600, cursor: dirty ? 'pointer' : 'default',
-            border:'none', transition:'background 0.2s',
-            background: savedOk ? '#10B981' : dirty ? 'var(--accent)' : 'var(--border)',
-            color: (savedOk || dirty) ? '#fff' : 'var(--text-muted)',
-          }}
-        >
-          {savedOk ? '✓ Salvo' : 'Salvar'}
-        </button>
-      </div>
     </div>
   )
 }
@@ -985,6 +967,7 @@ export default function Pagamentos() {
 
   // ── estado efêmero ────────────────────────────────────────────────────────
   const [detalheModal, setDetalheModal]       = useState(null)
+  const pagSaveRef = useRef(null)
   const [gerarTodosModal, setGerarTodosModal] = useState(false)
   const [novoPagForm, setNovoPagForm]         = useState(null)
   const [savingNovo, setSavingNovo]           = useState(false) // eslint-disable-line no-unused-vars
@@ -1400,7 +1383,8 @@ export default function Pagamentos() {
         title={detalheModal ? `${detalheModal.contract_numero} — ${detalheModal.company_nome}` : ''}
         subtitle={detalheModal ? periodoLabel(parsePeriodo(detalheModal.reference_month)) : ''}
         defaultWidth={720}
-        showFooter={false}
+        onSave={() => pagSaveRef.current?.()}
+        saveLabel="Salvar"
       >
         {detalheModal && (
           <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
@@ -1410,6 +1394,7 @@ export default function Pagamentos() {
               onClose={() => setDetalheModal(null)}
               pagamentosExistentes={pagamentos}
               projetos={projetos || []}
+              saveRef={pagSaveRef}
             />
           </div>
         )}

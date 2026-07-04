@@ -207,21 +207,17 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
     setSaving(false)
   }
 
-  const headerActions = !isNew ? (
-    <Button variant="danger" onClick={() => {
-      if (window.confirm('Excluir este contato? Esta ação não pode ser desfeita.')) onDelete(initial.id)
-    }}>Excluir</Button>
-  ) : null
-
   return (
     <SlideOver
       open={open}
       onClose={onClose}
       onSave={handleSave}
+      onDelete={!isNew ? () => onDelete(initial.id) : undefined}
+      deleteConfirm="Excluir este contato? Esta ação não pode ser desfeita."
       saving={saving}
       title={isNew ? 'Novo Contato Canal' : form.nome || 'Editar Contato Canal'}
       subtitle={isNew ? 'Preencha os dados do contato' : form.email}
-      headerActions={headerActions}
+      saveLabel={isNew ? 'Cadastrar contato' : 'Salvar alterações'}
       columns={2}
     >
       <FormGrid cols={2}>

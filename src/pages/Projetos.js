@@ -288,7 +288,8 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose, pr
       title="Novo Projeto"
       subtitle="Operação · Projetos"
       defaultWidth={600}
-      showFooter={false}
+      onSave={() => { if (form.name.trim() && !dupWarning) onSave(form) }}
+      saveLabel="Criar projeto"
     >
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '20px 24px' }}>
         <FormSection label="Identificação">
@@ -345,15 +346,6 @@ function NovoProjetoModal({ defaultPhase, defaultPhaseIndex, onSave, onClose, pr
         <FormSection label="Observações">
           <textarea className="so-field" style={{ height: 80, resize: 'vertical' }} value={form.notes} onChange={e => set('notes', e.target.value)} placeholder="Contexto, requisitos iniciais…" />
         </FormSection>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, paddingTop: 4 }}>
-          <button onClick={onClose} style={ms.btn}>Cancelar</button>
-          <button
-            onClick={() => form.name.trim() && !dupWarning && onSave(form)}
-            disabled={!!dupWarning || !form.name.trim()}
-            style={{ ...ms.btnPrimary, opacity: (dupWarning || !form.name.trim()) ? 0.45 : 1, cursor: (dupWarning || !form.name.trim()) ? 'not-allowed' : 'pointer' }}>
-            Criar projeto
-          </button>
-        </div>
       </div>
     </SlideOver>
   )
@@ -2077,10 +2069,13 @@ function ProjetoDrawer({ projeto, phases, tasks, timeLogs, issues, attachments, 
       title={projeto.name}
       subtitle={`${projeto.company_nome}${projeto.franchise_nome ? ` · ${projeto.franchise_nome}` : ''}`}
       defaultWidth={680}
-      showFooter={false}
       tabs={tabsWithBadge}
       activeTab={tab}
       onTabChange={setTab}
+      onSave={handleSaveFooter}
+      saveLabel={saved ? '✓ Salvo' : 'Salvar'}
+      onDelete={() => onDelete(projeto.id)}
+      deleteConfirm={`Excluir o projeto "${projeto.name}"? Esta ação não pode ser desfeita.`}
       headerExtra={
         <div style={{ marginTop: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flexWrap: 'wrap' }}>
@@ -2106,23 +2101,6 @@ function ProjetoDrawer({ projeto, phases, tasks, timeLogs, issues, attachments, 
         {tab === 'documentos' && <TabDocumentos projectId={projeto.id} attachments={attachments} />}
       </div>
 
-      {/* Rodapé fixo */}
-      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'var(--surface)', flexShrink: 0 }}>
-        <button
-          onClick={() => { if (window.confirm(`Excluir o projeto "${projeto.name}"? Esta ação não pode ser desfeita.`)) onDelete(projeto.id) }}
-          style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 14px', fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer' }}
-          onMouseEnter={e => { e.currentTarget.style.borderColor = '#EF4444'; e.currentTarget.style.color = '#EF4444' }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-muted)' }}
-        >
-          Excluir projeto
-        </button>
-        <button
-          onClick={handleSaveFooter}
-          style={{ background: saved ? '#10B981' : 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 24px', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)', transition: 'background 0.2s', minWidth: 120 }}
-        >
-          {saved ? '✓ Salvo' : 'Salvar'}
-        </button>
-      </div>
     </SlideOver>
   )
 }
