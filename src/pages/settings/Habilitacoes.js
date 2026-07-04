@@ -315,7 +315,8 @@ export default function Habilitacoes() {
       keyField="id"
       emptyLabel="Nenhuma habilitação cadastrada ainda."
       onNew={abrirNovo}
-      newLabel="+ Nova habilitação"
+      newLabel="Nova habilitação"
+      onRowClick={abrirEdicao}
       rowActions={[
         { label: 'Editar',  onClick: abrirEdicao },
         { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },

@@ -635,7 +635,7 @@ export default function Vendedores() {
         kpis={kpis}
         kpisLabel="Indicadores"
         onNew={openNew}
-        newLabel="+ Novo Contato"
+        newLabel="Novo Contato"
         search={search}
         onSearchChange={setSearch}
         filters={filters}

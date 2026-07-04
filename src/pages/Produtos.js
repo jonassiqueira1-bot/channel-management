@@ -524,7 +524,8 @@ export default function Produtos() {
         keyField="id"
         emptyLabel="Nenhum produto cadastrado."
         onNew={abrirNovo}
-        newLabel="+ Novo produto"
+        newLabel="Novo produto"
+        onRowClick={abrirEdicao}
         rowActions={[
           { label: 'Editar',  onClick: abrirEdicao },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },

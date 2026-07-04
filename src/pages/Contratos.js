@@ -1566,7 +1566,7 @@ export default function Contratos() {
         storageKey="contratos_browse"
         onRowClick={c => setEditando(c)}
         onNew={() => setEditando({ ...EMPTY_FORM, numero: gerarNumero(contratos) })}
-        newLabel="+ Novo contrato"
+        newLabel="Novo contrato"
         onExportCsv={handleExport}
         kpis={kpisNode}
         bulkActions={[

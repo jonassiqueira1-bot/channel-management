@@ -333,7 +333,8 @@ export default function Funis() {
       keyField="id"
       emptyLabel="Nenhum funil cadastrado."
       onNew={abrirNovo}
-      newLabel="+ Novo funil"
+      newLabel="Novo funil"
+      onRowClick={abrirEdicao}
       rowActions={[
         { label: 'Editar',  onClick: abrirEdicao },
         { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },

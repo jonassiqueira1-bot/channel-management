@@ -300,7 +300,7 @@ export default function Contatos() {
         filters={FILTERS}
         onRowClick={c => setModal(c)}
         onNew={() => setModal('novo')}
-        newLabel="+ Novo contato"
+        newLabel="Novo contato"
         storageKey="contatos_browse"
         keyField="id"
         kpis={kpisNode}

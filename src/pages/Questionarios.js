@@ -648,7 +648,7 @@ export default function Questionarios() {
         storageKey="questionarios_browse"
         onRowClick={row => setDrawer(row)}
         onNew={() => setDrawer('novo')}
-        newLabel="+ Novo questionário"
+        newLabel="Novo questionário"
         kpis={kpisNode}
         bulkEditFields={[
           { key: 'type', label: 'Tipo', type: 'select',

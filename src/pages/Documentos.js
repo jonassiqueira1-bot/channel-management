@@ -420,7 +420,7 @@ export default function Documentos() {
         storageKey="documentos_browse"
         onRowClick={row => setDrawer(row)}
         onNew={() => setDrawer('novo')}
-        newLabel="+ Novo Documento"
+        newLabel="Novo Documento"
         kpis={kpisNode}
         bulkActions={[
           {

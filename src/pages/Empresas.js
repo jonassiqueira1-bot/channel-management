@@ -1236,7 +1236,7 @@ export default function Empresas() {
         onRowClick={e => setModal({ editing: e })}
         emptyState={<div style={{ textAlign:'center', color:'var(--text-muted)', padding:'40px 0', fontSize:13 }}>Nenhuma empresa encontrada</div>}
         onNew={() => setModal('new')}
-        newLabel="+ Nova empresa"
+        newLabel="Nova empresa"
         storageKey="empresas_browse"
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}

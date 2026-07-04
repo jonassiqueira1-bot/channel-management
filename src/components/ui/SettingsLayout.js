@@ -39,8 +39,8 @@ const Z = {
   500:     '#71717A',
   700:     '#3F3F46',
   900:     '#18181B',
-  blue:    '#1E3A5F',
-  blueHov: '#2E5090',
+  blue:    'var(--accent)',
+  blueHov: 'var(--accent-dark, #1d4ed8)',
   danger:  '#DC2626',
   dangerBg:'#FEF2F2',
 }
@@ -279,7 +279,8 @@ export default function SettingsLayout({
   data         = [],
   keyField     = 'id',
   onNew,
-  newLabel     = '+ Novo',
+  newLabel     = 'Novo',
+  onRowClick,
   rowActions   = [],
   loading      = false,
   emptyLabel   = 'Nenhum registro encontrado.',
@@ -408,11 +409,10 @@ export default function SettingsLayout({
             <GlobalMenu onExportCsv={onExportCsv} onExportExcel={onExportExcel} onImport={onImport} />
             {onNew && (
               <button type="button" onClick={onNew}
-                style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 12px', border:'none', borderRadius:6, background:Z.blue, color:'#fff', fontFamily:'var(--font)', fontSize:12, fontWeight:500, cursor:'pointer', whiteSpace:'nowrap' }}
+                style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 14px', border:'none', borderRadius:6, background:Z.blue, color:'#fff', fontFamily:'var(--font)', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 1px 4px rgba(37,99,235,0.30)' }}
                 onMouseEnter={e => e.currentTarget.style.background = Z.blueHov}
                 onMouseLeave={e => e.currentTarget.style.background = Z.blue}
               >
-                <Plus size={13} />
                 {newLabel}
               </button>
             )}
@@ -461,9 +461,11 @@ export default function SettingsLayout({
                 const isSelected = selected.has(row[keyField])
                 return (
                   <tr key={row[keyField] ?? ri}
-                    style={{ borderBottom:`1px solid ${Z[200]}`, background: isSelected ? 'rgba(30,58,95,0.05)' : '' }}
+                    style={{ borderBottom:`1px solid ${Z[200]}`, background: isSelected ? 'rgba(37,99,235,0.05)' : '', cursor: onRowClick ? 'pointer' : 'default' }}
+                    onClick={onRowClick ? () => onRowClick(row) : undefined}
+                    onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
                     onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = Z[50] }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(30,58,95,0.05)' : '' }}
+                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(37,99,235,0.05)' : '' }}
                   >
                     {hasBulk && (
                       <td style={{ padding:'9px 8px 9px 14px', verticalAlign:'middle' }}>
