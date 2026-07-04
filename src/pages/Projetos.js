@@ -1,5 +1,6 @@
-import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
+import { useRelatorios } from '../hooks/useRelatorios'
 import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
 import {
   FASES_MIT, STATUS_PROJETO, CRITICALITY_CFG, PHASE_NAMES,
@@ -21,6 +22,8 @@ import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useTimeLogs } from '../hooks/useTimeLogs'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
+
+const CanvasEditor = lazy(() => import('../components/ui/CanvasEditor'))
 
 const ACCENT = 'var(--accent)'
 
@@ -3161,6 +3164,7 @@ function OppSearch({ oppOptions, value, onChange }) {
 
 function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   const { save: saveOpp } = useOpportunities()
+  const { relatorios: docRelatorios, save: saveDocRelatorio } = useRelatorios('proposta')
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
   const [subView,      setSubView]      = useState('propostas') // 'propostas' | 'templates'
@@ -3178,6 +3182,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   const [wVars,        setWVars]        = useState({})      // regras variáveis wizard
   const [tmplTab,      setTmplTab]      = useState('wbs')
   const [tmplSaved,    setTmplSaved]    = useState(false)
+  const [editandoDoc,  setEditandoDoc]  = useState(false)
   const [versaoDesc,   setVersaoDesc]   = useState('')
   const [propSaved,    setPropSaved]    = useState(false)
   const [importing,    setImporting]    = useState(false)
@@ -3815,10 +3820,9 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
       { id:'wbs',     label:'WBS / Escopo'   },
       { id:'tarifas', label:'Tarifas'         },
       { id:'produtos',label:'Produto'         },
-      { id:'blocos',  label:'Blocos de Texto' },
-      { id:'regras',  label:'Regras'          },
-      { id:'estilo',  label:'Estilo Doc.'     },
-      { id:'versoes', label:'Versões'         },
+      { id:'documento', label:'Documento'       },
+      { id:'regras',   label:'Regras'          },
+      { id:'versoes',  label:'Versões'         },
     ]
     const st = selectedTmpl
     const totals = calcPhaseTotals(st.itens||[])
@@ -3928,48 +3932,57 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
         {/* Produtos tab */}
         {tmplTab==='produtos' && <ProdutoSearch produto_id={st.produto_id} onChange={id=>salvarTemplate({...st,produto_id:id})}/>}
 
-        {/* Blocos de texto tab */}
-        {tmplTab==='blocos' && (
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            <div style={{fontSize:12,color:'var(--text-muted)'}}>Defina as seções de texto que compõem o documento da proposta. Ordem arrastável — use ↑↓ para reordenar.</div>
-            {(st.blocos||[]).sort((a,b)=>a.ordem-b.ordem).map((bloco,idx,arr)=>(
-              <div key={bloco.id} style={{border:'1px solid var(--border)',borderRadius:10,overflow:'hidden'}}>
-                <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 12px',background:'var(--surface2)',borderBottom:'1px solid var(--border)'}}>
-                  <input value={bloco.titulo} onChange={e=>{
-                    const nb=(st.blocos||[]).map(b=>b.id===bloco.id?{...b,titulo:e.target.value}:b)
-                    salvarTemplate({...st,blocos:nb})
-                  }} style={{flex:1,padding:'3px 6px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)',fontSize:13,fontWeight:600,outline:'none',fontFamily:'var(--font)'}}/>
-                  <div style={{display:'flex',gap:4}}>
-                    <button disabled={idx===0} onClick={()=>{
-                      const nb=[...(st.blocos||[])]; const prev=nb[idx-1]; nb[idx-1]={...bloco,ordem:prev.ordem}; nb[idx]={...prev,ordem:bloco.ordem}
-                      salvarTemplate({...st,blocos:nb})
-                    }} style={{padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:idx===0?'var(--border)':'var(--text-muted)',cursor:idx===0?'default':'pointer',fontSize:12,fontFamily:'var(--font)'}}>↑</button>
-                    <button disabled={idx===arr.length-1} onClick={()=>{
-                      const nb=[...(st.blocos||[])]; const next=nb[idx+1]; nb[idx+1]={...bloco,ordem:next.ordem}; nb[idx]={...next,ordem:bloco.ordem}
-                      salvarTemplate({...st,blocos:nb})
-                    }} style={{padding:'3px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:idx===arr.length-1?'var(--border)':'var(--text-muted)',cursor:idx===arr.length-1?'default':'pointer',fontSize:12,fontFamily:'var(--font)'}}>↓</button>
-                    <button onClick={()=>salvarTemplate({...st,blocos:(st.blocos||[]).filter(b=>b.id!==bloco.id)})}
-                      style={{padding:'3px 8px',border:'1px solid #EF444433',borderRadius:5,background:'none',color:'#EF4444',cursor:'pointer',fontSize:12,fontFamily:'var(--font)'}}>✕</button>
-                  </div>
-                </div>
-                <textarea value={bloco.conteudo} rows={4}
-                  onChange={e=>{
-                    const nb=(st.blocos||[]).map(b=>b.id===bloco.id?{...b,conteudo:e.target.value}:b)
-                    salvarTemplate({...st,blocos:nb})
-                  }}
-                  placeholder="Conteúdo do bloco… (use {{empresa_nome}}, {{opp_titulo}}, {{data}} como variáveis)"
-                  style={{width:'100%',padding:'10px 14px',border:'none',background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)',resize:'vertical',boxSizing:'border-box',lineHeight:1.7}}/>
+        {/* Documento tab — CanvasEditor para proposta */}
+        {tmplTab==='documento' && (() => {
+          const docVinculado = docRelatorios.find(r => r.id === st.documento_id) || null
+          return (
+            <div style={{display:'flex',flexDirection:'column',gap:14}}>
+              <div style={{padding:'10px 14px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,fontSize:11,color:'var(--text-soft)',lineHeight:1.6}}>
+                Editor visual de documento — configure cabeçalho, rodapé, marca d'água e insira blocos de texto, gráficos, KPIs e tabelas de dados reais.
               </div>
-            ))}
-            <button onClick={()=>{
-              const ordem=Math.max(0,...(st.blocos||[]).map(b=>b.ordem))+1
-              const nb=[...(st.blocos||[]),{id:`b-${Date.now()}`,ordem,titulo:'Nova seção',conteudo:''}]
-              salvarTemplate({...st,blocos:nb})
-            }} style={{alignSelf:'flex-start',padding:'6px 14px',background:'none',border:'1px dashed var(--border)',borderRadius:7,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
-              + Adicionar bloco
-            </button>
-          </div>
-        )}
+              {docVinculado ? (
+                <div style={{border:'1px solid var(--border)',borderRadius:10,padding:'14px 16px',display:'flex',alignItems:'center',gap:12}}>
+                  <div style={{width:36,height:36,background:'var(--accent-glow)',borderRadius:8,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18,flexShrink:0}}>📄</div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:13,fontWeight:700,color:'var(--text)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{docVinculado.titulo}</div>
+                    <div style={{fontSize:11,color:'var(--text-muted)'}}>{docVinculado.elementos?.length||0} elementos · {docVinculado.status}</div>
+                  </div>
+                  <button onClick={()=>setEditandoDoc(true)}
+                    style={{padding:'7px 16px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',flexShrink:0}}>
+                    Editar documento
+                  </button>
+                </div>
+              ) : (
+                <button onClick={async ()=>{
+                  const novo = { id:`local_${Date.now()}`, titulo:`Documento — ${st.nome||'Template'}`, tipo:'proposta', config:{}, elementos:[], acesso:'privado', papeis_permitidos:[], status:'rascunho' }
+                  const result = await saveDocRelatorio(novo)
+                  if (result?.ok && result.relatorio) {
+                    salvarTemplate({...st, documento_id: result.relatorio.id})
+                    setEditandoDoc(true)
+                  }
+                }} style={{alignSelf:'flex-start',padding:'9px 18px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)'}}>
+                  + Criar documento
+                </button>
+              )}
+              {editandoDoc && docVinculado && (
+                <div style={{position:'fixed',inset:0,zIndex:300,background:'var(--surface2)'}}>
+                  <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--text-muted)'}}>Carregando editor…</div>}>
+                    <CanvasEditor
+                      relatorio={docVinculado}
+                      onSave={async (rel)=>{
+                        const r = await saveDocRelatorio(rel)
+                        return r
+                      }}
+                      onBack={()=>setEditandoDoc(false)}
+                      mode="proposta"
+                      projetoData={{ nome: st.nome, empresa: '' }}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          )
+        })()}
 
         {/* Regras tab */}
         {tmplTab==='regras' && (
@@ -4072,91 +4085,6 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
           </div>
         )}
 
-        {/* Estilo / papel de carta tab (global) */}
-        {tmplTab==='estilo' && (
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
-            <div style={{padding:'10px 14px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,fontSize:11,color:'var(--text-soft)',lineHeight:1.6}}>
-              Configuração global de estilo — aplicada em todas as propostas ao gerar o documento.
-            </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
-              <div>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>URL do Logo</div>
-                <input value={estilo.logo_url||''} onChange={e=>setEstilo(s=>({...s,logo_url:e.target.value}))}
-                  placeholder="https://empresa.com/logo.png" style={inpSt2}/>
-              </div>
-              <div>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Cor primária</div>
-                <div style={{display:'flex',gap:8,alignItems:'center'}}>
-                  <input type="color" value={estilo.cor_primaria||'#6366F1'} onChange={e=>setEstilo(s=>({...s,cor_primaria:e.target.value}))}
-                    style={{width:40,height:36,border:'1px solid var(--border)',borderRadius:6,cursor:'pointer',padding:2}}/>
-                  <input value={estilo.cor_primaria||''} onChange={e=>setEstilo(s=>({...s,cor_primaria:e.target.value}))}
-                    style={{...inpSt2,flex:1,fontFamily:'var(--mono)',fontSize:12}}/>
-                </div>
-              </div>
-              <div>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Título do cabeçalho</div>
-                <input value={estilo.header_titulo||''} onChange={e=>setEstilo(s=>({...s,header_titulo:e.target.value}))}
-                  placeholder="PROPOSTA DE IMPLANTAÇÃO" style={inpSt2}/>
-              </div>
-              <div>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Subtítulo do cabeçalho</div>
-                <input value={estilo.header_sub||''} onChange={e=>setEstilo(s=>({...s,header_sub:e.target.value}))}
-                  placeholder="Documento confidencial" style={inpSt2}/>
-              </div>
-              <div style={{gridColumn:'1/-1'}}>
-                <div style={{fontSize:11,fontWeight:600,color:'var(--text-soft)',marginBottom:5}}>Rodapé</div>
-                <input value={estilo.footer_texto||''} onChange={e=>setEstilo(s=>({...s,footer_texto:e.target.value}))}
-                  placeholder="Confidencial · {{empresa_nome}} · {{ano}}" style={inpSt2}/>
-                <div style={{fontSize:10,color:'var(--text-muted)',marginTop:3}}>Variáveis disponíveis: {'{{empresa_nome}}'}, {'{{opp_titulo}}'}, {'{{data}}'}, {'{{ano}}'}</div>
-              </div>
-            </div>
-            {/* Preview */}
-            <div style={{border:`3px solid ${estilo.cor_primaria||'#6366F1'}`,borderRadius:8,overflow:'hidden',marginTop:4}}>
-              <div style={{background:estilo.cor_primaria||'#6366F1',padding:'16px 20px',display:'flex',alignItems:'center',gap:14}}>
-                {estilo.logo_url && <img src={estilo.logo_url} alt="logo" style={{height:32,objectFit:'contain'}} onError={e=>e.target.style.display='none'}/>}
-                <div>
-                  <div style={{fontSize:14,fontWeight:800,color:'#fff',letterSpacing:1}}>{estilo.header_titulo||'PROPOSTA DE IMPLANTAÇÃO'}</div>
-                  {estilo.header_sub&&<div style={{fontSize:11,color:'rgba(255,255,255,0.8)',marginTop:2}}>{estilo.header_sub}</div>}
-                </div>
-              </div>
-              <div style={{padding:'10px 20px',background:'var(--surface)',borderTop:'none'}}>
-                <div style={{fontSize:10,color:'var(--text-muted)',textAlign:'center'}}>
-                  {(estilo.footer_texto||'').replace('{{empresa_nome}}','Empresa Cliente').replace('{{ano}}',new Date().getFullYear()).replace('{{data}}',new Date().toLocaleDateString('pt-BR'))}
-                </div>
-              </div>
-            </div>
-            {/* Word template upload */}
-            <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
-              <div style={{fontSize:12,fontWeight:700,color:'var(--text)',marginBottom:8}}>Modelo Word (papel de carta)</div>
-              <div style={{padding:'10px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,fontSize:11,color:'#1D4ED8',lineHeight:1.6,marginBottom:10}}>
-                O modelo Word será usado como papel de carta. As variáveis <code>{'{{empresa_nome}}'}</code>, <code>{'{{opp_titulo}}'}</code>, <code>{'{{data}}'}</code> serão substituídas. Requer suporte a docxtemplater (em desenvolvimento).
-              </div>
-              {estilo.docx_template_base64 ? (
-                <div style={{display:'flex',alignItems:'center',gap:8}}>
-                  <span style={{fontSize:11,padding:'4px 10px',background:'#D1FAE5',color:'#065F46',borderRadius:20,border:'1px solid #10B98133'}}>
-                    ✓ {estilo.docx_template_nome||'Arquivo carregado'}
-                  </span>
-                  <button onClick={()=>setEstilo(s=>{const n={...s};delete n.docx_template_base64;delete n.docx_template_nome;return n})}
-                    style={{fontSize:11,padding:'4px 10px',background:'none',border:'1px solid #EF444433',borderRadius:20,color:'#EF4444',cursor:'pointer',fontFamily:'var(--font)'}}>
-                    Remover
-                  </button>
-                </div>
-              ) : (
-                <label style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:'var(--surface)',border:'1px dashed var(--border)',borderRadius:7,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
-                  ↑ Carregar modelo .docx
-                  <input type="file" accept=".docx" style={{display:'none'}} onChange={e=>{
-                    const file=e.target.files?.[0]; if(!file) return
-                    const reader=new FileReader()
-                    reader.onload=ev=>{
-                      setEstilo(s=>({...s,docx_template_base64:ev.target.result,docx_template_nome:file.name}))
-                    }
-                    reader.readAsDataURL(file)
-                  }}/>
-                </label>
-              )}
-            </div>
-          </div>
-        )}
 
         {/* Versões tab */}
         {tmplTab==='versoes' && (
