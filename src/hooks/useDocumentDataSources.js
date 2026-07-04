@@ -1,0 +1,454 @@
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
+import { useProfile } from './useProfile'
+
+// Fontes de dados reais do Supabase para uso no CanvasEditor (KPI, Gráfico, Tabela)
+export function useDocumentDataSources() {
+  const { profile } = useProfile()
+  const [sources, setSources] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      const [
+        oppsRes,
+        projRes,
+        companiesRes,
+        parceirosRes,
+        goalsRes,
+        actionsRes,
+        contactsRes,
+        sellersRes,
+        contractsRes,
+        paymentsRes,
+        commissionsRes,
+        customerHealthRes,
+        questTemplatesRes,
+        questSubmissionsRes,
+        documentsRes,
+        playbooksRes,
+      ] = await Promise.all([
+        // Pipeline (oportunidades)
+        supabase.from('oportunidades')
+          .select('id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, created_at')
+          .is('deleted_at', null)
+          .limit(2000),
+
+        // Projetos
+        supabase.from('projects')
+          .select('id, nome, status, custom_fields, data_inicio, created_at')
+          .is('deleted_at', null)
+          .limit(2000),
+
+        // Empresas / Clientes
+        supabase.from('companies')
+          .select('id, nome_fantasia, razao_social, tipo, status, created_at')
+          .is('deleted_at', null)
+          .limit(2000),
+
+        // Parceiros
+        supabase.from('parceiros')
+          .select('id, nome, status, created_at')
+          .limit(2000),
+
+        // Metas
+        supabase.from('goals')
+          .select('id, tipo_alvo, alvo_nome, tipo_meta, valor_planejado, valor_atual, status, periodo_mes, periodo_ano, created_at')
+          .limit(2000),
+
+        // Ações / Tarefas
+        supabase.from('actions')
+          .select('id, titulo, tipo, status, prioridade, data_prevista, data_conclusao, created_at')
+          .limit(2000),
+
+        // Contatos
+        supabase.from('contacts')
+          .select('id, name, email, job_title, created_at')
+          .limit(2000),
+
+        // Vendedores (Contatos Canais)
+        supabase.from('sellers')
+          .select('id, nome, status, cargo, equipe, regiao, meta_mensal, created_at')
+          .limit(2000),
+
+        // Contratos
+        supabase.from('contracts')
+          .select('id, numero, status, data_inicio, data_fim, created_at')
+          .is('deleted_at', null)
+          .limit(2000),
+
+        // Pagamentos
+        supabase.from('payments')
+          .select('id, amount_cdu, amount_sms, amount_services, amount_discount, amount_total_net, status, reference_month, due_date, created_at')
+          .limit(2000),
+
+        // Comissões
+        supabase.from('commission_payments')
+          .select('id, beneficiario_nome, persona, receita_tipo, valor_base, valor_comissao, percentual, status, periodo_mes, periodo_ano, created_at')
+          .limit(2000),
+
+        // Sucesso do Cliente (Customer Health)
+        supabase.from('customer_health')
+          .select('id, laer_stage, touch_model, health_score, renewal_date, created_at')
+          .limit(2000),
+
+        // Questionários — templates
+        supabase.from('questionnaire_templates')
+          .select('id, title, type, is_active, created_at')
+          .limit(2000),
+
+        // Questionários — respostas
+        supabase.from('questionnaire_submissions')
+          .select('id, template_id, status, score, created_at')
+          .limit(2000),
+
+        // Documentos
+        supabase.from('documents')
+          .select('id, title, categoria, status, prazo_validade, created_at')
+          .is('deleted_at', null)
+          .limit(2000),
+
+        // Playbooks
+        supabase.from('playbooks')
+          .select('id, nome, status, tipo, created_at')
+          .limit(2000),
+      ])
+
+      // ── Mapeamento de cada fonte ──────────────────────────────────────────
+
+      const oportunidades = (oppsRes.data || []).map(o => ({
+        situacao:    o.situacao || 'em_andamento',
+        titulo:      o.titulo || '',
+        responsavel: o.responsavel || '',
+        valor:       (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0),
+        created_at:  o.created_at?.slice(0,10) || '',
+      }))
+
+      const projetos = (projRes.data || []).map(p => {
+        const cf = p.custom_fields || {}
+        return {
+          status:     p.status || '',
+          fase:       cf.phase || '',
+          horas_est:  Number(cf.total_hours_estimated || 0),
+          horas_exec: Number(cf.total_hours_executed  || 0),
+          nome:       p.nome || '',
+          created_at: p.created_at?.slice(0,10) || '',
+        }
+      })
+
+      const empresas = (companiesRes.data || []).map(c => ({
+        tipo:       c.tipo || '',
+        status:     c.status || '',
+        nome:       c.nome_fantasia || c.razao_social || '',
+        created_at: c.created_at?.slice(0,10) || '',
+      }))
+
+      const parceiros = (parceirosRes.data || []).map(p => ({
+        nome:       p.nome || '',
+        status:     p.status || 'ativo',
+        created_at: p.created_at?.slice(0,10) || '',
+      }))
+
+      const metas = (goalsRes.data || []).map(g => ({
+        tipo_alvo:       g.tipo_alvo || '',
+        alvo_nome:       g.alvo_nome || '',
+        tipo_meta:       g.tipo_meta || '',
+        status:          g.status || 'ativa',
+        valor_planejado: Number(g.valor_planejado || 0),
+        valor_atual:     Number(g.valor_atual || 0),
+        periodo:         `${String(g.periodo_mes||'').padStart(2,'0')}/${g.periodo_ano||''}`,
+        created_at:      g.created_at?.slice(0,10) || '',
+      }))
+
+      const acoes = (actionsRes.data || []).map(a => ({
+        titulo:     a.titulo || '',
+        tipo:       a.tipo || '',
+        status:     a.status || '',
+        prioridade: a.prioridade || '',
+        data_prev:  a.data_prevista?.slice(0,10) || '',
+        data_conc:  a.data_conclusao?.slice(0,10) || '',
+        created_at: a.created_at?.slice(0,10) || '',
+      }))
+
+      const contatos = (contactsRes.data || []).map(c => ({
+        nome:       c.name || '',
+        email:      c.email || '',
+        cargo:      c.job_title || '',
+        created_at: c.created_at?.slice(0,10) || '',
+      }))
+
+      const vendedores = (sellersRes.data || []).map(s => ({
+        nome:        s.nome || '',
+        status:      s.status || '',
+        cargo:       s.cargo || '',
+        equipe:      s.equipe || '',
+        regiao:      s.regiao || '',
+        meta_mensal: Number(s.meta_mensal || 0),
+        created_at:  s.created_at?.slice(0,10) || '',
+      }))
+
+      const contratos = (contractsRes.data || []).map(c => ({
+        numero:      c.numero || '',
+        status:      c.status || '',
+        vigencia_ini: c.data_inicio?.slice(0,10) || '',
+        vigencia_fim: c.data_fim?.slice(0,10) || '',
+        created_at:  c.created_at?.slice(0,10) || '',
+      }))
+
+      const pagamentos = (paymentsRes.data || []).map(p => ({
+        status:       p.status || '',
+        mes_ref:      p.reference_month?.slice(0,7) || '',
+        vencimento:   p.due_date?.slice(0,10) || '',
+        valor_cdu:    Number(p.amount_cdu || 0),
+        valor_sms:    Number(p.amount_sms || 0),
+        valor_serv:   Number(p.amount_services || 0),
+        desconto:     Number(p.amount_discount || 0),
+        valor_total:  Number(p.amount_total_net || 0),
+        created_at:   p.created_at?.slice(0,10) || '',
+      }))
+
+      const comissoes = (commissionsRes.data || []).map(c => ({
+        beneficiario: c.beneficiario_nome || '',
+        persona:      c.persona || '',
+        receita_tipo: c.receita_tipo || '',
+        valor_base:   Number(c.valor_base || 0),
+        valor_comiss: Number(c.valor_comissao || 0),
+        percentual:   Number(c.percentual || 0),
+        status:       c.status || '',
+        periodo:      `${String(c.periodo_mes||'').padStart(2,'0')}/${c.periodo_ano||''}`,
+        created_at:   c.created_at?.slice(0,10) || '',
+      }))
+
+      const cs = (customerHealthRes.data || []).map(h => ({
+        laer_stage:   h.laer_stage || '',
+        touch_model:  h.touch_model || '',
+        health_score: Number(h.health_score || 0),
+        renewal_date: h.renewal_date?.slice(0,10) || '',
+        created_at:   h.created_at?.slice(0,10) || '',
+      }))
+
+      const questionarios = (questTemplatesRes.data || []).map(t => ({
+        titulo:    t.title || '',
+        tipo:      t.type || '',
+        ativo:     t.is_active ? 'Sim' : 'Não',
+        created_at: t.created_at?.slice(0,10) || '',
+      }))
+
+      const respostas = (questSubmissionsRes.data || []).map(s => ({
+        template_id: s.template_id || '',
+        status:      s.status || '',
+        score:       Number(s.score || 0),
+        created_at:  s.created_at?.slice(0,10) || '',
+      }))
+
+      const documentos = (documentsRes.data || []).map(d => ({
+        titulo:       d.title || '',
+        categoria:    d.categoria || '',
+        status:       d.status || '',
+        prazo_valid:  d.prazo_validade?.slice(0,10) || '',
+        created_at:   d.created_at?.slice(0,10) || '',
+      }))
+
+      const playbooks = (playbooksRes.data || []).map(p => ({
+        nome:      p.nome || '',
+        tipo:      p.tipo || '',
+        status:    p.status || '',
+        created_at: p.created_at?.slice(0,10) || '',
+      }))
+
+      // ── Definição das fontes com fields ──────────────────────────────────
+
+      setSources([
+        {
+          id: 'pipeline', label: 'Pipeline', icon: '📈',
+          registros: oportunidades,
+          fields: [
+            { key:'situacao',    label:'Situação',    type:'text'   },
+            { key:'titulo',      label:'Título',      type:'text'   },
+            { key:'responsavel', label:'Responsável', type:'text'   },
+            { key:'valor',       label:'Valor (R$)',  type:'number' },
+            { key:'created_at',  label:'Criado em',   type:'date'   },
+          ],
+        },
+        {
+          id: 'projetos', label: 'Projetos', icon: '🏗️',
+          registros: projetos,
+          fields: [
+            { key:'status',     label:'Status',       type:'text'   },
+            { key:'fase',       label:'Fase',         type:'text'   },
+            { key:'nome',       label:'Nome',         type:'text'   },
+            { key:'horas_est',  label:'Horas estim.', type:'number' },
+            { key:'horas_exec', label:'Horas exec.',  type:'number' },
+            { key:'created_at', label:'Criado em',    type:'date'   },
+          ],
+        },
+        {
+          id: 'empresas', label: 'Empresas', icon: '🏢',
+          registros: empresas,
+          fields: [
+            { key:'tipo',      label:'Tipo',      type:'text' },
+            { key:'status',    label:'Status',    type:'text' },
+            { key:'nome',      label:'Nome',      type:'text' },
+            { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'parceiros', label: 'Parceiros', icon: '🤝',
+          registros: parceiros,
+          fields: [
+            { key:'status',    label:'Status',    type:'text' },
+            { key:'nome',      label:'Nome',      type:'text' },
+            { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'metas', label: 'Metas', icon: '🎯',
+          registros: metas,
+          fields: [
+            { key:'tipo_alvo',      label:'Tipo de alvo',  type:'text'   },
+            { key:'alvo_nome',      label:'Alvo',          type:'text'   },
+            { key:'tipo_meta',      label:'Tipo',          type:'text'   },
+            { key:'status',         label:'Status',        type:'text'   },
+            { key:'valor_planejado',label:'Planejado (R$)',type:'number' },
+            { key:'valor_atual',    label:'Atual (R$)',    type:'number' },
+            { key:'periodo',        label:'Período',       type:'text'   },
+          ],
+        },
+        {
+          id: 'acoes', label: 'Ações', icon: '⚡',
+          registros: acoes,
+          fields: [
+            { key:'titulo',    label:'Título',     type:'text' },
+            { key:'tipo',      label:'Tipo',       type:'text' },
+            { key:'status',    label:'Status',     type:'text' },
+            { key:'prioridade',label:'Prioridade', type:'text' },
+            { key:'data_prev', label:'Prevista',   type:'date' },
+            { key:'data_conc', label:'Concluída',  type:'date' },
+            { key:'created_at',label:'Criado em',  type:'date' },
+          ],
+        },
+        {
+          id: 'contatos', label: 'Contatos', icon: '👤',
+          registros: contatos,
+          fields: [
+            { key:'nome',      label:'Nome',      type:'text' },
+            { key:'email',     label:'E-mail',    type:'text' },
+            { key:'cargo',     label:'Cargo',     type:'text' },
+            { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'vendedores', label: 'Contatos Canais', icon: '🧑‍💼',
+          registros: vendedores,
+          fields: [
+            { key:'nome',       label:'Nome',       type:'text'   },
+            { key:'status',     label:'Status',     type:'text'   },
+            { key:'cargo',      label:'Cargo',      type:'text'   },
+            { key:'equipe',     label:'Equipe',     type:'text'   },
+            { key:'regiao',     label:'Região',     type:'text'   },
+            { key:'meta_mensal',label:'Meta (R$)',  type:'number' },
+            { key:'created_at', label:'Criado em',  type:'date'   },
+          ],
+        },
+        {
+          id: 'contratos', label: 'Contratos', icon: '📄',
+          registros: contratos,
+          fields: [
+            { key:'numero',      label:'Número',     type:'text' },
+            { key:'status',      label:'Status',     type:'text' },
+            { key:'vigencia_ini',label:'Início',     type:'date' },
+            { key:'vigencia_fim',label:'Fim',        type:'date' },
+            { key:'created_at',  label:'Criado em',  type:'date' },
+          ],
+        },
+        {
+          id: 'pagamentos', label: 'Pagamentos', icon: '💰',
+          registros: pagamentos,
+          fields: [
+            { key:'status',      label:'Status',        type:'text'   },
+            { key:'mes_ref',     label:'Mês ref.',      type:'text'   },
+            { key:'vencimento',  label:'Vencimento',    type:'date'   },
+            { key:'valor_cdu',   label:'CDU (R$)',      type:'number' },
+            { key:'valor_sms',   label:'SMS (R$)',      type:'number' },
+            { key:'valor_serv',  label:'Serviços (R$)', type:'number' },
+            { key:'desconto',    label:'Desconto (R$)', type:'number' },
+            { key:'valor_total', label:'Total (R$)',    type:'number' },
+          ],
+        },
+        {
+          id: 'comissoes', label: 'Comissões', icon: '💸',
+          registros: comissoes,
+          fields: [
+            { key:'beneficiario', label:'Beneficiário',  type:'text'   },
+            { key:'persona',      label:'Persona',       type:'text'   },
+            { key:'receita_tipo', label:'Tipo receita',  type:'text'   },
+            { key:'valor_base',   label:'Valor base',    type:'number' },
+            { key:'valor_comiss', label:'Comissão (R$)', type:'number' },
+            { key:'percentual',   label:'% comissão',   type:'number' },
+            { key:'status',       label:'Status',        type:'text'   },
+            { key:'periodo',      label:'Período',       type:'text'   },
+          ],
+        },
+        {
+          id: 'customer_health', label: 'Sucesso do Cliente', icon: '❤️',
+          registros: cs,
+          fields: [
+            { key:'laer_stage',  label:'Etapa LAER',   type:'text'   },
+            { key:'touch_model', label:'Toque',        type:'text'   },
+            { key:'health_score',label:'Score saúde',  type:'number' },
+            { key:'renewal_date',label:'Renovação',    type:'date'   },
+          ],
+        },
+        {
+          id: 'questionarios', label: 'Questionários', icon: '📋',
+          registros: questionarios,
+          fields: [
+            { key:'titulo',    label:'Título',    type:'text' },
+            { key:'tipo',      label:'Tipo',      type:'text' },
+            { key:'ativo',     label:'Ativo',     type:'text' },
+            { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'questionarios_respostas', label: 'Respostas Questionários', icon: '📝',
+          registros: respostas,
+          fields: [
+            { key:'status',    label:'Status',    type:'text'   },
+            { key:'score',     label:'Score',     type:'number' },
+            { key:'created_at',label:'Criado em', type:'date'   },
+          ],
+        },
+        {
+          id: 'documentos', label: 'Documentos', icon: '🗂️',
+          registros: documentos,
+          fields: [
+            { key:'titulo',     label:'Título',    type:'text' },
+            { key:'categoria',  label:'Categoria', type:'text' },
+            { key:'status',     label:'Status',    type:'text' },
+            { key:'prazo_valid',label:'Validade',  type:'date' },
+            { key:'created_at', label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'playbooks', label: 'Playbooks', icon: '📚',
+          registros: playbooks,
+          fields: [
+            { key:'nome',      label:'Nome',      type:'text' },
+            { key:'tipo',      label:'Tipo',      type:'text' },
+            { key:'status',    label:'Status',    type:'text' },
+            { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+      ])
+    } catch (_) {
+      setSources([])
+    } finally {
+      setLoading(false)
+    }
+  }, [profile?.tenant_id])
+
+  useEffect(() => { load() }, [load])
+
+  return { sources, loading, reload: load }
+}
