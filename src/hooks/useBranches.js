@@ -36,19 +36,13 @@ export function useBranches() {
   const save = useCallback(async (data) => {
     if (!tenantId) return { ok: false, error: 'tenant não carregado' }
     setSaving(true)
-    let result
-    if (data.id) {
-      const { error } = await supabase
-        .from('tenant_branches')
-        .update({ name: data.name, custom_fields: data.custom_fields || {} })
-        .eq('id', data.id)
-      result = error ? { ok: false, error: error.message } : { ok: true }
-    } else {
-      const { error } = await supabase
-        .from('tenant_branches')
-        .insert({ tenant_id: tenantId, name: data.name, custom_fields: data.custom_fields || {} })
-      result = error ? { ok: false, error: error.message } : { ok: true }
-    }
+    const { error } = await supabase.rpc('save_tenant_branch', {
+      p_tenant_id:    tenantId,
+      p_name:         data.name,
+      p_custom_fields: data.custom_fields || {},
+      p_id:           data.id || null,
+    })
+    const result = error ? { ok: false, error: error.message } : { ok: true }
     await load()
     setSaving(false)
     return result
@@ -56,12 +50,26 @@ export function useBranches() {
 
   const remove = useCallback(async (id) => {
     setSaving(true)
-    const { error } = await supabase.from('tenant_branches').delete().eq('id', id)
+    const { data, error } = await supabase.rpc('delete_or_deactivate_branch', { p_id: id })
+    let result
+    if (error) {
+      result = { ok: false, error: error.message }
+    } else {
+      result = { ok: true, action: data } // 'deleted' ou 'deactivated'
+    }
+    await load()
+    setSaving(false)
+    return result
+  }, [load])
+
+  const reactivate = useCallback(async (id) => {
+    setSaving(true)
+    const { error } = await supabase.rpc('reactivate_branch', { p_id: id })
     const result = error ? { ok: false, error: error.message } : { ok: true }
     await load()
     setSaving(false)
     return result
   }, [load])
 
-  return { branches, loading, saving, error, reload: load, save, remove }
+  return { branches, loading, saving, error, reload: load, save, remove, reactivate }
 }
