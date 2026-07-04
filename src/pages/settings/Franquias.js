@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useParceiros } from '../../hooks/useParceiros'
+import { useUsuarios } from '../../hooks/useUsuarios'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 
@@ -274,6 +275,7 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
 // ─── Main ─────────────────────────────────────────────────────────────────────
 export default function Parceiros() {
   const { parceiros: franquias, save: saveParceiro, remove: removeParceiro, bulkReclassify } = useParceiros()
+  const { usuarios } = useUsuarios()
   const { registrar: log } = useAuditLog()
   const [editando, setEditando]   = useState(null)
   const [form, setForm]           = useState(null)
@@ -289,7 +291,7 @@ export default function Parceiros() {
   }, [franquias, search])
 
   function abrirNovo() {
-    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null, tipo_parceiro: '' })
+    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null, tipo_parceiro: '', responsavel_id: null })
     setEditando('novo')
   }
 
@@ -484,6 +486,17 @@ export default function Parceiros() {
               </select>
             </FPEField>
           )}
+
+          {/* Gestor responsável */}
+          <FPEField label="Gestor responsável" style={{ gridColumn: '1/-1' }}>
+            <select className="fpe-field" value={form.responsavel_id || ''}
+              onChange={e => set('responsavel_id', e.target.value || null)}>
+              <option value="">— Nenhum —</option>
+              {(usuarios || []).filter(u => u.status === 'ativo').map(u => (
+                <option key={u.id} value={u.id}>{u.nome}</option>
+              ))}
+            </select>
+          </FPEField>
         </FPESection>
       </FullPageEdit>
     )

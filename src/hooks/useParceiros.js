@@ -34,7 +34,7 @@ export function useParceiros() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('parceiros').select('*').order('nome')
+    const { data, error } = await supabase.from('parceiros').select('*, responsavel:responsavel_id(id, nome)').order('nome')
     if (error) {
       isMock.current = true
       setParceiros(load())
@@ -71,6 +71,7 @@ export function useParceiros() {
       email:        fields.email         || null,
       telefone:     fields.telefone      || null,
       responsavel:  fields.responsavel   || null,
+      responsavel_id: fields.responsavel_id || null,
       cidade:       fields.cidade        || null,
       uf:           estado               || fields.uf || null,   // form usa 'estado', DB usa 'uf'
       status:       situacao             || fields.status || 'ativo', // form usa 'situacao', DB usa 'status'
