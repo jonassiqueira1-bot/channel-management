@@ -56,8 +56,6 @@ function BranchSelector({ collapsed }) {
   const { branches, activeBranch, setActiveBranch } = useBranchContext()
   const [open, setOpen] = useState(false)
 
-  if (branches.length === 0) return null
-
   const label = activeBranch?.name || 'Todas as filiais'
 
   if (collapsed) {
