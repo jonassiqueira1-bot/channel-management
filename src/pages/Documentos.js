@@ -195,26 +195,35 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
         </FormSection>
 
         <FormSection label="Controle de Acesso">
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Selecione quais Perfis de Acesso podem visualizar este documento. Se nenhum for selecionado, todos têm acesso.</div>
-          {perfisStore.length === 0 ? (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum perfil cadastrado.</div>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {perfisStore.map(p => {
-                const selected = (draft.perfis_acesso || []).includes(p.id)
-                return (
-                  <button key={p.id} onClick={() => togglePerfil(p.id)} style={{
-                    padding: '6px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)',
-                    border: `2px solid ${selected ? (p.cor || 'var(--accent)') : 'var(--border)'}`,
-                    background: selected ? (p.cor || 'var(--accent)') + '18' : 'var(--surface)',
-                    color: selected ? (p.cor || 'var(--accent)') : 'var(--text-muted)', transition: 'all 0.15s',
-                  }}>
-                    {p.nome}
-                  </button>
-                )
-              })}
-            </div>
-          )}
+          <FormField label="Perfis com acesso" hint="Se nenhum for selecionado, todos têm acesso.">
+            {perfisStore.length === 0 ? (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum perfil cadastrado.</div>
+            ) : (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                {perfisStore.map((p, idx) => {
+                  const selected = (draft.perfis_acesso || []).includes(p.id)
+                  return (
+                    <label key={p.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer',
+                      background: selected ? 'var(--accent-light, #EFF6FF)' : (idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-alt, var(--surface))'),
+                      borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
+                      transition: 'background 0.1s',
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => togglePerfil(p.id)}
+                        style={{ accentColor: p.cor || 'var(--accent)', width: 15, height: 15, flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: 13, color: selected ? 'var(--accent)' : 'var(--text)', fontWeight: selected ? 600 : 400 }}>
+                        {p.nome}
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+            )}
+          </FormField>
         </FormSection>
 
         {!isNew && (
