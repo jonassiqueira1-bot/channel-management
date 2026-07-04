@@ -78,8 +78,9 @@ const BRANCH_COLUMNS = [
           </div>
           <div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-              <span style={{ fontWeight:600, color:'var(--text)' }}>{row.name}</span>
+              <span style={{ fontWeight:600, color: row.ativo === false ? 'var(--text-muted)' : 'var(--text)' }}>{row.name}</span>
               {cf.is_matriz && <span style={{ fontSize:9, fontWeight:700, color:'var(--accent)', background:'color-mix(in srgb, var(--accent) 12%, transparent)', borderRadius:99, padding:'1px 6px', textTransform:'uppercase' }}>Matriz</span>}
+              {row.ativo === false && <span style={{ fontSize:9, fontWeight:700, color:'#f59e0b', background:'rgba(245,158,11,0.1)', borderRadius:99, padding:'1px 6px', textTransform:'uppercase' }}>Inativa</span>}
             </div>
             {cf.cnae && <div style={{ fontSize:11, color:'var(--text-muted)' }}>CNAE {cf.cnae}</div>}
           </div>
@@ -117,7 +118,7 @@ export default function EmpresaISV() {
   const [form, setForm]     = useState(null)
   const [saving, setSaving] = useState(false)
   const [owner, setOwner]   = useState({ nome: '', email: '' })
-  const { branches, save: saveBranch, remove: removeBranch } = useBranches()
+  const { branches, save: saveBranch, remove: removeBranch, reactivate: reactivateBranch } = useBranches()
   const jaTemOwner = branches.length > 0
   const [editandoUnidade, setEditandoUnidade] = useState(null)
   const [formUnidade, setFormUnidade]         = useState(null)
@@ -217,6 +218,12 @@ export default function EmpresaISV() {
     const result = await removeBranch(editandoUnidade.id)
     if (result?.ok !== false) fecharUnidade()
     else alert('Erro: ' + result?.error)
+  }
+
+  async function handleReactivateUnidade() {
+    if (!editandoUnidade?.id) return
+    await reactivateBranch(editandoUnidade.id)
+    fecharUnidade()
   }
 
   // ── Early return: edição de unidade ──
@@ -340,14 +347,31 @@ export default function EmpresaISV() {
 
         {editandoUnidade !== 'novo' && (
           <FPESection title="Zona de perigo">
-            {!confirmDelUnidade ? (
-              <button onClick={() => setConfirmDelUnidade(true)}
-                style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-                Remover unidade
-              </button>
+            {editandoUnidade.ativo === false ? (
+              /* ── Filial inativa: mostrar opção de reativar ── */
+              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                <div style={{ padding:'10px 14px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:8, fontSize:13, color:'#f59e0b' }}>
+                  Esta unidade está <strong>desativada</strong>. Ela não aparece no seletor de filiais, mas seus dados históricos foram preservados.
+                </div>
+                <button onClick={handleReactivateUnidade}
+                  style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #10b981', background:'none', color:'#10b981', fontSize:13, fontWeight:600, cursor:'pointer', width:'fit-content' }}>
+                  Reativar unidade
+                </button>
+              </div>
+            ) : !confirmDelUnidade ? (
+              /* ── Filial ativa: opção de desativar/excluir ── */
+              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:2 }}>
+                  Se houver dados vinculados (oportunidades, empresas, contratos etc.), a unidade será <strong>desativada</strong> em vez de excluída, preservando o histórico.
+                </div>
+                <button onClick={() => setConfirmDelUnidade(true)}
+                  style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer', width:'fit-content' }}>
+                  Remover / Desativar unidade
+                </button>
+              </div>
             ) : (
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar remoção de <strong>{editandoUnidade.name}</strong>?</span>
+                <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar para <strong>{editandoUnidade.name}</strong>?</span>
                 <button onClick={handleDeleteUnidade}
                   style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
                   Confirmar

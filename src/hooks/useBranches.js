@@ -50,12 +50,26 @@ export function useBranches() {
 
   const remove = useCallback(async (id) => {
     setSaving(true)
-    const { error } = await supabase.rpc('delete_tenant_branch', { p_id: id })
+    const { data, error } = await supabase.rpc('delete_or_deactivate_branch', { p_id: id })
+    let result
+    if (error) {
+      result = { ok: false, error: error.message }
+    } else {
+      result = { ok: true, action: data } // 'deleted' ou 'deactivated'
+    }
+    await load()
+    setSaving(false)
+    return result
+  }, [load])
+
+  const reactivate = useCallback(async (id) => {
+    setSaving(true)
+    const { error } = await supabase.rpc('reactivate_branch', { p_id: id })
     const result = error ? { ok: false, error: error.message } : { ok: true }
     await load()
     setSaving(false)
     return result
   }, [load])
 
-  return { branches, loading, saving, error, reload: load, save, remove }
+  return { branches, loading, saving, error, reload: load, save, remove, reactivate }
 }

@@ -17,6 +17,7 @@ export function BranchProvider({ children }) {
       .from('tenant_branches')
       .select('id, name')
       .eq('tenant_id', profile.tenant_id)
+      .eq('ativo', true)
       .order('name')
     if (data) setBranches(data)
   }, [profile?.tenant_id])
