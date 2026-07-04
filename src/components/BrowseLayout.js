@@ -28,7 +28,60 @@ import {
   ChevronDown, ChevronUp, MoreHorizontal,
   ChevronsUpDown, ArrowUp, ArrowDown, Check,
   Columns, GripVertical, PencilLine, X, Filter,
+  Download,
 } from 'lucide-react'
+
+// ── Export helpers ────────────────────────────────────────────────────────────
+function getCellText(col, row) {
+  // Usa exportValue se a coluna definir, senão valor bruto
+  if (typeof col.exportValue === 'function') return String(col.exportValue(row) ?? '')
+  const v = row[col.key]
+  if (v === null || v === undefined) return ''
+  if (typeof v === 'object') return ''          // ReactNode — ignorar
+  return String(v)
+}
+
+function buildRows(cols, rows) {
+  const header = cols.map(c => c.label)
+  const body   = rows.map(row => cols.map(col => getCellText(col, row)))
+  return [header, ...body]
+}
+
+function downloadFile(content, filename, mimeType) {
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(new Blob([content], { type: mimeType }))
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function exportCsv(cols, rows, filename) {
+  const matrix = buildRows(cols, rows)
+  const csv = matrix.map(row =>
+    row.map(cell => {
+      const s = cell.replace(/"/g, '""')
+      return /[",\n\r]/.test(s) ? `"${s}"` : s
+    }).join(',')
+  ).join('\r\n')
+  // BOM UTF-8 garante que Excel abre com acentos corretos
+  downloadFile('﻿' + csv, filename + '.csv', 'text/csv;charset=utf-8')
+}
+
+function exportExcel(cols, rows, filename) {
+  const matrix = buildRows(cols, rows)
+  const escape = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office"
+    xmlns:x="urn:schemas-microsoft-com:office:excel"
+    xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"/></head><body>
+<table border="1">
+  <thead><tr>${matrix[0].map(h => `<th><b>${escape(h)}</b></th>`).join('')}</tr></thead>
+  <tbody>${matrix.slice(1).map(row =>
+    `<tr>${row.map(cell => `<td>${escape(cell)}</td>`).join('')}</tr>`
+  ).join('')}</tbody>
+</table></body></html>`
+  downloadFile(html, filename + '.xls', 'application/vnd.ms-excel;charset=utf-8')
+}
 
 // ── constantes ────────────────────────────────────────────────────────────────
 const PAGE_SIZES = [20, 50, 100]
@@ -316,14 +369,15 @@ export default function BrowseLayout({
   search           = '',
   onSearchChange,
   bulkActions      = [],
-  bulkEditFields,   // [{ key, label, type:'text'|'select'|'date'|'number'|'textarea', options?:[{value,label}] }]
-  onBulkEdit,       // (ids: string[], changes: Record<string,any>) => void
+  bulkEditFields,
+  onBulkEdit,
   renderCard,
   storageKey       = 'default',
+  exportFilename,           // nome base do arquivo exportado; default = storageKey
   emptyState,
   onImport,
-  onExportCsv,
-  onExportExcel,
+  onExportCsv,              // override: callback personalizado (opcional)
+  onExportExcel,            // override: callback personalizado (opcional)
   secondaryActions,
   onRowClick,
 }) {
@@ -710,11 +764,24 @@ export default function BrowseLayout({
                   </button>
                 }
               >
-                <div style={s.dropdownLabel}>Ações globais</div>
-                <div style={s.dropdownItem} onClick={onExportCsv}>Exportar CSV</div>
-                <div style={s.dropdownItem} onClick={onExportExcel}>Exportar Excel</div>
-                <div style={s.dropdownDivider} />
-                <div style={s.dropdownItem} onClick={onImport}>Importar dados</div>
+                <div style={s.dropdownLabel}>Exportar</div>
+                <div style={s.dropdownItem} onClick={() => {
+                  setOpenId(null)
+                  if (onExportCsv) { onExportCsv(); return }
+                  exportCsv(visibleColumns, sorted, exportFilename || storageKey)
+                }}>
+                  <Download size={13} style={{ color: 'var(--text-muted)' }} />
+                  Exportar CSV
+                </div>
+                <div style={s.dropdownItem} onClick={() => {
+                  setOpenId(null)
+                  if (onExportExcel) { onExportExcel(); return }
+                  exportExcel(visibleColumns, sorted, exportFilename || storageKey)
+                }}>
+                  <Download size={13} style={{ color: 'var(--text-muted)' }} />
+                  Exportar Excel (.xls)
+                </div>
+                {onImport && <><div style={s.dropdownDivider} /><div style={s.dropdownItem} onClick={onImport}>Importar dados</div></>}
               </Dropdown>
 
               {/* Botão primário */}
