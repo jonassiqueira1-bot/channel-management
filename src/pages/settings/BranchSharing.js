@@ -8,24 +8,44 @@ import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import { Share2, ArrowLeftRight } from 'lucide-react'
 
-// Módulos compartilháveis
+// Módulos compartilháveis — espelha menu principal + Configurações
 const MODULOS = [
-  { key: 'pipeline',        label: 'Pipeline',           grupo: 'Comercial'   },
-  { key: 'acoes',           label: 'Ações',              grupo: 'Comercial'   },
-  { key: 'tarefas',         label: 'Tarefas',            grupo: 'Comercial'   },
-  { key: 'metas',           label: 'Metas',              grupo: 'Comercial'   },
-  { key: 'playbooks',       label: 'Playbooks',          grupo: 'Comercial'   },
-  { key: 'empresas',        label: 'Empresas',           grupo: 'CRM'         },
-  { key: 'contatos',        label: 'Contatos',           grupo: 'CRM'         },
-  { key: 'contratos',       label: 'Contratos',          grupo: 'CRM'         },
-  { key: 'pagamentos',      label: 'Pagamentos',         grupo: 'Financeiro'  },
-  { key: 'comissoes',       label: 'Comissões',          grupo: 'Financeiro'  },
-  { key: 'projetos',        label: 'Projetos',           grupo: 'Pós-venda'   },
-  { key: 'customer_success',label: 'Sucesso do Cliente', grupo: 'Pós-venda'   },
-  { key: 'questionarios',   label: 'Questionários',      grupo: 'Pós-venda'   },
-  { key: 'documentos',      label: 'Documentos',         grupo: 'Pós-venda'   },
-  { key: 'campanhas',       label: 'Campanhas',          grupo: 'Canal'       },
-  { key: 'parceiros',       label: 'Parceiros',          grupo: 'Canal'       },
+  // ── Menu principal ────────────────────────────────────────────
+  { key: 'dashboard',        label: 'Dashboard',                grupo: 'Visão Geral'   },
+  { key: 'relatorios',       label: 'Relatórios',               grupo: 'Visão Geral'   },
+  { key: 'metas',            label: 'Metas',                    grupo: 'Visão Geral'   },
+  { key: 'pipeline',         label: 'Pipeline',                 grupo: 'Comercial'     },
+  { key: 'tarefas',          label: 'Tarefas',                  grupo: 'Comercial'     },
+  { key: 'playbooks',        label: 'Playbooks',                grupo: 'Comercial'     },
+  { key: 'vendedores',       label: 'Contatos Canais',          grupo: 'Comercial'     },
+  { key: 'acoes',            label: 'Ações',                    grupo: 'Comercial'     },
+  { key: 'parceiros',        label: 'Parceiros',                grupo: 'Canal'         },
+  { key: 'empresas',         label: 'Empresas',                 grupo: 'CRM'           },
+  { key: 'contatos',         label: 'Contatos',                 grupo: 'CRM'           },
+  { key: 'projetos',         label: 'Projetos',                 grupo: 'Pós-venda'     },
+  { key: 'customer_success', label: 'Sucesso do Cliente',       grupo: 'Pós-venda'     },
+  { key: 'contratos',        label: 'Contratos',                grupo: 'Pós-venda'     },
+  { key: 'pagamentos',       label: 'Pagamentos',               grupo: 'Financeiro'    },
+  { key: 'comissoes',        label: 'Comissões',                grupo: 'Financeiro'    },
+  { key: 'questionarios',    label: 'Questionários',            grupo: 'Pós-venda'     },
+  { key: 'documentos',       label: 'Documentos',               grupo: 'Pós-venda'     },
+  // ── Configurações ─────────────────────────────────────────────
+  { key: 'cfg_parceiros',    label: 'Parceiros (config)',       grupo: 'Configurações' },
+  { key: 'cfg_maturidade',   label: 'Maturidade de Parceiros', grupo: 'Configurações' },
+  { key: 'cfg_usuarios',     label: 'Usuários',                 grupo: 'Configurações' },
+  { key: 'cfg_perfis',       label: 'Perfis de Acesso',        grupo: 'Configurações' },
+  { key: 'cfg_equipes',      label: 'Equipes',                  grupo: 'Configurações' },
+  { key: 'cfg_habilitacoes', label: 'Habilitações',             grupo: 'Configurações' },
+  { key: 'cfg_produtos',     label: 'Produtos',                 grupo: 'Configurações' },
+  { key: 'cfg_funis',        label: 'Funis de Vendas',          grupo: 'Configurações' },
+  { key: 'cfg_tipos_acoes',  label: 'Tipos de Ações',           grupo: 'Configurações' },
+  { key: 'cfg_campanhas',    label: 'Campanhas de Incentivo',   grupo: 'Configurações' },
+  { key: 'cfg_indicadores',  label: 'Indicadores',              grupo: 'Configurações' },
+  { key: 'cfg_metas_kpis',   label: 'Metas e KPIs',             grupo: 'Configurações' },
+  { key: 'cfg_campos',       label: 'Config. de Campos',        grupo: 'Configurações' },
+  { key: 'cfg_alertas',      label: 'Alertas',                  grupo: 'Configurações' },
+  { key: 'cfg_integracoes',  label: 'Integrações',              grupo: 'Configurações' },
+  { key: 'cfg_logs',         label: 'Logs',                     grupo: 'Configurações' },
 ]
 
 const GRUPOS_MODULOS = [...new Set(MODULOS.map(m => m.grupo))]

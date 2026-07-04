@@ -19,8 +19,20 @@ export function BranchProvider({ children }) {
       .eq('tenant_id', profile.tenant_id)
       .eq('ativo', true)
       .order('name')
-    if (data) setBranches(data)
-  }, [profile?.tenant_id])
+    if (!data) return
+
+    const isAdmin = profile.role === 'admin_isv'
+    const allowed = Array.isArray(profile.branch_ids) ? profile.branch_ids : []
+
+    if (!isAdmin && allowed.length > 0) {
+      // Filtra apenas as branches que o perfil tem acesso explícito
+      const allowedSet = new Set([...allowed, profile.branch_id].filter(Boolean))
+      setBranches(data.filter(b => allowedSet.has(b.id)))
+    } else {
+      // Admin ou sem restrição: vê todas
+      setBranches(data)
+    }
+  }, [profile?.tenant_id, profile?.role, profile?.branch_id, profile?.branch_ids])
 
   useEffect(() => { load() }, [load])
 

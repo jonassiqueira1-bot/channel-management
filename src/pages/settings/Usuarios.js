@@ -500,7 +500,6 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     whatsapp:            perfil.whatsapp || '',
   })
   const [novaHabilidade, setNovaHabilidade] = useState('')
-  const [confirmDel, setConfirmDel] = useState(false)
   const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
   const { rules: regrasComiss } = useCommissions()
   const { parceiros: franquias } = useParceiros()
@@ -574,6 +573,8 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       ) : undefined}
       onSave={podeEditar ? handleSave : undefined}
       onCancel={onClose}
+      onDelete={podeExcluir ? () => { onDelete(perfil.id); onClose() } : undefined}
+      deleteLabel="Remover usuário"
     >
       {/* Dados básicos */}
       <FPESection title="Dados do Usuário">
@@ -808,29 +809,6 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
         </FPEField>
       </FPESection>
 
-      {/* Zona de perigo */}
-      {podeExcluir && (
-        <FPESection title="Zona de perigo">
-          {!confirmDel ? (
-            <button type="button" onClick={() => setConfirmDel(true)}
-              style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer' }}>
-              Remover usuário
-            </button>
-          ) : (
-            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-              <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar remoção de <strong>{perfil.nome}</strong>?</span>
-              <button type="button" onClick={() => { onDelete(perfil.id); onClose() }}
-                style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                Confirmar
-              </button>
-              <button type="button" onClick={() => setConfirmDel(false)}
-                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer' }}>
-                Cancelar
-              </button>
-            </div>
-          )}
-        </FPESection>
-      )}
     </FullPageEdit>
   )
 }
