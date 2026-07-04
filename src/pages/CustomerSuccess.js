@@ -510,7 +510,7 @@ function AnexosBlock({ attachments = [], onChange }) {
 function CSPlaybookPanel({ form, patch }) {
   const { playbooks } = usePlaybooks()
   const csPlaybooks = useMemo(
-    () => playbooks.filter(p => p.tipo === 'sucesso' || p.tipo === 'cs' || (p.segment||'').toLowerCase().includes('sucesso') || (p.segment||'').toLowerCase().includes('cs')),
+    () => playbooks.filter(p => p.tipo === 'sucesso'),
     [playbooks]
   )
   const pb       = useMemo(() => csPlaybooks.find(p => p.id === form.playbook_id) || null, [csPlaybooks, form.playbook_id])
