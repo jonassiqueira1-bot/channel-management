@@ -29,7 +29,8 @@ function rowToSeller(row) {
     equipe:        row.equipe || cf.equipe || '',
     status:        row.status || 'ativo',
     company_id:    row.branch_id || null,
-    franquia_id:   cf.franquia_id || null,
+    // parceiro_id vem da coluna própria; fallback para custom_fields (registros antigos)
+    franquia_id:   row.parceiro_id || cf.franquia_id || null,
     franquia_nome: cf.franquia_nome || '',
     meta_mensal:   row.meta_mensal || 0,
     comissao_perc: row.comissao_perc || 0,
@@ -51,12 +52,12 @@ function sellerToRow(s, tenantId, branchId) {
     status:        s.status || 'ativo',
     regiao:        s.regiao || null,
     equipe:        s.equipe || null,
+    parceiro_id:   s.franquia_id || null,
     meta_mensal:   s.meta_mensal ? Number(s.meta_mensal) : null,
     comissao_perc: s.comissao_perc ? Number(s.comissao_perc) : null,
     observacoes:   s.observacoes || null,
     custom_fields: {
       role:          s.role,
-      franquia_id:   s.franquia_id,
       franquia_nome: s.franquia_nome,
       linkedin_url:  s.linkedin_url || '',
       whatsapp:      s.whatsapp || '',
