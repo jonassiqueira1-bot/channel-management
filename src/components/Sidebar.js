@@ -10,7 +10,7 @@ import {
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
-  Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw, GitBranch,
+  Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw, GitBranch, Menu,
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -269,13 +269,16 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
       {/* ── Brand ── */}
       <div style={s.brand}>
-        {collapsed
-          ? <img src={logoBoostly} alt="Boostly" style={{ width: 32, height: 32, objectFit: 'contain' }} />
-          : <img src={logoBoostly} alt="Boostly" style={{ height: 32, width: 'auto', maxWidth: 140 }} />
-        }
-        {isMobile && (
-          <button style={s.closeBtn} onClick={onClose} aria-label="Fechar menu">
-            <X size={14} />
+        {!collapsed && (
+          <img src={logoBoostly} alt="Boostly" style={{ height: 32, width: 'auto', maxWidth: 140, flex: 1 }} />
+        )}
+        {isMobile ? (
+          <button style={s.toggleBtn} onClick={onClose} aria-label="Fechar menu">
+            <X size={16} />
+          </button>
+        ) : (
+          <button style={s.toggleBtn} onClick={onToggle} aria-label={collapsed ? 'Expandir menu' : 'Recolher menu'}>
+            <Menu size={16} />
           </button>
         )}
       </div>
@@ -486,17 +489,6 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Configurações</span>}
         </NavLink>
 
-        {!isMobile && (
-          <button style={s.bottomBtn} onClick={onToggle} title={collapsed ? 'Expandir' : 'Recolher'}>
-            <span style={{
-              display: 'inline-block',
-              transform: collapsed ? 'rotate(180deg)' : 'none',
-              transition: 'transform 0.2s',
-              fontFamily: 'var(--mono)', fontSize: 13,
-            }}>‹‹</span>
-            {!collapsed && <span style={{ fontSize: 12 }}>Recolher</span>}
-          </button>
-        )}
         <button style={{ ...s.bottomBtn, ...s.signOutBtn }} onClick={handleSignOut}>
           <span style={{ fontSize: 14 }}>⎋</span>
           {!collapsed && <span>Sair</span>}
@@ -524,9 +516,16 @@ const s = {
   },
 
   brand: {
-    display: 'flex', alignItems: 'center', gap: 10,
-    padding: '14px 12px', borderBottom: '1px solid var(--sb-border)',
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+    padding: '12px 10px', borderBottom: '1px solid var(--sb-border)',
     minHeight: 56, flexShrink: 0,
+  },
+  toggleBtn: {
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    width: 34, height: 34, flexShrink: 0,
+    background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+    borderRadius: 8, color: 'rgba(255,255,255,0.7)', cursor: 'pointer',
+    transition: 'background 0.15s, color 0.15s',
   },
   logoMark: {
     width: 32, height: 32, background: 'var(--accent-lite)', border: '1px solid var(--accent-mid)',
