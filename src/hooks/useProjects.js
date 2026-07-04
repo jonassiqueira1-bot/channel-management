@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 const PHASE_ORDER = { iniciacao: 1, modelagem: 2, implantacao: 3, treinamento: 4, go_live: 5, encerramento: 6 }
 
 function rowToProject(row) {
@@ -55,6 +56,7 @@ function projectToRow(p, tenantId, branchId) {
 export function useProjects() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [projetos,    setProjetos]    = useState([])
   const [phases,      setPhases]      = useState([])
@@ -82,17 +84,16 @@ export function useProjects() {
     if (!session?.user) {
       isMockMode.current = true; setLoading(false); return
     }
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*, companies(nome_fantasia, razao_social)')
-      .order('created_at', { ascending: false })
+    let _q = supabase.from('projects').select('*, companies(nome_fantasia, razao_social)')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) { console.error('[useProjects]', error.message); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setProjetos((data || []).map(rowToProject))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

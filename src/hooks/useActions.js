@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToAcao(row) {
   const cf = row.custom_fields || {}
@@ -56,6 +57,7 @@ function acaoToRow(a, tenantId, branchId) {
 export function useActions() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [acoes, setAcoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -67,15 +69,14 @@ export function useActions() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('actions')
-      .select('*, companies(nome_fantasia, razao_social)')
-      .order('created_at', { ascending: false })
+    let _q = supabase.from('actions').select('*, companies(nome_fantasia, razao_social)')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('created_at', { ascending: false })
     if (error) { isMockMode.current = false; setAcoes([]); setLoading(false); return }
     isMockMode.current = false
     setAcoes((data || []).map(rowToAcao))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_STORAGE_KEY = 'companies:mock_v1'
 function loadMockStore() { try { const r = localStorage.getItem(MOCK_STORAGE_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -83,6 +84,7 @@ function empresaToRow(form, tenantId, branchId) {
 export function useCompanies() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [companies, setCompanies] = useState([])
   const [loading,   setLoading]   = useState(true)
@@ -109,10 +111,9 @@ export function useCompanies() {
       return
     }
 
-    const { data, error: fetchErr } = await supabase
-      .from('companies')
-      .select('*')
-      .order('razao_social')
+    let _q = supabase.from('companies').select('*')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error: fetchErr } = await _q.order('razao_social')
 
     if (fetchErr) {
       console.error('[useCompanies]', fetchErr.message)
@@ -124,7 +125,7 @@ export function useCompanies() {
     isMockMode.current = false
     setCompanies((data || []).map(rowToEmpresa))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

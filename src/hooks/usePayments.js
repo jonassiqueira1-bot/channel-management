@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 export const PROVISOES_LS_KEY = 'pagamentos:provisoes_v1'
 const PAYMENTS_LS_KEY = 'pagamentos:lista_v1'
@@ -93,6 +94,7 @@ function paymentToRow(p, tenantId, branchId) {
 export function usePayments() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [pagamentos, setPagamentos] = useState([])
   const [loading,    setLoading]    = useState(true)
@@ -113,10 +115,9 @@ export function usePayments() {
       return
     }
 
-    const { data, error } = await supabase
-      .from('payments')
-      .select('*, companies(nome_fantasia, razao_social)')
-      .order('vencimento', { ascending: false })
+    let _q = supabase.from('payments').select('*, companies(nome_fantasia, razao_social)')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('vencimento', { ascending: false })
 
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
@@ -138,7 +139,7 @@ export function usePayments() {
     setPagamentos(merged)
     saveLS(merged.filter(p => !isUuid(p.id))) // salva só locais no LS (DB items recarregados no próximo load)
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

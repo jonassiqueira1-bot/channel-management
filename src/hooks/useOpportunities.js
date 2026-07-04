@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 // Mock inline — mesmo dado que estava em Pipeline.js
 
@@ -104,6 +105,7 @@ function lsSave(list) {
 export function useOpportunities() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [opps,    setOpps]    = useState(() => lsLoad() || [])
   const [loading, setLoading] = useState(true)
@@ -130,11 +132,9 @@ export function useOpportunities() {
       return
     }
 
-    const { data, error } = await supabase
-      .from('oportunidades')
-      .select('*')
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false })
+    let _q = supabase.from('oportunidades').select('*').is('deleted_at', null)
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) {
       console.error('[useOpportunities] load error:', error.message)
@@ -146,7 +146,7 @@ export function useOpportunities() {
     isMockMode.current = false
     setOpps((data || []).map(rowToOpp))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

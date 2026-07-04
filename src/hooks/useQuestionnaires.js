@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToTemplate(row) {
   const cf = row.custom_fields || {}
@@ -72,6 +73,7 @@ function submissionToRow(s, tenantId) {
 export function useQuestionnaires() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [templates,   setTemplates]   = useState([])
   const [submissions, setSubmissions] = useState([])
@@ -84,16 +86,19 @@ export function useQuestionnaires() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
+    let qTpl = supabase.from('questionnaire_templates').select('*')
+    let qSub = supabase.from('questionnaire_submissions').select('*')
+    if (activeBranchId) { qTpl = qTpl.eq('branch_id', activeBranchId); qSub = qSub.eq('branch_id', activeBranchId) }
     const [t, s] = await Promise.all([
-      supabase.from('questionnaire_templates').select('*').order('updated_at', { ascending: false }),
-      supabase.from('questionnaire_submissions').select('*').order('created_at', { ascending: false }),
+      qTpl.order('updated_at', { ascending: false }),
+      qSub.order('created_at', { ascending: false }),
     ])
     if (t.error || s.error) { isMockMode.current = false; setTemplates([]); setSubmissions([]); setLoading(false); return }
     isMockMode.current = false
     setTemplates((t.data || []).map(rowToTemplate))
     setSubmissions((s.data || []).map(rowToSubmission))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 
