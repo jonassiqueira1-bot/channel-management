@@ -2676,9 +2676,26 @@ const CAMPO_HORA_OPTS = [
 ]
 
 // ─── Rules engine ──────────────────────────────────────────────────────────────
-function evaluateRules(regras, variaveis, itens) {
+function evaluateRules(regras, variaveis, itens, operadorRegras = 'OU') {
   let result = itens.map(i => ({ ...i }))
-  ;(regras || []).filter(r => r.ativo !== false).forEach(regra => {
+  const ativas = (regras || []).filter(r => r.ativo !== false)
+  if (operadorRegras === 'E' && ativas.length > 0) {
+    const todasMatch = ativas.every(regra => {
+      const { campo, operador, valor } = regra.condicao || {}
+      const v = variaveis[campo]
+      let match = false
+      if (operador === '>')   match = Number(v) > Number(valor)
+      if (operador === '>=')  match = Number(v) >= Number(valor)
+      if (operador === '<')   match = Number(v) < Number(valor)
+      if (operador === '<=')  match = Number(v) <= Number(valor)
+      if (operador === '=')   match = String(v) === String(valor)
+      if (operador === 'sim') match = v === true || v === 'sim'
+      if (operador === 'nao') match = v === false || v === 'nao'
+      return match
+    })
+    if (!todasMatch) return result
+  }
+  ativas.forEach(regra => {
     const { campo, operador, valor } = regra.condicao || {}
     const v = variaveis[campo]
     let match = false
@@ -3061,11 +3078,29 @@ function propToWord(prop) {
     md += '\n'
   }
   if (prop.obs) md += `## Observações\n\n${prop.obs}\n\n`
+  const blocos = (prop.blocos || []).filter(b => b.conteudo?.trim()).sort((a,b) => a.ordem - b.ordem)
+  blocos.forEach(bloco => {
+    if (bloco.titulo) md += `## ${bloco.titulo}\n\n`
+    let conteudo = bloco.conteudo || ''
+    conteudo = conteudo
+      .replace(/\{\{empresa_nome\}\}/g, prop.empresa_nome || '')
+      .replace(/\{\{opp_titulo\}\}/g, prop.opp_titulo || '')
+      .replace(/\{\{data\}\}/g, new Date().toLocaleDateString('pt-BR'))
+      .replace(/\{\{ano\}\}/g, new Date().getFullYear())
+    md += conteudo + '\n\n'
+  })
   md += `---\n\n## Assinatura\n\n**${prop.empresa_nome||'—'}**\n\n_________________________________\nCliente · Data: ___/___/______\n\n**Fornecedor**\n\n_________________________________\nResponsável · Data: ___/___/______\n`
   return md
 }
 
 function downloadProposta(prop) {
+  const estilo = (() => { try { return { ...DEFAULT_ESTILO, ...JSON.parse(localStorage.getItem(PROP_ESTILO_KEY) || '{}') } } catch(e) { return DEFAULT_ESTILO } })()
+  const cor = estilo.cor_primaria || '#6366F1'
+  const footerTxt = (estilo.footer_texto || '')
+    .replace(/\{\{empresa_nome\}\}/g, prop.empresa_nome || '')
+    .replace(/\{\{opp_titulo\}\}/g, prop.opp_titulo || '')
+    .replace(/\{\{data\}\}/g, new Date().toLocaleDateString('pt-BR'))
+    .replace(/\{\{ano\}\}/g, new Date().getFullYear())
   const md = propToWord(prop)
   const body = md
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -3075,7 +3110,9 @@ function downloadProposta(prop) {
     .replace(/(<tr>[\s\S]*?<\/tr>)/g,'<table style="border-collapse:collapse;width:100%">$1</table>')
     .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,s=>'<ul>'+s+'</ul>')
     .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br/>')
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"/><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:2cm;color:#111}h1{font-size:18pt;color:#1a1a2e;border-bottom:2px solid #e5e7eb;padding-bottom:4pt}h2{font-size:14pt;color:#374151;margin-top:14pt}table{border-collapse:collapse;width:100%;margin:8pt 0}td,th{border:1px solid #d1d5db;padding:4pt 8pt;font-size:10pt}ul{padding-left:16pt}li{margin-bottom:3pt}p{margin:6pt 0;line-height:1.5}strong{font-weight:bold}hr{border:none;border-top:1px solid #e5e7eb;margin:10pt 0}</style></head><body><p>${body}</p></body></html>`
+  const headerHtml = `<div style="background:${cor};padding:16px 24px;display:flex;align-items:center;gap:16px;margin-bottom:20px">${estilo.logo_url?`<img src="${estilo.logo_url}" alt="logo" style="height:36px;object-fit:contain"/>`:''}<div><div style="font-size:16pt;font-weight:800;color:#fff;letter-spacing:1px">${estilo.header_titulo||'PROPOSTA DE IMPLANTAÇÃO'}</div>${estilo.header_sub?`<div style="font-size:10pt;color:rgba(255,255,255,0.8);margin-top:2px">${estilo.header_sub}</div>`:''}</div></div>`
+  const footerHtml = footerTxt ? `<div style="border-top:1px solid #e5e7eb;margin-top:30px;padding-top:10px;font-size:9pt;color:#9ca3af;text-align:center">${footerTxt}</div>` : ''
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"/><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:0;color:#111}h1{font-size:18pt;color:${cor};border-bottom:2px solid #e5e7eb;padding-bottom:4pt}h2{font-size:14pt;color:${cor};margin-top:14pt}table{border-collapse:collapse;width:100%;margin:8pt 0}td,th{border:1px solid #d1d5db;padding:4pt 8pt;font-size:10pt}ul{padding-left:16pt}li{margin-bottom:3pt}p{margin:6pt 0;line-height:1.5}strong{font-weight:bold}hr{border:none;border-top:1px solid #e5e7eb;margin:10pt 0}.content{margin:2cm;margin-top:0}</style></head><body>${headerHtml}<div class="content"><p>${body}</p>${footerHtml}</div></body></html>`
   const blob=new Blob([html],{type:'application/msword'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${(prop.titulo||'Proposta').replace(/[^a-zA-Z0-9À-ú\s-]/g,'').trim()}.doc`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
 }
 
@@ -3163,6 +3200,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   const [wVars,        setWVars]        = useState({})      // regras variáveis wizard
   const [tmplTab,      setTmplTab]      = useState('wbs')
   const [tmplSaved,    setTmplSaved]    = useState(false)
+  const [versaoDesc,   setVersaoDesc]   = useState('')
   const [propSaved,    setPropSaved]    = useState(false)
   const [importing,    setImporting]    = useState(false)
   const [importTmplId, setImportTmplId] = useState(null)
@@ -3802,6 +3840,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
       { id:'blocos',  label:'Blocos de Texto' },
       { id:'regras',  label:'Regras'          },
       { id:'estilo',  label:'Estilo Doc.'     },
+      { id:'versoes', label:'Versões'         },
     ]
     const st = selectedTmpl
     const totals = calcPhaseTotals(st.itens||[])
@@ -3956,114 +3995,96 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 
         {/* Regras tab */}
         {tmplTab==='regras' && (
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
             <div style={{padding:'10px 14px',background:'#FEF3C7',border:'1px solid #F59E0B33',borderRadius:8,fontSize:11,color:'#92400E',lineHeight:1.7}}>
-              <strong>Como funciona:</strong> ao criar uma proposta, o sistema pergunta os dados do cliente (funcionários, filiais, etc.). As regras que satisfazem as condições são aplicadas automaticamente — ajustando as horas de cada fase do WBS antes de gerar a proposta.
+              <strong>Como funciona:</strong> ao criar uma proposta, o sistema pergunta os dados do cliente. As regras que satisfazem as condições ajustam as horas do WBS automaticamente.
             </div>
-            {(st.regras||[]).map((regra,idx)=>{
-              const campoCfg = REGRA_CAMPOS.find(c=>c.value===regra.condicao?.campo)
-              const ops = REGRA_OPERADORES[campoCfg?.tipo||'number']
-              const acaoTipo = ACAO_TIPOS.find(a=>a.v===regra.acao?.tipo)
-              const campoHora = CAMPO_HORA_OPTS.find(c=>c.v===regra.acao?.campo_hora)
-              const faseAlvo = (st.itens||[]).find(i=>i.id===regra.acao?.fase_id&&i.nivel===1)
-              return (
-                <div key={regra.id} style={{border:`1px solid ${regra.ativo!==false?'var(--accent)33':'var(--border)'}`,borderRadius:10,overflow:'hidden'}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10,padding:'10px 14px',background:'var(--surface2)',borderBottom:'1px solid var(--border)'}}>
-                    <input type="checkbox" checked={regra.ativo!==false} onChange={e=>{
-                      const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,ativo:e.target.checked}:r)
-                      salvarTemplate({...st,regras:nr})
-                    }} style={{accentColor:'var(--accent)'}}/>
-                    <input value={regra.descricao||''} onChange={e=>{
-                      const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,descricao:e.target.value}:r)
-                      salvarTemplate({...st,regras:nr})
-                    }} placeholder="Descrição da regra…" style={{flex:1,padding:'4px 8px',border:'1px solid var(--border)',borderRadius:5,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}/>
-                    <button onClick={()=>salvarTemplate({...st,regras:(st.regras||[]).filter((_,j)=>j!==idx)})}
-                      style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:14,padding:'2px 4px'}}
-                      onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
-                  </div>
-                  <div style={{padding:'12px 14px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                      <div style={{fontSize:11,fontWeight:700,color:'var(--text-soft)',textTransform:'uppercase',letterSpacing:0.5}}>Condição SE</div>
+            {/* Operator selector */}
+            <div style={{display:'flex',alignItems:'center',gap:8,fontSize:11,color:'var(--text-soft)'}}>
+              <span>Operador entre regras:</span>
+              {['E','OU'].map(op=>(
+                <button key={op} onClick={()=>salvarTemplate({...st,operador_regras:op})}
+                  style={{padding:'3px 12px',borderRadius:20,border:'1px solid var(--border)',fontSize:11,cursor:'pointer',fontFamily:'var(--font)',fontWeight:(st.operador_regras||'OU')===op?700:400,background:(st.operador_regras||'OU')===op?'var(--accent)':'var(--surface)',color:(st.operador_regras||'OU')===op?'#fff':'var(--text-muted)'}}>
+                  {op}
+                </button>
+              ))}
+              <span style={{fontSize:10,color:'var(--text-muted)',fontStyle:'italic'}}>{(st.operador_regras||'OU')==='E'?'Todas as regras devem ser satisfeitas':'Qualquer regra satisfeita é suficiente'}</span>
+            </div>
+            {/* Compact rules list */}
+            <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
+              {(st.regras||[]).map((regra,idx,arr)=>{
+                const campoCfg = REGRA_CAMPOS.find(c=>c.value===regra.condicao?.campo)
+                const ops = REGRA_OPERADORES[campoCfg?.tipo||'number']
+                return (
+                  <div key={regra.id}>
+                    <div style={{display:'flex',gap:6,alignItems:'center',padding:'8px 12px',background:regra.ativo!==false?'var(--surface)':'var(--surface2)',borderBottom:idx<arr.length-1?'1px solid var(--border2)':'none',fontSize:11}}>
+                      <input type="checkbox" checked={regra.ativo!==false} onChange={e=>{
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,ativo:e.target.checked}:r)})
+                      }} style={{accentColor:'var(--accent)',flexShrink:0}}/>
+                      <input value={regra.descricao||''} onChange={e=>{
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,descricao:e.target.value}:r)})
+                      }} placeholder="Descrição…" style={{...inpSt2,fontSize:11,width:120,flex:'0 0 120px'}}/>
                       <select value={regra.condicao?.campo||''} onChange={e=>{
-                        const nc={...regra.condicao,campo:e.target.value,operador:'',valor:''}
-                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
-                        salvarTemplate({...st,regras:nr})
-                      }} style={{...inpSt2,fontSize:12}}>
-                        <option value="">Selecionar variável…</option>
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:{...r.condicao,campo:e.target.value,operador:'',valor:''}}:r)})
+                      }} style={{...inpSt2,fontSize:11,flex:'0 0 130px',width:130}}>
+                        <option value="">Variável…</option>
                         {REGRA_CAMPOS.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}
                       </select>
-                      {campoCfg?.tipo==='number' && (
-                        <div style={{display:'flex',gap:6}}>
+                      {campoCfg?.tipo==='number'?(
+                        <>
                           <select value={regra.condicao?.operador||''} onChange={e=>{
-                            const nc={...regra.condicao,operador:e.target.value}
-                            const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
-                            salvarTemplate({...st,regras:nr})
-                          }} style={{...inpSt2,flex:1,fontSize:12}}>
-                            <option value="">Operador…</option>
+                            salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:{...r.condicao,operador:e.target.value}}:r)})
+                          }} style={{...inpSt2,fontSize:11,flex:'0 0 90px',width:90}}>
+                            <option value="">Op…</option>
                             {(ops||[]).map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
                           </select>
-                          <input type="number" value={regra.condicao?.valor||''} placeholder="Valor"
-                            onChange={e=>{
-                              const nc={...regra.condicao,valor:Number(e.target.value)}
-                              const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
-                              salvarTemplate({...st,regras:nr})
-                            }} style={{...inpSt2,width:80,fontSize:12}}/>
-                        </div>
-                      )}
-                      {campoCfg?.tipo==='bool' && (
+                          <input type="number" value={regra.condicao?.valor||''} placeholder="Valor" onChange={e=>{
+                            salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:{...r.condicao,valor:Number(e.target.value)}}:r)})
+                          }} style={{...inpSt2,fontSize:11,flex:'0 0 60px',width:60}}/>
+                        </>
+                      ):campoCfg?.tipo==='bool'?(
                         <select value={regra.condicao?.operador||''} onChange={e=>{
-                          const nc={...regra.condicao,operador:e.target.value}
-                          const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:nc}:r)
-                          salvarTemplate({...st,regras:nr})
-                        }} style={{...inpSt2,fontSize:12}}>
+                          salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,condicao:{...r.condicao,operador:e.target.value}}:r)})
+                        }} style={{...inpSt2,fontSize:11,flex:'0 0 110px',width:110}}>
                           <option value="">Selecionar…</option>
                           {(ops||[]).map(o=><option key={o.v} value={o.v}>{o.label}</option>)}
                         </select>
-                      )}
-                    </div>
-                    <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                      <div style={{fontSize:11,fontWeight:700,color:'var(--text-soft)',textTransform:'uppercase',letterSpacing:0.5}}>Ação ENTÃO</div>
+                      ):(<span style={{flex:'0 0 160px',color:'var(--text-muted)',fontSize:10}}>← escolha variável</span>)}
+                      <span style={{color:'var(--text-muted)',fontSize:11,flexShrink:0}}>→</span>
                       <select value={regra.acao?.fase_id||''} onChange={e=>{
-                        const na={...regra.acao,fase_id:e.target.value}
-                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
-                        salvarTemplate({...st,regras:nr})
-                      }} style={{...inpSt2,fontSize:12}}>
-                        <option value="">Fase alvo…</option>
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,acao:{...r.acao,fase_id:e.target.value}}:r)})
+                      }} style={{...inpSt2,fontSize:11,flex:'0 0 110px',width:110}}>
+                        <option value="">Fase…</option>
                         {(st.itens||[]).filter(i=>i.nivel===1).map(f=><option key={f.id} value={f.id}>{f.titulo}</option>)}
                       </select>
                       <select value={regra.acao?.tipo||''} onChange={e=>{
-                        const na={...regra.acao,tipo:e.target.value}
-                        const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
-                        salvarTemplate({...st,regras:nr})
-                      }} style={{...inpSt2,fontSize:12}}>
-                        <option value="">Tipo de ajuste…</option>
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,acao:{...r.acao,tipo:e.target.value}}:r)})
+                      }} style={{...inpSt2,fontSize:11,flex:'0 0 120px',width:120}}>
+                        <option value="">Ajuste…</option>
                         {ACAO_TIPOS.map(a=><option key={a.v} value={a.v}>{a.label}</option>)}
                       </select>
-                      <div style={{display:'flex',gap:6}}>
-                        <input type="number" min="0" value={regra.acao?.quantidade||''} placeholder="Quantidade"
-                          onChange={e=>{
-                            const na={...regra.acao,quantidade:Number(e.target.value)}
-                            const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
-                            salvarTemplate({...st,regras:nr})
-                          }} style={{...inpSt2,flex:1,fontSize:12}}/>
-                        <select value={regra.acao?.campo_hora||'ambas'} onChange={e=>{
-                          const na={...regra.acao,campo_hora:e.target.value}
-                          const nr=(st.regras||[]).map((r,j)=>j===idx?{...r,acao:na}:r)
-                          salvarTemplate({...st,regras:nr})
-                        }} style={{...inpSt2,flex:1,fontSize:12}}>
-                          {CAMPO_HORA_OPTS.map(c=><option key={c.v} value={c.v}>{c.label}</option>)}
-                        </select>
-                      </div>
-                      {regra.acao?.fase_id && regra.acao?.tipo && regra.acao?.quantidade > 0 && (
-                        <div style={{fontSize:11,color:'var(--text-muted)',fontStyle:'italic'}}>
-                          → {acaoTipo?.label} {regra.acao.quantidade}{regra.acao.tipo.includes('pct')?'%':'h'} em "{faseAlvo?.titulo||'?'}" ({campoHora?.label||'ambas'})
-                        </div>
-                      )}
+                      <input type="number" min="0" value={regra.acao?.quantidade||''} placeholder="Qtd" onChange={e=>{
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,acao:{...r.acao,quantidade:Number(e.target.value)}}:r)})
+                      }} style={{...inpSt2,fontSize:11,flex:'0 0 55px',width:55}}/>
+                      <select value={regra.acao?.campo_hora||'ambas'} onChange={e=>{
+                        salvarTemplate({...st,regras:(st.regras||[]).map((r,j)=>j===idx?{...r,acao:{...r.acao,campo_hora:e.target.value}}:r)})
+                      }} style={{...inpSt2,fontSize:11,flex:'0 0 110px',width:110}}>
+                        {CAMPO_HORA_OPTS.map(c=><option key={c.v} value={c.v}>{c.label}</option>)}
+                      </select>
+                      <button onClick={()=>salvarTemplate({...st,regras:(st.regras||[]).filter((_,j)=>j!==idx)})}
+                        style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:13,padding:'2px 4px',flexShrink:0}}
+                        onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>✕</button>
                     </div>
+                    {idx<arr.length-1&&(
+                      <div style={{display:'flex',justifyContent:'center',padding:'2px 0',background:'var(--surface2)',borderBottom:'1px solid var(--border2)'}}>
+                        <span style={{fontSize:9,fontWeight:700,color:'var(--text-muted)',letterSpacing:1,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,padding:'1px 8px'}}>{st.operador_regras||'OU'}</span>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )
-            })}
+                )
+              })}
+              {!(st.regras||[]).length&&<div style={{padding:'20px',textAlign:'center',color:'var(--text-muted)',fontSize:11}}>Nenhuma regra. Adicione abaixo.</div>}
+            </div>
             <button onClick={()=>{
               const nr=[...(st.regras||[]),{id:`r-${Date.now()}`,ativo:true,descricao:'',condicao:{campo:'',operador:'',valor:''},acao:{fase_id:'',tipo:'',quantidade:0,campo_hora:'ambas'}}]
               salvarTemplate({...st,regras:nr})
@@ -4126,6 +4147,94 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
                 </div>
               </div>
             </div>
+            {/* Word template upload */}
+            <div style={{borderTop:'1px solid var(--border)',paddingTop:14}}>
+              <div style={{fontSize:12,fontWeight:700,color:'var(--text)',marginBottom:8}}>Modelo Word (papel de carta)</div>
+              <div style={{padding:'10px 14px',background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:8,fontSize:11,color:'#1D4ED8',lineHeight:1.6,marginBottom:10}}>
+                O modelo Word será usado como papel de carta. As variáveis <code>{'{{empresa_nome}}'}</code>, <code>{'{{opp_titulo}}'}</code>, <code>{'{{data}}'}</code> serão substituídas. Requer suporte a docxtemplater (em desenvolvimento).
+              </div>
+              {estilo.docx_template_base64 ? (
+                <div style={{display:'flex',alignItems:'center',gap:8}}>
+                  <span style={{fontSize:11,padding:'4px 10px',background:'#D1FAE5',color:'#065F46',borderRadius:20,border:'1px solid #10B98133'}}>
+                    ✓ {estilo.docx_template_nome||'Arquivo carregado'}
+                  </span>
+                  <button onClick={()=>setEstilo(s=>{const n={...s};delete n.docx_template_base64;delete n.docx_template_nome;return n})}
+                    style={{fontSize:11,padding:'4px 10px',background:'none',border:'1px solid #EF444433',borderRadius:20,color:'#EF4444',cursor:'pointer',fontFamily:'var(--font)'}}>
+                    Remover
+                  </button>
+                </div>
+              ) : (
+                <label style={{display:'inline-flex',alignItems:'center',gap:6,padding:'7px 14px',background:'var(--surface)',border:'1px dashed var(--border)',borderRadius:7,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>
+                  ↑ Carregar modelo .docx
+                  <input type="file" accept=".docx" style={{display:'none'}} onChange={e=>{
+                    const file=e.target.files?.[0]; if(!file) return
+                    const reader=new FileReader()
+                    reader.onload=ev=>{
+                      setEstilo(s=>({...s,docx_template_base64:ev.target.result,docx_template_nome:file.name}))
+                    }
+                    reader.readAsDataURL(file)
+                  }}/>
+                </label>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Versões tab */}
+        {tmplTab==='versoes' && (
+          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+            <div style={{padding:'10px 14px',background:'var(--surface2)',border:'1px solid var(--border)',borderRadius:8,fontSize:11,color:'var(--text-soft)',lineHeight:1.6}}>
+              As versões registram o estado atual do template. Use para rastrear revisões antes de enviar propostas.
+            </div>
+            {/* Create version */}
+            <div style={{display:'flex',gap:8,alignItems:'center'}}>
+              <input value={versaoDesc} onChange={e=>setVersaoDesc(e.target.value)}
+                placeholder="Descreva o que mudou nesta versão…"
+                style={{...inpSt2,flex:1,fontSize:12}}
+                onKeyDown={e=>{if(e.key==='Enter'&&versaoDesc.trim()){
+                  const nv={id:`v-${Date.now()}`,numero:(st.versoes||[]).length+1,data:new Date().toISOString(),descricao:versaoDesc.trim()||`Versão ${(st.versoes||[]).length+1}`,snapshot:{blocos:JSON.parse(JSON.stringify(st.blocos||[])),regras:JSON.parse(JSON.stringify(st.regras||[])),itens:JSON.parse(JSON.stringify(st.itens||[])),tarifas:JSON.parse(JSON.stringify(st.tarifas||[]))}}
+                  salvarTemplate({...st,versoes:[...(st.versoes||[]),nv]});setVersaoDesc('')
+                }}}/>
+              <button onClick={()=>{
+                const nv={id:`v-${Date.now()}`,numero:(st.versoes||[]).length+1,data:new Date().toISOString(),descricao:versaoDesc.trim()||`Versão ${(st.versoes||[]).length+1}`,snapshot:{blocos:JSON.parse(JSON.stringify(st.blocos||[])),regras:JSON.parse(JSON.stringify(st.regras||[])),itens:JSON.parse(JSON.stringify(st.itens||[])),tarifas:JSON.parse(JSON.stringify(st.tarifas||[]))}}
+                salvarTemplate({...st,versoes:[...(st.versoes||[]),nv]});setVersaoDesc('')
+              }} style={{padding:'7px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)',whiteSpace:'nowrap'}}>
+                + Criar versão
+              </button>
+            </div>
+            {/* Versions list */}
+            {(st.versoes||[]).length===0 ? (
+              <div style={{textAlign:'center',padding:'40px 0',color:'var(--text-muted)'}}>
+                <div style={{fontSize:24,marginBottom:8}}>🗂</div>
+                <div style={{fontSize:13,fontWeight:600,marginBottom:4}}>Nenhuma versão registrada</div>
+                <div style={{fontSize:11}}>Crie uma versão para começar a rastrear alterações.</div>
+              </div>
+            ) : (
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                {[...(st.versoes||[])].reverse().map(v=>(
+                  <div key={v.id} style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:10}}>
+                    <div style={{flexShrink:0,width:36,height:36,borderRadius:'50%',background:'var(--accent-glow)',border:'2px solid var(--accent)55',display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,fontWeight:800,color:'var(--accent)'}}>
+                      v{v.numero}
+                    </div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:13,fontWeight:600,color:'var(--text)',marginBottom:2}}>{v.descricao}</div>
+                      <div style={{fontSize:11,color:'var(--text-muted)'}}>{new Date(v.data).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+                    </div>
+                    <div style={{display:'flex',gap:6,alignItems:'center',flexShrink:0}}>
+                      <span style={{fontSize:10,padding:'2px 8px',background:'var(--surface2)',borderRadius:10,color:'var(--text-muted)',border:'1px solid var(--border)'}}>
+                        {(v.snapshot?.blocos||[]).length} blocos · {(v.snapshot?.regras||[]).length} regras
+                      </span>
+                      <button onClick={()=>{
+                        if(!window.confirm(`Restaurar para "${v.descricao}"? As alterações atuais serão perdidas.`)) return
+                        salvarTemplate({...st,blocos:JSON.parse(JSON.stringify(v.snapshot?.blocos||[])),regras:JSON.parse(JSON.stringify(v.snapshot?.regras||[])),itens:JSON.parse(JSON.stringify(v.snapshot?.itens||[])),tarifas:JSON.parse(JSON.stringify(v.snapshot?.tarifas||[]))})
+                      }} style={{padding:'5px 10px',fontSize:11,border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text-soft)',cursor:'pointer',fontFamily:'var(--font)'}}>
+                        Restaurar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
