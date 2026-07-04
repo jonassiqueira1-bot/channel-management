@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 import { MOCK_CUSTOMER_HEALTH, STORAGE_KEY as MOCK_KEY } from '../data/mockCustomerSuccess'
 
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -10,6 +11,7 @@ function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(lis
 export function useCustomerHealth() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [records, setRecords] = useState([])
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -25,7 +27,9 @@ export function useCustomerHealth() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('customer_health').select('*').order('company_name')
+    let _q = supabase.from('customer_health').select('*')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('company_name')
     if (error) {
       isMock.current = true
       setRecords(load() ?? MOCK_CUSTOMER_HEALTH)
@@ -34,7 +38,7 @@ export function useCustomerHealth() {
       setRecords(data || [])
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 

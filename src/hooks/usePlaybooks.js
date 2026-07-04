@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToPlaybook(row) {
   // Lê custom_fields: coluna própria (pós-migration) ou serializado em segment
@@ -62,6 +63,7 @@ function playbookToRow(pb, tenantId, branchId) {
 export function usePlaybooks() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [playbooks,  setPlaybooks]  = useState([])
   const [steps,      setSteps]      = useState([])
@@ -76,10 +78,9 @@ export function usePlaybooks() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('playbooks')
-      .select('*')
-      .order('updated_at', { ascending: false })
+    let _q = supabase.from('playbooks').select('*')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('updated_at', { ascending: false })
     if (error) { isMockMode.current = false; setPlaybooks([]); setLoading(false); return }
     isMockMode.current = false
     const all = (data || []).map(rowToPlaybook)
@@ -88,7 +89,7 @@ export function usePlaybooks() {
     setRefs(all.flatMap(p => p.refs || []))
     setResources(all.flatMap(p => p.resources || []))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

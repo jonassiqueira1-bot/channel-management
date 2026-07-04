@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToContato(row) {
   const cf = row.custom_fields || {}
@@ -55,6 +56,7 @@ function saveMockStore(list) {
 export function useContacts() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [contacts,  setContacts] = useState([])
   const [loading,   setLoading]  = useState(true)
@@ -72,10 +74,9 @@ export function useContacts() {
       return
     }
 
-    const { data, error } = await supabase
-      .from('contacts')
-      .select('*, companies(nome_fantasia, razao_social)')
-      .order('nome')
+    let _q = supabase.from('contacts').select('*, companies(nome_fantasia, razao_social)')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('nome')
 
     if (error) {
       console.error('[useContacts]', error.message)
@@ -90,7 +91,7 @@ export function useContacts() {
       empresa_nome: row.companies?.nome_fantasia || row.companies?.razao_social || '',
     })))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

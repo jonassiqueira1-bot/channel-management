@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_SELLERS = [
   { id: 1, nome: 'Lucas Ferreira',  email: 'lucas@nexustech.com.br',   telefone: '(11) 98888-1001', role: 'franchise_manager', regiao: 'Sudeste', status: 'ativo',   company_id: null, meta_mensal: 25000, criado: '2024-03-15' },
@@ -66,6 +67,7 @@ function sellerToRow(s, tenantId, branchId) {
 export function useSellers() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [sellers, setSellers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -77,15 +79,14 @@ export function useSellers() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('sellers')
-      .select('*')
-      .order('nome')
+    let _q = supabase.from('sellers').select('*')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('nome')
     if (error) { isMockMode.current = false; setSellers([]); setLoading(false); return }
     isMockMode.current = false
     setSellers((data || []).map(rowToSeller))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

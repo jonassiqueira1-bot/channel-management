@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MES = new Date().getMonth() + 1
 const ANO = new Date().getFullYear()
@@ -94,6 +95,7 @@ function saveMockToStorage(goals) {
 export function useGoals() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [goals, setGoals] = useState([])
   const [loading, setLoading] = useState(true)
@@ -109,16 +111,14 @@ export function useGoals() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase
-      .from('goals')
-      .select('*')
-      .order('periodo_ano', { ascending: false })
-      .order('periodo_mes', { ascending: false })
+    let _q = supabase.from('goals').select('*')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
     if (error) { isMockMode.current = false; setGoals([]); setLoading(false); return }
     isMockMode.current = false
     setGoals((data || []).map(rowToGoal))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

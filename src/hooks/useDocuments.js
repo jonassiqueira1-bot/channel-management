@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToDoc(row) {
   const cf = row.custom_fields || {}
@@ -61,6 +62,7 @@ function rowToLog(row) {
 export function useDocuments() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [docs, setDocs]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -72,16 +74,14 @@ export function useDocuments() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('documents')
-      .select('*')
-      .is('deleted_at', null)
-      .order('updated_at', { ascending: false })
+    let _q = supabase.from('documents').select('*').is('deleted_at', null)
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('updated_at', { ascending: false })
     if (error) { isMockMode.current = false; setDocs([]); setLoading(false); return }
     isMockMode.current = false
     setDocs((data || []).map(rowToDoc))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

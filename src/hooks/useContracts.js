@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_CONTRATOS_FALLBACK = [] // fallback vazio; dados reais vêm de Supabase ou do inline mock
 
@@ -78,6 +79,7 @@ function contratoToRow(c, tenantId, branchId) {
 export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [contratos, setContratos] = useState(mockFallback)
   const [loading,   setLoading]   = useState(true)
@@ -90,17 +92,16 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
     setLoading(true)
     if (!session?.user) { isMockMode.current = true; setLoading(false); return }
 
-    const { data, error } = await supabase
-      .from('contracts')
-      .select('*, companies(nome_fantasia, razao_social)')
-      .order('created_at', { ascending: false })
+    let _q = supabase.from('contracts').select('*, companies(nome_fantasia, razao_social)')
+    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
+    const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) { console.error('[useContracts]', error.message); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setContratos((data || []).map(rowToContrato))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

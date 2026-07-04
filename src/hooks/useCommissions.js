@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToRule(row) {
   return {
@@ -108,6 +109,7 @@ function rowToPersona(row) {
 export function useCommissions() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [rules,    setRules]    = useState([])
   const [payments, setPayments] = useState([])
@@ -121,9 +123,12 @@ export function useCommissions() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = true; setLoading(false); return }
+    let qRules = supabase.from('commission_rules').select('*')
+    let qPmts  = supabase.from('commission_payments').select('*')
+    if (activeBranchId) { qRules = qRules.eq('branch_id', activeBranchId); qPmts = qPmts.eq('branch_id', activeBranchId) }
     const [r, p, pe] = await Promise.all([
-      supabase.from('commission_rules').select('*').order('created_at', { ascending: false }),
-      supabase.from('commission_payments').select('*').order('created_at', { ascending: false }),
+      qRules.order('created_at', { ascending: false }),
+      qPmts.order('created_at', { ascending: false }),
       supabase.from('commission_personas').select('*').order('ordem'),
     ])
     if (r.error) { isMockMode.current = false; setRules([]); setPayments([]); setLoading(false); return }
@@ -132,7 +137,7 @@ export function useCommissions() {
     setPayments((p.data || []).map(rowToPayment))
     if (!pe.error) setPersonas((pe.data || []).map(rowToPersona))
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 
