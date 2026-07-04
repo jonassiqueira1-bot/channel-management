@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { FileText, CheckCircle2, Clock, Link } from 'lucide-react'
 import { CATEGORIA_CFG, STATUS_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
@@ -46,6 +46,70 @@ function StatusBadge({ status }) {
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
       {cfg.label}
     </span>
+  )
+}
+
+// ─── PerfilMultiSelect ────────────────────────────────────────────────────────
+function PerfilMultiSelect({ options, value, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function toggle(id) {
+    onChange(value.includes(id) ? value.filter(x => x !== id) : [...value, id])
+  }
+
+  const label = value.length === 0
+    ? 'Todos têm acesso'
+    : options.filter(p => value.includes(p.id)).map(p => p.nome).join(', ')
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 7,
+          background: 'var(--surface)', color: value.length ? 'var(--text)' : 'var(--text-muted)',
+          fontSize: 13, fontFamily: 'var(--font)', cursor: 'pointer', textAlign: 'left',
+        }}
+      >
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{label}</span>
+        <span style={{ marginLeft: 8, fontSize: 10, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200, marginTop: 4,
+          border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
+          boxShadow: '0 4px 16px rgba(0,0,0,0.12)', maxHeight: 220, overflowY: 'auto',
+        }}>
+          {options.length === 0 ? (
+            <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum perfil cadastrado.</div>
+          ) : options.map((p, idx) => {
+            const selected = value.includes(p.id)
+            return (
+              <label key={p.id} style={{
+                display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer',
+                background: selected ? 'var(--accent-light, #EFF6FF)' : 'var(--surface)',
+                borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
+              }}>
+                <input type="checkbox" checked={selected} onChange={() => toggle(p.id)}
+                  style={{ accentColor: p.cor || 'var(--accent)', width: 14, height: 14, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, color: selected ? 'var(--accent)' : 'var(--text)', fontWeight: selected ? 600 : 400 }}>
+                  {p.nome}
+                </span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -196,33 +260,11 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
 
         <FormSection label="Controle de Acesso">
           <FormField label="Perfis com acesso" hint="Se nenhum for selecionado, todos têm acesso.">
-            {perfisStore.length === 0 ? (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum perfil cadastrado.</div>
-            ) : (
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                {perfisStore.map((p, idx) => {
-                  const selected = (draft.perfis_acesso || []).includes(p.id)
-                  return (
-                    <label key={p.id} style={{
-                      display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', cursor: 'pointer',
-                      background: selected ? 'var(--accent-light, #EFF6FF)' : (idx % 2 === 0 ? 'var(--surface)' : 'var(--surface-alt, var(--surface))'),
-                      borderTop: idx > 0 ? '1px solid var(--border)' : 'none',
-                      transition: 'background 0.1s',
-                    }}>
-                      <input
-                        type="checkbox"
-                        checked={selected}
-                        onChange={() => togglePerfil(p.id)}
-                        style={{ accentColor: p.cor || 'var(--accent)', width: 15, height: 15, flexShrink: 0 }}
-                      />
-                      <span style={{ fontSize: 13, color: selected ? 'var(--accent)' : 'var(--text)', fontWeight: selected ? 600 : 400 }}>
-                        {p.nome}
-                      </span>
-                    </label>
-                  )
-                })}
-              </div>
-            )}
+            <PerfilMultiSelect
+              options={perfisStore}
+              value={draft.perfis_acesso || []}
+              onChange={ids => set('perfis_acesso', ids)}
+            />
           </FormField>
         </FormSection>
 
