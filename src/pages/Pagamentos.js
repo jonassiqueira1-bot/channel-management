@@ -960,69 +960,6 @@ function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [
   )
 }
 
-// ─── ContratoSearch ───────────────────────────────────────────────────────────
-function ContratoSearch({ contratos = [], value, label, onChange }) {
-  const [query, setQuery] = useState('')
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    function onClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', onClick)
-    return () => document.removeEventListener('mousedown', onClick)
-  }, [])
-
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase()
-    return contratos
-      .filter(c => !q || c.numero?.toLowerCase().includes(q) || c.empresa_nome?.toLowerCase().includes(q))
-      .slice(0, 10)
-  }, [contratos, query])
-
-  function select(c) {
-    onChange(c.id, c.numero, c.empresa_id, c.empresa_nome)
-    setQuery('')
-    setOpen(false)
-  }
-
-  const displayValue = open ? query : (label || '')
-
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <input
-        className="fpe-field"
-        placeholder="Buscar contrato…"
-        value={displayValue}
-        onFocus={() => setOpen(true)}
-        onChange={e => { setQuery(e.target.value); setOpen(true) }}
-      />
-      {open && filtered.length > 0 && (
-        <div style={{
-          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 300,
-          background: 'var(--surface)', border: '1px solid var(--border)',
-          borderRadius: 8, boxShadow: 'var(--shadow-md)', marginTop: 4, overflow: 'hidden',
-        }}>
-          {filtered.map(c => (
-            <div
-              key={c.id}
-              onMouseDown={() => select(c)}
-              style={{
-                padding: '9px 14px', cursor: 'pointer', fontSize: 13,
-                borderBottom: '1px solid var(--border2)',
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-            >
-              <span style={{ fontWeight: 600, fontFamily: 'var(--mono)', fontSize: 12 }}>{c.numero}</span>
-              <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{c.empresa_nome}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 const FILTERS_DEF = [
@@ -1501,15 +1438,15 @@ export default function Pagamentos() {
               <FormSection label="Identificação" />
               <FormGrid cols={2}>
                 <FormField label="Nº do contrato" required>
-                  <ContratoSearch
-                    contratos={contratos}
-                    value={form.contract_id}
-                    label={form.contract_numero}
-                    onChange={(id, numero, empresaId, empresaNome) => {
+                  <SearchSelect
+                    options={contratos.map(c => ({ id: c.id, label: c.numero, sublabel: c.empresa_nome || '' }))}
+                    value={form.contract_id || null}
+                    placeholder="Buscar contrato…"
+                    onChange={id => {
+                      const c = contratos.find(ct => ct.id === id)
                       setNovoPagForm(f => ({
-                        ...f, contract_id: id, contract_numero: numero,
-                        company_id: empresaId || f.company_id, company_nome: empresaNome || f.company_nome,
-                        // Limpa produto e valores — serão preenchidos ao escolher o produto
+                        ...f, contract_id: id || null, contract_numero: c?.numero || '',
+                        company_id: c?.empresa_id || f.company_id, company_nome: c?.empresa_nome || f.company_nome,
                         produto_id: null, produto_nome: '',
                         amount_cdu: 0, amount_sms: 0, amount_services: 0, amount_discount: 0,
                       }))
