@@ -37,7 +37,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useCallback } from 'react'
-import { X, Maximize2, Minimize2 }          from 'lucide-react'
+import { X, Maximize2, Minimize2, Trash2 }  from 'lucide-react'
 import Button                               from '../Button'
 
 // ── tamanhos ──────────────────────────────────────────────────────────────────
@@ -56,16 +56,18 @@ export default function SlideOver({
   open,
   onClose,
   onSave,
-  title        = 'Editar',
+  onDelete,
+  deleteLabel    = 'Excluir',
+  deleteConfirm  = 'Excluir este registro? Esta ação não pode ser desfeita.',
+  title          = 'Editar',
   subtitle,
-  initialSize  = 'default',
-  saving       = false,
-  saveLabel    = 'Salvar',
-  cancelLabel  = 'Cancelar',
-  columns      = 'auto',
+  initialSize    = 'default',
+  saving         = false,
+  saveLabel      = 'Salvar',
+  cancelLabel    = 'Cancelar',
+  columns        = 'auto',
   children,
   extra,
-  // new props
   tabs,
   activeTab,
   onTabChange,
@@ -75,6 +77,7 @@ export default function SlideOver({
   rightPanel,
   rightPanelOpen = false,
   showFooter     = true,
+  footerLeft,
 }) {
   const [sizeIdx, setSizeIdx] = useState(() => SIZE_ORDER.indexOf(initialSize))
   const isFullscreen = SIZE_ORDER[sizeIdx] === 'fullscreen'
@@ -378,21 +381,46 @@ export default function SlideOver({
           )}
         </div>
 
-        {/* ── Footer sticky — only rendered when no tabs ─────────── */}
-        {!hasTabs && showFooter && (
+        {/* ── Footer sticky — always visible when showFooter=true ── */}
+        {showFooter && (
           <div style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             gap: 8, padding: '12px 20px', flexShrink: 0,
             borderTop: '1px solid var(--border)',
             background: SO_BG,
             position: 'sticky', bottom: 0, zIndex: 1,
           }}>
-            <Button variant="secondary" onClick={onClose}>
-              {cancelLabel}
-            </Button>
-            <Button variant="primary" onClick={onSave} loading={saving}>
-              {saveLabel}
-            </Button>
+            {/* Left slot: Excluir ou footerLeft customizado */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => { if (window.confirm(deleteConfirm)) onDelete() }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '6px 12px', borderRadius: 'var(--radius-md, 6px)',
+                    border: '1px solid #FCA5A5', background: '#FFF5F5',
+                    color: '#DC2626', fontSize: 12, fontWeight: 600,
+                    fontFamily: 'var(--font)', cursor: 'pointer',
+                  }}
+                >
+                  <Trash2 size={13} />
+                  {deleteLabel}
+                </button>
+              )}
+              {footerLeft}
+            </div>
+            {/* Right slot: Cancelar + Salvar */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Button variant="secondary" onClick={onClose}>
+                {cancelLabel}
+              </Button>
+              {onSave && (
+                <Button variant="primary" onClick={onSave} loading={saving}>
+                  {saveLabel}
+                </Button>
+              )}
+            </div>
           </div>
         )}
       </aside>

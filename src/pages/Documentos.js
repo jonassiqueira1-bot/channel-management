@@ -178,18 +178,8 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
       onSave={handleSave}
       saveLabel={saving ? 'Salvando…' : (isNew ? 'Cadastrar' : 'Salvar')}
       cancelLabel="Cancelar"
-      footerLeft={!isNew && (
-        <button
-          onClick={() => { if (window.confirm('Excluir este documento?')) { onSave(null, draft.id); onClose() } }}
-          style={{
-            padding: '8px 14px', borderRadius: 8, background: 'none',
-            border: '1px solid rgba(239,68,68,0.35)', color: '#EF4444',
-            fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)',
-          }}
-        >
-          Excluir
-        </button>
-      )}
+      onDelete={!isNew ? () => { onSave(null, draft.id); onClose() } : undefined}
+      deleteConfirm="Excluir este documento? Esta ação não pode ser desfeita."
     >
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px', gap: 0 }}>
         <FormSection label="Identificação">
