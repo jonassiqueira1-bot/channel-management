@@ -25,11 +25,9 @@ CREATE TABLE IF NOT EXISTS documents (
 -- RLS
 ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "tenant_isolation_documents" ON documents
-  USING (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
-
-CREATE POLICY "tenant_insert_documents" ON documents
-  FOR INSERT WITH CHECK (tenant_id = (SELECT tenant_id FROM profiles WHERE id = auth.uid()));
+CREATE POLICY "documents_tenant_all" ON documents
+  FOR ALL USING (tenant_id = my_tenant_id())
+  WITH CHECK (tenant_id = my_tenant_id());
 
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION touch_documents_updated_at()
