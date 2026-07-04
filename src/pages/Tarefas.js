@@ -1017,14 +1017,8 @@ export default function Tarefas() {
       subtitle={isNew ? 'Preencha os dados da tarefa' : `${tipoIcon(form?.tipo)} ${STATUS_CFG[form?.status]?.label || ''}`}
       saveLabel={isNew ? 'Criar tarefa' : 'Salvar alterações'}
       columns={2}
-      extra={!isNew && (
-        <button type="button" onClick={handleDelete}
-          style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 14px', border:'1px solid var(--red)',
-            borderRadius:7, background:'none', color:'var(--red)', fontSize:13, fontWeight:600,
-            cursor:'pointer', fontFamily:'var(--font)' }}>
-          Excluir tarefa
-        </button>
-      )}
+      onDelete={!isNew ? handleDelete : undefined}
+      deleteConfirm="Excluir esta tarefa permanentemente?"
     >
       {form && <TarefaForm form={form} onChange={setForm} tiposTarefa={tiposTarefa}
         errs={errs} clearErr={k => setErrs(p => ({ ...p, [k]: '' }))} />}
