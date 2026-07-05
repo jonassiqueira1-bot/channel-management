@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useBranches } from '../../hooks/useBranches'
-import { MOCK_PERFIS } from '../../data/mockPerfis'
+import { useBranchSharing } from '../../hooks/useBranchSharing'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
-import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import { Share2, ArrowLeftRight } from 'lucide-react'
 
 // Módulos compartilháveis — espelha menu principal + Configurações
@@ -190,19 +188,17 @@ function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'S
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function BranchSharing() {
   const { branches, loading: loadingFiliais } = useBranches()
-  const [perfisRoles]        = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
-  const [usuarios]           = useLocalState('settings:perfis_v2', MOCK_PERFIS)
-  const [regras, setRegras]  = useLocalState('settings:compartilhamento_v3', [])
+  const { regras, loading: loadingRegras, save: saveRegra, remove: removeRegra } = useBranchSharing()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
+  const [saveError, setSaveError] = useState('')
   const { registrar: log } = useAuditLog()
 
   const filiais = branches
-  const usuariosAtivos = usuarios.filter(u => u.status !== 'inativo')
 
-  function abrirNovo()      { setForm({ ...EMPTY }); setEditando('novo') }
-  function abrirEdicao(row) { setForm({ ...row });   setEditando(row)    }
+  function abrirNovo()      { setForm({ ...EMPTY }); setSaveError(''); setEditando('novo') }
+  function abrirEdicao(row) { setForm({ ...row });   setSaveError(''); setEditando(row)    }
   function set(k, v)        { setForm(f => ({ ...f, [k]: v })) }
 
   const podeGravar = form.filial_ids.length >= 2 && form.modulos.length > 0 &&
@@ -210,19 +206,21 @@ export default function BranchSharing() {
      (form.acesso === 'perfis'   && form.perfil_ids.length  > 0) ||
      (form.acesso === 'usuarios' && form.usuario_ids.length > 0))
 
-  function handleSave() {
-    if (!podeGravar) return
+  async function handleSave() {
+    setSaveError('')
+    if (form.filial_ids.length < 2) { setSaveError('Selecione pelo menos 2 filiais.'); return }
+    if (form.modulos.length === 0)  { setSaveError('Selecione pelo menos 1 módulo.'); return }
     const isNew = editando === 'novo'
-    const record = { ...form, id: isNew ? uid() : form.id }
-    setRegras(prev => isNew ? [...prev, record] : prev.map(r => r.id === form.id ? record : r))
-    log(isNew ? 'criar' : 'editar', 'compartilhamento', record.id, {
+    const result = await saveRegra({ ...form, id: isNew ? null : form.id })
+    if (!result.ok) { setSaveError(result.message || 'Erro ao salvar. Tente novamente.'); return }
+    log(isNew ? 'criar' : 'editar', 'compartilhamento', form.id || 'novo', {
       descricao: `Compartilhamento ${isNew ? 'criado' : 'editado'}: ${form.descricao || form.modulos.map(moduloLabel).join(', ')}`,
     })
     setEditando(null)
   }
 
-  function handleDelete(id) {
-    setRegras(prev => prev.filter(r => r.id !== id))
+  async function handleDelete(id) {
+    await removeRegra(id)
     log('excluir', 'compartilhamento', id, { descricao: 'Regra de compartilhamento excluída' })
     setEditando(null)
   }
@@ -247,7 +245,7 @@ export default function BranchSharing() {
         breadcrumb={[{ label: 'Compartilhamento', onClick: () => setEditando(null) }]}
         title={editando === 'novo' ? 'Nova Regra de Compartilhamento' : 'Editar Compartilhamento'}
         subtitle="Compartilhe dados de módulos específicos entre filiais da mesma organização"
-        onSave={podeGravar ? handleSave : undefined}
+        onSave={handleSave}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(form.id) : undefined}
       >
@@ -342,7 +340,7 @@ export default function BranchSharing() {
           {form.acesso === 'perfis' && (
             <FPEField label="Perfis com acesso" required>
               <SearchableMultiSelect
-                options={perfisRoles.map(p => ({ value: p.id, label: p.nome }))}
+                options={[]}
                 value={form.perfil_ids}
                 onChange={ids => set('perfil_ids', ids)}
                 placeholder="Selecionar perfis…"
@@ -353,7 +351,7 @@ export default function BranchSharing() {
           {form.acesso === 'usuarios' && (
             <FPEField label="Usuários com acesso" required>
               <SearchableMultiSelect
-                options={usuariosAtivos.map(u => ({ value: u.id, label: u.nome, sub: u.papel }))}
+                options={[]}
                 value={form.usuario_ids}
                 onChange={ids => set('usuario_ids', ids)}
                 placeholder="Selecionar usuários…"
@@ -361,6 +359,12 @@ export default function BranchSharing() {
             </FPEField>
           )}
         </FPESection>
+
+        {saveError && (
+          <div style={{ margin:'0 0 8px', padding:'10px 14px', borderRadius:8, background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', fontSize:13 }}>
+            {saveError}
+          </div>
+        )}
       </FullPageEdit>
     )
   }

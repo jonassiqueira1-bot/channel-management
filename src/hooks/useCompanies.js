@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -177,7 +177,7 @@ export function useCompanies() {
       return { ok: true }
     }
 
-    const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('companies', id)
     if (error) return { ok: false, message: error.message }
 
     setCompanies(prev => prev.filter(e => e.id !== id))
@@ -191,7 +191,7 @@ export function useCompanies() {
       return { ok: true }
     }
 
-    const { error } = await supabase.from('companies').update({ deleted_at: new Date().toISOString() }).in('id', ids)
+    const { error } = await softDeleteMany('companies', ids)
     if (error) return { ok: false, message: error.message }
 
     setCompanies(prev => prev.filter(e => !ids.includes(e.id)))

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_KEY = 'settings:habilitacoes_v3'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
@@ -10,6 +11,7 @@ function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(lis
 export function useHabilitacoes() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [habilitacoes, setHabilitacoes] = useState([])
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -25,7 +27,9 @@ export function useHabilitacoes() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('habilitacoes').select('*').order('nome')
+    let q = supabase.from('habilitacoes').select('*').order('nome')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setHabilitacoes(load())
@@ -34,7 +38,7 @@ export function useHabilitacoes() {
       setHabilitacoes(data || [])
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 
@@ -67,7 +71,7 @@ export function useHabilitacoes() {
       setHabilitacoes(prev => { const next = prev.filter(h => h.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('habilitacoes').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('habilitacoes', id)
     if (error) return { ok: false, message: error.message }
     setHabilitacoes(prev => prev.filter(h => h.id !== id))
     return { ok: true }

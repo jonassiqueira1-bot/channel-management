@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const STORAGE_KEY = 'settings:perfis_v2'
 function load() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
@@ -26,6 +27,7 @@ function normalizeProfile(u) {
 export function useUsuarios() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [usuarios, setUsuarios] = useState(load)
   const isMock = useRef(false)
   const tid = useRef(null)
@@ -40,11 +42,12 @@ export function useUsuarios() {
       if (error) { isMock.current = true; setUsuarios(load()) }
       else {
         isMock.current = false
-        setUsuarios((data || []).map(normalizeProfile))
+        const normalized = (data || []).map(normalizeProfile)
+        setUsuarios(activeBranchId ? normalized.filter(u => u.branch_id === activeBranchId) : normalized)
       }
     }
     fetch()
-  }, [session])
+  }, [session, activeBranchId])
 
   const save = useCallback(async (usuario) => {
     if (isMock.current) {

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_KEY = 'settings:franquias_v2'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
@@ -19,6 +20,7 @@ function rowToParceiro(row) {
 export function useParceiros() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [parceiros, setParceiros] = useState([])
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -34,7 +36,9 @@ export function useParceiros() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('parceiros').select('*, responsavel:responsavel_id(id, nome)').order('nome')
+    let q = supabase.from('parceiros').select('*, responsavel:responsavel_id(id, nome)').order('nome')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setParceiros(load())
@@ -43,7 +47,7 @@ export function useParceiros() {
       setParceiros((data || []).map(rowToParceiro))
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 
@@ -95,7 +99,7 @@ export function useParceiros() {
       setParceiros(prev => { const next = prev.filter(p => p.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('parceiros').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('parceiros', id)
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => prev.filter(p => p.id !== id))
     return { ok: true }

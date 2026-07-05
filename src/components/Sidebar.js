@@ -56,7 +56,7 @@ function BranchSelector({ collapsed }) {
   const { branches, activeBranch, setActiveBranch } = useBranchContext()
   const [open, setOpen] = useState(false)
 
-  const label = activeBranch?.name || 'Todas as filiais'
+  const label = activeBranch?.name || '…'
 
   if (collapsed) {
     return (
@@ -129,10 +129,6 @@ function DropdownItems({ branches, activeBranch, setActiveBranch, onClose }) {
   })
   return (
     <>
-      <button style={itemStyle(!activeBranch)} onClick={() => pick(null)}>
-        <GitBranch size={12} />
-        Todas as filiais
-      </button>
       {branches.map(b => (
         <button key={b.id} style={itemStyle(activeBranch?.id === b.id)} onClick={() => pick(b.id)}>
           <GitBranch size={12} />
@@ -489,10 +485,6 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Configurações</span>}
         </NavLink>
 
-        <button style={{ ...s.bottomBtn, ...s.signOutBtn }} onClick={handleSignOut}>
-          <span style={{ fontSize: 14 }}>⎋</span>
-          {!collapsed && <span>Sair</span>}
-        </button>
       </div>
     </aside>
   )

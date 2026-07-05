@@ -36,20 +36,31 @@ export function BranchProvider({ children }) {
 
   useEffect(() => { load() }, [load])
 
-  // Se o usuário tem uma filial própria no perfil e nenhuma foi selecionada, usa a dele
+  // Garante que sempre haja uma filial ativa — nunca fica sem seleção
   useEffect(() => {
-    if (!activeBranchId && profile?.branch_id) {
-      setActiveBranch(profile.branch_id)
+    if (branches.length === 0) return
+    const valid = branches.find(b => b.id === activeBranchId)
+    if (!valid) {
+      // Prioridade: filial do perfil → primeira da lista
+      const defaultId = profile?.branch_id && branches.find(b => b.id === profile.branch_id)
+        ? profile.branch_id
+        : branches[0]?.id
+      if (defaultId) setActiveBranch(defaultId)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.branch_id])
+  }, [branches, profile?.branch_id])
 
   function setActiveBranch(id) {
+    if (!id) return
     setActive(id)
-    try { localStorage.setItem('boostly:activeBranch', id || '') } catch {}
+    try { localStorage.setItem('boostly:activeBranch', id) } catch {}
+    // Persiste no banco — my_branch_id() lê profiles.branch_id para RLS
+    if (profile?.id && id !== profile?.branch_id) {
+      supabase.from('profiles').update({ branch_id: id }).eq('id', profile.id)
+    }
   }
 
-  const activeBranch = branches.find(b => b.id === activeBranchId) || null
+  const activeBranch = branches.find(b => b.id === activeBranchId) || branches[0] || null
 
   return (
     <BranchContext.Provider value={{ branches, activeBranchId, activeBranch, setActiveBranch }}>

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_KEY = 'comissoes:aprovacoes_v1'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
@@ -10,6 +11,7 @@ function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(lis
 export function useCommissionApprovals() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [aprovacoes, setAprovacoes] = useState([])
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -25,7 +27,9 @@ export function useCommissionApprovals() {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('commission_approvals').select('*').order('periodo', { ascending: false })
+    let q = supabase.from('commission_approvals').select('*').order('periodo', { ascending: false })
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setAprovacoes(load())
@@ -34,7 +38,7 @@ export function useCommissionApprovals() {
       setAprovacoes(data || [])
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 

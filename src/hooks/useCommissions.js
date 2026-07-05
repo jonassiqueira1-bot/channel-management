@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -162,7 +162,7 @@ export function useCommissions() {
 
   const removeRule = useCallback(async (id) => {
     if (isMockMode.current) { setRules(prev => prev.filter(r => r.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('commission_rules').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('commission_rules', id)
     if (error) return { ok: false, message: error.message }
     setRules(prev => prev.filter(r => r.id !== id))
     return { ok: true }
@@ -189,7 +189,7 @@ export function useCommissions() {
 
   const removePayment = useCallback(async (id) => {
     if (isMockMode.current) { setPayments(prev => prev.filter(p => p.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('commission_payments').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('commission_payments', id)
     if (error) return { ok: false, message: error.message }
     setPayments(prev => prev.filter(p => p.id !== id))
     return { ok: true }
@@ -226,7 +226,7 @@ export function useCommissions() {
 
     const ops = []
     if (toDelete.length) {
-      ops.push(supabase.from('commission_personas').update({ deleted_at: new Date().toISOString() }).in('id', toDelete.map(p => p.id)))
+      ops.push(softDeleteMany('commission_personas', toDelete.map(p => p.id)))
     }
     for (const p of toUpdate) {
       ops.push(supabase.from('commission_personas').update(toRow(p)).eq('id', p.id))

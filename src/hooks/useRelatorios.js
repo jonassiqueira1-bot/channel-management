@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useProfile } from './useProfile'
 
 function toRelatorio(row) {
@@ -85,7 +85,8 @@ export function useRelatorios(tipo = 'relatorio') {
 
   const remove = useCallback(async (id) => {
     try {
-      const { error: err } = await supabase.from('relatorios').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+      const result = await softDelete('relatorios', id)
+      const err = result.ok ? null : new Error(result.message)
       if (err) throw err
       setRelatorios(prev => prev.filter(r => r.id !== id))
       return { ok: true }

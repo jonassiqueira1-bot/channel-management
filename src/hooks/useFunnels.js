@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToFunil(row) {
   const cf = row.custom_fields || {}
@@ -34,6 +35,7 @@ function funilToRow(f, tenantId) {
 export function useFunnels() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [funis, setFunis] = useState([])
   const [loading, setLoading] = useState(true)
@@ -44,11 +46,10 @@ export function useFunnels() {
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('form_layouts')
-      .select('*')
-      .eq('entity', 'funis')
-      .limit(1)
+    let q = supabase.from('form_layouts').select('*').eq('entity', 'funis')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    q = q.limit(1)
+    const { data, error } = await q
     if (error) {
       console.error('[useFunnels]', error.message)
       isMockMode.current = false
@@ -59,20 +60,23 @@ export function useFunnels() {
       setFunis(Array.isArray(stored) && stored.length > 0 ? stored : [])
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 
   const persistAll = useCallback(async (list) => {
     if (!tenantId) return
-    const { data: existing } = await supabase
-      .from('form_layouts').select('id').eq('tenant_id', tenantId).eq('entity', 'funis').limit(1)
+    let q = supabase.from('form_layouts').select('id').eq('tenant_id', tenantId).eq('entity', 'funis')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data: existing } = await q.limit(1)
     if (existing && existing.length > 0) {
-      await supabase.from('form_layouts').update({ fields: list }).eq('tenant_id', tenantId).eq('entity', 'funis')
+      let upd = supabase.from('form_layouts').update({ fields: list }).eq('tenant_id', tenantId).eq('entity', 'funis')
+      if (activeBranchId) upd = upd.eq('branch_id', activeBranchId)
+      await upd
     } else {
-      await supabase.from('form_layouts').insert({ tenant_id: tenantId, entity: 'funis', fields: list, layout: [] })
+      await supabase.from('form_layouts').insert({ tenant_id: tenantId, branch_id: activeBranchId || null, entity: 'funis', fields: list, layout: [] })
     }
-  }, [tenantId])
+  }, [tenantId, activeBranchId])
 
   const save = useCallback(async (data) => {
     let next

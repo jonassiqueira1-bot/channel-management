@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const STORAGE_KEY = 'settings:tipos_acao_v1'
 function load() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -10,6 +11,7 @@ function persist(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(
 export function useTiposAcao(defaults = []) {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [tipos, setTipos] = useState(load() ?? defaults)
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -25,7 +27,9 @@ export function useTiposAcao(defaults = []) {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('tipos_acao').select('*').order('label')
+    let q = supabase.from('tipos_acao').select('*').order('label')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setTipos(load() ?? defaults)
@@ -39,7 +43,7 @@ export function useTiposAcao(defaults = []) {
       }
     }
     setLoading(false)
-  }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, activeBranchId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetch() }, [fetch])
 
@@ -82,7 +86,7 @@ export function useTiposAcao(defaults = []) {
       setTipos(prev => { const next = prev.filter(t => t.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('tipos_acao').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('tipos_acao', id)
     if (error) return { ok: false, message: error.message }
     setTipos(prev => prev.filter(t => t.id !== id))
     return { ok: true }
