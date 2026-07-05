@@ -6,23 +6,38 @@ import { useBranchContext } from '../contexts/BranchContext'
 
 // Mapeamento: chave do módulo (UI) → nome(s) da tabela no banco
 export const MODULO_TABELAS = {
-  pipeline:        ['oportunidades'],
-  tarefas:         ['tasks'],
-  playbooks:       ['playbooks'],
-  vendedores:      ['sellers'],
-  acoes:           ['actions'],
-  parceiros:       ['parceiros'],
-  empresas:        ['companies'],
-  contatos:        ['contacts'],
-  projetos:        ['projects'],
-  customer_success:['customer_health'],
-  contratos:       ['contracts'],
-  pagamentos:      ['payments'],
-  comissoes:       ['commission_rules'],
-  questionarios:   ['questionnaire_templates'],
-  documentos:      ['documents'],
-  metas:           ['goals'],
-  // Itens sem tabela de dados (dashboard, relatórios, config) não geram linhas de visibilidade
+  // ── Menu principal ────────────────────────────────────────────
+  pipeline:         ['oportunidades'],
+  tarefas:          ['tasks'],
+  playbooks:        ['playbooks'],
+  vendedores:       ['sellers'],
+  acoes:            ['actions'],
+  parceiros:        ['parceiros'],
+  empresas:         ['companies'],
+  contatos:         ['contacts'],
+  projetos:         ['projects'],
+  customer_success: ['customer_health'],
+  contratos:        ['contracts'],
+  pagamentos:       ['payments'],
+  comissoes:        ['commission_rules'],
+  questionarios:    ['questionnaire_templates'],
+  documentos:       ['documents'],
+  metas:            ['goals'],
+  relatorios:       ['relatorios'],
+  // ── Configurações ─────────────────────────────────────────────
+  cfg_parceiros:    ['parceiros'],
+  cfg_maturidade:   ['partner_maturity_params'],
+  cfg_perfis:       ['perfis_acesso'],
+  cfg_equipes:      ['equipes'],
+  cfg_habilitacoes: ['habilitacoes'],
+  cfg_produtos:     ['products'],
+  cfg_funis:        ['form_layouts'],
+  cfg_tipos_acoes:  ['tipos_acao'],
+  cfg_campanhas:    ['campanhas'],
+  cfg_indicadores:  ['indicadores'],
+  cfg_metas_kpis:   ['metas_kpi'],
+  cfg_alertas:      ['alert_rules'],
+  // dashboard, cfg_usuarios, cfg_campos, cfg_integracoes, cfg_logs → sem tabela compartilhável
 }
 
 // Agrupa linhas do banco por regra_id → formato UI
