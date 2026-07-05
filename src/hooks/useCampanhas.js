@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_KEY = 'settings:campanhas_v1'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -10,6 +11,7 @@ function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(lis
 export function useCampanhas(seeds = []) {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [campanhas, setCampanhas] = useState(load() ?? seeds)
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
@@ -25,7 +27,9 @@ export function useCampanhas(seeds = []) {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('campanhas').select('*').order('nome')
+    let q = supabase.from('campanhas').select('*').order('nome')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setCampanhas(load() ?? seeds)
@@ -41,10 +45,10 @@ export function useCampanhas(seeds = []) {
         end_date:    r.end_date    || r.fim        || '',
         materials:   r.materials   || (r.extra ? JSON.parse(r.extra) : []),
       }))
-      setCampanhas(mapped.length > 0 ? mapped : (load() ?? seeds))
+      setCampanhas(mapped)
     }
     setLoading(false)
-  }, [session]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session, activeBranchId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => { fetch() }, [fetch])
 

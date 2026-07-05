@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function periodFilter(period) {
   const now = new Date()
@@ -20,7 +21,7 @@ function periodFilter(period) {
   return null
 }
 
-async function fetchAnalytics(period) {
+async function fetchAnalytics(period, activeBranchId) {
   const pf = periodFilter(period)
 
   // Busca paralela de todas as entidades necessárias
@@ -40,22 +41,47 @@ async function fetchAnalytics(period) {
     (() => {
       let q = supabase.from('payments').select('custom_fields, company_id, companies(nome_fantasia, razao_social)')
       if (pf) q = q.gte('created_at', pf.gte)
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
       return q
     })(),
     // Empresas ativas (franquias = tipo parceiro)
-    supabase.from('companies').select('id, nome_fantasia, razao_social, tipo, status'),
+    (() => {
+      let q = supabase.from('companies').select('id, nome_fantasia, razao_social, tipo, status')
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
     // Oportunidades em aberto
-    supabase.from('oportunidades').select('id, situacao, valor, stage_id'),
+    (() => {
+      let q = supabase.from('oportunidades').select('id, situacao, valor, stage_id')
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
     // Projetos ativos
-    supabase.from('projects').select('id, status'),
+    (() => {
+      let q = supabase.from('projects').select('id, status')
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
     // Contratos ativos
-    supabase.from('contracts').select('id, status, valor'),
+    (() => {
+      let q = supabase.from('contracts').select('id, status, valor')
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
     // Todas as opps para calcular taxa conversão
-    supabase.from('oportunidades').select('id, situacao'),
+    (() => {
+      let q = supabase.from('oportunidades').select('id, situacao')
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
     // Pagamentos vencidos D+1 (inadimplência)
-    supabase.from('payments').select('contract_id, vencimento, status, custom_fields')
-      .in('status', ['pendente', 'vencido'])
-      .lt('vencimento', ontemStr),
+    (() => {
+      let q = supabase.from('payments').select('contract_id, vencimento, status, custom_fields')
+        .in('status', ['pendente', 'vencido'])
+        .lt('vencimento', ontemStr)
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      return q
+    })(),
   ])
 
   const payments      = paymentsRes.data      || []
@@ -158,6 +184,7 @@ async function fetchAnalytics(period) {
 export function useDashboard(period = 'this_month') {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [analytics, setAnalytics] = useState(null)
   const [alerts,    setAlerts]    = useState([])
@@ -178,7 +205,7 @@ export function useDashboard(period = 'this_month') {
       const myAlertsQuery = supabase.from('alerts').select('id', { count: 'exact', head: true }).eq('resolvido', false)
 
       const [analyticsData, alertsRes, totalAlertsRes, myAlertsRes] = await Promise.all([
-        fetchAnalytics(period),
+        fetchAnalytics(period, activeBranchId),
         supabase.from('dashboard_alerts')
           .select('*')
           .eq('is_resolved', false)
@@ -197,7 +224,7 @@ export function useDashboard(period = 'this_month') {
       setAlerts([])
     }
     setLoading(false)
-  }, [session, profile, period])
+  }, [session, profile, period, activeBranchId])
 
   useEffect(() => { load() }, [load])
 

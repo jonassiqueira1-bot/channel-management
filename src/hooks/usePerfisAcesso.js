@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 const MOCK_KEY_PERFIS = 'perfis:roles'
 const MOCK_KEY_PERMS  = 'perfis:permissions'
@@ -14,6 +15,7 @@ function persistPerms(obj)   { try { localStorage.setItem(MOCK_KEY_PERMS,  JSON.
 export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [perfis, setPerfis] = useState(loadPerfis() ?? defaultPerfis)
   const [perms,  setPerms]  = useState(loadPerms())
   const [loading, setLoading] = useState(true)
@@ -31,7 +33,9 @@ export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
       setLoading(false)
       return
     }
-    const { data, error } = await supabase.from('perfis_acesso').select('*').order('nome')
+    let q = supabase.from('perfis_acesso').select('*').order('nome')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data, error } = await q
     if (error) {
       isMock.current = true
       setPerfis(loadPerfis() ?? defaultPerfis)
@@ -49,7 +53,7 @@ export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
       }
     }
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 

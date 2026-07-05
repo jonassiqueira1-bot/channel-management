@@ -192,12 +192,13 @@ export default function BranchSharing() {
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
+  const [saveError, setSaveError] = useState('')
   const { registrar: log } = useAuditLog()
 
   const filiais = branches
 
-  function abrirNovo()      { setForm({ ...EMPTY }); setEditando('novo') }
-  function abrirEdicao(row) { setForm({ ...row });   setEditando(row)    }
+  function abrirNovo()      { setForm({ ...EMPTY }); setSaveError(''); setEditando('novo') }
+  function abrirEdicao(row) { setForm({ ...row });   setSaveError(''); setEditando(row)    }
   function set(k, v)        { setForm(f => ({ ...f, [k]: v })) }
 
   const podeGravar = form.filial_ids.length >= 2 && form.modulos.length > 0 &&
@@ -206,10 +207,12 @@ export default function BranchSharing() {
      (form.acesso === 'usuarios' && form.usuario_ids.length > 0))
 
   async function handleSave() {
-    if (!podeGravar) return
+    setSaveError('')
+    if (form.filial_ids.length < 2) { setSaveError('Selecione pelo menos 2 filiais.'); return }
+    if (form.modulos.length === 0)  { setSaveError('Selecione pelo menos 1 módulo.'); return }
     const isNew = editando === 'novo'
     const result = await saveRegra({ ...form, id: isNew ? null : form.id })
-    if (!result.ok) return
+    if (!result.ok) { setSaveError(result.message || 'Erro ao salvar. Tente novamente.'); return }
     log(isNew ? 'criar' : 'editar', 'compartilhamento', form.id || 'novo', {
       descricao: `Compartilhamento ${isNew ? 'criado' : 'editado'}: ${form.descricao || form.modulos.map(moduloLabel).join(', ')}`,
     })
@@ -242,7 +245,7 @@ export default function BranchSharing() {
         breadcrumb={[{ label: 'Compartilhamento', onClick: () => setEditando(null) }]}
         title={editando === 'novo' ? 'Nova Regra de Compartilhamento' : 'Editar Compartilhamento'}
         subtitle="Compartilhe dados de módulos específicos entre filiais da mesma organização"
-        onSave={podeGravar ? handleSave : undefined}
+        onSave={handleSave}
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(form.id) : undefined}
       >
@@ -356,6 +359,12 @@ export default function BranchSharing() {
             </FPEField>
           )}
         </FPESection>
+
+        {saveError && (
+          <div style={{ margin:'0 0 8px', padding:'10px 14px', borderRadius:8, background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', fontSize:13 }}>
+            {saveError}
+          </div>
+        )}
       </FullPageEdit>
     )
   }

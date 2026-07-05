@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { supabase } from '../../lib/supabase'
 import { useProfile } from '../../hooks/useProfile'
+import { useBranchContext } from '../../contexts/BranchContext'
 import { useCustomFields } from '../../hooks/useCustomFields'
 import { FullPageEdit, FPESection } from '../../components/ui'
 import SettingsLayout from '../../components/ui/SettingsLayout'
@@ -388,9 +389,10 @@ function rowToRule(r) {
   }
 }
 
-function ruleToRow(f, tenantId) {
+function ruleToRow(f, tenantId, branchId) {
   return {
     tenant_id:    tenantId,
+    branch_id:    branchId || null,
     gatilho:      f.gatilho_nome,
     gatilho_nome: f.gatilho_nome,
     origem:       f.origem,
@@ -410,6 +412,7 @@ function ruleToRow(f, tenantId) {
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsAlertas() {
   const { profile }            = useProfile()
+  const { activeBranchId }     = useBranchContext()
   const [rules, setRules]      = useState([])
   const [loading, setLoading]  = useState(true)
   const [editing, setEditing]  = useState(null)
@@ -424,10 +427,12 @@ export default function SettingsAlertas() {
   const load = useCallback(async () => {
     if (!tenantId) { setLoading(false); return }
     setLoading(true)
-    const { data } = await supabase.from('alert_rules').select('*').eq('tenant_id', tenantId).order('created_at')
+    let q = supabase.from('alert_rules').select('*').eq('tenant_id', tenantId).order('created_at')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data } = await q
     setRules((data || []).map(rowToRule))
     setLoading(false)
-  }, [tenantId])
+  }, [tenantId, activeBranchId])
 
   useEffect(() => { if (tenantId) load(); else setLoading(false) }, [load, tenantId])
 
@@ -457,7 +462,7 @@ export default function SettingsAlertas() {
 
   async function handleSave(form) {
     setSaving(true)
-    const row = ruleToRow(form, tenantId)
+    const row = ruleToRow(form, tenantId, activeBranchId)
     if (form.id) {
       const { error } = await supabase.from('alert_rules').update(row).eq('id', form.id)
       if (error) { alert('Erro: ' + error.message); setSaving(false); return }

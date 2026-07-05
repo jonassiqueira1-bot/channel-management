@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 // ─── Origens disponíveis ──────────────────────────────────────────────────────
 export const ORIGENS = [
@@ -22,6 +23,7 @@ export const CONDICOES = [
 export function usePartnerMaturity() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [params, setParams]   = useState([])
   const [loading, setLoading] = useState(true)
@@ -29,21 +31,23 @@ export function usePartnerMaturity() {
   const fetch = useCallback(async () => {
     if (!session?.user) return
     setLoading(true)
-    const { data } = await supabase
+    let q = supabase
       .from('partner_maturity_params')
       .select('*')
       .order('ordem')
       .order('created_at')
+    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    const { data } = await q
     setParams(data || [])
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { fetch() }, [fetch])
 
   const save = useCallback(async (param) => {
     const tid = profile?.tenant_id
     if (!tid) return { ok: false }
-    const row = { ...param, tenant_id: tid, updated_at: new Date().toISOString() }
+    const row = { ...param, tenant_id: tid, branch_id: activeBranchId || profile?.branch_id || null, updated_at: new Date().toISOString() }
     const { data, error } = param.id
       ? await supabase.from('partner_maturity_params').update(row).eq('id', param.id).select().single()
       : await supabase.from('partner_maturity_params').insert(row).select().single()
@@ -59,6 +63,7 @@ export function usePartnerMaturity() {
 
   return { params, loading, reload: fetch, save, remove }
 }
+
 
 // ─── Hook de habilitações do parceiro ────────────────────────────────────────
 export function usePartnerHabilitacoes(parceiro_id) {

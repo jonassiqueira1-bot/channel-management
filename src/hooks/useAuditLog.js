@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 export const AUDIT_LOG_KEY = 'sistema:audit_log_v1'
 
@@ -11,31 +12,39 @@ function persistLocal(list) { try { localStorage.setItem(AUDIT_LOG_KEY, JSON.str
 export function useAuditLog() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [logs, setLogs] = useState(loadLocal)
   const isMock = useRef(false)
   const tid = useRef(null)
 
-  useEffect(() => { tid.current = profile?.tenant_id }, [profile?.tenant_id])
+  const bid = useRef(null)
+  useEffect(() => {
+    tid.current = profile?.tenant_id
+    bid.current = profile?.branch_id
+  }, [profile?.tenant_id, profile?.branch_id])
 
   // Carrega os 500 mais recentes do Supabase (ou localStorage em modo mock)
   useEffect(() => {
     async function fetchLogs() {
       if (!session?.user) { isMock.current = true; setLogs(loadLocal()); return }
-      const { data, error } = await supabase
+      let q = supabase
         .from('audit_logs')
         .select('*')
         .order('timestamp', { ascending: false })
         .limit(500)
+      if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+      const { data, error } = await q
       if (error) { isMock.current = true; setLogs(loadLocal()) }
       else { isMock.current = false; setLogs(data || []) }
     }
     fetchLogs()
-  }, [session])
+  }, [session, activeBranchId])
 
   const registrar = useCallback(async (acao, entidade, entidade_id, dados = {}) => {
     const entrada = {
       timestamp:    new Date().toISOString(),
       tenant_id:    tid.current || null,
+      branch_id:    bid.current || null,
       usuario_id:   profile?.id   || null,
       usuario_nome: profile?.nome || 'Sistema',
       acao,

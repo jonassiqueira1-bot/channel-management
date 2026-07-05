@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToProduct(row) {
   const cf = row.custom_fields || {}
@@ -54,26 +55,26 @@ function productToRow(p, tenantId, branchId) {
 export function useProducts() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
 
   const [produtos, setProdutos] = useState([])
   const [loading, setLoading]   = useState(true)
   const isMockMode              = useRef(false)
 
   const tenantId = profile?.tenant_id
-  const branchId = profile?.branch_id || null
+  const branchId = activeBranchId || profile?.branch_id || null
 
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .order('nome')
+    let q = supabase.from('products').select('*').order('nome')
+    if (branchId) q = q.eq('branch_id', branchId)
+    const { data, error } = await q
     if (error) { isMockMode.current = false; setProdutos([]); setLoading(false); return }
     isMockMode.current = false
     setProdutos((data || []).map(rowToProduct))
     setLoading(false)
-  }, [session])
+  }, [session, branchId])
 
   useEffect(() => { load() }, [load])
 

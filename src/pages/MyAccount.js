@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import {
   User, Building2, Shield, Camera, Save, X, Eye, EyeOff,
   CheckCircle2, AlertCircle, Phone, Mail,
-  Palette, Landmark, Lock, Info,
+  Palette, Landmark, Lock, Info, LogOut,
 } from 'lucide-react'
 import { useProfile } from '../hooks/useProfile'
+import { useAuth } from '../contexts/AuthContext'
 import { COMPANY_TYPE_CFG } from '../data/mockCompanies'
 import { FullPageEdit, FPESection } from '../components/ui'
 
@@ -502,8 +503,11 @@ function InfoCell({ icon, label, value, mono }) {
 // ─── Página ────────────────────────────────────────────────────────────────────
 export default function MyAccount() {
   const navigate = useNavigate()
+  const { signOut } = useAuth()
   const { profile, company, loading, error, reload, saveProfile, saveCompany, changePassword, uploadAvatar, isAdmin, papelCfg } = useProfile()
   const { toasts, push } = useToasts()
+
+  async function handleSignOut() { await signOut(); navigate('/login') }
 
   async function handleSaveProfile(patch) {
     const res = await saveProfile(patch)
@@ -565,6 +569,18 @@ export default function MyAccount() {
 
               <FPESection title="Segurança">
                 <TabSeguranca onChangePassword={handleChangePassword} />
+              </FPESection>
+
+              <FPESection title="Sessão">
+                <button
+                  onClick={handleSignOut}
+                  style={{ display:'flex', alignItems:'center', gap:8, padding:'9px 16px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text-muted)', fontSize:13, fontFamily:'var(--font)', cursor:'pointer' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor='#EF4444'; e.currentTarget.style.color='#EF4444' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.color='var(--text-muted)' }}
+                >
+                  <LogOut size={14} />
+                  Sair da conta
+                </button>
               </FPESection>
             </>
           )

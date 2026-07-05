@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 
 // Mapeamento: chave do módulo (UI) → nome(s) da tabela no banco
 export const MODULO_TABELAS = {
@@ -55,18 +56,21 @@ function rowsToRegras(rows) {
 export function useBranchSharing() {
   const { session } = useAuth()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [regras, setRegras] = useState([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!session?.user) { setLoading(false); return }
-    const { data } = await supabase
+    let q = supabase
       .from('branch_table_visibility')
       .select('*')
       .order('created_at')
+    if (activeBranchId) q = q.or('source_branch_id.eq.' + activeBranchId + ',target_branch_id.eq.' + activeBranchId)
+    const { data } = await q
     setRegras(data ? rowsToRegras(data) : [])
     setLoading(false)
-  }, [session])
+  }, [session, activeBranchId])
 
   useEffect(() => { load() }, [load])
 
