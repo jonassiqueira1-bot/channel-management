@@ -85,7 +85,7 @@ export function useRelatorios(tipo = 'relatorio') {
 
   const remove = useCallback(async (id) => {
     try {
-      const { error: err } = await supabase.from('relatorios').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+      const { error: err } = await supabase.rpc('soft_delete_relatorio', { relatorio_id: id })
       if (err) throw err
       setRelatorios(prev => prev.filter(r => r.id !== id))
       return { ok: true }

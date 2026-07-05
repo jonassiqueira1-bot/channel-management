@@ -238,22 +238,7 @@ DROP POLICY IF EXISTS "audit_logs: insert" ON public.audit_logs;
 CREATE POLICY "audit_logs: view"   ON public.audit_logs FOR SELECT USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'audit_logs'));
 CREATE POLICY "audit_logs: insert" ON public.audit_logs FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
--- ── 6. my_tenant_id / my_role: SECURITY DEFINER para evitar recursão de RLS ──
--- Sem SECURITY DEFINER, chamadas dentro de políticas RLS podem falhar
--- quando a própria RLS de profiles interfere na leitura.
-CREATE OR REPLACE FUNCTION public.my_tenant_id()
-RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT tenant_id FROM public.profiles WHERE id = auth.uid() LIMIT 1;
-$$;
-
-CREATE OR REPLACE FUNCTION public.my_role()
-RETURNS text LANGUAGE sql STABLE SECURITY DEFINER
-SET search_path = public AS $$
-  SELECT role FROM public.profiles WHERE id = auth.uid() LIMIT 1;
-$$;
-
--- ── 7. my_branch_id: fallback para Matriz se não houver filial no perfil ─────
+-- ── 6. my_branch_id: fallback para Matriz se não houver filial no perfil ─────
 CREATE OR REPLACE FUNCTION public.my_branch_id()
 RETURNS uuid LANGUAGE sql STABLE SECURITY DEFINER AS $$
   SELECT COALESCE(

@@ -49,13 +49,19 @@ CREATE POLICY "relatorios_select" ON relatorios
 CREATE POLICY "relatorios_insert" ON relatorios
   FOR INSERT WITH CHECK (tenant_id = my_tenant_id());
 
--- UPDATE/DELETE: apenas o owner
+-- UPDATE/DELETE: owner ou admin_isv do tenant
 CREATE POLICY "relatorios_update" ON relatorios
-  FOR UPDATE USING (owner_id = auth.uid() AND tenant_id = my_tenant_id())
-  WITH CHECK (owner_id = auth.uid() AND tenant_id = my_tenant_id());
+  FOR UPDATE USING (
+    tenant_id = my_tenant_id() AND (owner_id = auth.uid() OR my_role() = 'admin_isv')
+  )
+  WITH CHECK (
+    tenant_id = my_tenant_id() AND (owner_id = auth.uid() OR my_role() = 'admin_isv')
+  );
 
 CREATE POLICY "relatorios_delete" ON relatorios
-  FOR DELETE USING (owner_id = auth.uid() AND tenant_id = my_tenant_id());
+  FOR DELETE USING (
+    tenant_id = my_tenant_id() AND (owner_id = auth.uid() OR my_role() = 'admin_isv')
+  );
 
 -- updated_at trigger
 CREATE OR REPLACE FUNCTION touch_relatorios_updated_at()
