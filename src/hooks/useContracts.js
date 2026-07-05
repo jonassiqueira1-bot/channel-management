@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -136,7 +136,7 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setContratos(prev => prev.filter(c => c.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('contracts').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('contracts', id)
     if (error) return { ok: false, message: error.message }
     setContratos(prev => prev.filter(c => c.id !== id))
     return { ok: true }

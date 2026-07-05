@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -103,7 +103,7 @@ export function useProducts() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setProdutos(prev => prev.filter(p => p.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('products').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('products', id)
     if (error) return { ok: false, message: error.message }
     setProdutos(prev => prev.filter(p => p.id !== id))
     return { ok: true }

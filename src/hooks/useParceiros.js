@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -99,7 +99,7 @@ export function useParceiros() {
       setParceiros(prev => { const next = prev.filter(p => p.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('parceiros').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('parceiros', id)
     if (error) return { ok: false, message: error.message }
     setParceiros(prev => prev.filter(p => p.id !== id))
     return { ok: true }

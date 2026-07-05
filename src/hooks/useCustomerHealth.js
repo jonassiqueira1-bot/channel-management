@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -102,7 +102,7 @@ export function useCustomerHealth() {
       setRecords(prev => { const next = prev.filter(r => r.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('customer_health').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('customer_health', id)
     if (error) return { ok: false, message: error.message }
     setRecords(prev => prev.filter(r => r.id !== id))
     return { ok: true }

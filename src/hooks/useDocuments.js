@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -108,7 +108,7 @@ export function useDocuments() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setDocs(prev => prev.filter(d => d.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('documents').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('documents', id)
     if (error) return { ok: false, message: error.message }
     setDocs(prev => prev.filter(d => d.id !== id))
     return { ok: true }

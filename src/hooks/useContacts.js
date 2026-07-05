@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -134,7 +134,7 @@ export function useContacts() {
       })
       return { ok: true }
     }
-    const { error } = await supabase.from('contacts').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('contacts', id)
     if (error) return { ok: false, message: error.message }
     setContacts(prev => prev.filter(c => c.id !== id))
     return { ok: true }

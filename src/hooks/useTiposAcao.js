@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -86,7 +86,7 @@ export function useTiposAcao(defaults = []) {
       setTipos(prev => { const next = prev.filter(t => t.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { error } = await supabase.from('tipos_acao').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('tipos_acao', id)
     if (error) return { ok: false, message: error.message }
     setTipos(prev => prev.filter(t => t.id !== id))
     return { ok: true }

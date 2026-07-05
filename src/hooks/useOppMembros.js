@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 
@@ -68,7 +68,7 @@ export function useOppMembros() {
   const remove = useCallback(async (membroId) => {
     setMembros(prev => prev.filter(m => m.id !== membroId))
     if (isMockMode.current) return { ok: true }
-    const { error } = await supabase.from('oportunidade_membros').update({ deleted_at: new Date().toISOString() }).eq('id', membroId)
+    const { error } = await softDelete('oportunidade_membros', membroId)
     if (error) console.warn('[useOppMembros] delete error:', error.message)
     return { ok: !error }
   }, [])

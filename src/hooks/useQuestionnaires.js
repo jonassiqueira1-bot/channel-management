@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -123,7 +123,7 @@ export function useQuestionnaires() {
 
   const removeTemplate = useCallback(async (id) => {
     if (isMockMode.current) { setTemplates(prev => prev.filter(t => t.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('questionnaire_templates').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('questionnaire_templates', id)
     if (error) return { ok: false, message: error.message }
     setTemplates(prev => prev.filter(t => t.id !== id))
     return { ok: true }
@@ -155,7 +155,7 @@ export function useQuestionnaires() {
 
   const removeSubmission = useCallback(async (id) => {
     if (isMockMode.current) { setSubmissions(prev => prev.filter(s => s.id !== id)); return { ok: true } }
-    const { error } = await supabase.from('questionnaire_submissions').update({ deleted_at: new Date().toISOString() }).eq('id', id)
+    const { error } = await softDelete('questionnaire_submissions', id)
     if (error) return { ok: false, message: error.message }
     setSubmissions(prev => prev.filter(s => s.id !== id))
     return { ok: true }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -186,7 +186,7 @@ export function usePayments() {
     })
     if (!isMockMode.current) {
       const uuids = ids.filter(isUuid)
-      if (uuids.length) await supabase.from('payments').update({ deleted_at: new Date().toISOString() }).in('id', uuids)
+      if (uuids.length) await softDeleteMany('payments', uuids)
     }
   }, [])
 
