@@ -75,7 +75,6 @@ export function useContacts() {
     }
 
     let _q = supabase.from('contacts').select('*, companies(nome_fantasia, razao_social)')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('nome')
 
     if (error) {

@@ -111,9 +111,12 @@ export function useCompanies() {
       return
     }
 
-    let _q = supabase.from('companies').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
-    const { data, error: fetchErr } = await _q.order('razao_social')
+    // Sem filtro de branch_id: o RLS (can_see_branch_record) já garante
+    // que só aparecem registros da filial ativa + filiais com regra de compartilhamento.
+    const { data, error: fetchErr } = await supabase
+      .from('companies')
+      .select('*')
+      .order('razao_social')
 
     if (fetchErr) {
       console.error('[useCompanies]', fetchErr.message)

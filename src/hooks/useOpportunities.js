@@ -133,7 +133,6 @@ export function useOpportunities() {
     }
 
     let _q = supabase.from('oportunidades').select('*').is('deleted_at', null)
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) {

@@ -70,7 +70,6 @@ export function useActions() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let _q = supabase.from('actions').select('*, companies(nome_fantasia, razao_social)')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('created_at', { ascending: false })
     if (error) { isMockMode.current = false; setAcoes([]); setLoading(false); return }
     isMockMode.current = false

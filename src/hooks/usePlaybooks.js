@@ -79,7 +79,6 @@ export function usePlaybooks() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let _q = supabase.from('playbooks').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('updated_at', { ascending: false })
     if (error) { isMockMode.current = false; setPlaybooks([]); setLoading(false); return }
     isMockMode.current = false

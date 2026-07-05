@@ -28,7 +28,6 @@ export function useCustomerHealth() {
       return
     }
     let _q = supabase.from('customer_health').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('company_name')
     if (error) {
       isMock.current = true

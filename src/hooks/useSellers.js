@@ -81,7 +81,6 @@ export function useSellers() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let _q = supabase.from('sellers').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('nome')
     if (error) { isMockMode.current = false; setSellers([]); setLoading(false); return }
     isMockMode.current = false

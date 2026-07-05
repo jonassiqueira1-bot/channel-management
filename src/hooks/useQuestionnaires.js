@@ -88,7 +88,6 @@ export function useQuestionnaires() {
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let qTpl = supabase.from('questionnaire_templates').select('*')
     let qSub = supabase.from('questionnaire_submissions').select('*')
-    if (activeBranchId) { qTpl = qTpl.eq('branch_id', activeBranchId); qSub = qSub.eq('branch_id', activeBranchId) }
     const [t, s] = await Promise.all([
       qTpl.order('updated_at', { ascending: false }),
       qSub.order('created_at', { ascending: false }),
