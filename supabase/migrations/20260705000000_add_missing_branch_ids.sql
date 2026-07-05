@@ -19,6 +19,12 @@ ALTER TABLE public.indicadores
 ALTER TABLE public.metas_kpi
   ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES public.tenant_branches(id) ON DELETE SET NULL;
 
+-- Colunas extras em tasks que podem não existir em PROD
+ALTER TABLE public.tasks
+  ADD COLUMN IF NOT EXISTS assigned_to uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.tasks
+  ADD COLUMN IF NOT EXISTS created_by  uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+
 CREATE INDEX IF NOT EXISTS idx_tipos_acao_branch   ON public.tipos_acao   (branch_id);
 CREATE INDEX IF NOT EXISTS idx_parceiros_branch    ON public.parceiros    (branch_id);
 CREATE INDEX IF NOT EXISTS idx_perfis_acesso_branch ON public.perfis_acesso (branch_id);
