@@ -36,7 +36,6 @@ export function usePartnerMaturity() {
       .select('*')
       .order('ordem')
       .order('created_at')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     const { data } = await q
     setParams(data || [])
     setLoading(false)

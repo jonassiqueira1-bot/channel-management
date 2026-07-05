@@ -28,7 +28,6 @@ export function useCampanhas(seeds = []) {
       return
     }
     let q = supabase.from('campanhas').select('*').order('nome')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     const { data, error } = await q
     if (error) {
       isMock.current = true

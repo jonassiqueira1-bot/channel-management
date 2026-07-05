@@ -34,7 +34,6 @@ export function usePerfisAcesso(defaultPerfis = [], defaultPerms = {}) {
       return
     }
     let q = supabase.from('perfis_acesso').select('*').order('nome')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     const { data, error } = await q
     if (error) {
       isMock.current = true

@@ -28,7 +28,6 @@ export function useTiposAcao(defaults = []) {
       return
     }
     let q = supabase.from('tipos_acao').select('*').order('label')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     const { data, error } = await q
     if (error) {
       isMock.current = true

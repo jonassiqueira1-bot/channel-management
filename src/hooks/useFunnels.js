@@ -47,7 +47,6 @@ export function useFunnels() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let q = supabase.from('form_layouts').select('*').eq('entity', 'funis')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     q = q.limit(1)
     const { data, error } = await q
     if (error) {
