@@ -4,7 +4,7 @@ import {
   X, Check, AlertCircle, Clock,
   Copy, CheckCheck, ExternalLink, RefreshCw,
   ToggleLeft, ToggleRight, Play, ArrowRight, Info,
-  Download, Loader,
+  Download, Loader, ChevronDown, ChevronRight,
 } from 'lucide-react'
 import { useLocalState } from '../../hooks/useLocalState'
 import { useAuth } from '../../contexts/AuthContext'
@@ -602,6 +602,7 @@ function RdStationFullEdit({ provider, onClose, toast }) {
   const [mapeamentoEmpresa, setMapeamentoEmpresa]   = useState({})
   const [mapeamentoContato, setMapeamentoContato]   = useState({})
   const [mapeamentoVendedor, setMapeamentoVendedor] = useState({})
+  const [advancedOpen, setAdvancedOpen]             = useState(false)
 
   const [payloadLog, setPayloadLog] = useState(null)
 
@@ -834,205 +835,158 @@ function RdStationFullEdit({ provider, onClose, toast }) {
                   {funiAtivo && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads entram em: <strong>{funiAtivo.etapas?.[0]?.nome || '—'}</strong></span>}
                 </div>
 
-                {/* ── Mapeamento de campos ── */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  <div>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos — Oportunidade</span>
-                    <div style={{ marginTop: 8, padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border2)', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text)', fontWeight: 600 }}>Como funciona o mapeamento?</p>
-                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        Cada integração envia dados em um formato JSON próprio. O mapeamento diz ao Boostly <strong>qual campo do JSON externo</strong> corresponde a <strong>cada campo da oportunidade</strong>.
-                      </p>
-                      <p style={{ margin: 0, fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
-                        Exemplo: se o sistema externo envia <code style={{ fontFamily: 'var(--mono)', background: 'var(--surface)', padding: '1px 5px', borderRadius: 4, fontSize: 11 }}>{"{ \"deal\": { \"name\": \"Proposta ABC\" } }"}</code>,
-                        escreva <code style={{ fontFamily: 'var(--mono)', background: 'var(--surface)', padding: '1px 5px', borderRadius: 4, fontSize: 11 }}>deal.name</code> no campo <em>Título da oportunidade</em>. Use ponto para acessar campos aninhados.
-                      </p>
-                      <p style={{ margin: 0, fontSize: 11, color: 'var(--text-muted)' }}>Deixe em branco para usar o valor padrão do sistema.</p>
-                    </div>
-                  </div>
-                  <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                      <thead>
-                        <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo na Oportunidade (Boostly)</th>
-                          <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON do sistema externo</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                          <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
-                            <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                {campo.label}
-                                {campo.native && (
-                                  <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--accent-glow)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>nativo</span>
-                                )}
-                              </div>
-                            </td>
-                            <td style={{ padding: '3px 6px' }}>
-                              <input
-                                value={mapeamento[campo.key] || ''}
-                                onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))}
-                                placeholder={`ex: ${campo.key.replace(/_/g, '.')}`}
-                                style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
-                              />
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
+                {/* ── Configuração avançada (accordion) ── */}
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <button
+                    onClick={() => setAdvancedOpen(v => !v)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: 0, width: '100%', textAlign: 'left' }}
+                  >
+                    {advancedOpen
+                      ? <ChevronDown size={15} color="var(--text-muted)"/>
+                      : <ChevronRight size={15} color="var(--text-muted)"/>}
+                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Configuração avançada</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>— mapeamento de campos, campanha e registros automáticos (opcional)</span>
+                  </button>
 
-                {/* ── Campanha associada ── */}
-                {campanhas.length > 0 && (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Campanha associada</label>
-                    <select value={campanhaId} onChange={e => setCampanhaId(e.target.value)}
-                      style={{ padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
-                      <option value="">— Nenhuma campanha —</option>
-                      {campanhas.map(c => <option key={c.id} value={c.id}>{c.nome || c.name}</option>)}
-                    </select>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leads importados entram vinculados a esta campanha.</span>
-                  </div>
-                )}
+                  {advancedOpen && (
+                    <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-                {/* ── Criar Empresa ── */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Empresa</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cada lead cria ou atualiza um registro em Empresas</div>
-                    </div>
-                    <button onClick={() => setCriarEmpresa(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      {criarEmpresa
-                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
-                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
-                    </button>
-                  </div>
-                  {criarEmpresa && (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {EMPRESA_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                            <tr key={campo.key} style={{ borderBottom: i < EMPRESA_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
-                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', width: '42%' }}>{campo.label}</td>
-                              <td style={{ padding: '3px 6px' }}>
-                                <input
-                                  value={mapeamentoEmpresa[campo.key] || ''}
-                                  onChange={e => setMapeamentoEmpresa(m => ({ ...m, [campo.key]: e.target.value }))}
-                                  placeholder={campo.key}
-                                  style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Criar Contato ── */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Contato</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>O contato do lead é salvo em Contatos e vinculado à Empresa</div>
-                    </div>
-                    <button onClick={() => setCriarContato(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      {criarContato
-                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
-                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
-                    </button>
-                  </div>
-                  {criarContato && (
-                    <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                        <thead>
-                          <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato (Boostly)</th>
-                            <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {CONTATO_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                            <tr key={campo.key} style={{ borderBottom: i < CONTATO_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
-                              <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{campo.label}</td>
-                              <td style={{ padding: '3px 6px' }}>
-                                <input
-                                  value={mapeamentoContato[campo.key] || ''}
-                                  onChange={e => setMapeamentoContato(m => ({ ...m, [campo.key]: e.target.value }))}
-                                  placeholder={`ex: contact.${campo.key}`}
-                                  style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
-                                />
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </div>
-
-                {/* ── Criar Contato Canal (Vendedor) ── */}
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Criar / atualizar Contato Canal</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cria ou atualiza um vendedor/canal em <strong>Contatos Canais</strong> — e-mail é obrigatório e usado para evitar duplicatas</div>
-                    </div>
-                    <button onClick={() => setCriarVendedor(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
-                      {criarVendedor
-                        ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/>
-                        : <ToggleLeft  size={28} strokeWidth={1.5} color="var(--border2)"/>}
-                    </button>
-                  </div>
-                  {criarVendedor && (
-                    <>
-                      <div style={{ padding: '8px 12px', borderRadius: 8, background: '#EFF6FF', border: '1px solid #BFDBFE', fontSize: 11, color: '#1D4ED8', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                        <Info size={13} strokeWidth={2} style={{ flexShrink: 0, marginTop: 1 }}/>
-                        <span><strong>Deduplicação por e-mail:</strong> se já existir um Contato Canal com o mesmo e-mail, os dados serão atualizados em vez de criar um novo registro. O campo e-mail é obrigatório para que isso funcione.</span>
+                      {/* Aviso explicativo */}
+                      <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--surface2)', border: '1px solid var(--border2)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                        <Info size={14} color={ACCENT} style={{ flexShrink: 0, marginTop: 1 }}/>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>Quando usar o mapeamento?</span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                            Se você usa <strong>Microsoft Automate, Zapier ou Make</strong>, faça o mapeamento direto na ferramenta externa — não precisa preencher nada aqui.
+                            Preencha apenas se o sistema enviar JSON com nomes de campos diferentes e você quiser que o Boostly interprete automaticamente.
+                          </span>
+                        </div>
                       </div>
-                      <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                          <thead>
-                            <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-                              <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato Canal (Boostly)</th>
-                              <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {VENDEDOR_CAMPOS_MAPEAVEIS.map((campo, i) => (
-                              <tr key={campo.key} style={{ borderBottom: i < VENDEDOR_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none', background: campo.required ? 'color-mix(in srgb, var(--accent) 4%, transparent)' : 'transparent' }}>
-                                <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    {campo.label}
-                                    {campo.required && <span style={{ color: 'var(--red)', fontWeight: 900, fontSize: 13 }}>*</span>}
-                                    {campo.hint && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 400 }}>({campo.hint})</span>}
-                                  </div>
-                                </td>
-                                <td style={{ padding: '3px 6px' }}>
-                                  <input
-                                    value={mapeamentoVendedor[campo.key] || ''}
-                                    onChange={e => setMapeamentoVendedor(m => ({ ...m, [campo.key]: e.target.value }))}
-                                    placeholder={`ex: lead.${campo.key}`}
-                                    style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: `1px solid ${campo.required ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}
-                                  />
-                                </td>
+
+                      {/* Mapeamento Oportunidade */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)' }}>Mapeamento de campos — Oportunidade</span>
+                        <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo (Boostly)</th>
+                                <th style={{ padding: '7px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                            </thead>
+                            <tbody>
+                              {OPP_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                                <tr key={campo.key} style={{ borderBottom: i < OPP_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                                  <td style={{ padding: '5px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', whiteSpace: 'nowrap' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                      {campo.label}
+                                      {campo.native && <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--accent-glow)', color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.05em', flexShrink: 0 }}>nativo</span>}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '3px 6px' }}>
+                                    <input value={mapeamento[campo.key] || ''} onChange={e => setMapeamento(m => ({ ...m, [campo.key]: e.target.value }))} placeholder={`ex: ${campo.key.replace(/_/g, '.')}`} style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}/>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       </div>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>* Campo obrigatório para deduplicação</span>
-                    </>
+
+
+                      {/* Criar Empresa */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Criar / atualizar Empresa</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cada lead cria ou atualiza um registro em Empresas</div>
+                          </div>
+                          <button onClick={() => setCriarEmpresa(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            {criarEmpresa ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/> : <ToggleLeft size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                          </button>
+                        </div>
+                        {criarEmpresa && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Nosso campo</th>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Campo do sistema externo</th>
+                              </tr></thead>
+                              <tbody>{EMPRESA_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                                <tr key={campo.key} style={{ borderBottom: i < EMPRESA_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                                  <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)', width: '42%' }}>{campo.label}</td>
+                                  <td style={{ padding: '3px 6px' }}><input value={mapeamentoEmpresa[campo.key] || ''} onChange={e => setMapeamentoEmpresa(m => ({ ...m, [campo.key]: e.target.value }))} placeholder={campo.key} style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}/></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Criar Contato */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Criar / atualizar Contato</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>O contato do lead é salvo em Contatos e vinculado à Empresa</div>
+                          </div>
+                          <button onClick={() => setCriarContato(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            {criarContato ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/> : <ToggleLeft size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                          </button>
+                        </div>
+                        {criarContato && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato (Boostly)</th>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
+                              </tr></thead>
+                              <tbody>{CONTATO_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                                <tr key={campo.key} style={{ borderBottom: i < CONTATO_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                                  <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>{campo.label}</td>
+                                  <td style={{ padding: '3px 6px' }}><input value={mapeamentoContato[campo.key] || ''} onChange={e => setMapeamentoContato(m => ({ ...m, [campo.key]: e.target.value }))} placeholder={`ex: contact.${campo.key}`} style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}/></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Criar Contato Canal */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Criar / atualizar Contato Canal</div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Cria ou atualiza um canal em <strong>Contatos Canais</strong> — e-mail é obrigatório para deduplicação</div>
+                          </div>
+                          <button onClick={() => setCriarVendedor(v => !v)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                            {criarVendedor ? <ToggleRight size={28} strokeWidth={1.5} color={ACCENT}/> : <ToggleLeft size={28} strokeWidth={1.5} color="var(--border2)"/>}
+                          </button>
+                        </div>
+                        {criarVendedor && (
+                          <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                              <thead><tr style={{ borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', width: '44%' }}>Campo no Contato Canal</th>
+                                <th style={{ padding: '6px 10px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left' }}>Caminho no JSON externo</th>
+                              </tr></thead>
+                              <tbody>{VENDEDOR_CAMPOS_MAPEAVEIS.map((campo, i) => (
+                                <tr key={campo.key} style={{ borderBottom: i < VENDEDOR_CAMPOS_MAPEAVEIS.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                                  <td style={{ padding: '4px 10px', fontSize: 11, fontWeight: 600, color: 'var(--text)' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                      {campo.label}
+                                      {campo.required && <span style={{ color: 'var(--red)', fontWeight: 900 }}>*</span>}
+                                    </div>
+                                  </td>
+                                  <td style={{ padding: '3px 6px' }}><input value={mapeamentoVendedor[campo.key] || ''} onChange={e => setMapeamentoVendedor(m => ({ ...m, [campo.key]: e.target.value }))} placeholder={`ex: lead.${campo.key}`} style={{ width: '100%', padding: '4px 7px', fontSize: 11, borderRadius: 5, border: `1px solid ${campo.required ? 'var(--accent)' : 'var(--border)'}`, background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none', boxSizing: 'border-box' }}/></td>
+                                </tr>
+                              ))}</tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                    </div>
                   )}
                 </div>
 
