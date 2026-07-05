@@ -112,7 +112,6 @@ export function useGoals() {
       return
     }
     let _q = supabase.from('goals').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
     if (error) { isMockMode.current = false; setGoals([]); setLoading(false); return }
     isMockMode.current = false

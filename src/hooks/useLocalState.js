@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 
 const EVENT = 'localstate:change'
 
@@ -32,29 +32,29 @@ export function useLocalState(key, defaultValue) {
     } catch {}
   }, [key, state])
 
+  // Estabiliza defaultValue para não entrar no dep array como referência nova a cada render
+  const defaultValueRef = useRef(defaultValue)
+
   // Ouve mudanças de outras instâncias na mesma aba
+  const onSameTab = useCallback((e) => {
+    if (writing.current) return
+    if (e.detail?.key !== key) return
+    try { setState(JSON.parse(e.detail.serialized)) } catch {}
+  }, [key])
+
+  const onStorage = useCallback((e) => {
+    if (e.key !== key) return
+    try { setState(e.newValue ? JSON.parse(e.newValue) : defaultValueRef.current) } catch {}
+  }, [key])
+
   useEffect(() => {
-    function onSameTab(e) {
-      if (writing.current) return          // ignorar eventos gerados por nós
-      if (e.detail?.key !== key) return
-      try {
-        setState(JSON.parse(e.detail.serialized))
-      } catch {}
-    }
-    // Mudanças de outras abas/janelas
-    function onStorage(e) {
-      if (e.key !== key) return
-      try {
-        setState(e.newValue ? JSON.parse(e.newValue) : defaultValue)
-      } catch {}
-    }
     window.addEventListener(EVENT, onSameTab)
     window.addEventListener('storage', onStorage)
     return () => {
       window.removeEventListener(EVENT, onSameTab)
       window.removeEventListener('storage', onStorage)
     }
-  }, [key, defaultValue])
+  }, [onSameTab, onStorage])
 
   return [state, setState]
 }

@@ -6,23 +6,38 @@ import { useBranchContext } from '../contexts/BranchContext'
 
 // Mapeamento: chave do módulo (UI) → nome(s) da tabela no banco
 export const MODULO_TABELAS = {
-  pipeline:        ['opportunities'],
-  tarefas:         ['tasks'],
-  playbooks:       ['playbooks'],
-  vendedores:      ['sellers'],
-  acoes:           ['actions'],
-  parceiros:       ['parceiros'],
-  empresas:        ['companies'],
-  contatos:        ['contacts'],
-  projetos:        ['projects'],
-  customer_success:['customer_health'],
-  contratos:       ['contracts'],
-  pagamentos:      ['payments'],
-  comissoes:       ['commission_rules'],
-  questionarios:   ['questionnaire_templates'],
-  documentos:      ['documents'],
-  metas:           ['goals'],
-  // Itens sem tabela de dados (dashboard, relatórios, config) não geram linhas de visibilidade
+  // ── Menu principal ────────────────────────────────────────────
+  pipeline:         ['oportunidades'],
+  tarefas:          ['tasks'],
+  playbooks:        ['playbooks'],
+  vendedores:       ['sellers'],
+  acoes:            ['actions'],
+  parceiros:        ['parceiros'],
+  empresas:         ['companies'],
+  contatos:         ['contacts'],
+  projetos:         ['projects'],
+  customer_success: ['customer_health'],
+  contratos:        ['contracts'],
+  pagamentos:       ['payments'],
+  comissoes:        ['commission_rules'],
+  questionarios:    ['questionnaire_templates'],
+  documentos:       ['documents'],
+  metas:            ['goals'],
+  relatorios:       ['relatorios'],
+  // ── Configurações ─────────────────────────────────────────────
+  cfg_parceiros:    ['parceiros'],
+  cfg_maturidade:   ['partner_maturity_params'],
+  cfg_perfis:       ['perfis_acesso'],
+  cfg_equipes:      ['equipes'],
+  cfg_habilitacoes: ['habilitacoes'],
+  cfg_produtos:     ['products'],
+  cfg_funis:        ['form_layouts'],
+  cfg_tipos_acoes:  ['tipos_acao'],
+  cfg_campanhas:    ['campanhas'],
+  cfg_indicadores:  ['indicadores'],
+  cfg_metas_kpis:   ['metas_kpi'],
+  cfg_alertas:      ['alert_rules'],
+  // dashboard, cfg_usuarios, cfg_campos, cfg_integracoes, cfg_logs → sem tabela compartilhável
 }
 
 // Agrupa linhas do banco por regra_id → formato UI
@@ -90,11 +105,6 @@ export function useBranchSharing() {
       permissao:   regra.permissao   || 'leitura',
     }
 
-    // Apaga linhas antigas desta regra
-    if (regra.id && regra.id.includes('-')) {
-      await supabase.from('branch_table_visibility').delete().eq('regra_id', regra_id)
-    }
-
     // Gera todas as combinações: cada par de filiais (bidirecional) × cada tabela de módulo
     const filiais = regra.filial_ids || []
     const rows = []
@@ -105,15 +115,12 @@ export function useBranchSharing() {
           const tabelas = MODULO_TABELAS[modKey] || []
           for (const entity_table of tabelas) {
             rows.push({
-              tenant_id:        profile.tenant_id,
               source_branch_id: filiais[i],
               target_branch_id: filiais[j],
               entity_table,
               can_view:  true,
               can_edit,
-              regra_id,
               meta,
-              created_by: profile.id,
             })
           }
         }
@@ -122,9 +129,11 @@ export function useBranchSharing() {
 
     if (rows.length === 0) return { ok: false, message: 'Nenhum módulo com tabela de dados mapeada' }
 
-    const { error } = await supabase
-      .from('branch_table_visibility')
-      .upsert(rows, { onConflict: 'tenant_id,source_branch_id,target_branch_id,entity_table' })
+    // RPC atômica: deleta as linhas antigas e insere as novas em uma única transação
+    const { error } = await supabase.rpc('save_branch_sharing_rule', {
+      p_regra_id: regra_id,
+      p_rows:     rows,
+    })
 
     if (error) return { ok: false, message: error.message }
     await load()

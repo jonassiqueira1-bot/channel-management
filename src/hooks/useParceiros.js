@@ -37,7 +37,6 @@ export function useParceiros() {
       return
     }
     let q = supabase.from('parceiros').select('*, responsavel:responsavel_id(id, nome)').order('nome')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
     const { data, error } = await q
     if (error) {
       isMock.current = true

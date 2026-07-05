@@ -65,7 +65,6 @@ export function useTasks() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let _q = supabase.from('tasks').select('*')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('prazo', { ascending: true, nullsFirst: false })
     if (error) { isMockMode.current = false; setTarefas([]); setLoading(false); return }
     isMockMode.current = false

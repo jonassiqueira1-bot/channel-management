@@ -116,7 +116,6 @@ export function usePayments() {
     }
 
     let _q = supabase.from('payments').select('*, companies(nome_fantasia, razao_social)')
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('vencimento', { ascending: false })
 
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }

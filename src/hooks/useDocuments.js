@@ -75,7 +75,6 @@ export function useDocuments() {
     setLoading(true)
     if (!session?.user) { isMockMode.current = false; setLoading(false); return }
     let _q = supabase.from('documents').select('*').is('deleted_at', null)
-    if (activeBranchId) _q = _q.eq('branch_id', activeBranchId)
     const { data, error } = await _q.order('updated_at', { ascending: false })
     if (error) { isMockMode.current = false; setDocs([]); setLoading(false); return }
     isMockMode.current = false

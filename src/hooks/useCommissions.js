@@ -125,7 +125,6 @@ export function useCommissions() {
     if (!session?.user) { isMockMode.current = true; setLoading(false); return }
     let qRules = supabase.from('commission_rules').select('*')
     let qPmts  = supabase.from('commission_payments').select('*')
-    if (activeBranchId) { qRules = qRules.eq('branch_id', activeBranchId); qPmts = qPmts.eq('branch_id', activeBranchId) }
     const [r, p, pe] = await Promise.all([
       qRules.order('created_at', { ascending: false }),
       qPmts.order('created_at', { ascending: false }),
