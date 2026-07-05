@@ -75,7 +75,13 @@ DROP POLICY IF EXISTS "form_layouts: manage" ON public.form_layouts;
 CREATE POLICY "form_layouts: view"   ON public.form_layouts FOR SELECT USING (tenant_id = public.my_tenant_id() AND public.can_see_branch_record(branch_id, id, 'form_layouts'));
 CREATE POLICY "form_layouts: manage" ON public.form_layouts FOR ALL    USING (tenant_id = public.my_tenant_id() AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id()));
 
--- ── 4. Verificar registros nulos restantes em tipos_acao / campanhas ──────────
+-- ── 4. Garantir branch_id em tipos_acao / campanhas (caso não existam) ───────
+ALTER TABLE public.tipos_acao
+  ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES public.tenant_branches(id) ON DELETE SET NULL;
+
+ALTER TABLE public.campanhas
+  ADD COLUMN IF NOT EXISTS branch_id uuid REFERENCES public.tenant_branches(id) ON DELETE SET NULL;
+
 UPDATE public.tipos_acao ta
 SET branch_id = (
   SELECT id FROM public.tenant_branches
