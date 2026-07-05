@@ -548,10 +548,9 @@ const CONTATO_CAMPOS_MAPEAVEIS = [
 
 // ─── Campos de Contato Canal (vendedor) mapeáveis ────────────────────────────
 const VENDEDOR_CAMPOS_MAPEAVEIS = [
-  { key: 'email',  label: 'E-mail',   required: true,  hint: 'Chave de deduplicação — obrigatório' },
-  { key: 'name',   label: 'Nome',     required: false },
-  { key: 'phone',  label: 'Telefone', required: false },
-  { key: 'region', label: 'Região',   required: false },
+  { key: 'email',       label: 'E-mail',   required: true,  hint: 'Chave de deduplicação — obrigatório' },
+  { key: 'name',        label: 'Nome',     required: false },
+  { key: 'franquia_id', label: 'Franquia', required: false, hint: 'ID ou nome da franquia/parceiro' },
 ]
 
 function exportarLogsCSV(logs, nomeIntegracao) {

@@ -30,8 +30,9 @@ const OPP_CAMPOS = [
   'valor', 'valor_cdu', 'valor_sms', 'valor_servico', 'valor_desconto',
   'origem', 'responsavel', 'prazo', 'situacao', 'descricao',
 ]
-const EMPRESA_CAMPOS = ['name', 'corporate_name', 'cnpj', 'email', 'phone', 'city', 'state', 'website']
-const CONTATO_CAMPOS = ['name', 'email', 'phone', 'job_title']
+const EMPRESA_CAMPOS  = ['name', 'corporate_name', 'cnpj', 'email', 'phone', 'city', 'state', 'website']
+const CONTATO_CAMPOS  = ['name', 'email', 'phone', 'job_title']
+const VENDEDOR_CAMPOS = ['email', 'name', 'franquia_id']
 
 function aplicarMapeamento(
   payload: Obj,
@@ -180,6 +181,50 @@ async function upsertContato(
   return inserted?.id || null
 }
 
+// ─── Upsert Contato Canal (vendedor/seller) ───────────────────────────────────
+async function upsertVendedor(
+  tenantId: string,
+  payload: Obj,
+  mapeamento: Record<string, string>,
+  fallback: { name?: string; email?: string },
+): Promise<string | null> {
+  const campos = aplicarMapeamento(payload, mapeamento, VENDEDOR_CAMPOS)
+  const flat   = flattenPayload(payload)
+
+  const email = (campos.email as string) || fallback.email || (flat.email as string) || ''
+  const name  = (campos.name  as string) || fallback.name  || (flat.name  as string) || email
+
+  if (!email) return null
+
+  const row: Record<string, unknown> = {
+    tenant_id:  tenantId,
+    name:       name || email,
+    email:      email,
+    updated_at: new Date().toISOString(),
+  }
+  if (campos.franquia_id) row.parceiro_id = campos.franquia_id
+
+  const { data: existing } = await db
+    .from('sellers')
+    .select('id')
+    .eq('tenant_id', tenantId)
+    .ilike('email', email)
+    .maybeSingle()
+
+  if (existing?.id) {
+    await db.from('sellers').update(row).eq('id', existing.id)
+    return existing.id as string
+  }
+
+  const { data: inserted } = await db
+    .from('sellers')
+    .insert({ ...row, status: 'ativo', created_at: new Date().toISOString() })
+    .select('id')
+    .single()
+
+  return inserted?.id || null
+}
+
 // ─── Busca primeira etapa do funil ────────────────────────────────────────────
 async function primeiraEtapa(funilId: string | null): Promise<string | null> {
   if (!funilId) return null
@@ -212,8 +257,10 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
   const funilId            = (config.funil_id            as string) || null
   const campanhaId         = (config.campanha_id         as string) || null
   const nomeIntegracao     = (config.nome_integracao     as string) || provider
+  const mapeamentoVendedor = (config.mapeamento_vendedor as Record<string, string>) || {}
   const criarEmpresa       = config.criar_empresa  !== false  // default true
   const criarContato       = config.criar_contato  !== false  // default true
+  const criarVendedor      = config.criar_vendedor === true   // default false
 
   const etapaId = await primeiraEtapa(funilId)
 
@@ -274,7 +321,15 @@ async function processarTenant(tenantId: string, provider: string): Promise<numb
       })
     }
 
-    // 3. Cria Oportunidade
+    // 3. Upsert Contato Canal (vendedor)
+    if (criarVendedor) {
+      await upsertVendedor(tenantId, payload, mapeamentoVendedor, {
+        name:  campos.contato_nome  as string,
+        email: campos.contato_email as string,
+      })
+    }
+
+    // 4. Cria Oportunidade
     const { error } = await db.from('oportunidades').insert({
       tenant_id:   tenantId,
       titulo:      campos.titulo,
