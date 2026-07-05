@@ -68,33 +68,33 @@ CREATE POLICY "contacts: delete" ON public.contacts
     AND public.my_role() = 'admin_isv'
   );
 
--- ── 1c. opportunities ────────────────────────────────────────────────────────
-DROP POLICY IF EXISTS "opportunities: select" ON public.opportunities;
-DROP POLICY IF EXISTS "opportunities: insert" ON public.opportunities;
-DROP POLICY IF EXISTS "opportunities: update" ON public.opportunities;
-DROP POLICY IF EXISTS "opportunities: delete" ON public.opportunities;
-DROP POLICY IF EXISTS "rls_opportunities_isv" ON public.opportunities;
-DROP POLICY IF EXISTS "rls_oportunidades"     ON public.opportunities;
+-- ── 1c. oportunidades (nome real da tabela no banco) ─────────────────────────
+DROP POLICY IF EXISTS "rls_opportunities_isv" ON public.oportunidades;
+DROP POLICY IF EXISTS "rls_oportunidades"     ON public.oportunidades;
+DROP POLICY IF EXISTS "oportunidades: select" ON public.oportunidades;
+DROP POLICY IF EXISTS "oportunidades: insert" ON public.oportunidades;
+DROP POLICY IF EXISTS "oportunidades: update" ON public.oportunidades;
+DROP POLICY IF EXISTS "oportunidades: delete" ON public.oportunidades;
 
-ALTER TABLE public.opportunities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.oportunidades ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "opportunities: select" ON public.opportunities
+CREATE POLICY "oportunidades: select" ON public.oportunidades
   FOR SELECT USING (
     tenant_id = public.my_tenant_id()
-    AND public.can_see_branch_record(branch_id, id, 'opportunities')
+    AND public.can_see_branch_record(branch_id, id, 'oportunidades')
     AND deleted_at IS NULL
   );
 
-CREATE POLICY "opportunities: insert" ON public.opportunities
+CREATE POLICY "oportunidades: insert" ON public.oportunidades
   FOR INSERT WITH CHECK (tenant_id = public.my_tenant_id());
 
-CREATE POLICY "opportunities: update" ON public.opportunities
+CREATE POLICY "oportunidades: update" ON public.oportunidades
   FOR UPDATE USING (
     tenant_id = public.my_tenant_id()
     AND (public.my_role() = 'admin_isv' OR branch_id = public.my_branch_id())
   );
 
-CREATE POLICY "opportunities: delete" ON public.opportunities
+CREATE POLICY "oportunidades: delete" ON public.oportunidades
   FOR DELETE USING (
     tenant_id = public.my_tenant_id()
     AND public.my_role() = 'admin_isv'

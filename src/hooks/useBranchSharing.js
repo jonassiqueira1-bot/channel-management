@@ -6,7 +6,7 @@ import { useBranchContext } from '../contexts/BranchContext'
 
 // Mapeamento: chave do módulo (UI) → nome(s) da tabela no banco
 export const MODULO_TABELAS = {
-  pipeline:        ['opportunities'],
+  pipeline:        ['oportunidades'],
   tarefas:         ['tasks'],
   playbooks:       ['playbooks'],
   vendedores:      ['sellers'],
