@@ -175,7 +175,7 @@ function SellerSelect({ value, onChange, style }) {
 }
 
 // ─── Autocomplete de Empresa ──────────────────────────────────────────────────
-function EmpresaSearch({ value, label, onChange }) {
+function EmpresaSearch({ value, label, onChange, partnerSellerId, onCreateDraft }) {
   const [query, setQuery] = useState(label || '')
   const [open, setOpen]   = useState(false)
   const { companies }     = useCompanies()
@@ -188,12 +188,19 @@ function EmpresaSearch({ value, label, onChange }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
+  const baseCompanies = useMemo(() => {
+    if (!partnerSellerId) return companies
+    return companies.filter(e => String(e.resp_ar_id || '') === String(partnerSellerId))
+  }, [companies, partnerSellerId])
+
   const opts = useMemo(() => {
     const q = query.toLowerCase()
-    return companies
+    return baseCompanies
       .filter(e => (e.fantasia || e.razao || '').toLowerCase().includes(q))
       .slice(0, 8)
-  }, [query, companies])
+  }, [query, baseCompanies])
+
+  const showDraft = onCreateDraft && query.trim().length >= 2 && !opts.some(e => (e.fantasia || e.razao || '').toLowerCase() === query.trim().toLowerCase())
 
   function getNome(e) { return e.fantasia || e.razao || '' }
 
@@ -209,7 +216,7 @@ function EmpresaSearch({ value, label, onChange }) {
             style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:13, padding:0 }}>✕</button>
         )}
       </div>
-      {open && opts.length > 0 && (
+      {open && (opts.length > 0 || showDraft) && (
         <div style={ar.dropdown}>
           {opts.map(e => (
             <button type="button" key={e.id} style={ar.option}
@@ -221,6 +228,20 @@ function EmpresaSearch({ value, label, onChange }) {
               </span>
             </button>
           ))}
+          {showDraft && (
+            <button type="button" style={{ ...ar.option, borderTop: opts.length ? '1px solid var(--border)' : 'none' }}
+              onMouseDown={async () => {
+                const nova = await onCreateDraft(query.trim())
+                if (nova) { onChange(nova.id, nova.nome); setQuery(nova.nome) }
+                setOpen(false)
+              }}>
+              <span style={{ ...ar.optAvatar, background:'#E0F2FE', color:'#0369A1', fontSize:14 }}>+</span>
+              <span>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--accent)' }}>Criar "{query.trim()}" como rascunho</div>
+                <div style={{ fontSize:11, color:'var(--text-muted)' }}>Nova empresa · Rascunho</div>
+              </span>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -3752,7 +3773,7 @@ function FechamentoModal({ opp, onClose }) {
 }
 
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
-function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade, defaultResponsavel }) {
+function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade, defaultResponsavel, isParceiro, partnerSellerId }) {
   const isEditing = !!initial
   const { funis } = useFunnels()
   const [tab, setTab]       = useState('dados')
@@ -3782,7 +3803,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   const [cfFields, cfActions] = useCustomFields('oportunidade')
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
-  const { companies: allCompanies } = useCompanies()
+  const { companies: allCompanies, add: addCompany } = useCompanies()
   const { sellers: allSellers } = useSellers()
   const { contacts: allContacts } = useContacts()
   const { produtos: allProdutos } = useProducts()
@@ -3807,6 +3828,21 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
   function setCustomField(key, value) {
     setForm(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, [key]: value } }))
+  }
+
+  async function handleCreateDraftCompany(nome) {
+    const draft = {
+      razao: nome, fantasia: nome, cnpj: '', tipo: 'cliente_final',
+      segmento: '', status: 'rascunho', email: '', telefone: '', site: '',
+      mrr: 0, contratos: 0, contatos: 0, cnae_codigo: '', cnae_descricao: '',
+      inscricao_estadual: '', cep: '', logradouro: '', bairro: '', cidade: '',
+      uf: '', numero: '', complemento: '', franquia_ar_id: null, franquia_ar_nome: '',
+      resp_ar_id: partnerSellerId || null,
+      origem: 'Canal',
+    }
+    const result = await addCompany(draft)
+    if (result?.ok && result?.data?.id) return { id: result.data.id, nome }
+    return null
   }
 
   const { playbooks } = usePlaybooks()
@@ -3886,6 +3922,8 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       case 'empresa_id':
         return <>
           <EmpresaSearch value={form.empresa_id} label={form.empresa_nome}
+            partnerSellerId={isParceiro ? partnerSellerId : undefined}
+            onCreateDraft={isParceiro ? handleCreateDraftCompany : undefined}
             onChange={(id, nome) => {
               set('empresa_id', id); set('empresa_nome', nome)
               if (id && form.primary_contact_id) {
@@ -4015,6 +4053,12 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     return (
       <div style={{ display:'flex', alignItems:'center', gap:6, flexWrap:'wrap' }}>
         {funis.length > 0 && (
+          isParceiro ? (
+            <span style={{ fontSize:10, fontWeight:600, padding:'2px 10px', borderRadius:20,
+              border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)' }}>
+              {funilAtual?.nome || '— Funil —'}
+            </span>
+          ) : (
           <select
             value={form.funil_id || funilId || ''}
             onChange={e => {
@@ -4022,7 +4066,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
               if (!novoFunilId || novoFunilId === String(form.funil_id)) return
               const novoFunil = funis.find(f => String(f.id) === novoFunilId)
               if (!novoFunil) return
-              // Abre popup — funil_id só muda após confirmar
               setMoverFunilPopup({ novoFunil, etapaId: novoFunil.etapas?.[0]?.id || null })
             }}
             style={{ fontSize:10, fontWeight:600, padding:'2px 6px', borderRadius:20,
@@ -4032,6 +4075,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
             <option value="">— Funil —</option>
             {funis.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
           </select>
+          )
         )}
 
         {/* Popup: escolher etapa no funil de destino */}
@@ -6279,6 +6323,8 @@ export default function Pipeline() {
           onFechamento={handleFechamento}
           initial={modal._new ? null : modal}
           defaultResponsavel={partnerNome || undefined}
+          isParceiro={isParceiro}
+          partnerSellerId={isParceiro ? String(profile?.contact_id || '') : undefined}
           etapas={etapas}
           funilId={funilAtivo}
           tarefas={tarefas}
