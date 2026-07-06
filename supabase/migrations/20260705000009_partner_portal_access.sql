@@ -67,7 +67,7 @@ DECLARE
     ')';
 BEGIN
   -- Para DEV (tabela oportunidades direta)
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='oportunidades') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='oportunidades' AND table_type='BASE TABLE') THEN
     DROP POLICY IF EXISTS "parceiro_own_opps"            ON public.oportunidades;
     DROP POLICY IF EXISTS "parceiro_select_opps"         ON public.oportunidades;
     DROP POLICY IF EXISTS "parceiro_update_opps"         ON public.oportunidades;
@@ -80,7 +80,7 @@ BEGIN
       WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL));
   END IF;
 
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='opportunities') THEN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='opportunities' AND table_type='BASE TABLE') THEN
     DROP POLICY IF EXISTS "parceiro_own_opps"            ON public.opportunities;
     DROP POLICY IF EXISTS "parceiro_select_opps"         ON public.opportunities;
     DROP POLICY IF EXISTS "parceiro_update_opps"         ON public.opportunities;
