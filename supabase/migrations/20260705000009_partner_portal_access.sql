@@ -2,7 +2,7 @@
 
 -- 1. Adiciona contact_id em profiles (FK para sellers/contatos_canais)
 ALTER TABLE public.profiles
-  ADD COLUMN IF NOT EXISTS contact_id bigint REFERENCES public.sellers(id) ON DELETE SET NULL;
+  ADD COLUMN IF NOT EXISTS contact_id uuid REFERENCES public.sellers(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS profiles_contact_id_idx ON public.profiles(contact_id);
 
@@ -19,7 +19,7 @@ ALTER TABLE public.sellers
 -- 4. RLS: parceiro só vê oportunidades onde é o responsável (sellers.id = oportunidades.vendedor_id)
 -- Função auxiliar para pegar o contact_id do usuário logado
 CREATE OR REPLACE FUNCTION public.my_contact_id()
-RETURNS bigint
+RETURNS uuid
 LANGUAGE sql STABLE SECURITY DEFINER
 SET search_path = public
 AS $$
@@ -34,9 +34,9 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  _contact_id bigint;
+  _contact_id uuid;
 BEGIN
-  _contact_id := (NEW.raw_user_meta_data->>'contact_id')::bigint;
+  _contact_id := (NEW.raw_user_meta_data->>'contact_id')::uuid;
   IF _contact_id IS NOT NULL THEN
     UPDATE public.profiles
     SET contact_id = _contact_id,
@@ -64,13 +64,8 @@ BEGIN
     CREATE POLICY "parceiro_own_opps" ON public.oportunidades
       FOR ALL
       USING (
-        EXISTS (
-          SELECT 1 FROM public.profiles
-          WHERE id = auth.uid()
-            AND role = 'parceiro'
-            AND contact_id IS NOT NULL
-        )
-        AND vendedor_id = my_contact_id()
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
       );
   END IF;
 
@@ -80,13 +75,8 @@ BEGIN
     CREATE POLICY "parceiro_own_opps" ON public.opportunities
       FOR ALL
       USING (
-        EXISTS (
-          SELECT 1 FROM public.profiles
-          WHERE id = auth.uid()
-            AND role = 'parceiro'
-            AND contact_id IS NOT NULL
-        )
-        AND vendedor_id = my_contact_id()
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
       );
   END IF;
 END $$;

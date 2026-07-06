@@ -141,7 +141,7 @@ export function useSellers() {
     if (!seller.email) return { ok: false, message: 'Contato sem e-mail cadastrado.' }
     // Envia convite via Supabase Auth (usuário define a própria senha)
     const { error } = await supabase.auth.admin.inviteUserByEmail(seller.email, {
-      data: { contact_id: seller.id, role: 'parceiro' },
+      data: { contact_id: String(seller.id), role: 'parceiro' },
     })
     if (error) return { ok: false, message: error.message }
     // Marca a data do convite no seller
