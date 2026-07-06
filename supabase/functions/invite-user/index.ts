@@ -88,7 +88,8 @@ serve(async (req) => {
           }).eq('id', existingUser.id)
 
           // Envia magic link para o usuário acessar
-          await fetch(`${SUPABASE_URL}/auth/v1/magiclink`, {
+          const mlRedirect = 'https://app.boostly.com.br/aceitar-convite'
+          await fetch(`${SUPABASE_URL}/auth/v1/magiclink?redirect_to=${encodeURIComponent(mlRedirect)}`, {
             method: 'POST',
             headers: {
               'apikey':        SERVICE_ROLE_KEY,
