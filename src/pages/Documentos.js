@@ -6,6 +6,7 @@ import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
+import { useProfile } from '../hooks/useProfile'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -271,6 +272,8 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Documentos() {
+  const { profile } = useProfile()
+  const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
   const { docs, save: saveDoc, remove: deleteDoc, uploadFile, removeFile } = useDocuments()
   const [search, setSearch] = useLocalState('browse:documentos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:documentos_browse:filters', {})
@@ -419,11 +422,11 @@ export default function Documentos() {
         onSearchChange={setSearch}
         keyField="id"
         storageKey="documentos_browse"
-        onRowClick={row => setDrawer(row)}
-        onNew={() => setDrawer('novo')}
+        onRowClick={isParceiro ? undefined : row => setDrawer(row)}
+        onNew={isParceiro ? undefined : () => setDrawer('novo')}
         newLabel="Novo Documento"
         kpis={kpisNode}
-        bulkActions={[
+        bulkActions={isParceiro ? [] : [
           {
             label: 'Arquivar', onClick: ids => {
               ids.forEach(id => {

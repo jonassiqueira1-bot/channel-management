@@ -61,23 +61,32 @@ DO $$
 BEGIN
   -- Para DEV (tabela oportunidades direta)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='oportunidades') THEN
-    DROP POLICY IF EXISTS "parceiro_own_opps" ON public.oportunidades;
-    CREATE POLICY "parceiro_own_opps" ON public.oportunidades
-      FOR ALL
-      USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
-      );
+    DROP POLICY IF EXISTS "parceiro_own_opps"    ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_select_opps" ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_update_opps" ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_insert_opps" ON public.oportunidades;
+    CREATE POLICY "parceiro_select_opps" ON public.oportunidades FOR SELECT
+      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    CREATE POLICY "parceiro_update_opps" ON public.oportunidades FOR UPDATE
+      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    CREATE POLICY "parceiro_insert_opps" ON public.oportunidades FOR INSERT
+      WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL));
   END IF;
 
-  -- Para PROD (tabela opportunities)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='opportunities') THEN
-    DROP POLICY IF EXISTS "parceiro_own_opps" ON public.opportunities;
-    CREATE POLICY "parceiro_own_opps" ON public.opportunities
-      FOR ALL
-      USING (
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
-      );
+    DROP POLICY IF EXISTS "parceiro_own_opps"    ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_select_opps" ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_update_opps" ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_insert_opps" ON public.opportunities;
+    CREATE POLICY "parceiro_select_opps" ON public.opportunities FOR SELECT
+      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    CREATE POLICY "parceiro_update_opps" ON public.opportunities FOR UPDATE
+      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    CREATE POLICY "parceiro_insert_opps" ON public.opportunities FOR INSERT
+      WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL));
   END IF;
 END $$;
