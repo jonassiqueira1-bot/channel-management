@@ -55,37 +55,41 @@ CREATE TRIGGER on_partner_invite_confirm
   WHEN (OLD.confirmed_at IS NULL AND NEW.confirmed_at IS NOT NULL)
   EXECUTE FUNCTION public.handle_partner_invite();
 
--- Policy para parceiros no pipeline (tabela opportunities / view oportunidades)
--- Parceiro só vê onde ele é o vendedor responsável
+-- Policy RESTRICTIVA para parceiros: usa AS RESTRICTIVE para sobrepor policies permissivas existentes
+-- Sem RESTRICTIVE, o parceiro herdaria acesso de policies mais amplas (tenant_id) via OR
 DO $$
+DECLARE
+  _check text := $$
+    NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro')
+    OR (
+      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
+      AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
+    )
+  $$;
 BEGIN
   -- Para DEV (tabela oportunidades direta)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='oportunidades') THEN
-    DROP POLICY IF EXISTS "parceiro_own_opps"    ON public.oportunidades;
-    DROP POLICY IF EXISTS "parceiro_select_opps" ON public.oportunidades;
-    DROP POLICY IF EXISTS "parceiro_update_opps" ON public.oportunidades;
-    DROP POLICY IF EXISTS "parceiro_insert_opps" ON public.oportunidades;
-    CREATE POLICY "parceiro_select_opps" ON public.oportunidades FOR SELECT
-      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
-    CREATE POLICY "parceiro_update_opps" ON public.oportunidades FOR UPDATE
-      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    DROP POLICY IF EXISTS "parceiro_own_opps"            ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_select_opps"         ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_update_opps"         ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_insert_opps"         ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_restrict_select_opps" ON public.oportunidades;
+    DROP POLICY IF EXISTS "parceiro_restrict_update_opps" ON public.oportunidades;
+    EXECUTE format('CREATE POLICY "parceiro_restrict_select_opps" ON public.oportunidades AS RESTRICTIVE FOR SELECT USING (%s)', _check);
+    EXECUTE format('CREATE POLICY "parceiro_restrict_update_opps" ON public.oportunidades AS RESTRICTIVE FOR UPDATE USING (%s)', _check);
     CREATE POLICY "parceiro_insert_opps" ON public.oportunidades FOR INSERT
       WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL));
   END IF;
 
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='opportunities') THEN
-    DROP POLICY IF EXISTS "parceiro_own_opps"    ON public.opportunities;
-    DROP POLICY IF EXISTS "parceiro_select_opps" ON public.opportunities;
-    DROP POLICY IF EXISTS "parceiro_update_opps" ON public.opportunities;
-    DROP POLICY IF EXISTS "parceiro_insert_opps" ON public.opportunities;
-    CREATE POLICY "parceiro_select_opps" ON public.opportunities FOR SELECT
-      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
-    CREATE POLICY "parceiro_update_opps" ON public.opportunities FOR UPDATE
-      USING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-        AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1));
+    DROP POLICY IF EXISTS "parceiro_own_opps"            ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_select_opps"         ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_update_opps"         ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_insert_opps"         ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_restrict_select_opps" ON public.opportunities;
+    DROP POLICY IF EXISTS "parceiro_restrict_update_opps" ON public.opportunities;
+    EXECUTE format('CREATE POLICY "parceiro_restrict_select_opps" ON public.opportunities AS RESTRICTIVE FOR SELECT USING (%s)', _check);
+    EXECUTE format('CREATE POLICY "parceiro_restrict_update_opps" ON public.opportunities AS RESTRICTIVE FOR UPDATE USING (%s)', _check);
     CREATE POLICY "parceiro_insert_opps" ON public.opportunities FOR INSERT
       WITH CHECK (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL));
   END IF;
