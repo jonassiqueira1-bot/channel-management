@@ -1,0 +1,85 @@
+import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabase'
+import logoBoostly from '../assets/logo-boostly.svg'
+
+export default function AceitarConvite() {
+  const [password, setPassword]   = useState('')
+  const [confirm, setConfirm]     = useState('')
+  const [error, setError]         = useState('')
+  const [loading, setLoading]     = useState(false)
+  const [ready, setReady]         = useState(false)
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    // Supabase processa o hash automaticamente via onAuthStateChange
+    // Precisamos aguardar a sessão ser estabelecida
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setReady(true)
+      } else {
+        // Aguarda o evento de autenticação vindo do hash
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+          if (session) { setReady(true); subscription.unsubscribe() }
+        })
+      }
+    })
+  }, [])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    if (password !== confirm) { setError('As senhas não coincidem.'); return }
+    if (password.length < 8)  { setError('Mínimo 8 caracteres.'); return }
+    setLoading(true)
+    const { error } = await supabase.auth.updateUser({ password })
+    setLoading(false)
+    if (error) setError('Erro ao definir senha: ' + error.message)
+    else navigate('/dashboard')
+  }
+
+  const s = {
+    page:     { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' },
+    card:     { width: '100%', maxWidth: 400, padding: '40px 36px', background: 'var(--surface)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 8px 32px rgba(0,0,0,0.12)' },
+    logo:     { height: 36, marginBottom: 28 },
+    title:    { fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' },
+    sub:      { fontSize: 13, color: 'var(--text-muted)', marginBottom: 28 },
+    field:    { marginBottom: 16 },
+    label:    { display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', marginBottom: 6 },
+    input:    { width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 14, boxSizing: 'border-box' },
+    button:   { width: '100%', padding: '12px 0', borderRadius: 8, border: 'none', background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', marginTop: 8 },
+    error:    { fontSize: 12, color: '#DC2626', marginTop: 8 },
+    spinner:  { textAlign: 'center', color: 'var(--text-muted)', fontSize: 13, padding: '60px 0' },
+  }
+
+  if (!ready) return (
+    <div style={s.page}>
+      <div style={s.spinner}>Verificando convite…</div>
+    </div>
+  )
+
+  return (
+    <div style={s.page}>
+      <div style={s.card}>
+        <img src={logoBoostly} alt="Boostly" style={s.logo} />
+        <h1 style={s.title}>Crie sua senha</h1>
+        <p style={s.sub}>Defina uma senha para ativar seu acesso ao portal.</p>
+
+        <form onSubmit={handleSubmit}>
+          <div style={s.field}>
+            <label style={s.label}>Nova senha</label>
+            <input style={s.input} type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="Mínimo 8 caracteres" required />
+          </div>
+          <div style={s.field}>
+            <label style={s.label}>Confirmar senha</label>
+            <input style={s.input} type="password" value={confirm} onChange={e => setConfirm(e.target.value)} placeholder="Repita a senha" required />
+          </div>
+          {error && <p style={s.error}>{error}</p>}
+          <button type="submit" style={s.button} disabled={loading}>
+            {loading ? 'Salvando…' : 'Ativar acesso'}
+          </button>
+        </form>
+      </div>
+    </div>
+  )
+}

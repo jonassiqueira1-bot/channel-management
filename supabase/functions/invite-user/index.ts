@@ -51,7 +51,8 @@ serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
     // Envia convite via REST API do Supabase Auth (mais confiável que o SDK)
-    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite`, {
+    const redirectTo = 'https://app.boostly.com.br/aceitar-convite'
+    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(redirectTo)}`, {
       method: 'POST',
       headers: {
         'apikey':        SERVICE_ROLE_KEY,
