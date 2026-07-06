@@ -1047,38 +1047,38 @@ export default function CustomerSuccess() {
     input.click()
   }
 
-  // KPIs
-  const healthy  = records.filter(r => r.health_score >= 80).length
-  const atencao  = records.filter(r => r.health_score >= 50 && r.health_score < 80).length
-  const risco    = records.filter(r => r.health_score < 50).length
-  const avgScore = records.length
-    ? Math.round(records.reduce((s, r) => s + r.health_score, 0) / records.length)
-    : 0
-  const { color: avgColor } = healthColor(avgScore)
-
-  const kpisNode = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
-      {[
-        { label: 'Clientes',    value: records.length, color: 'var(--text)'  },
-        { label: 'Saudáveis',  value: healthy,        color: '#059669'      },
-        { label: 'Atenção',    value: atencao,        color: '#D97706'      },
-        { label: 'Em Risco',   value: risco,          color: '#DC2626'      },
-        { label: 'Score Médio',value: avgScore,       color: avgColor, mono: true },
-      ].map(k => (
-        <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10,
-          padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
-          border: '1px solid var(--border2)', boxShadow: 'var(--shadow)',
-          borderTop: '3px solid var(--border)' }}>
-          <span style={{ fontSize: 22, fontWeight: 700, color: k.color,
-            letterSpacing: '-0.5px', lineHeight: 1,
-            fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>
-            {k.value}
-          </span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{k.label}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const kpisNode = (data) => {
+    const healthy  = data.filter(r => r.health_score >= 80).length
+    const atencao  = data.filter(r => r.health_score >= 50 && r.health_score < 80).length
+    const risco    = data.filter(r => r.health_score < 50).length
+    const avgScore = data.length
+      ? Math.round(data.reduce((s, r) => s + r.health_score, 0) / data.length)
+      : 0
+    const { color: avgColor } = healthColor(avgScore)
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+        {[
+          { label: 'Clientes',    value: data.length, color: 'var(--text)'  },
+          { label: 'Saudáveis',  value: healthy,      color: '#059669'      },
+          { label: 'Atenção',    value: atencao,      color: '#D97706'      },
+          { label: 'Em Risco',   value: risco,        color: '#DC2626'      },
+          { label: 'Score Médio',value: avgScore,     color: avgColor, mono: true },
+        ].map(k => (
+          <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10,
+            padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4,
+            border: '1px solid var(--border2)', boxShadow: 'var(--shadow)',
+            borderTop: '3px solid var(--border)' }}>
+            <span style={{ fontSize: 22, fontWeight: 700, color: k.color,
+              letterSpacing: '-0.5px', lineHeight: 1,
+              fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>
+              {k.value}
+            </span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{k.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   // Renovações em risco (vencimento ≤ 90 dias e score < 70 OU qualquer vencimento ≤ 30 dias)
   const renovacoesAlerta = useMemo(() => {
@@ -1185,9 +1185,9 @@ export default function CustomerSuccess() {
     </div>
   )
 
-  const kpisComExtras = (
+  const kpisComExtras = (data) => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {kpisNode}
+      {kpisNode(data)}
       <div style={{ display: 'grid', gridTemplateColumns: scoreProdutoNode ? '1fr 1fr' : '1fr', gap: 12 }}>
         {renovacoesNode}
         {scoreProdutoNode}
@@ -1237,9 +1237,13 @@ export default function CustomerSuccess() {
           ))
         }}
         bulkActions={[
-          { label: 'Excluir selecionados', variant: 'danger', onClick: ids => {
+          { label: 'Excluir selecionados', variant: 'danger', onClick: async ids => {
             if (!window.confirm(`Excluir ${ids.length} registro(s) permanentemente?`)) return
-            setRecords(prev => prev.filter(r => !ids.includes(r.id)))
+            for (const id of ids) {
+              const r = records.find(x => x.id === id)
+              await removeHealth(id)
+              log('excluir', 'customer_success', id, { descricao: `CS excluído: ${r?.company_name || id}` })
+            }
           }},
         ]}
         emptyState={

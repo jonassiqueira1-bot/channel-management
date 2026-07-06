@@ -2,6 +2,7 @@ import { useState, useMemo, useRef } from 'react'
 import { useContacts } from '../hooks/useContacts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCompanies } from '../hooks/useCompanies'
+import { useOpportunities } from '../hooks/useOpportunities'
 import Button from '../components/Button'
 import EmpresaSearch from '../components/EmpresaSearch'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
@@ -41,7 +42,79 @@ function avatarColor(nome) {
 // ─── ContatoDetail ─────────────────────────────────────────────────────────────
 const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'', linkedin_url:'', whatsapp:'' }
 
-function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], saveRef }) {
+const SIT_OPP = {
+  em_andamento: { label: 'Em andamento', bg: '#FFFBEB', text: '#92400E' },
+  ganha:        { label: 'Ganha',        bg: 'var(--green-bg)', text: 'var(--green-text)' },
+  perdida:      { label: 'Perdida',      bg: '#FEF2F2', text: '#991B1B' },
+}
+
+function TabOportunidades({ opps = [] }) {
+  const totalValor = opps.reduce((s, o) => s + (Number(o.valor) || 0), 0)
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {opps.length > 0 && (
+        <div style={{ display: 'flex', gap: 16, padding: '12px 20px', background: 'var(--surface)',
+          borderRadius: 12, border: '1px solid var(--border2)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{opps.length}</span>
+          </div>
+          <div style={{ width: 1, background: 'var(--border2)' }} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Valor total</span>
+            <span style={{ fontSize: 20, fontWeight: 700, color: ACCENT, fontFamily: 'var(--mono)' }}>
+              R$ {totalValor.toLocaleString('pt-BR')}
+            </span>
+          </div>
+        </div>
+      )}
+
+      <div style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)', overflow: 'hidden' }}>
+        <div style={{ padding: '14px 20px', borderBottom: opps.length > 0 ? '1px solid var(--border2)' : 'none' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>
+            {opps.length} oportunidade{opps.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {opps.map((o, i) => {
+          const sit = SIT_OPP[o.situacao] || SIT_OPP.em_andamento
+          return (
+            <div key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px',
+              borderBottom: i < opps.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{o.titulo}</div>
+                <div style={{ display: 'flex', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
+                  {o.empresa_nome && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{o.empresa_nome}</span>}
+                  {o.origem && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>• {o.origem}</span>}
+                  {o.prazo && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>Prazo: {o.prazo}</span>}
+                </div>
+              </div>
+              <span style={{ padding: '2px 9px', borderRadius: 20, background: sit.bg, color: sit.text,
+                fontSize: 11, fontWeight: 600, fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+                {sit.label}
+              </span>
+              {o.valor > 0 && (
+                <span style={{ fontSize: 13, fontWeight: 700, color: ACCENT, fontFamily: 'var(--mono)', whiteSpace: 'nowrap' }}>
+                  R$ {Number(o.valor).toLocaleString('pt-BR')}
+                </span>
+              )}
+            </div>
+          )
+        })}
+
+        {opps.length === 0 && (
+          <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+            Nenhuma oportunidade vinculada a este contato
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [], tab = 'dados', saveRef }) {
   const isNew = !item?.id
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
   const [errs, setErrs] = useState({})
@@ -68,6 +141,10 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], saveRef })
   }
 
   if (saveRef) saveRef.current = isNew ? handleCreate : null
+
+  if (!isNew && tab === 'oportunidades') {
+    return <TabOportunidades opps={opps} />
+  }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
@@ -191,6 +268,7 @@ export default function Contatos() {
   const saveRef = useRef(null)
   const { contacts: contatos, save: salvarContatoBase, remove: deletarContatoBase } = useContacts()
   const { registrar: log } = useAuditLog()
+  const { opps: opportunities } = useOpportunities()
   function salvarContato(c) {
     const isNew = !contatos.find(x => x.id === c.id)
     salvarContatoBase(c)
@@ -203,13 +281,7 @@ export default function Contatos() {
   }
   const { companies } = useCompanies()
   const [modal, setModal] = useState(null)   // null | 'novo' | contato-obj
-
-  // ── KPIs ────────────────────────────────────────────────────────────────────
-  const kpis = useMemo(() => ({
-    total:      contatos.length,
-    comEmpresa: contatos.filter(c => c.empresa_id).length,
-    semEmpresa: contatos.filter(c => !c.empresa_id).length,
-  }), [contatos])
+  const [soTab, setSoTab] = useState('dados')
 
   // ── COLUMNS para BrowseLayout ────────────────────────────────────────────────
   const COLUMNS = [
@@ -275,22 +347,27 @@ export default function Contatos() {
       options: empresasUnicas.map(e => ({ value: e.fantasia || e.razao, label: e.fantasia || e.razao })) },
   ]
 
-  const kpisNode = (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
-      {[
-        { label:'Total',       value:kpis.total,      color:'var(--text)' },
-        { label:'Com empresa', value:kpis.comEmpresa, color:'var(--accent)' },
-        { label:'Sem empresa', value:kpis.semEmpresa, color:'#6B7280'     },
-      ].map(k => (
-        <div key={k.label} style={{ background:'var(--surface)', borderRadius:10, padding:'16px 18px',
-          display:'flex', flexDirection:'column', gap:4, border:'1px solid var(--border2)',
-          boxShadow:'var(--shadow)', borderTop:'3px solid var(--border)' }}>
-          <span style={{ fontSize:22, fontWeight:700, color:k.color, letterSpacing:'-0.5px', lineHeight:1 }}>{k.value}</span>
-          <span style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{k.label}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const kpisNode = (data) => {
+    const total      = data.length
+    const comEmpresa = data.filter(c => c.empresa_id).length
+    const semEmpresa = data.filter(c => !c.empresa_id).length
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+        {[
+          { label:'Total',       value:total,      color:'var(--text)' },
+          { label:'Com empresa', value:comEmpresa, color:'var(--accent)' },
+          { label:'Sem empresa', value:semEmpresa, color:'#6B7280'     },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', borderRadius:10, padding:'16px 18px',
+            display:'flex', flexDirection:'column', gap:4, border:'1px solid var(--border2)',
+            boxShadow:'var(--shadow)', borderTop:'3px solid var(--border)' }}>
+            <span style={{ fontSize:22, fontWeight:700, color:k.color, letterSpacing:'-0.5px', lineHeight:1 }}>{k.value}</span>
+            <span style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{k.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
@@ -343,10 +420,16 @@ export default function Contatos() {
       {/* ── SlideOver ── */}
       <SlideOver
         open={!!modal}
-        onClose={() => setModal(null)}
+        onClose={() => { setModal(null); setSoTab('dados') }}
         title={modal && modal !== 'novo' ? (modal.nome || 'Contato') : 'Novo contato'}
         subtitle={modal && modal !== 'novo' ? 'Editando contato' : 'Novo cadastro'}
         defaultWidth={560}
+        tabs={modal && modal !== 'novo' ? [
+          { key: 'dados',         label: 'Dados' },
+          { key: 'oportunidades', label: 'Oportunidades' },
+        ] : undefined}
+        activeTab={soTab}
+        onTabChange={setSoTab}
         onSave={modal === 'novo' ? () => saveRef.current?.() : undefined}
         saveLabel="Criar contato"
         onDelete={modal && modal !== 'novo' ? () => { deletarContato(modal.id); setModal(null) } : undefined}
@@ -356,6 +439,8 @@ export default function Contatos() {
           <ContatoDetail
             item={modal === 'novo' ? null : modal}
             todos={contatos}
+            opps={(opportunities || []).filter(o => o.primary_contact_id === modal?.id)}
+            tab={soTab}
             onSave={salvarContato}
             onDelete={deletarContato}
             onClose={() => setModal(null)}

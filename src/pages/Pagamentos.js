@@ -995,14 +995,6 @@ export default function Pagamentos() {
     }).sort((a, b) => a.company_nome.localeCompare(b.company_nome, 'pt-BR'))
   }, [doPeriodo, search, filtroStatus, filtroProcessado])
 
-  const kpis = useMemo(() => ({
-    total:       doPeriodo.length,
-    processados: doPeriodo.filter(p=>p.processed).length,
-    pendentes:   doPeriodo.filter(p=>!p.processed).length,
-    valorTotal:  doPeriodo.reduce((s,p)=>s+(p.amount_total_net||0),0),
-    emAberto:    doPeriodo.filter(p=>p.status==='pendente'||p.status==='vencido')
-                          .reduce((s,p)=>s+(p.amount_total_net||0),0),
-  }), [doPeriodo])
 
   const naoProcessados = doPeriodo.filter(p=>!p.processed)
 
@@ -1226,27 +1218,37 @@ export default function Pagamentos() {
   }
 
   // ── KPIs node ─────────────────────────────────────────────────────────────
-  const kpisNode = (
-    <div style={{ display:'flex', gap:12, flexWrap:'wrap', padding:'8px 0' }}>
-      {[
-        { label:'Contratos',    value:kpis.total,                color:'var(--text)' },
-        { label:'Gerados',      value:kpis.processados,          color:'#10B981' },
-        { label:'Não gerados',  value:kpis.pendentes,            color:'#F59E0B' },
-        { label:'Total líquido',value:fmtMoeda(kpis.valorTotal), color:ACCENT, mono:true },
-        { label:'Em aberto',    value:fmtMoeda(kpis.emAberto),   color:'#EF4444', mono:true },
-      ].map(k => (
-        <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)',
-          borderTop:`2px solid ${k.color}`, borderRadius:10, padding:'14px 20px',
-          display:'flex', flexDirection:'column', gap:2, minWidth:120 }}>
-          <span style={{ fontSize:k.mono?16:24, fontWeight:800, color:k.color,
-            fontFamily:k.mono?'var(--mono)':'var(--font)', letterSpacing:k.mono?'-0.02em':'-0.03em' }}>
-            {k.value}
-          </span>
-          <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{k.label}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const kpisNode = (data) => {
+    const kpis = {
+      total:       data.length,
+      processados: data.filter(p=>p.processed).length,
+      pendentes:   data.filter(p=>!p.processed).length,
+      valorTotal:  data.reduce((s,p)=>s+(p.amount_total_net||0),0),
+      emAberto:    data.filter(p=>p.status==='pendente'||p.status==='vencido')
+                       .reduce((s,p)=>s+(p.amount_total_net||0),0),
+    }
+    return (
+      <div style={{ display:'flex', gap:12, flexWrap:'wrap', padding:'8px 0' }}>
+        {[
+          { label:'Contratos',    value:kpis.total,                color:'var(--text)' },
+          { label:'Gerados',      value:kpis.processados,          color:'#10B981' },
+          { label:'Não gerados',  value:kpis.pendentes,            color:'#F59E0B' },
+          { label:'Total líquido',value:fmtMoeda(kpis.valorTotal), color:ACCENT, mono:true },
+          { label:'Em aberto',    value:fmtMoeda(kpis.emAberto),   color:'#EF4444', mono:true },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)',
+            borderTop:`2px solid ${k.color}`, borderRadius:10, padding:'14px 20px',
+            display:'flex', flexDirection:'column', gap:2, minWidth:120 }}>
+            <span style={{ fontSize:k.mono?16:24, fontWeight:800, color:k.color,
+              fontFamily:k.mono?'var(--mono)':'var(--font)', letterSpacing:k.mono?'-0.02em':'-0.03em' }}>
+              {k.value}
+            </span>
+            <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{k.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   // ── Colunas da tabela ─────────────────────────────────────────────────────
   const hoje = new Date().toISOString().slice(0, 10)

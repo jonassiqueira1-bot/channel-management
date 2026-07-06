@@ -1292,7 +1292,7 @@ function SkeletonCard({ span=1 }) {
 export default function Dashboard() {
   const { profile, loading:profileLoading } = useProfile()
 
-  const isISV      = !profile || profile.role==='admin_isv' || profile.papel==='admin_isv' || profile.papel==='gestor_canais'
+  const isISV      = !profile || profile.role==='admin_isv' || profile.papel==='admin_isv'
   const defaultSec = isISV ? DEFAULT_SECTIONS_ISV : DEFAULT_SECTIONS_FRANCHISE
   const catalog    = isISV ? WIDGET_CATALOG_ISV   : WIDGET_CATALOG_FRANCHISE
   const storageKey = `${SECTIONS_STORAGE_KEY}:${isISV?'isv':'fr'}`

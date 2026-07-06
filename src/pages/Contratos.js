@@ -1475,28 +1475,28 @@ export default function Contratos() {
     })
   }, [contratos, search, activeFilters])
 
-  // KPIs
-  const ativos           = contratos.filter(c => c.status === 'ativo').length
-  const totalMRR         = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + [...(c.itens_mrr||[]), ...(c.itens_servico||[])].reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
-  const totalAdesao      = contratos.filter(c => c.status === 'ativo').reduce((s, c) => s + (c.itens_adesao||[]).reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
-  const qtdInadimplentes = inadimplentesIds.size
-
-  const kpisNode = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
-      {[
-        { label: 'Total de contratos', value: contratos.length,       mono: false },
-        { label: 'Contratos ativos',   value: ativos,                 color: 'var(--green-text)' },
-        { label: 'MRR recorrente',     value: fmtMoeda(totalMRR),     mono: true },
-        { label: 'Receita de adesão',  value: fmtMoeda(totalAdesao),  mono: true },
-        { label: 'Inadimplentes',      value: qtdInadimplentes,       color: qtdInadimplentes > 0 ? '#991B1B' : 'var(--text)', border: qtdInadimplentes > 0 ? '#EF4444' : undefined },
-      ].map(k => (
-        <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.border || 'var(--border)'}` }}>
-          <span style={{ fontSize: 20, fontWeight: 700, color: k.color || 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1, fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>{k.value}</span>
-          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{k.label}</span>
-        </div>
-      ))}
-    </div>
-  )
+  const kpisNode = (data) => {
+    const ativos           = data.filter(c => c.status === 'ativo').length
+    const totalMRR         = data.filter(c => c.status === 'ativo').reduce((s, c) => s + [...(c.itens_mrr||[]), ...(c.itens_servico||[])].reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
+    const totalAdesao      = data.filter(c => c.status === 'ativo').reduce((s, c) => s + (c.itens_adesao||[]).reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
+    const qtdInadimplentes = data.filter(c => inadimplentesIds.has(String(c.id))).length
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 12 }}>
+        {[
+          { label: 'Total de contratos', value: data.length,            mono: false },
+          { label: 'Contratos ativos',   value: ativos,                 color: 'var(--green-text)' },
+          { label: 'MRR recorrente',     value: fmtMoeda(totalMRR),     mono: true },
+          { label: 'Receita de adesão',  value: fmtMoeda(totalAdesao),  mono: true },
+          { label: 'Inadimplentes',      value: qtdInadimplentes,       color: qtdInadimplentes > 0 ? '#991B1B' : 'var(--text)', border: qtdInadimplentes > 0 ? '#EF4444' : undefined },
+        ].map(k => (
+          <div key={k.label} style={{ background: 'var(--surface)', borderRadius: 10, padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 4, border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.border || 'var(--border)'}` }}>
+            <span style={{ fontSize: 20, fontWeight: 700, color: k.color || 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1, fontFamily: k.mono ? 'var(--mono)' : 'inherit' }}>{k.value}</span>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{k.label}</span>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   async function handleSave(data, opts = {}) {
     const anterior = contratos.find(c => c.id === data.id)

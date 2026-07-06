@@ -31,12 +31,11 @@ const STATUS_BADGE = {
 }
 
 const PAPEIS = [
-  { value: 'admin_isv',      label: 'Admin ISV'     },
-  { value: 'gestor_canais',  label: 'Gestor Canais' },
-  { value: 'vendedor',       label: 'Vendedor'      },
-  { value: 'cs',             label: 'CS'            },
-  { value: 'financeiro',     label: 'Financeiro'    },
-  { value: 'operacional',    label: 'Operacional'   },
+  { value: 'admin_isv',  label: 'Administrador'    },
+  { value: 'vendedor',   label: 'Vendedor'         },
+  { value: 'cs',         label: 'Customer Success' },
+  { value: 'financeiro', label: 'Financeiro'       },
+  { value: 'projetos',   label: 'Projetos'         },
 ]
 
 const EMPTY_FORM = {

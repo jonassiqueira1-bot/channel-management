@@ -665,7 +665,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       onClose={onClose}
       title={parceiro.nome}
       subtitle={parceiro.segmento || parceiro.tipo || extractEstado(parceiro)}
-      width={580}
+      width={660}
       tabs={TABS}
       activeTab={tab}
       onTabChange={setTab}
@@ -703,39 +703,38 @@ export default function Parceiros() {
   }
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
-  const scoreList = parceiros.map(p => scores[p.id]?.score_pct ?? null).filter(s => s !== null)
-  const mediaScore = scoreList.length
-    ? Math.round(scoreList.reduce((a, b) => a + b, 0) / scoreList.length)
-    : null
-  const baixasMaturidade = scoreList.filter(s => s < 50).length
-
-  const kpis = (
-    <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-      {[
-        { label: 'Total de Parceiros', value: parceiros.length, color: 'var(--accent)' },
-        { label: 'Maturidade Média',   value: mediaScore !== null ? `${mediaScore}%` : '—', color: mediaScore !== null ? scoreColor(mediaScore) : 'var(--text-muted)' },
-        { label: 'Score < 50%',        value: baixasMaturidade, color: baixasMaturidade > 0 ? '#EF4444' : '#10B981' },
-      ].map(k => (
-        <div key={k.label} style={{
-          background: 'var(--surface)', border: '1px solid var(--border2)',
-          borderRadius: 10, padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 4,
-          boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.color}`,
-        }}>
-          <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{k.value}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</div>
-        </div>
-      ))}
-      <Button
-        size="sm"
-        variant="outline"
-        loading={calculating}
-        onClick={calculate}
-        style={{ marginBottom: 2 }}
-      >
-        {calculating ? 'Calculando…' : '↻ Calcular scores'}
-      </Button>
-    </div>
-  )
+  const kpis = (data) => {
+    const scoreList      = data.map(p => p.score_pct ?? null).filter(s => s !== null)
+    const mediaScore     = scoreList.length ? Math.round(scoreList.reduce((a, b) => a + b, 0) / scoreList.length) : null
+    const baixasMaturidade = scoreList.filter(s => s < 50).length
+    return (
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        {[
+          { label: 'Total de Parceiros', value: data.length, color: 'var(--accent)' },
+          { label: 'Maturidade Média',   value: mediaScore !== null ? `${mediaScore}%` : '—', color: mediaScore !== null ? scoreColor(mediaScore) : 'var(--text-muted)' },
+          { label: 'Score < 50%',        value: baixasMaturidade, color: baixasMaturidade > 0 ? '#EF4444' : '#10B981' },
+        ].map(k => (
+          <div key={k.label} style={{
+            background: 'var(--surface)', border: '1px solid var(--border2)',
+            borderRadius: 10, padding: '12px 18px', display: 'flex', flexDirection: 'column', gap: 4,
+            boxShadow: 'var(--shadow)', borderTop: `3px solid ${k.color}`,
+          }}>
+            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{k.value}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{k.label}</div>
+          </div>
+        ))}
+        <Button
+          size="sm"
+          variant="outline"
+          loading={calculating}
+          onClick={calculate}
+          style={{ marginBottom: 2 }}
+        >
+          {calculating ? 'Calculando…' : '↻ Calcular scores'}
+        </Button>
+      </div>
+    )
+  }
 
   // ── Enriquecer e filtrar parceiros ────────────────────────────────────────
   const parceirosComScore = useMemo(() => {

@@ -586,7 +586,7 @@ export default function BrowseLayout({
               ? <ChevronUp   size={13} color="var(--text-muted)" />
               : <ChevronDown size={13} color="var(--text-muted)" />}
           </button>
-          {kpisOpen && <div style={s.kpiContent}>{kpis}</div>}
+          {kpisOpen && <div style={s.kpiContent}>{typeof kpis === 'function' ? kpis(sorted) : kpis}</div>}
         </div>
       )}
 

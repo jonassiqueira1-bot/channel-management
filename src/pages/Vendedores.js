@@ -497,27 +497,28 @@ export default function Vendedores() {
   }
 
   // ── KPIs ─────────────────────────────────────────────────────────────────────
-  const totalAtivos   = sellers.filter(f => f.status === 'ativo').length
-  const totalAfastado = sellers.filter(f => f.status === 'afastado').length
-  const metaMedia     = sellers.length > 0
-    ? Math.round(sellers.reduce((s, f) => s + (Number(f.meta_mensal) || 0), 0) / sellers.length)
-    : 0
-
-  const kpis = (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-      {[
-        { label:'Total de contatos', value: sellers.length },
-        { label:'Ativos',            value: totalAtivos, accent: true },
-        { label:'Afastados',         value: totalAfastado },
-        { label:'Meta média/mês',    value: metaMedia ? `R$ ${metaMedia.toLocaleString('pt-BR')}` : '—', mono: true },
-      ].map(k => (
-        <div key={k.label} style={{ background:'var(--surface)', borderRadius:10, padding:'14px 16px', border:'1px solid var(--border2)', borderTop: k.accent ? '3px solid var(--accent)' : '3px solid var(--border)' }}>
-          <div style={{ fontSize:20, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px', fontFamily: k.mono ? 'var(--mono)' : 'var(--font)' }}>{k.value}</div>
-          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{k.label}</div>
-        </div>
-      ))}
-    </div>
-  )
+  const kpis = (data) => {
+    const totalAtivos   = data.filter(f => f.status === 'ativo').length
+    const totalAfastado = data.filter(f => f.status === 'afastado').length
+    const metaMedia     = data.length > 0
+      ? Math.round(data.reduce((s, f) => s + (Number(f.meta_mensal) || 0), 0) / data.length)
+      : 0
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
+        {[
+          { label:'Total de contatos', value: data.length },
+          { label:'Ativos',            value: totalAtivos, accent: true },
+          { label:'Afastados',         value: totalAfastado },
+          { label:'Meta média/mês',    value: metaMedia ? `R$ ${metaMedia.toLocaleString('pt-BR')}` : '—', mono: true },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', borderRadius:10, padding:'14px 16px', border:'1px solid var(--border2)', borderTop: k.accent ? '3px solid var(--accent)' : '3px solid var(--border)' }}>
+            <div style={{ fontSize:20, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px', fontFamily: k.mono ? 'var(--mono)' : 'var(--font)' }}>{k.value}</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{k.label}</div>
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   // ── Colunas ───────────────────────────────────────────────────────────────────
   const columns = [

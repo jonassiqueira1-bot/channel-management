@@ -3,8 +3,8 @@ import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useUsuarios } from '../../hooks/useUsuarios'
 import { usePendingInvites } from '../../hooks/usePendingInvites'
-import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, SESSOES_MOCK } from '../../data/mockPerfis'
-import { MOCK_EMPRESAS } from '../../data/mockEmpresas'
+import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG } from '../../data/mockPerfis'
+import { useProfile } from '../../hooks/useProfile'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import { useCommissions } from '../../hooks/useCommissions'
 import Button from '../../components/Button'
@@ -15,56 +15,6 @@ import { useParceiros } from '../../hooks/useParceiros'
 
 const ACCENT = 'var(--accent)'
 
-// ── Seletor de Papel com pesquisa ─────────────────────────────────────────────
-function PapelSelect({ options, value, onChange }) {
-  const [open, setOpen] = useState(false)
-  const [search, setSearch] = useState('')
-  const ref = useRef(null)
-  useEffect(() => {
-    if (!open) return
-    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', h)
-    return () => document.removeEventListener('mousedown', h)
-  }, [open])
-  const selected = options.find(o => o.value === value)
-  const filtered = options.filter(o => (PAPEIS_CONFIG[o.value]?.label || o.label || o.value).toLowerCase().includes(search.toLowerCase()))
-  return (
-    <div ref={ref} style={{ position: 'relative' }}>
-      <button type="button" onClick={() => setOpen(o => !o)}
-        style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', fontFamily: 'var(--font)', fontSize: 13, color: 'var(--text)', cursor: 'pointer', gap: 8 }}>
-        <span>{selected ? (PAPEIS_CONFIG[selected.value]?.label || selected.label) : 'Selecionar papel…'}</span>
-        <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>▾</span>
-      </button>
-      {open && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.14)', overflow: 'hidden' }}>
-          <div style={{ padding: '8px 8px 6px' }}>
-            <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Pesquisar papel…"
-              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12, fontFamily: 'var(--font)', outline: 'none', background: 'var(--surface2)' }} />
-          </div>
-          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-            {filtered.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Sem resultados</div>
-              : filtered.map(o => {
-                const cfg = PAPEIS_CONFIG[o.value] || {}
-                const isActive = o.value === value
-                return (
-                  <div key={o.value} onClick={() => { onChange(o.value); setOpen(false); setSearch('') }}
-                    style={{ padding: '8px 12px', cursor: 'pointer', background: isActive ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent', display: 'flex', alignItems: 'center', gap: 8 }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = 'var(--surface2)' }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}>
-                    <span style={{ fontSize: 13, fontWeight: isActive ? 700 : 400, color: isActive ? 'var(--accent)' : 'var(--text)' }}>
-                      {cfg.label || o.label || o.value}
-                    </span>
-                    {cfg.descricao && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>— {cfg.descricao}</span>}
-                  </div>
-                )
-              })}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 function uid() { return 'u_' + Date.now() + Math.floor(Math.random() * 999) }
 
@@ -121,50 +71,24 @@ function Avatar({ perfil, size = 34 }) {
 
 // ─── Filtros de visibilidade por papel ───────────────────────────────────────
 function filtrarPorSessao(perfis, sessao) {
-  if (sessao.papel === 'admin_isv') return perfis
-  if (sessao.papel === 'admin_franquia') {
-    return perfis.filter(p => p.empresa_id === sessao.empresa_id)
-  }
-  // vendedor / outros: apenas o próprio perfil
-  return perfis.filter(p => p.id === sessao.id)
-}
-
-function papeisCadastravelPor(sessao) {
-  if (sessao.papel === 'admin_isv') return PAPEIS_OPTIONS
-  if (sessao.papel === 'admin_franquia') {
-    return PAPEIS_OPTIONS.filter(p => p.value === 'vendedor' || p.value === 'admin_franquia')
-  }
-  return []
+  if (sessao?.papel === 'admin_isv') return perfis
+  // outros papéis: só vê o próprio perfil
+  return perfis.filter(p => p.id === sessao?.id)
 }
 
 // ─── Modal de Convite ─────────────────────────────────────────────────────────
 function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
-  const papeisDisp = papeisCadastravelPor(sessao)
-  const [form, setForm] = useState({
-    nome: '',
-    email: '',
-    papel: papeisDisp[0]?.value || 'vendedor',
-    empresa_id: sessao.papel === 'admin_franquia' ? sessao.empresa_id : '',
-    status: 'pendente',
-  })
+  const [form, setForm] = useState({ nome: '', email: '', papel: 'vendedor', status: 'pendente' })
   const [erros, setErros] = useState({})
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErros(e => ({ ...e, [f]: null })) }
-
-  const empresasDisponiveis = useMemo(() => {
-    if (sessao.papel === 'admin_franquia') return MOCK_EMPRESAS.filter(e => e.id === sessao.empresa_id)
-    return MOCK_EMPRESAS.filter(e => e.status === 'ativo' || e.status === 'negociacao')
-  }, [sessao])
-
-  const papelSelecionado = PAPEIS_OPTIONS.find(p => p.value === form.papel)
-  const precisaEmpresa   = papelSelecionado?.tipo === 'externo'
 
   function validar() {
     const e = {}
     if (!form.nome.trim())  e.nome  = 'Nome obrigatório'
     if (!form.email.trim()) e.email = 'E-mail obrigatório'
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'E-mail inválido'
-    if (perfisExistentes.some(p => p.email.toLowerCase() === form.email.toLowerCase()))
+    if (perfisExistentes.some(p => p.email?.toLowerCase() === form.email.toLowerCase()))
       e.email = 'Este e-mail já está cadastrado'
     setErros(e)
     return Object.keys(e).length === 0
@@ -178,9 +102,8 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
       nome:         form.nome.trim(),
       email:        form.email.trim().toLowerCase(),
       avatar:       form.nome.trim().split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase(),
-      tipo_usuario: papelSelecionado?.tipo || 'externo',
       papel:        form.papel,
-      tenant_id:    sessao.tenant_id,
+      tenant_id:    sessao?.tenant_id,
       status:       'pendente',
       criado_em:    new Date().toISOString(),
       ultimo_acesso: null,
@@ -188,40 +111,19 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
     onClose()
   }
 
-  const empresaSelecionada = MOCK_EMPRESAS.find(e => e.id === Number(form.empresa_id))
-
   return (
     <div style={ov.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={ov.modal}>
-
-        {/* Header */}
         <div style={ov.header}>
           <div>
             <div style={ov.title}>Convidar usuário</div>
-            <div style={ov.subtitle}>
-              {sessao.papel === 'admin_franquia'
-                ? `Convidando para: ${sessao.empresa_nome}`
-                : 'Novo acesso ao tenant'}
-            </div>
+            <div style={ov.subtitle}>Novo acesso ao sistema</div>
           </div>
           <button style={ov.closeBtn} onClick={onClose}>✕</button>
         </div>
 
-        {/* Aviso de sessão restrita */}
-        {sessao.papel === 'admin_franquia' && (
-          <div style={ov.infoBox}>
-            <span style={{ fontSize: 13, marginRight: 6 }}>🔒</span>
-            <span style={{ fontSize: 12, color: '#92400E' }}>
-              Você está logado como <strong>Admin Franquia</strong> da {sessao.empresa_nome}.
-              Só é possível convidar usuários para esta empresa.
-            </span>
-          </div>
-        )}
-
         <form onSubmit={handleSubmit}>
           <div style={ov.body}>
-
-            {/* Nome + E-mail */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
               <Field label="Nome completo *" error={erros.nome}>
                 <input style={{ ...inp.base, ...(erros.nome ? inp.err : {}) }}
@@ -235,23 +137,19 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
               </Field>
             </div>
 
-            {/* Papel */}
-            <Field label="Papel / Nível de acesso *">
-              <PapelSelect
-                options={papeisDisp}
-                value={form.papel}
-                onChange={v => set('papel', v)}
-              />
+            <Field label="Papel *">
+              <select className="fpe-field" value={form.papel} onChange={e => set('papel', e.target.value)}>
+                {PAPEIS_OPTIONS.map(p => (
+                  <option key={p.value} value={p.value}>{p.label}</option>
+                ))}
+              </select>
             </Field>
 
-
-            {/* Nota: convite por e-mail */}
             <div style={{ padding: '10px 14px', background: '#EEF2FF', borderRadius: 8,
               border: '1px solid #C7D2FE', fontSize: 12, color: '#3730A3', lineHeight: 1.5 }}>
               📧 Um e-mail de convite será enviado para <strong>{form.email || 'o endereço informado'}</strong>.
               O usuário ficará com status <strong>Pendente</strong> até aceitar o convite.
             </div>
-
           </div>
 
           <div style={ov.footer}>
@@ -505,10 +403,8 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
   const { parceiros: franquias } = useParceiros()
   const { branches }  = useBranches()
 
-  const isAdminFranquia = form.papel === 'admin_franquia'
-
-  // Para não-admin: resolve a franquia a partir das unidades selecionadas
-  const franquiasDerived = isAdminFranquia ? [] : (() => {
+  // Resolve a franquia a partir das unidades selecionadas
+  const franquiasDerived = (() => {
     const ids = new Set(
       (form.branch_ids || [])
         .map(bid => { const b = branches.find(x => x.id === bid); return b?.custom_fields?.franquia_id })
@@ -531,12 +427,15 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     })
   }
 
-  const papeisDisp  = papeisCadastravelPor(sessao)
-  const podeEditar  = sessao.papel === 'admin_isv' || (sessao.papel === 'admin_franquia' && perfil.empresa_id === sessao.empresa_id)
-  const podeExcluir = sessao.papel === 'admin_isv' && perfil.id !== sessao.id && !perfil.is_owner
+  const podeEditar  = sessao?.papel === 'admin_isv'
+  const podeExcluir = sessao?.papel === 'admin_isv' && perfil.id !== sessao?.id && !perfil.is_owner
   const papelSel    = PAPEIS_OPTIONS.find(p => p.value === form.papel)
 
   function handleSave() {
+    if (form.papel !== 'admin_isv' && (!form.branch_ids || form.branch_ids.length === 0)) {
+      alert('Selecione pelo menos uma unidade com acesso para este usuário.')
+      return
+    }
     onSave({
       ...perfil,
       nome:                form.nome.trim(),
@@ -545,7 +444,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       status:              form.status,
       perfis_acesso_ids:   form.perfis_acesso_ids,
       branch_ids:          form.branch_ids,
-      franquia_id:         isAdminFranquia ? form.franquia_id : null,
+      franquia_id:         null,
       regras_comissao_ids: form.regras_comissao_ids,
       cargo:               form.cargo.trim(),
       senioridade:         form.senioridade,
@@ -599,16 +498,27 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       </FPESection>
 
       {/* Papel */}
-      <FPESection title="Papel">
+      <FPESection title="Papel" description="Define quais módulos o usuário pode acessar.">
         <FPEField label="Papel do usuário" style={{ gridColumn:'1/-1' }}>
           <select className="fpe-field" value={form.papel} disabled={!podeEditar}
             onChange={e => set('papel', e.target.value)}>
-            {papeisDisp.map(p => {
-              const cfg = PAPEIS_CONFIG[p.value]
-              return <option key={p.value} value={p.value}>{cfg.label}</option>
-            })}
+            {PAPEIS_OPTIONS.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
           </select>
         </FPEField>
+        {form.papel && PAPEIS_CONFIG[form.papel] && (
+          <div style={{ gridColumn:'1/-1', fontSize:12, color:'var(--text-muted)', padding:'8px 12px',
+            background:'var(--surface2)', borderRadius:7, border:'1px solid var(--border)' }}>
+            {{
+              admin_isv:  'Acesso completo a todos os módulos e configurações.',
+              vendedor:   'Acesso a Pipeline, Empresas, Contatos, Contatos Canais, Playbooks, Documentos e Tarefas.',
+              financeiro: 'Acesso a Comissões, Pagamentos e Contratos.',
+              cs:         'Acesso ao módulo Sucesso do Cliente.',
+              projetos:   'Acesso ao módulo Projetos.',
+            }[form.papel]}
+          </div>
+        )}
       </FPESection>
 
       {/* Status */}
@@ -622,20 +532,8 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
         </FPEField>
       </FPESection>
 
-      {/* Franquia — direto para admin_franquia, derivado para os demais */}
-      {isAdminFranquia ? (
-        <FPESection title="Franquia" description="Informe a franquia à qual este administrador está vinculado.">
-          <FPEField label="Franquia" style={{ gridColumn:'1/-1' }}>
-            <select className="fpe-field" disabled={!podeEditar} value={form.franquia_id || ''}
-              onChange={e => set('franquia_id', e.target.value || null)}>
-              <option value="">— Nenhuma —</option>
-              {franquias.filter(f => f.classificacao !== 'unidade').map(f => (
-                <option key={f.id} value={String(f.id)}>{f.codigo ? `[${f.codigo}] ` : ''}{f.nome}</option>
-              ))}
-            </select>
-          </FPEField>
-        </FPESection>
-      ) : franquiasDerived.length > 0 && (
+      {/* Franquia — derivada automaticamente das unidades selecionadas */}
+      {franquiasDerived.length > 0 && (
         <FPESection title="Franquia" description="Derivada automaticamente das unidades selecionadas.">
           <div style={{ gridColumn:'1/-1', display:'flex', flexWrap:'wrap', gap:6 }}>
             {franquiasDerived.map(f => (
@@ -648,7 +546,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       )}
 
       {/* Unidades */}
-      <FPESection title="Unidades com acesso" description="O usuário terá acesso aos dados de todas as unidades marcadas." columns={1}>
+      <FPESection title="Unidades com acesso *" description="Obrigatório — o usuário só verá dados das unidades selecionadas." columns={1}>
         {branches.length === 0 ? (
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>
             Nenhuma unidade cadastrada. Cadastre unidades em Configurações → Minha Empresa.
@@ -996,7 +894,8 @@ export default function SettingsUsuarios() {
   const { usuarios: perfis, save: saveUsuario, remove: removeUsuario } = useUsuarios()
   const { invites, invite: criarConvite, remove: cancelarConvite } = usePendingInvites()
   const { registrar: log } = useAuditLog()
-  const sessao                   = SESSOES_MOCK[0]
+  const { profile } = useProfile()
+  const sessao = profile || { papel: 'admin_isv' }
   const [modalConvite, setModalConvite] = useState(false)
   const [modalImport, setModalImport]   = useState(false)
   const [editando, setEditando]  = useState(null)
@@ -1042,7 +941,7 @@ export default function SettingsUsuarios() {
     log('excluir', 'usuario', id, { descricao: `Usuário excluído: ${p?.nome || p?.email || id}` })
   }
 
-  const podeCriar = sessao.papel === 'admin_isv' || sessao.papel === 'admin_franquia'
+  const podeCriar = sessao?.papel === 'admin_isv'
 
   if (editando) {
     return (

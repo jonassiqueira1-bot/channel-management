@@ -5,33 +5,25 @@ import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
 
 function rowToTemplate(row) {
-  const cf = row.custom_fields || {}
   return {
     id:               row.id,
-    title:            row.title,
-    description:      row.description || '',
-    type:             row.type || cf.type || 'pre_venda',
-    status:           row.status || 'rascunho',
-    estrutura_secoes: row.estrutura_secoes || {},
-    owner_id:         row.owner_id || null,
+    title:            row.nome || '',
+    description:      row.descricao || '',
+    status:           row.status || 'ativo',
+    estrutura_secoes: row.fields || {},
     criado:           row.created_at?.slice(0, 10) || '',
     atualizado:       row.updated_at?.slice(0, 10) || '',
-    ...cf,
   }
 }
 
 function templateToRow(t, tenantId, branchId) {
-  const { id, title, description, type, status, estrutura_secoes, owner_id, criado, atualizado, ...rest } = t
   return {
-    tenant_id:        tenantId,
-    branch_id:        branchId || null,
-    owner_id:         owner_id || null,
-    title:            title,
-    description:      description || null,
-    type:             type || null,
-    status:           status || 'rascunho',
-    estrutura_secoes: estrutura_secoes || {},
-    custom_fields:    rest,
+    tenant_id: tenantId,
+    branch_id: branchId || null,
+    nome:      t.title || t.nome || '',
+    descricao: t.description || t.descricao || null,
+    status:    t.status || 'ativo',
+    fields:    t.estrutura_secoes || t.fields || {},
   }
 }
 

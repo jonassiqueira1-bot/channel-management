@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
 
+
 const STORAGE_KEY = 'settings:perfis_v2'
 function load() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
 function persist(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {} }
@@ -13,7 +14,7 @@ const STATUS_MAP_REVERSE = { ativo: 'active', inativo: 'inactive', pendente: 'pe
 
 function normalizeProfile(u) {
   const papel = u.papel || u.role || ''
-  const tipoInterno = ['admin_isv', 'admin_franquia', 'gestor', 'vendedor_interno'].includes(papel)
+  const tipoInterno = papel === 'admin_isv'
   return {
     ...u,
     papel,
@@ -28,6 +29,7 @@ export function useUsuarios() {
   const { session } = useAuth()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
+
   const [usuarios, setUsuarios] = useState(load)
   const isMock = useRef(false)
   const tid = useRef(null)
@@ -37,13 +39,20 @@ export function useUsuarios() {
   useEffect(() => {
     async function fetch() {
       if (!session?.user) { isMock.current = true; setUsuarios(load()); return }
-      // Usa RPC para bypassing RLS circular em profiles
       const { data, error } = await supabase.rpc('get_tenant_profiles')
       if (error) { isMock.current = true; setUsuarios(load()) }
       else {
         isMock.current = false
         const normalized = (data || []).map(normalizeProfile)
-        setUsuarios(activeBranchId ? normalized.filter(u => u.branch_id === activeBranchId) : normalized)
+        // Filtra por filial ativa: admin_isv vê todos; demais só se branch_ids inclui a filial
+        const filtrados = activeBranchId
+          ? normalized.filter(u =>
+              u.papel === 'admin_isv' ||
+              (Array.isArray(u.branch_ids) && u.branch_ids.includes(activeBranchId)) ||
+              u.branch_id === activeBranchId
+            )
+          : normalized
+        setUsuarios(filtrados)
       }
     }
     fetch()
