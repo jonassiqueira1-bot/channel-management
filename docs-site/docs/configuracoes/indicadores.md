@@ -1,3 +1,8 @@
+---
+id: indicadores
+title: Indicadores
+---
+
 # Indicadores
 
 

@@ -1,3 +1,8 @@
+---
+id: pipeline
+title: Pipeline de Vendas
+---
+
 # Pipeline de Vendas
 
 

@@ -22,20 +22,7 @@ const config: Config = {
     locales: ['pt-BR'],
   },
 
-  plugins: [
-    [
-      '@easyops-cn/docusaurus-search-local',
-      {
-        hashed: true,
-        language: ['pt'],
-        searchBarPosition: 'navbar',
-        searchBarShortcutHint: false,
-        docsRouteBasePath: '/docs',
-        highlightSearchTermsOnTargetPage: true,
-        explicitSearchResultPath: true,
-      },
-    ],
-  ],
+  plugins: [],
 
   presets: [
     [

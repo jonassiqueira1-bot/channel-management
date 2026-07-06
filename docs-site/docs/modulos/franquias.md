@@ -1,3 +1,8 @@
+---
+id: franquias
+title: Franquias
+---
+
 # Franquias
 
 

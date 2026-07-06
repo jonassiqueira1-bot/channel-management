@@ -1,3 +1,8 @@
+---
+id: metas
+title: Metas e KPIs
+---
+
 # Metas e KPIs
 
 

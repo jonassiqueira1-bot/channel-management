@@ -1,3 +1,8 @@
+---
+id: tipos-acoes
+title: Tipos de Atividades
+---
+
 # Tipos de Atividades
 
 

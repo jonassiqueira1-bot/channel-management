@@ -1,3 +1,8 @@
+---
+id: recuperar-senha
+title: Recuperar Senha
+---
+
 # Recuperar Senha
 
 **Acesso:** Público (sem autenticação)

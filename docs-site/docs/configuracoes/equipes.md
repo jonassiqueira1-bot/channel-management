@@ -1,3 +1,8 @@
+---
+id: equipes
+title: Equipes
+---
+
 # Equipes
 
 

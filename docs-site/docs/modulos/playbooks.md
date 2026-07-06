@@ -1,3 +1,8 @@
+---
+id: playbooks
+title: Playbooks
+---
+
 # Playbooks
 
 

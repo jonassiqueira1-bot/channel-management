@@ -1,3 +1,8 @@
+---
+id: logs
+title: Logs de Auditoria
+---
+
 # Logs de Auditoria
 
 

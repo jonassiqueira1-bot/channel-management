@@ -1,3 +1,8 @@
+---
+id: dashboard
+title: Dashboard
+---
+
 # Dashboard
 
 

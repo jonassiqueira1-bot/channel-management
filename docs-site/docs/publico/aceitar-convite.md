@@ -1,3 +1,8 @@
+---
+id: aceitar-convite
+title: Aceitar Convite
+---
+
 # Aceitar Convite
 
 **Acesso:** Público — acessado via link enviado por e-mail
