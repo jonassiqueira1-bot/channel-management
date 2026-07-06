@@ -48,6 +48,7 @@ export function useUsuarios() {
         const filtrados = activeBranchId
           ? normalized.filter(u =>
               u.papel === 'admin_isv' ||
+              u.papel === 'parceiro' ||
               (Array.isArray(u.branch_ids) && u.branch_ids.includes(activeBranchId)) ||
               u.branch_id === activeBranchId
             )
