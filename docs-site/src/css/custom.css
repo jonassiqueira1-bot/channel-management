@@ -19,9 +19,11 @@
   --ifm-heading-color:   #1A2332;
   --ifm-font-color-base: #374151;
 
-  --ifm-navbar-background-color: #ffffff;
-  --ifm-navbar-shadow:           0 1px 0 0 #e5e7eb;
+  --ifm-navbar-background-color: #1A2332;
+  --ifm-navbar-shadow:           none;
   --ifm-navbar-height:           60px;
+  --ifm-navbar-link-color:       rgba(255,255,255,0.75);
+  --ifm-navbar-link-hover-color: #ffffff;
 
   --ifm-sidebar-width:    260px;
   --ifm-toc-border-color: #e5e7eb;

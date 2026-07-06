@@ -58,7 +58,7 @@ const config: Config = {
       title: 'Boostly',
       logo: {
         alt: 'Boostly',
-        src: 'img/logo.png',
+        src: 'img/logo.svg',
       },
       items: [
         {

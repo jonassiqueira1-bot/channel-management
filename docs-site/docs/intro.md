@@ -16,6 +16,6 @@ O **Boostly** é uma plataforma de gestão de canais de vendas white-label, dese
 - **Gestão de equipe** — controle de usuários e permissões por tenant
 - **Projetos e tarefas** — acompanhe projetos e atribuição de tarefas à equipe
 
-## Arquitetura
+## Como está organizado
 
-O Boostly roda sobre **Supabase** (banco de dados + autenticação) e **React**, com isolamento total de dados por tenant via Row Level Security (RLS).
+O Boostly é multi-filial: cada ISV pode ter múltiplas filiais com dados completamente isolados. Usuários, permissões e configurações são independentes por filial.
