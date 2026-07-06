@@ -2,9 +2,11 @@ import { useState, useRef } from 'react'
 import logoBoostly from '../assets/logo-boostly.svg'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
 import { useBranchContext } from '../contexts/BranchContext'
 import AlertsInbox from './AlertsInbox'
+import { PAPEIS_ROTAS } from '../data/mockPerfis'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
@@ -153,8 +155,11 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const [menuEditMode, setMenuEditMode] = useState(false)
 
   const { signOut } = useAuth()
+  const { profile } = useProfile()
   const navigate    = useNavigate()
   const inSettings  = !!useMatch('/settings/*')
+
+  const rotasPermitidas = profile ? PAPEIS_ROTAS[profile.papel] : null // null = tudo
 
   function isOpen(groupId) { return openGroups[groupId] !== false }
   function toggleGroup(id) { setOpenGroups(prev => ({ ...prev, [id]: !isOpen(id) })) }
@@ -368,7 +373,11 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
               )}
 
               {/* ── Itens do grupo ── */}
-              {(collapsed || open) && group.items.map((item, iIdx) => {
+              {(collapsed || open) && group.items.filter(item =>
+                item.path === '/settings'
+                  ? rotasPermitidas === null // só admin vê settings
+                  : rotasPermitidas === null || rotasPermitidas.includes(item.path)
+              ).map((item, iIdx) => {
                 const Icon            = ICON_MAP[item.iconKey]
                 const isBeingDragged  = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
                 const isDragOverItem  = dragOver?.zone === 'item' && dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx

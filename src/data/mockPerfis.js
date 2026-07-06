@@ -61,40 +61,31 @@
 //     AFTER UPDATE OF email ON auth.users
 //     FOR EACH ROW EXECUTE PROCEDURE sync_email_to_perfil();
 
+// Configuração de UI dos 5 papéis simplificados
 export const PAPEIS_CONFIG = {
-  // legado — mantido para compatibilidade com dados existentes
-  admin_isv:                { label: 'Administrador',              color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', icon: '★' },
-  admin_franquia:           { label: 'Admin Franquia',             color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '⬡' },
-  // papéis revisados
-  administrador:            { label: 'Administrador',              color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', icon: '★' },
-  gestor_comercial:         { label: 'Gestor Comercial',           color: '#6366F1', bg: '#EEF2FF', text: '#4338CA', icon: '◈' },
-  gestor_canais:            { label: 'Gestor de Canais',           color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', icon: '⬡' },
-  vendedor:                 { label: 'Vendedor',                   color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', icon: '◉' },
-  gestor_projetos:          { label: 'Gestor de Projetos',         color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6', icon: '◆' },
-  coordenador_projetos:     { label: 'Coordenador de Projetos',    color: '#A78BFA', bg: '#F5F3FF', text: '#6D28D9', icon: '◇' },
-  analista_implantacao:     { label: 'Analista de Implantação',    color: '#06B6D4', bg: '#CFFAFE', text: '#0E7490', icon: '◐' },
-  gestor_cs:                { label: 'Gestor de Customer Success', color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '◑' },
-  customer_success:         { label: 'Customer Success',           color: '#34D399', bg: '#ECFDF5', text: '#065F46', icon: '○' },
-  gestor_administrativo:    { label: 'Gestor Administrativo',      color: '#64748B', bg: '#F1F5F9', text: '#334155', icon: '▣' },
-  assistente_administrativo:{ label: 'Assistente Administrativo',  color: '#94A3B8', bg: '#F8FAFC', text: '#475569', icon: '▢' },
+  admin_isv:  { label: 'Administrador',     color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', icon: '★' },
+  vendedor:   { label: 'Vendedor',          color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', icon: '◉' },
+  financeiro: { label: 'Financeiro',        color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '◈' },
+  cs:         { label: 'Customer Success',  color: '#6366F1', bg: '#EEF2FF', text: '#4338CA', icon: '◑' },
+  projetos:   { label: 'Projetos',          color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6', icon: '◆' },
 }
 
 export const PAPEIS_OPTIONS = [
-  { value: 'administrador',             label: 'Administrador',              tipo: 'interno' },
-  { value: 'gestor_comercial',          label: 'Gestor Comercial',           tipo: 'interno' },
-  { value: 'gestor_canais',             label: 'Gestor de Canais',           tipo: 'interno' },
-  { value: 'vendedor',                  label: 'Vendedor',                   tipo: 'externo' },
-  { value: 'gestor_projetos',           label: 'Gestor de Projetos',         tipo: 'interno' },
-  { value: 'coordenador_projetos',      label: 'Coordenador de Projetos',    tipo: 'interno' },
-  { value: 'analista_implantacao',      label: 'Analista de Implantação',    tipo: 'interno' },
-  { value: 'gestor_cs',                 label: 'Gestor de Customer Success', tipo: 'interno' },
-  { value: 'customer_success',          label: 'Customer Success',           tipo: 'externo' },
-  { value: 'gestor_administrativo',     label: 'Gestor Administrativo',      tipo: 'interno' },
-  { value: 'assistente_administrativo', label: 'Assistente Administrativo',  tipo: 'interno' },
-  // legado
-  { value: 'admin_isv',                 label: 'Admin ISV (legado)',          tipo: 'interno' },
-  { value: 'admin_franquia',            label: 'Admin Franquia (legado)',     tipo: 'externo' },
+  { value: 'admin_isv',  label: 'Administrador'    },
+  { value: 'vendedor',   label: 'Vendedor'         },
+  { value: 'financeiro', label: 'Financeiro'       },
+  { value: 'cs',         label: 'Customer Success' },
+  { value: 'projetos',   label: 'Projetos'         },
 ]
+
+// Rotas permitidas por papel (usadas no Sidebar)
+export const PAPEIS_ROTAS = {
+  admin_isv:  null, // null = acesso total
+  vendedor:   ['/pipeline', '/empresas', '/contatos', '/vendedores', '/playbooks', '/documentos', '/tarefas'],
+  financeiro: ['/comissoes', '/pagamentos', '/contratos'],
+  cs:         ['/customer-success'],
+  projetos:   ['/projetos'],
+}
 
 export const STATUS_CONFIG = {
   ativo:    { label: 'Ativo',    color: '#10B981', bg: '#D1FAE5', text: '#065F46' },

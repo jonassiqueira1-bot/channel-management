@@ -13,9 +13,7 @@ import { useUsuarios } from '../hooks/useUsuarios'
 import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
 import { STORAGE_KEY as TIPOS_ATIVIDADE_KEY } from './settings/TiposAcao'
-import { SESSOES_MOCK } from '../data/mockPerfis'
-
-const SESSAO_ATIVA = SESSOES_MOCK[0]
+import { useProfile } from '../hooks/useProfile'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
 const MOCK_OPPS = [
@@ -837,6 +835,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 }
 
 export default function Tarefas() {
+  const { profile: sessao } = useProfile()
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
   const { registrar: log } = useAuditLog()
   const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
@@ -911,10 +910,7 @@ export default function Tarefas() {
     })
   }, [tarefas, search, filterStatus, filterTipo, filterPrioridade, filterEntidade])
 
-  const hoje       = new Date().toISOString().slice(0, 10)
-  const pendentes  = tarefas.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length
-  const concluidas = tarefas.filter(t => t.status === 'concluida').length
-  const atrasadas  = tarefas.filter(t => t.status !== 'concluida' && t.status !== 'cancelada' && t.prazo && t.prazo < hoje).length
+  const hoje = new Date().toISOString().slice(0, 10)
 
   // ── BrowseLayout config ───────────────────────────────────────────────────
   const columns = [
@@ -980,14 +976,19 @@ export default function Tarefas() {
     }},
   ]
 
-  const kpisNode = (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, paddingTop:4 }}>
-      <KpiCard label="Total de tarefas" value={tarefas.length} />
-      <KpiCard label="Abertas"          value={pendentes} accent />
-      <KpiCard label="Concluídas"       value={concluidas} />
-      <KpiCard label="Atrasadas"        value={atrasadas} red />
-    </div>
-  )
+  const kpisNode = (data) => {
+    const pendentes  = data.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length
+    const concluidas = data.filter(t => t.status === 'concluida').length
+    const atrasadas  = data.filter(t => t.status !== 'concluida' && t.status !== 'cancelada' && t.prazo && t.prazo < hoje).length
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, paddingTop:4 }}>
+        <KpiCard label="Total de tarefas" value={data.length} />
+        <KpiCard label="Abertas"          value={pendentes} accent />
+        <KpiCard label="Concluídas"       value={concluidas} />
+        <KpiCard label="Atrasadas"        value={atrasadas} red />
+      </div>
+    )
+  }
 
   const viewToggles = (
     <div style={{ display:'flex', gap:4 }}>
@@ -1057,7 +1058,7 @@ export default function Tarefas() {
           </div>
         </div>
         <div style={{ flex:1, overflow:'auto', padding:20 }}>
-          <CalendarioView tarefas={tarefas} sessao={SESSAO_ATIVA} onEdit={openEdit} onNew={openNew} />
+          <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} />
         </div>
         {slideOver}
       </div>

@@ -1153,9 +1153,6 @@ export default function Empresas() {
   // Reset soTab ao abrir modal
   useEffect(() => { if (modal) setSoTab('dados') }, [!!modal])
 
-  const totalMRR   = empresas.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
-  const totalAtivo = empresas.filter(e => e.status === 'ativo').length
-  const totalNegoc = empresas.filter(e => e.status === 'negociacao').length
 
   // Mapa companyId → csRecord para exibir health score na lista
   const csMap = useMemo(() => Object.fromEntries(csRecords.map(r => [String(r.company_id), r])), [csRecords])
@@ -1281,14 +1278,19 @@ export default function Empresas() {
             </div>
           )
         }}
-        kpis={
-          <div style={p.kpis}>
-            <KpiCard label="Total de empresas" value={empresas.length} />
-            <KpiCard label="Clientes ativos"   value={totalAtivo} accent />
-            <KpiCard label="Em negociação"     value={totalNegoc} />
-            <KpiCard label="MRR total"         value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} mono />
-          </div>
-        }
+        kpis={data => {
+          const totalAtivo = data.filter(e => e.status === 'ativo').length
+          const totalNegoc = data.filter(e => e.status === 'negociacao').length
+          const totalMRR   = data.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
+          return (
+            <div style={p.kpis}>
+              <KpiCard label="Total de empresas" value={data.length} />
+              <KpiCard label="Clientes ativos"   value={totalAtivo} accent />
+              <KpiCard label="Em negociação"     value={totalNegoc} />
+              <KpiCard label="MRR total"         value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} mono />
+            </div>
+          )
+        }}
         bulkActions={[
           { label: '→ Ativo',      onClick: (ids) => { bulkSetStatus(ids, 'ativo') } },
           { label: '→ Negociação', onClick: (ids) => { bulkSetStatus(ids, 'negociacao') } },

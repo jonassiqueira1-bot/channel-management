@@ -551,12 +551,6 @@ export default function Questionarios() {
     ).sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   }, [templates, activeFilters, search])
 
-  const kpis = useMemo(() => ({
-    total:     templates.length,
-    ativos:    templates.filter(t => t.is_active).length,
-    respostas: submissions.length,
-    aprovados: submissions.filter(s => s.status === 'aprovado').length,
-  }), [templates, submissions])
 
   const submissoesPorTemplate = useCallback(id => submissions.filter(s => s.template_id === id).length, [submissions])
 
@@ -611,28 +605,33 @@ export default function Questionarios() {
     { key: 'type', label: 'Tipo', options: Object.entries(TIPO_CFG).map(([k, v]) => ({ value: k, label: `${v.icon} ${v.label}` })) },
   ]
 
-  const kpisNode = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-      {[
-        { label: 'Templates',  value: kpis.total,     Icon: ClipboardList, color: 'var(--border)'  },
-        { label: 'Ativos',     value: kpis.ativos,    Icon: CheckCircle2,  color: 'var(--accent)'  },
-        { label: 'Respostas',  value: kpis.respostas, Icon: MessageSquare, color: '#F59E0B'         },
-        { label: 'Aprovadas',  value: kpis.aprovados, Icon: ThumbsUp,      color: '#10B981'         },
-      ].map(m => (
-        <div key={m.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-          padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}` }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+  const kpisNode = (data) => {
+    const ativos    = data.filter(t => t.is_active).length
+    const respostas = submissions.length
+    const aprovados = submissions.filter(s => s.status === 'aprovado').length
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[
+          { label: 'Templates',  value: data.length, Icon: ClipboardList, color: 'var(--border)'  },
+          { label: 'Ativos',     value: ativos,      Icon: CheckCircle2,  color: 'var(--accent)'  },
+          { label: 'Respostas',  value: respostas,   Icon: MessageSquare, color: '#F59E0B'         },
+          { label: 'Aprovadas',  value: aprovados,   Icon: ThumbsUp,      color: '#10B981'         },
+        ].map(m => (
+          <div key={m.label} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+            padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}` }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+        ))}
+      </div>
+    )
+  }
 
   return (
     <>

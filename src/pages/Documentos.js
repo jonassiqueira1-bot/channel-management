@@ -299,20 +299,6 @@ export default function Documentos() {
     ).sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
   }, [docs, activeFilters, search])
 
-  const kpis = useMemo(() => {
-    const now = new Date(); now.setHours(0, 0, 0, 0)
-    const d30 = new Date(now); d30.setDate(d30.getDate() + 30)
-    return {
-      total:          docs.length,
-      validos:        docs.filter(d => d.status === 'ativo' && (!d.prazo_validade || new Date(d.prazo_validade) >= now)).length,
-      proximosVencer: docs.filter(d => {
-        if (!d.prazo_validade) return false
-        const v = new Date(d.prazo_validade)
-        return v >= now && v <= d30
-      }).length,
-      comLink:        docs.filter(d => d.link_externo).length,
-    }
-  }, [docs])
 
   function handleSave(docOrNull, deleteId) {
     if (deleteId) { deleteDoc(deleteId); return }
@@ -380,32 +366,46 @@ export default function Documentos() {
     { key: 'status',    label: 'Status',    options: Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label })) },
   ]
 
-  const kpisNode = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
-      {[
-        { label: 'Total de documentos', value: kpis.total,          Icon: FileText,     color: 'var(--border)' },
-        { label: 'Válidos',             value: kpis.validos,        Icon: CheckCircle2, color: '#10B981' },
-        { label: 'Próximos a vencer',   value: kpis.proximosVencer, Icon: Clock,        color: '#F59E0B' },
-        { label: 'Com link externo',    value: kpis.comLink,        Icon: Link,         color: 'var(--accent)' },
-      ].map(m => (
-        <div key={m.label} style={{
-          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
-          padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}`,
-        }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
-            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+  const kpisNode = (data) => {
+    const now = new Date(); now.setHours(0, 0, 0, 0)
+    const d30 = new Date(now); d30.setDate(d30.getDate() + 30)
+    const metrics = {
+      total:          data.length,
+      validos:        data.filter(d => d.status === 'ativo' && (!d.prazo_validade || new Date(d.prazo_validade) >= now)).length,
+      proximosVencer: data.filter(d => {
+        if (!d.prazo_validade) return false
+        const v = new Date(d.prazo_validade)
+        return v >= now && v <= d30
+      }).length,
+      comLink:        data.filter(d => d.link_externo).length,
+    }
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
+        {[
+          { label: 'Total de documentos', value: metrics.total,          Icon: FileText,     color: 'var(--border)' },
+          { label: 'Válidos',             value: metrics.validos,        Icon: CheckCircle2, color: '#10B981' },
+          { label: 'Próximos a vencer',   value: metrics.proximosVencer, Icon: Clock,        color: '#F59E0B' },
+          { label: 'Com link externo',    value: metrics.comLink,        Icon: Link,         color: 'var(--accent)' },
+        ].map(m => (
+          <div key={m.label} style={{
+            background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12,
+            padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 14, borderTop: `3px solid ${m.color}`,
           }}>
-            <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+            <div style={{
+              width: 36, height: 36, borderRadius: 9, background: `${m.color}18`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              <m.Icon size={16} strokeWidth={1.75} style={{ color: m.color }} />
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>{m.label}</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', lineHeight: 1 }}>{m.value}</div>
-          </div>
-        </div>
-      ))}
-    </div>
-  )
+        ))}
+      </div>
+    )
+  }
 
   return (
     <>

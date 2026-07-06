@@ -275,13 +275,13 @@ export default function Acoes() {
   }, [lista])
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
-  const kpis = (
+  const kpis = (data) => (
     <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
       {[
-        { label:'Total',      value: acoes.length,                                       color:'var(--border)' },
-        { label:'Agendadas',  value: acoes.filter(a => a.status==='agendado').length,    color:'#F59E0B' },
-        { label:'Realizadas', value: acoes.filter(a => a.status==='realizado').length,   color:'#10B981' },
-        { label:'Canceladas', value: acoes.filter(a => a.status==='cancelado').length,   color:'#EF4444' },
+        { label:'Total',      value: data.length,                                        color:'var(--border)' },
+        { label:'Agendadas',  value: data.filter(a => a.status==='agendado').length,     color:'#F59E0B' },
+        { label:'Realizadas', value: data.filter(a => a.status==='realizado').length,    color:'#10B981' },
+        { label:'Canceladas', value: data.filter(a => a.status==='cancelado').length,    color:'#EF4444' },
       ].map(k => (
         <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border2)',
           borderRadius:10, padding:'14px 18px', display:'flex', flexDirection:'column', gap:4,

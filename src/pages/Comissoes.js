@@ -1585,11 +1585,6 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
     })
   }, [paymentsPeriodo, search, activeFilters])
 
-  const totals = useMemo(() => ({
-    total:    paymentsPeriodo.length,
-    pendente: paymentsPeriodo.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
-    pago:     paymentsPeriodo.filter(p=>p.status==='pago').reduce((s,p)=>s+Number(p.valor_comissao),0),
-  }), [paymentsPeriodo])
 
   function markPago(id) { setPayments(prev => prev.map(p => p.id===id ? {...p, status:'pago', data_pagamento:today()} : p)) }
 
@@ -1637,43 +1632,50 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
     { key: 'receita_tipo', label: 'Tipo',    options: RECEITA_TIPOS.map(t => ({ value:t, label:t })) },
   ]
 
-  const kpisNode = (
-    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      {!isAdmin && profile && (
-        <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:8 }}>
-          <User size={13} strokeWidth={2} style={{ color:'var(--accent)', flexShrink:0 }} />
-          <span style={{ fontSize:12, color:'var(--text-soft)' }}>
-            Visualizando seus repasses — <strong style={{ color:'var(--accent)' }}>{profile.nome}</strong>
-          </span>
-        </div>
-      )}
-      {period !== 'all' && (
-        <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-muted)', padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', alignSelf:'flex-start' }}>
-          <Calendar size={12} strokeWidth={2} />
-          <span>Exibindo: <strong style={{ color:'var(--text)' }}>{periodLabel(period)}</strong></span>
-          <span style={{ color:'var(--border)' }}>·</span>
-          <span>{paymentsPeriodo.length} de {payments.length} lançamentos</span>
-        </div>
-      )}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
-      {[
-        { label:'Lançamentos no período', value:totals.total,    Icon:DollarSign,  color:'var(--accent)', isCurrency:false },
-        { label:'A pagar (pendente)',      value:totals.pendente, Icon:Clock,        color:'#F59E0B',      isCurrency:true  },
-        { label:'Já pago',                value:totals.pago,     Icon:CheckCircle2, color:'#10B981',      isCurrency:true  },
-      ].map(m => (
-        <div key={m.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 18px', display:'flex', alignItems:'center', gap:14 }}>
-          <div style={{ width:38, height:38, borderRadius:10, background:`${m.color}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-            <m.Icon size={17} strokeWidth={1.75} style={{ color:m.color }} />
+  const kpisNode = (data) => {
+    const totals = {
+      total:    data.length,
+      pendente: data.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
+      pago:     data.filter(p=>p.status==='pago').reduce((s,p)=>s+Number(p.valor_comissao),0),
+    }
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {!isAdmin && profile && (
+          <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', background:'rgba(99,102,241,0.06)', border:'1px solid rgba(99,102,241,0.2)', borderRadius:8 }}>
+            <User size={13} strokeWidth={2} style={{ color:'var(--accent)', flexShrink:0 }} />
+            <span style={{ fontSize:12, color:'var(--text-soft)' }}>
+              Visualizando seus repasses — <strong style={{ color:'var(--accent)' }}>{profile.nome}</strong>
+            </span>
           </div>
-          <div>
-            <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:500, marginBottom:3 }}>{m.label}</div>
-            <div style={{ fontSize:19, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)', lineHeight:1 }}>{m.isCurrency?fmt(m.value):m.value}</div>
+        )}
+        {period !== 'all' && (
+          <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-muted)', padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', alignSelf:'flex-start' }}>
+            <Calendar size={12} strokeWidth={2} />
+            <span>Exibindo: <strong style={{ color:'var(--text)' }}>{periodLabel(period)}</strong></span>
+            <span style={{ color:'var(--border)' }}>·</span>
+            <span>{data.length} lançamentos</span>
           </div>
+        )}
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+        {[
+          { label:'Lançamentos no período', value:totals.total,    Icon:DollarSign,  color:'var(--accent)', isCurrency:false },
+          { label:'A pagar (pendente)',      value:totals.pendente, Icon:Clock,        color:'#F59E0B',      isCurrency:true  },
+          { label:'Já pago',                value:totals.pago,     Icon:CheckCircle2, color:'#10B981',      isCurrency:true  },
+        ].map(m => (
+          <div key={m.label} style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, padding:'16px 18px', display:'flex', alignItems:'center', gap:14 }}>
+            <div style={{ width:38, height:38, borderRadius:10, background:`${m.color}18`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+              <m.Icon size={17} strokeWidth={1.75} style={{ color:m.color }} />
+            </div>
+            <div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:500, marginBottom:3 }}>{m.label}</div>
+              <div style={{ fontSize:19, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)', lineHeight:1 }}>{m.isCurrency?fmt(m.value):m.value}</div>
+            </div>
+          </div>
+        ))}
         </div>
-      ))}
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <BrowseLayout
