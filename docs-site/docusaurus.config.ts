@@ -79,6 +79,14 @@ const config: Config = {
     },
     footer: {
       style: 'dark',
+      links: [
+        {
+          items: [
+            { label: 'Termos de Uso', to: '/docs/termos-de-uso' },
+            { label: 'Acessar plataforma', href: 'https://www.boostly.com.br/login' },
+          ],
+        },
+      ],
       copyright: `© ${new Date().getFullYear()} Boostly. Todos os direitos reservados.`,
     },
     prism: {

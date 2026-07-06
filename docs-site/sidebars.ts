@@ -137,6 +137,13 @@ const sidebars: SidebarsConfig = {
         'publico/aceitar-convite',
       ],
     },
+
+    // ── Legal ────────────────────────────────────────────────────────
+    {
+      type: 'doc',
+      id: 'termos-de-uso',
+      label: 'Termos de Uso',
+    },
   ],
 };
 
