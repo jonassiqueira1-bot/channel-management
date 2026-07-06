@@ -478,7 +478,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       <div style={s.bottom}>
         <BranchSelector collapsed={collapsed} />
         <AlertsInbox collapsed={collapsed} />
-        <NavLink
+        {rotasPermitidas === null && <NavLink
           to="/settings"
           title={collapsed ? 'Configurações' : undefined}
           onClick={isMobile ? onClose : undefined}
@@ -492,7 +492,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         >
           <Settings size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
           {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Configurações</span>}
-        </NavLink>
+        </NavLink>}
 
       </div>
     </aside>
