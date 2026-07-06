@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
+import Signup from './pages/Signup'
 import AceitarConvite from './pages/AceitarConvite'
 import Dashboard from './pages/Dashboard'
 import Franquias from './pages/Franquias'
@@ -57,6 +58,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/signup" element={<Signup />} />
           <Route path="/aceitar-convite" element={<AceitarConvite />} />
           <Route
             element={
