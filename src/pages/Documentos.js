@@ -116,7 +116,7 @@ function PerfilMultiSelect({ options, value, onChange }) {
 }
 
 // ─── DocForm ──────────────────────────────────────────────────────────────────
-function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
+function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOnly = false }) {
   const isNew = !initial?.id
   const fileInputRef = useRef(null)
   const [perfisStore] = useState(() => {
@@ -173,34 +173,34 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
   return (
     <SlideOver
       open
-      title={isNew ? 'Novo Documento' : 'Editar Documento'}
+      title={readOnly ? 'Visualizar Documento' : (isNew ? 'Novo Documento' : 'Editar Documento')}
       subtitle={isNew ? 'Adicione um documento ao repositório' : draft.title}
       onClose={onClose}
-      showFooter
-      onSave={handleSave}
+      showFooter={!readOnly}
+      onSave={readOnly ? undefined : handleSave}
       saveLabel={saving ? 'Salvando…' : (isNew ? 'Cadastrar' : 'Salvar')}
-      cancelLabel="Cancelar"
-      onDelete={!isNew ? () => { onSave(null, draft.id); onClose() } : undefined}
+      cancelLabel={readOnly ? 'Fechar' : 'Cancelar'}
+      onDelete={(!isNew && !readOnly) ? () => { onSave(null, draft.id); onClose() } : undefined}
       deleteConfirm="Excluir este documento? Esta ação não pode ser desfeita."
     >
       <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px', gap: 0 }}>
         <FormSection label="Identificação">
           <FormGrid cols={1}>
             <FormField label="Título" required>
-              <input style={inp} value={draft.title} onChange={e => set('title', e.target.value)} placeholder="Nome do documento" autoFocus />
+              <input style={inp} value={draft.title} onChange={e => set('title', e.target.value)} placeholder="Nome do documento" autoFocus disabled={readOnly} />
             </FormField>
             <FormField label="Descrição">
-              <textarea style={{ ...inp, resize: 'vertical', minHeight: 72 }} value={draft.description || ''} onChange={e => set('description', e.target.value)} placeholder="Breve descrição do conteúdo…" rows={3} />
+              <textarea style={{ ...inp, resize: 'vertical', minHeight: 72 }} value={draft.description || ''} onChange={e => set('description', e.target.value)} placeholder="Breve descrição do conteúdo…" rows={3} disabled={readOnly} />
             </FormField>
           </FormGrid>
           <FormGrid cols={2}>
             <FormField label="Categoria">
-              <select style={inp} value={draft.categoria} onChange={e => set('categoria', e.target.value)}>
+              <select style={inp} value={draft.categoria} onChange={e => set('categoria', e.target.value)} disabled={readOnly}>
                 {Object.entries(CATEGORIA_CFG).map(([k, v]) => <option key={k} value={k}>{v.icon} {v.label}</option>)}
               </select>
             </FormField>
             <FormField label="Status">
-              <select style={inp} value={draft.status} onChange={e => set('status', e.target.value)}>
+              <select style={inp} value={draft.status} onChange={e => set('status', e.target.value)} disabled={readOnly}>
                 {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </FormField>
@@ -210,10 +210,10 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
         <FormSection label="Datas de Controle">
           <FormGrid cols={2}>
             <FormField label="Prazo de Validade">
-              <input type="date" style={inp} value={draft.prazo_validade || ''} onChange={e => set('prazo_validade', e.target.value)} />
+              <input type="date" style={inp} value={draft.prazo_validade || ''} onChange={e => set('prazo_validade', e.target.value)} disabled={readOnly} />
             </FormField>
             <FormField label="Data de Revisão">
-              <input type="date" style={inp} value={draft.data_revisao || ''} onChange={e => set('data_revisao', e.target.value)} />
+              <input type="date" style={inp} value={draft.data_revisao || ''} onChange={e => set('data_revisao', e.target.value)} disabled={readOnly} />
             </FormField>
           </FormGrid>
         </FormSection>
@@ -221,7 +221,7 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
         <FormSection label="Conteúdo do Documento">
           <FormGrid cols={1}>
             <FormField label="Link externo">
-              <input type="url" style={inp} value={draft.link_externo || ''} onChange={e => set('link_externo', e.target.value)} placeholder="https://drive.google.com/…" />
+              <input type="url" style={inp} value={draft.link_externo || ''} onChange={e => set('link_externo', e.target.value)} placeholder="https://drive.google.com/…" disabled={readOnly} />
             </FormField>
           </FormGrid>
           <div style={{ marginTop: 8 }}>
@@ -234,9 +234,9 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
                   {draft.file_size && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtBytes(draft.file_size)}</div>}
                 </div>
                 <a href={draft.file_url} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', fontWeight: 600 }}>Abrir</a>
-                <button onClick={handleRemoveFile} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 13, padding: '2px 6px', fontFamily: 'var(--font)' }}>✕ Remover</button>
+                {!readOnly && <button onClick={handleRemoveFile} style={{ background: 'none', border: 'none', color: '#EF4444', cursor: 'pointer', fontSize: 13, padding: '2px 6px', fontFamily: 'var(--font)' }}>✕ Remover</button>}
               </div>
-            ) : (
+            ) : !readOnly ? (
               <div
                 onClick={() => fileInputRef.current?.click()}
                 style={{ border: '2px dashed var(--border)', borderRadius: 10, padding: '24px 16px', textAlign: 'center', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, transition: 'border-color 0.15s' }}
@@ -246,10 +246,13 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
                 {uploading ? 'Enviando…' : '📎 Clique para anexar um arquivo'}
                 <input ref={fileInputRef} type="file" style={{ display: 'none' }} onChange={e => handleFileSelect(e.target.files?.[0])} />
               </div>
+            ) : (
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum arquivo anexado</div>
             )}
           </div>
         </FormSection>
 
+        {!readOnly && (
         <FormSection label="Controle de Acesso">
           <FormField label="Perfis com acesso" hint="Se nenhum for selecionado, todos têm acesso.">
             <PerfilMultiSelect
@@ -259,6 +262,7 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile }) {
             />
           </FormField>
         </FormSection>
+        )}
 
         {!isNew && (
           <div style={{ padding: '10px 0', fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
@@ -422,7 +426,7 @@ export default function Documentos() {
         onSearchChange={setSearch}
         keyField="id"
         storageKey="documentos_browse"
-        onRowClick={isParceiro ? undefined : row => setDrawer(row)}
+        onRowClick={row => setDrawer(row)}
         onNew={isParceiro ? undefined : () => setDrawer('novo')}
         newLabel="Novo Documento"
         kpis={kpisNode}
@@ -510,6 +514,7 @@ export default function Documentos() {
           onSave={handleSave}
           uploadFile={uploadFile}
           removeFile={removeFile}
+          readOnly={isParceiro}
         />
       )}
     </>

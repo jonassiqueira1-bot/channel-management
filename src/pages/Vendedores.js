@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
+import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -142,6 +143,7 @@ const EMPTY_FORM = {
   franquia_id: null, franquia_nome: '',
   meta_mensal: '', observacoes: '',
   linkedin_url: '', whatsapp: '',
+  funil_id: null,
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -175,6 +177,8 @@ function RoleBadge({ role }) {
 // ─── SlideOver de Cadastro ────────────────────────────────────────────────────
 function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInvite, franquiasOpts = [], todos = [] }) {
   const isNew = !initial?.id
+  const { funis } = useFunnels()
+  const funisAtivos = funis.filter(f => f.status === 'ativo')
   const [form, setForm] = useState(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
@@ -270,6 +274,13 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
 
         <FormField label="Meta mensal (R$)">
           <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
+        </FormField>
+
+        <FormField label="Funil de acesso (Portal)">
+          <select className="so-field" value={form.funil_id || ''} onChange={e => set('funil_id', e.target.value || null)}>
+            <option value="">Todos os funis</option>
+            {funisAtivos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
         </FormField>
 
         <FormField label="LinkedIn">

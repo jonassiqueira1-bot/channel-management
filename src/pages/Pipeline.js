@@ -54,6 +54,8 @@ import SlideOver from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
+import { useProfile } from '../hooks/useProfile'
+import { supabase } from '../lib/supabase'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
@@ -3750,7 +3752,7 @@ function FechamentoModal({ opp, onClose }) {
 }
 
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
-function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade }) {
+function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade, defaultResponsavel }) {
   const isEditing = !!initial
   const { funis } = useFunnels()
   const [tab, setTab]       = useState('dados')
@@ -3773,7 +3775,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
           custom_fields: { tipo_implantacao:'', segmento_industria:'', exige_integracao:false, ...(initial.custom_fields || {}) } }
-      : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [] }
+      : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [], responsavel: defaultResponsavel || '' }
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [moverFunilPopup, setMoverFunilPopup] = useState(null) // { novoFunil, etapaId }
@@ -5823,8 +5825,24 @@ function FiltrosPanel({
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Pipeline() {
   // ── estado persistido em localStorage ───────────────────────────────────
+  const { profile } = useProfile()
+  const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
+  const [partnerFunilId, setPartnerFunilId] = useState(null)
+  const [partnerNome, setPartnerNome]       = useState('')
+
+  useEffect(() => {
+    if (!isParceiro || !profile?.contact_id) return
+    supabase.from('sellers').select('funil_id, nome').eq('id', profile.contact_id).single()
+      .then(({ data }) => {
+        if (data?.funil_id) setPartnerFunilId(data.funil_id)
+        if (data?.nome)     setPartnerNome(data.nome)
+      })
+  }, [isParceiro, profile?.contact_id])
+
   const { funis: todosOsFunis } = useFunnels()
-  const FUNIS_ATIVOS = todosOsFunis.filter(f => f.status === 'ativo')
+  const FUNIS_ATIVOS = (isParceiro && partnerFunilId)
+    ? todosOsFunis.filter(f => f.status === 'ativo' && String(f.id) === String(partnerFunilId))
+    : todosOsFunis.filter(f => f.status === 'ativo')
   const funis        = FUNIS_ATIVOS  // alias conveniente para uso no handleSave
   const funilPadrao  = FUNIS_ATIVOS.find(f => f.is_padrao) || FUNIS_ATIVOS[0]
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
@@ -5846,6 +5864,11 @@ export default function Pipeline() {
   const [filterCF, setFilterCF]                   = useLocalState('pipeline:filterCF', {})
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
+  // Quando parceiro tem funil definido, força o funil ativo para o dele
+  useEffect(() => {
+    if (partnerFunilId) setFunilAtivo(String(partnerFunilId))
+  }, [partnerFunilId])
+
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
   const { registrar: log } = useAuditLog()
@@ -6272,6 +6295,7 @@ export default function Pipeline() {
           onDelete={handleDelete}
           onFechamento={handleFechamento}
           initial={modal._new ? null : modal}
+          defaultResponsavel={partnerNome || undefined}
           etapas={etapas}
           funilId={funilAtivo}
           tarefas={tarefas}
