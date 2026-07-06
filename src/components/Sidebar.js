@@ -374,9 +374,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
 
               {/* ── Itens do grupo ── */}
               {(collapsed || open) && group.items.filter(item =>
-                item.path === '/settings'
-                  ? rotasPermitidas === null // só admin vê settings
-                  : rotasPermitidas === null || rotasPermitidas.includes(item.path)
+                rotasPermitidas === null || rotasPermitidas.includes(item.path)
               ).map((item, iIdx) => {
                 const Icon            = ICON_MAP[item.iconKey]
                 const isBeingDragged  = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx

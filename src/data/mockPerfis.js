@@ -85,7 +85,7 @@ export const PAPEIS_ROTAS = {
   financeiro: ['/comissoes', '/pagamentos', '/contratos'],
   cs:         ['/customer-success'],
   projetos:   ['/projetos'],
-  parceiro:   ['/pipeline', '/playbooks', '/documentos'],
+  parceiro:   ['/pipeline', '/playbooks', '/documentos', '/settings'],
 }
 
 export const STATUS_CONFIG = {
