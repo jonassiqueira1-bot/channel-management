@@ -7,7 +7,16 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(undefined)
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    // getUser() valida o JWT contra o servidor — detecta usuários deletados
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (error || !data?.user) {
+        supabase.auth.signOut()
+        setSession(null)
+      } else {
+        supabase.auth.getSession().then(({ data }) => setSession(data.session))
+      }
+    })
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
     })
