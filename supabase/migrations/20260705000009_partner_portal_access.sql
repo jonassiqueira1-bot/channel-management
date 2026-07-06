@@ -59,13 +59,12 @@ CREATE TRIGGER on_partner_invite_confirm
 -- Sem RESTRICTIVE, o parceiro herdaria acesso de policies mais amplas (tenant_id) via OR
 DO $$
 DECLARE
-  _check text := $$
-    NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro')
-    OR (
-      EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'parceiro' AND contact_id IS NOT NULL)
-      AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)
-    )
-  $$;
+  _check text :=
+    'NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = ''parceiro'')' ||
+    ' OR (' ||
+    '  EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = ''parceiro'' AND contact_id IS NOT NULL)' ||
+    '  AND responsavel = (SELECT nome FROM public.sellers WHERE id = my_contact_id() LIMIT 1)' ||
+    ')';
 BEGIN
   -- Para DEV (tabela oportunidades direta)
   IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name='oportunidades') THEN
