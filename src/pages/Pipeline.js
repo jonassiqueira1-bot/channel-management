@@ -154,7 +154,7 @@ const EMPTY_OPP = {
   playbook_id: null,
   campanha_id: null,
   situacao:'em_andamento', motivo_perda:'',
-  custom_fields: { tipo_implantacao:'', segmento_industria:'', exige_integracao:false },
+  custom_fields: {},
 }
 
 // ─── Autocomplete de Seller/Responsável ──────────────────────────────────────
@@ -3774,7 +3774,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           campanha_id: initial.campanha_id || null,
           funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
-          custom_fields: { tipo_implantacao:'', segmento_industria:'', exige_integracao:false, ...(initial.custom_fields || {}) } }
+          custom_fields: { ...(initial.custom_fields || {}) } }
       : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [], responsavel: defaultResponsavel || '' }
   )
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -3953,27 +3953,10 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       case 'valor_servico':
       case 'valor_desconto':
         return null
-      case 'tipo_implantacao':
-        return <select style={m.input} value={form.custom_fields?.tipo_implantacao || ''} onChange={e => setCustomField('tipo_implantacao', e.target.value)}>
-          <option value="">—</option>
-          {['Padrão','Customizada','Expressa'].map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-      case 'segmento_industria':
-        return <input style={m.input} value={form.custom_fields?.segmento_industria || ''} onChange={e => setCustomField('segmento_industria', e.target.value)} placeholder="Ex: Tecnologia, Saúde…" />
-      case 'exige_integracao':
-        return (
-          <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)' }}>
-            <input type="checkbox" checked={!!form.custom_fields?.exige_integracao} onChange={e => setCustomField('exige_integracao', e.target.checked)}
-              style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
-            <span style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>Sim</span>
-          </label>
-        )
       case 'motivo_perda':
         return form.situacao === 'perdida'
           ? <MotivoPerdaField value={form.motivo_perda} onChange={v => set('motivo_perda', v)} />
           : null
-      case 'descricao':
-        return <textarea style={{ ...m.input, minHeight:72, resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Observações sobre a oportunidade…" />
       default: {
         // Campos de Referência (lookup) criados em Configuração de Campos
         if (field?.field_type === 'lookup' && field.lookup_target) {
