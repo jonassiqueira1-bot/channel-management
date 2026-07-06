@@ -75,6 +75,20 @@ serve(async (req) => {
       console.error('[invite-user] auth/v1/invite error:', inviteRes.status, errBody)
       let errMsg = errBody
       try { errMsg = JSON.parse(errBody)?.msg || JSON.parse(errBody)?.message || errBody } catch {}
+
+      // Usuário já existe: vincula o profile existente ao contato canal
+      if (inviteRes.status === 422 || errMsg?.toLowerCase().includes('already been registered') || errMsg?.toLowerCase().includes('already registered')) {
+        const { data: existingUsers } = await admin.auth.admin.listUsers()
+        const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
+        if (existingUser) {
+          await admin.from('profiles').update({
+            contact_id: contact_id || null,
+            role: papel || 'parceiro',
+          }).eq('id', existingUser.id)
+          return json({ ok: true, linked: true })
+        }
+      }
+
       return json({ error: errMsg }, 400)
     }
 
