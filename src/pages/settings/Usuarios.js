@@ -904,18 +904,20 @@ export default function SettingsUsuarios() {
   // Filtro RLS simulado
   const perfisFiltradosSessao = useMemo(() => filtrarPorSessao(perfis, sessao), [perfis, sessao])
 
-  // Convites pendentes exibidos como linhas com status 'pendente'
-  const inviteRows = invites.map(i => ({
-    id: i.id,
-    nome: i.nome,
-    email: i.email,
-    papel: i.papel,
-    tipo_usuario: i.tipo_usuario,
-    status: 'pendente',
-    criado_em: i.criado_em,
-    ultimo_acesso: null,
-    _invite: true,
-  }))
+  // Convites pendentes exibidos como linhas — excluir aceitos (já aparecem como perfis reais)
+  const inviteRows = invites
+    .filter(i => i.status !== 'aceito')
+    .map(i => ({
+      id: i.id,
+      nome: i.nome,
+      email: i.email,
+      papel: i.papel,
+      tipo_usuario: i.tipo_usuario,
+      status: i.status || 'pendente',
+      criado_em: i.criado_em,
+      ultimo_acesso: null,
+      _invite: true,
+    }))
 
   const lista = [...perfisFiltradosSessao, ...inviteRows]
 
