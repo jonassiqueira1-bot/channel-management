@@ -78,11 +78,17 @@ export function useProfile() {
         return
       }
 
+      // Usuário desativado: forçar logout imediatamente
+      if (prof.status === 'inativo') {
+        await supabase.auth.signOut()
+        return
+      }
+
       const hydrated = {
         ...prof,
         email:  session.user.email,
         avatar: initials(prof.nome),
-        papel:  prof.role || prof.papel || 'admin_isv',
+        papel:  prof.role || prof.papel || 'vendedor',
       }
       setProfile(hydrated)
 
