@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } from 'react-router-dom'
+import { useProfile } from '../hooks/useProfile'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
   ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network,
@@ -93,13 +94,13 @@ function NavItemCollapsed({ item }) {
   )
 }
 
-function SettingsOverview() {
+function SettingsOverview({ sections }) {
   const navigate = useNavigate()
   return (
     <div style={{ padding: '32px 40px', overflowY: 'auto', height: '100%', boxSizing: 'border-box' }}>
       <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px', letterSpacing: '-0.3px' }}>Configurações</h1>
       <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 32px' }}>Gerencie as configurações da plataforma, usuários, regras e integrações.</p>
-      {SECTIONS.map(sec => (
+      {sections.map(sec => (
         <div key={sec.label} style={{ marginBottom: 32 }}>
           <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-muted)', marginBottom: 12 }}>
             {sec.label}
@@ -132,6 +133,12 @@ function SettingsOverview() {
 export default function Settings() {
   const atRoot = useMatch('/settings')
   const [collapsed, setCollapsed] = useLocalState('settings:collapsed', false)
+  const { profile } = useProfile()
+  const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
+
+  const visibleSections = isAdmin
+    ? SECTIONS
+    : [{ label: 'Geral', items: [{ path: '/settings/conta', label: 'Minha Conta', Icon: SECTIONS[0].items[1].Icon }] }]
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0, background: 'var(--surface)' }}>
@@ -169,7 +176,7 @@ export default function Settings() {
         {/* Nav items — ocultos quando recolhido */}
         {!collapsed && (
           <nav style={s.nav}>
-            {SECTIONS.map(sec => (
+            {visibleSections.map(sec => (
               <div key={sec.label} style={s.section}>
                 <div style={s.sectionLabel}>{sec.label}</div>
                 {sec.items.map(item => (
@@ -183,7 +190,7 @@ export default function Settings() {
         {/* Modo recolhido: só ícones */}
         {collapsed && (
           <nav style={{ padding: '8px 0' }}>
-            {SECTIONS.flatMap(sec => sec.items).map(item => (
+            {visibleSections.flatMap(sec => sec.items).map(item => (
               <NavItemCollapsed key={item.path} item={item} />
             ))}
           </nav>
@@ -192,7 +199,7 @@ export default function Settings() {
 
       {/* ── Right content ── */}
       <div style={s.content}>
-        {atRoot ? <SettingsOverview /> : <Outlet />}
+        {atRoot ? <SettingsOverview sections={visibleSections} /> : <Outlet />}
       </div>
     </div>
   )
