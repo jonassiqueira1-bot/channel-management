@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { supabase } from '../lib/supabase'
 import logoBoostly from '../assets/logo-boostly.svg'
 
 export default function Login() {
@@ -8,17 +9,35 @@ export default function Login() {
   const [password, setPassword] = useState('')
   const [error, setError]       = useState('')
   const [loading, setLoading]   = useState(false)
+  const [inviteMode, setInviteMode] = useState(false)
   const { signIn }  = useAuth()
   const navigate    = useNavigate()
+
+  // Detecta fluxo de convite pelo hash da URL
+  useEffect(() => {
+    const hash = window.location.hash
+    if (hash.includes('type=invite') || hash.includes('type=recovery')) {
+      setInviteMode(true)
+      // Supabase já processa o token do hash automaticamente via onAuthStateChange
+    }
+  }, [])
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setLoading(true)
-    const { error } = await signIn(email, password)
-    setLoading(false)
-    if (error) setError('E-mail ou senha inválidos.')
-    else navigate('/dashboard')
+    if (inviteMode) {
+      // Define a senha para o usuário convidado (já está autenticado via token do hash)
+      const { error } = await supabase.auth.updateUser({ password })
+      setLoading(false)
+      if (error) setError('Erro ao definir senha: ' + error.message)
+      else navigate('/dashboard')
+    } else {
+      const { error } = await signIn(email, password)
+      setLoading(false)
+      if (error) setError('E-mail ou senha inválidos.')
+      else navigate('/dashboard')
+    }
   }
 
   return (
@@ -54,40 +73,53 @@ export default function Login() {
       {/* Painel direito */}
       <div style={s.right}>
         <div style={s.formWrap}>
-          <h2 style={s.formTitle}>Acesse sua conta</h2>
+          <h2 style={s.formTitle}>{inviteMode ? 'Crie sua senha' : 'Acesse sua conta'}</h2>
+          {inviteMode && (
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 20 }}>
+              Você foi convidado para o portal. Defina uma senha para ativar seu acesso.
+            </p>
+          )}
 
           <form onSubmit={handleSubmit} style={s.form}>
-            <div style={s.field}>
-              <label style={s.label}>E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="voce@empresa.com"
-                required
-                style={s.input}
-              />
-            </div>
+            {!inviteMode && (
+              <div style={s.field}>
+                <label style={s.label}>E-mail</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  placeholder="voce@empresa.com"
+                  required
+                  style={s.input}
+                />
+              </div>
+            )}
 
             <div style={s.field}>
-              <label style={s.label}>Senha</label>
+              <label style={s.label}>{inviteMode ? 'Nova senha' : 'Senha'}</label>
               <input
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 placeholder="••••••••"
                 required
+                minLength={inviteMode ? 8 : undefined}
                 style={s.input}
               />
+              {inviteMode && (
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                  Mínimo 8 caracteres
+                </span>
+              )}
             </div>
 
             {error && <p style={s.error}>{error}</p>}
 
             <button type="submit" disabled={loading} style={s.button}>
-              {loading ? 'Entrando…' : 'Entrar'}
+              {loading ? (inviteMode ? 'Salvando…' : 'Entrando…') : (inviteMode ? 'Ativar acesso' : 'Entrar')}
             </button>
 
-            <Link to="/forgot-password" style={s.forgot}>Esqueci minha senha</Link>
+            {!inviteMode && <Link to="/forgot-password" style={s.forgot}>Esqueci minha senha</Link>}
           </form>
         </div>
       </div>
