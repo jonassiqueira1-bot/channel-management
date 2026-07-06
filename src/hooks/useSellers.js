@@ -34,10 +34,11 @@ function rowToSeller(row) {
     franquia_nome: cf.franquia_nome || '',
     meta_mensal:   row.meta_mensal || 0,
     comissao_perc: row.comissao_perc || 0,
-    observacoes:   row.observacoes || '',
-    criado:        row.created_at?.slice(0, 10) || '',
-    linkedin_url:  cf.linkedin_url || '',
-    whatsapp:      cf.whatsapp || '',
+    observacoes:        row.observacoes || '',
+    criado:             row.created_at?.slice(0, 10) || '',
+    linkedin_url:       cf.linkedin_url || '',
+    whatsapp:           cf.whatsapp || '',
+    portal_invited_at:  row.portal_invited_at || null,
   }
 }
 
@@ -136,5 +137,19 @@ export function useSellers() {
     return { ok: true }
   }, [tenantId, branchId])
 
-  return { sellers, loading, reload: load, save, remove, bulkSetStatus, importMany, setFuncionarios: setSellers, isMock: isMockMode }
+  const inviteToPortal = useCallback(async (seller) => {
+    if (!seller.email) return { ok: false, message: 'Contato sem e-mail cadastrado.' }
+    // Envia convite via Supabase Auth (usuário define a própria senha)
+    const { error } = await supabase.auth.admin.inviteUserByEmail(seller.email, {
+      data: { contact_id: seller.id, role: 'parceiro' },
+    })
+    if (error) return { ok: false, message: error.message }
+    // Marca a data do convite no seller
+    const now = new Date().toISOString()
+    await supabase.from('sellers').update({ portal_invited_at: now }).eq('id', seller.id)
+    setSellers(prev => prev.map(s => s.id === seller.id ? { ...s, portal_invited_at: now } : s))
+    return { ok: true }
+  }, [])
+
+  return { sellers, loading, reload: load, save, remove, bulkSetStatus, importMany, inviteToPortal, setFuncionarios: setSellers, isMock: isMockMode }
 }

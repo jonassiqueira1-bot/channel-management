@@ -61,13 +61,13 @@
 //     AFTER UPDATE OF email ON auth.users
 //     FOR EACH ROW EXECUTE PROCEDURE sync_email_to_perfil();
 
-// Configuração de UI dos 5 papéis simplificados
 export const PAPEIS_CONFIG = {
   admin_isv:  { label: 'Administrador',     color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', icon: '★' },
   vendedor:   { label: 'Vendedor',          color: '#F59E0B', bg: '#FEF3C7', text: '#B45309', icon: '◉' },
   financeiro: { label: 'Financeiro',        color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '◈' },
   cs:         { label: 'Customer Success',  color: '#6366F1', bg: '#EEF2FF', text: '#4338CA', icon: '◑' },
   projetos:   { label: 'Projetos',          color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6', icon: '◆' },
+  parceiro:   { label: 'Parceiro',          color: '#0EA5E9', bg: '#E0F2FE', text: '#0369A1', icon: '◎' },
 }
 
 export const PAPEIS_OPTIONS = [
@@ -85,6 +85,7 @@ export const PAPEIS_ROTAS = {
   financeiro: ['/comissoes', '/pagamentos', '/contratos'],
   cs:         ['/customer-success'],
   projetos:   ['/projetos'],
+  parceiro:   ['/pipeline', '/playbooks', '/documentos'],
 }
 
 export const STATUS_CONFIG = {
