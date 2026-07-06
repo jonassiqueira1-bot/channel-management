@@ -76,15 +76,28 @@ serve(async (req) => {
       let errMsg = errBody
       try { errMsg = JSON.parse(errBody)?.msg || JSON.parse(errBody)?.message || errBody } catch {}
 
-      // Usuário já existe: vincula o profile existente ao contato canal
+      // Usuário já existe: vincula o profile e envia magic link para acesso
       if (inviteRes.status === 422 || errMsg?.toLowerCase().includes('already been registered') || errMsg?.toLowerCase().includes('already registered')) {
         const { data: existingUsers } = await admin.auth.admin.listUsers()
         const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
         if (existingUser) {
+          // Vincula contact_id e role ao profile existente
           await admin.from('profiles').update({
             contact_id: contact_id || null,
             role: papel || 'parceiro',
           }).eq('id', existingUser.id)
+
+          // Envia magic link para o usuário acessar
+          await fetch(`${SUPABASE_URL}/auth/v1/magiclink`, {
+            method: 'POST',
+            headers: {
+              'apikey':        SERVICE_ROLE_KEY,
+              'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+              'Content-Type':  'application/json',
+            },
+            body: JSON.stringify({ email }),
+          })
+
           return json({ ok: true, linked: true })
         }
       }
