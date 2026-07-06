@@ -139,11 +139,26 @@ export function useSellers() {
 
   const inviteToPortal = useCallback(async (seller) => {
     if (!seller.email) return { ok: false, message: 'Contato sem e-mail cadastrado.' }
-    // Envia convite via Supabase Auth (usuário define a própria senha)
-    const { error } = await supabase.auth.admin.inviteUserByEmail(seller.email, {
-      data: { contact_id: String(seller.id), role: 'parceiro' },
-    })
-    if (error) return { ok: false, message: error.message }
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(
+      `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/invite-user`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          email:      seller.email,
+          nome:       seller.nome,
+          papel:      'parceiro',
+          contact_id: seller.id,
+        }),
+      }
+    )
+    const json = await res.json()
+    if (!res.ok || json.error) return { ok: false, message: json.error || 'Erro ao enviar convite' }
     // Marca a data do convite no seller
     const now = new Date().toISOString()
     await supabase.from('sellers').update({ portal_invited_at: now }).eq('id', seller.id)

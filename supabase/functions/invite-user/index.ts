@@ -41,7 +41,7 @@ serve(async (req) => {
   if (!callerProfile?.tenant_id) return json({ error: 'Perfil não encontrado' }, 403)
 
   const body = await req.json()
-  const { email, nome, papel, tipo_usuario } = body
+  const { email, nome, papel, tipo_usuario, contact_id } = body
 
   if (!email) return json({ error: 'email é obrigatório' }, 400)
 
@@ -52,7 +52,10 @@ serve(async (req) => {
   const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
     type: 'invite',
     email,
-    options: { redirectTo: 'https://app.boostly.com.br/aceitar-convite' },
+    options: {
+      redirectTo: 'https://app.boostly.com.br/aceitar-convite',
+      data: contact_id ? { contact_id } : undefined,
+    },
   })
 
   if (linkErr) return json({ error: linkErr.message }, 400)
