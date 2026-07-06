@@ -81,11 +81,17 @@ serve(async (req) => {
         const { data: existingUsers } = await admin.auth.admin.listUsers()
         const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
         if (existingUser) {
-          // Vincula contact_id e role ao profile existente; branch_id null = sem restrição de filial
+          // Busca branch_id do seller vinculado
+          let sellerBranchId: string | null = null
+          if (contact_id) {
+            const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
+            sellerBranchId = seller?.branch_id || null
+          }
+          // Vincula contact_id, role e branch_id do seller ao profile existente
           await admin.from('profiles').update({
             contact_id: contact_id || null,
             role:       papel || 'parceiro',
-            branch_id:  null,
+            branch_id:  sellerBranchId,
           }).eq('id', existingUser.id)
 
           // Envia magic link para o usuário acessar

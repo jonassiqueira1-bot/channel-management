@@ -9,13 +9,17 @@ SET search_path = public
 AS $$
 DECLARE
   _contact_id uuid;
+  _branch_id  uuid;
 BEGIN
   _contact_id := (NEW.raw_user_meta_data->>'contact_id')::uuid;
   IF _contact_id IS NOT NULL THEN
+    -- Busca a branch do seller vinculado
+    SELECT branch_id INTO _branch_id FROM public.sellers WHERE id = _contact_id LIMIT 1;
+
     UPDATE public.profiles
     SET contact_id = _contact_id,
         role       = 'parceiro',
-        branch_id  = NULL
+        branch_id  = _branch_id
     WHERE id = NEW.id;
   END IF;
 
