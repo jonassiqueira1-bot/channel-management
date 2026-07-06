@@ -12,18 +12,30 @@ export default function AceitarConvite() {
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Supabase processa o hash automaticamente via onAuthStateChange
-    // Precisamos aguardar a sessão ser estabelecida
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        setReady(true)
-      } else {
-        // Aguarda o evento de autenticação vindo do hash
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-          if (session) { setReady(true); subscription.unsubscribe() }
+    const params = new URLSearchParams(window.location.search)
+    const tokenHash = params.get('token_hash')
+    const type      = params.get('type') // 'invite' ou 'recovery'
+
+    if (tokenHash) {
+      // PKCE flow: troca o token_hash por sessão
+      supabase.auth.verifyOtp({ token_hash: tokenHash, type: type || 'invite' })
+        .then(({ data, error }) => {
+          if (error) setError('Link inválido ou expirado: ' + error.message)
+          else if (data?.session) setReady(true)
         })
-      }
-    })
+    } else {
+      // Implicit flow: sessão vem via hash fragment (#access_token=...)
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          setReady(true)
+        } else {
+          const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (session) { setReady(true); subscription.unsubscribe() }
+          })
+          return () => subscription.unsubscribe()
+        }
+      })
+    }
   }, [])
 
   async function handleSubmit(e) {
@@ -54,7 +66,12 @@ export default function AceitarConvite() {
 
   if (!ready) return (
     <div style={s.page}>
-      <div style={s.spinner}>Verificando convite…</div>
+      <div style={s.spinner}>
+        {error
+          ? <span style={{ color: '#DC2626' }}>{error}</span>
+          : 'Verificando convite…'
+        }
+      </div>
     </div>
   )
 
