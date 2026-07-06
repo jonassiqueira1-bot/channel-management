@@ -6315,7 +6315,7 @@ export default function Pipeline() {
       )}
 
       {/* ── Modais ── */}
-      {modal && funil && (
+      {modal && (funil || FUNIS_ATIVOS.length > 0) && (
         <OppModal
           onClose={()=>setModal(null)}
           onSave={handleSave}
@@ -6326,7 +6326,7 @@ export default function Pipeline() {
           isParceiro={isParceiro}
           partnerSellerId={isParceiro ? String(profile?.contact_id || '') : undefined}
           etapas={etapas}
-          funilId={funilAtivo}
+          funilId={funilAtivo || FUNIS_ATIVOS[0]?.id}
           tarefas={tarefas}
           onSaveTarefa={handleSaveTarefa}
           onToggleStatus={handleToggleStatus}
