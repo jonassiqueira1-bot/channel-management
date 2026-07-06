@@ -1,0 +1,267 @@
+[
+  {
+    "title": "O que é o Boostly?",
+    "path": "/docs/intro",
+    "excerpt": "title: O que é o Boostly? O **Boostly** é uma plataforma de gestão de canais de vendas white-label, desenvolvida para ISVs (Independent Software Vendors) que pr"
+  },
+  {
+    "title": "Primeiros Passos",
+    "path": "/docs/primeiros-passos",
+    "excerpt": "title: Primeiros Passos Acesse [boostly.com.br](https://boostly.com.br) e faça login com as credenciais fornecidas pelo seu administrador."
+  },
+  {
+    "title": "Ações de Canal",
+    "path": "/docs/modulos/acoes",
+    "excerpt": "Registro e acompanhamento de ações operacionais direcionadas aos parceiros — treinamentos, eventos, webinars, visitas e campanhas. Diferente das Tarefas (foco i"
+  },
+  {
+    "title": "Campanhas",
+    "path": "/docs/modulos/campanhas",
+    "excerpt": "Gerenciamento de campanhas de incentivo para motivar o canal de vendas com metas, prêmios e rankings. Permite criar competições por período com critérios de pon"
+  },
+  {
+    "title": "Comissões",
+    "path": "/docs/modulos/comissoes",
+    "excerpt": "Gerencia as regras de cálculo de comissões e o histórico de pagamentos de repasse aos vendedores e parceiros. As comissões são geradas automaticamente ao confir"
+  },
+  {
+    "title": "Contatos",
+    "path": "/docs/modulos/contatos",
+    "excerpt": "Cadastro de pessoas físicas vinculadas às empresas parceiras — decisores, influenciadores e pontos de contato comercial. Lista de contatos com: Nome, Empresa vi"
+  },
+  {
+    "title": "Contratos",
+    "path": "/docs/modulos/contratos",
+    "excerpt": "Gestão dos contratos firmados com os parceiros. Vinculado ao Pipeline — um contrato pode ser gerado a partir de uma oportunidade ganha. Lista de contratos com: "
+  },
+  {
+    "title": "Customer Success",
+    "path": "/docs/modulos/customer-success",
+    "excerpt": "Acompanha a saúde dos clientes pós-venda usando o framework LAER (Land, Adopt, Expand, Renew). Cada parceiro tem um health score, plano de ação e histórico de c"
+  },
+  {
+    "title": "Dashboard",
+    "path": "/docs/modulos/dashboard",
+    "excerpt": "Painel visual e personalizável com indicadores de desempenho do canal. Cada usuário pode montar seu próprio layout com os KPIs que considera mais relevantes. To"
+  },
+  {
+    "title": "Documentos",
+    "path": "/docs/modulos/documentos",
+    "excerpt": "Repositório de documentos compartilhados com os parceiros — contratos modelo, materiais de venda, manuais e outros arquivos relevantes para o canal. Lista de do"
+  },
+  {
+    "title": "Empresas Parceiras",
+    "path": "/docs/modulos/empresas",
+    "excerpt": "Cadastro das empresas do canal — revendedores, distribuidores e integradores. É o ponto de vínculo entre oportunidades, contratos e projetos. Lista de empresas "
+  },
+  {
+    "title": "Fechamento de Horas",
+    "path": "/docs/modulos/fechamento-horas",
+    "excerpt": "Registro e fechamento das horas trabalhadas pelos membros da equipe nos projetos. Permite controlar o tempo alocado por projeto e gerar relatórios de produtivid"
+  },
+  {
+    "title": "Franquias",
+    "path": "/docs/modulos/franquias",
+    "excerpt": "Visão consolidada das empresas parceiras com análise de maturidade, oportunidades vinculadas e histórico de relacionamento. Complementa o cadastro de `/empresas"
+  },
+  {
+    "title": "Metas",
+    "path": "/docs/modulos/metas",
+    "excerpt": "Acompanhamento em tempo real do progresso das metas definidas em `/settings/metas`. Exibe o realizado versus o alvo com visualização mensal e barras de progress"
+  },
+  {
+    "title": "Pagamentos",
+    "path": "/docs/modulos/pagamentos",
+    "excerpt": "Controle dos pagamentos e cobranças vinculados aos contratos. Registra recebimentos, gera provisões e processa comissões automaticamente ao confirmar um pagamen"
+  },
+  {
+    "title": "Portal do Parceiro",
+    "path": "/docs/modulos/parceiros",
+    "excerpt": "Visão do ISV sobre o acesso e atividade dos usuários parceiros. Permite acompanhar quais contatos de canal têm acesso ativo ao portal e seu engajamento. Lista d"
+  },
+  {
+    "title": "Pipeline de Vendas",
+    "path": "/docs/modulos/pipeline",
+    "excerpt": "Gerencia as oportunidades de venda em formato kanban, organizadas por funil e etapas. É o módulo central do ciclo comercial do canal. Kanban com colunas represe"
+  },
+  {
+    "title": "Playbooks",
+    "path": "/docs/modulos/playbooks",
+    "excerpt": "Biblioteca de roteiros de venda estruturados em etapas. Cada playbook pode ser vinculado a uma oportunidade no Pipeline para guiar o vendedor durante a negociaç"
+  },
+  {
+    "title": "Projetos",
+    "path": "/docs/modulos/projetos",
+    "excerpt": "Gestão de projetos de implementação pós-venda em formato kanban, com fases baseadas na metodologia MIT. Vinculado ao Pipeline — projetos podem ser criados autom"
+  },
+  {
+    "title": "Questionários",
+    "path": "/docs/modulos/questionarios",
+    "excerpt": "Criação e aplicação de formulários estruturados para coleta de informações dos parceiros — diagnósticos, pesquisas de satisfação, qualificações e onboarding. Li"
+  },
+  {
+    "title": "Relatórios",
+    "path": "/docs/modulos/relatorios",
+    "excerpt": "Geração de relatórios customizáveis sobre dados do canal. Permite criar, salvar e exportar relatórios de pipeline, comissões, projetos e outros módulos. Lista d"
+  },
+  {
+    "title": "Tarefas",
+    "path": "/docs/modulos/tarefas",
+    "excerpt": "Central de tarefas do canal. Concentra todas as atividades pendentes — criadas manualmente ou geradas automaticamente por alertas — vinculadas a oportunidades, "
+  },
+  {
+    "title": "Contatos de Canal",
+    "path": "/docs/modulos/vendedores",
+    "excerpt": "Cadastro dos contatos de canal — pessoas físicas que representam os parceiros e podem ser convidadas a acessar o Portal do Parceiro. São o ponto de partida para"
+  },
+  {
+    "title": "Alertas",
+    "path": "/docs/configuracoes/alertas",
+    "excerpt": "Cria regras automáticas que monitoram dados do sistema e disparam notificações no painel, e-mails ou tarefas quando as condições definidas são atendidas. Lista "
+  },
+  {
+    "title": "Campanhas de Incentivo",
+    "path": "/docs/configuracoes/campanhas",
+    "excerpt": "Cria e gerencia campanhas de incentivo direcionadas aos parceiros do canal — SPIFs, concursos de vendas, campanhas sazonais e outras iniciativas de engajamento."
+  },
+  {
+    "title": "Compartilhamento entre Filiais",
+    "path": "/docs/configuracoes/compartilhamento",
+    "excerpt": "Define regras que permitem filiais da mesma organização visualizarem ou editarem dados umas das outras em módulos específicos. Lista de regras de compartilhamen"
+  },
+  {
+    "title": "Configuração de Campos",
+    "path": "/docs/configuracoes/config-campos",
+    "excerpt": "Editor visual de formulários que permite personalizar os campos e seções exibidos em cada entidade do sistema — oportunidades, empresas, contatos, etc. As alter"
+  },
+  {
+    "title": "Empresa / ISV",
+    "path": "/docs/configuracoes/empresa",
+    "excerpt": "Gerencia os dados do ISV (empresa detentora da plataforma) e suas unidades/filiais. É aqui que se configura a identidade visual white-label aplicada a cada unid"
+  },
+  {
+    "title": "Equipes",
+    "path": "/docs/configuracoes/equipes",
+    "excerpt": "Agrupa usuários em equipes para acompanhar métricas, metas e desempenho coletivo. As equipes podem ser vinculadas a metas em `/settings/metas`. Lista de equipes"
+  },
+  {
+    "title": "Funis de Vendas",
+    "path": "/docs/configuracoes/funis",
+    "excerpt": "Configura os funis do Pipeline de Vendas — cada funil tem suas próprias etapas e representa um fluxo de negociação diferente (ex: Venda Direta, Venda via Canal,"
+  },
+  {
+    "title": "Habilitações",
+    "path": "/docs/configuracoes/habilitacoes",
+    "excerpt": "Define os tipos de habilitação que podem ser atribuídos aos parceiros — certificações, autorizações ou qualificações que um parceiro precisa ter para comerciali"
+  },
+  {
+    "title": "Indicadores",
+    "path": "/docs/configuracoes/indicadores",
+    "excerpt": "Define os indicadores de desempenho (KPIs) que serão monitorados no sistema. Os indicadores são a base para criação de metas em `/settings/metas`. Lista de indi"
+  },
+  {
+    "title": "Integrações",
+    "path": "/docs/configuracoes/integracoes",
+    "excerpt": "Conecta o Boostly a sistemas externos para sincronização automática de leads, oportunidades e notificações. Cada integração tem seu próprio fluxo de configuraçã"
+  },
+  {
+    "title": "Logs de Auditoria",
+    "path": "/docs/configuracoes/logs",
+    "excerpt": "Registro completo de todas as ações realizadas no sistema — criações, edições, exclusões e eventos automáticos. Permite rastrear quem fez o quê e quando. Lista "
+  },
+  {
+    "title": "Maturidade de Parceiros",
+    "path": "/docs/configuracoes/maturidade-parceiros",
+    "excerpt": "Define os critérios que calculam o **score de maturidade** de cada parceiro. Cada critério tem um peso em pontos — a soma dos pesos ativos forma o score máximo "
+  },
+  {
+    "title": "Metas e KPIs",
+    "path": "/docs/configuracoes/metas",
+    "excerpt": "Define as metas atribuídas a usuários ou equipes com base nos indicadores configurados. As metas são acompanhadas em tempo real no módulo `/metas`. Lista de met"
+  },
+  {
+    "title": "Minha Conta",
+    "path": "/docs/configuracoes/minha-conta",
+    "excerpt": "Permite ao usuário visualizar e editar seus próprios dados pessoais, alterar senha e fazer upload de foto de perfil. Também exibe um resumo somente leitura dos "
+  },
+  {
+    "title": "Parceiros",
+    "path": "/docs/configuracoes/parceiros",
+    "excerpt": "Cadastro e gestão das empresas parceiras (franquias, revendedores, distribuidores) vinculadas ao ISV. Define a hierarquia entre parceiros e suas unidades. Lista"
+  },
+  {
+    "title": "Perfis de Acesso",
+    "path": "/docs/configuracoes/perfis-acesso",
+    "excerpt": "Define perfis de permissão granular que controlam o que cada usuário pode visualizar, criar, editar ou excluir em cada módulo do sistema. Os perfis são atribuíd"
+  },
+  {
+    "title": "Produtos",
+    "path": "/docs/configuracoes/produtos",
+    "excerpt": "Catálogo de produtos e serviços comercializados pelo canal. Os produtos são usados no Pipeline (itens de oportunidade), Contratos e Comissões. Lista de produtos"
+  },
+  {
+    "title": "Tipos de Atividades",
+    "path": "/docs/configuracoes/tipos-acoes",
+    "excerpt": "Categorias customizáveis usadas no cadastro de Ações de Canal e Tarefas. Permite criar tipos com nome, ícone e cor próprios para refletir a nomenclatura do ISV."
+  },
+  {
+    "title": "Usuários",
+    "path": "/docs/configuracoes/usuarios",
+    "excerpt": "Gerencia todos os usuários com acesso à plataforma — tanto internos (equipe do ISV) quanto externos (parceiros convidados). Permite convidar novos usuários, edi"
+  },
+  {
+    "title": "Aceitar Convite",
+    "path": "/docs/publico/aceitar-convite",
+    "excerpt": "Tela de ativação de conta para usuários recém-convidados. É o primeiro acesso após receber um convite do administrador ou do ISV. Qualquer pessoa que recebeu um"
+  },
+  {
+    "title": "Login",
+    "path": "/docs/publico/login",
+    "excerpt": "Tela de entrada da plataforma. Permite que qualquer usuário convidado acesse o sistema com suas credenciais. Qualquer pessoa com cadastro ativo na plataforma."
+  },
+  {
+    "title": "Recuperar Senha",
+    "path": "/docs/publico/recuperar-senha",
+    "excerpt": "Fluxo de redefinição de senha para usuários que esqueceram suas credenciais. Qualquer usuário com conta ativa na plataforma."
+  },
+  {
+    "title": "Mapeamento de Campos",
+    "path": "/docs/integracoes/mapeamento-de-campos",
+    "excerpt": "id: mapeamento-de-campos title: Mapeamento de Campos"
+  },
+  {
+    "title": "Integração via Webhook",
+    "path": "/docs/integracoes/webhook",
+    "excerpt": "title: Integração via Webhook O Boostly aceita leads de qualquer sistema externo via **webhook HTTP**. Cada tenant tem sua própria URL e token únicos."
+  },
+  {
+    "title": "Alertas",
+    "path": "/docs/alertas/configurando-regras",
+    "excerpt": "id: configurando-regras title: Configurando Regras de Alerta"
+  },
+  {
+    "title": "Configurações Gerais",
+    "path": "/docs/admin/configuracoes",
+    "excerpt": "title: Configurações Gerais Acesse **Configurações** no menu lateral para gerenciar todos os aspectos da sua conta."
+  },
+  {
+    "title": "Gestão de Usuários",
+    "path": "/docs/admin/usuarios",
+    "excerpt": "title: Gestão de Usuários Gerencie quem tem acesso à sua conta Boostly em **Configurações → Usuários**."
+  },
+  {
+    "title": "Funis",
+    "path": "/docs/pipeline/funis",
+    "excerpt": "Funis representam os diferentes processos comerciais da sua empresa. Você pode ter múltiplos funis (ex: \"Vendas\", \"Pós-venda\", \"Renovação\"). 1. Vá em **Configur"
+  },
+  {
+    "title": "Oportunidades",
+    "path": "/docs/pipeline/oportunidades",
+    "excerpt": "Uma oportunidade representa um negócio em andamento com um cliente ou lead. Clique no card no Pipeline para abrir o formulário completo. As alterações são salva"
+  },
+  {
+    "title": "Pipeline de Vendas",
+    "path": "/docs/pipeline/visao-geral",
+    "excerpt": "title: Visão Geral do Pipeline O Pipeline é o coração do Boostly. Ele exibe suas oportunidades em formato **Kanban**, organizadas por funil e etapa."
+  }
+]

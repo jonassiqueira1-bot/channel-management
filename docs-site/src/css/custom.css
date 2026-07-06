@@ -59,12 +59,22 @@
 .navbar__brand {
   font-size: 18px;
   font-weight: 700;
-  color: #1A2332;
+  color: #ffffff;
   letter-spacing: -0.3px;
   gap: 10px;
 }
 
-[data-theme='dark'] .navbar__brand { color: #f1f5f9; }
+.navbar__title {
+  color: #ffffff !important;
+}
+
+.navbar__item.navbar__link {
+  color: rgba(255,255,255,0.7) !important;
+}
+
+.navbar__item.navbar__link:hover {
+  color: #ffffff !important;
+}
 
 .navbar__logo { height: 32px; width: auto; }
 
