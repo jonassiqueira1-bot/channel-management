@@ -40,11 +40,7 @@ export const FIELDS_SEED = [
   { id:'sf_op_sms',      entity:'opportunities', field_key:'valor_sms',            label:'Valor SMS',             field_type:'number',   options:[], is_required:false, is_system:true  },
   { id:'sf_op_servico',  entity:'opportunities', field_key:'valor_servico',        label:'Valor Serviço',         field_type:'number',   options:[], is_required:false, is_system:true  },
   { id:'sf_op_desconto', entity:'opportunities', field_key:'valor_desconto',       label:'Desconto',              field_type:'number',   options:[], is_required:false, is_system:true  },
-  { id:'sf_op_tipo_imp', entity:'opportunities', field_key:'tipo_implantacao',     label:'Tipo de Implantação',   field_type:'select',   options:['Padrão','Customizada','Expressa'], is_required:false, is_system:false },
-  { id:'sf_op_segindu',  entity:'opportunities', field_key:'segmento_industria',   label:'Segmento / Indústria',  field_type:'text',     options:[], is_required:false, is_system:false },
-  { id:'sf_op_integ',    entity:'opportunities', field_key:'exige_integracao',     label:'Exige Integração',      field_type:'boolean',  options:[], is_required:false, is_system:false },
   { id:'sf_op_motivo',   entity:'opportunities', field_key:'motivo_perda',         label:'Motivo de Perda',       field_type:'textarea', options:[], is_required:false, is_system:false },
-  { id:'sf_op_desc',     entity:'opportunities', field_key:'descricao',            label:'Observações',           field_type:'textarea', options:[], is_required:false, is_system:false },
 
   // ── Projetos ───────────────────────────────────────────────────────────────
   { id:'sf_pr_nome',     entity:'projects', field_key:'name',                 label:'Nome do Projeto',       field_type:'text',     options:[], is_required:true,  is_system:true  },
@@ -166,22 +162,6 @@ export const LAYOUT_SEED = {
           ['sf_op_situacao', 'sf_op_etapa'],
           ['sf_op_origem',   'sf_op_campanha'],
           ['sf_op_prazo',    'sf_op_playbook'],
-        ],
-      },
-      {
-        id: 'sec_op_2', label: 'Valores',
-        rows: [
-          ['sf_op_cdu',      'sf_op_sms'],
-          ['sf_op_servico',  'sf_op_desconto'],
-        ],
-      },
-      {
-        id: 'sec_op_3', label: 'Detalhes',
-        rows: [
-          ['sf_op_tipo_imp', 'sf_op_segindu'],
-          ['sf_op_integ',    null],
-          ['sf_op_desc',     null],
-          ['sf_op_motivo',   null],
         ],
       },
     ],

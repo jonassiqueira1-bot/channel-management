@@ -16,88 +16,114 @@ function json(data: unknown, status = 200) {
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
-  const SUPABASE_URL        = Deno.env.get('SUPABASE_URL')!
-  const SERVICE_ROLE_KEY    = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-  const RESEND_API_KEY      = Deno.env.get('RESEND_API_KEY')
-  const SEND_EMAIL_URL      = `${SUPABASE_URL}/functions/v1/send-email`
+  try {
+    const SUPABASE_URL     = Deno.env.get('SUPABASE_URL')!
+    const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const anonKey          = Deno.env.get('SUPABASE_ANON_KEY')!
 
-  // Autentica o caller com o JWT do usuário logado
-  const authHeader = req.headers.get('Authorization') || ''
-  const anonKey    = Deno.env.get('SUPABASE_ANON_KEY')!
-  const callerClient = createClient(SUPABASE_URL, anonKey, {
-    global: { headers: { Authorization: authHeader } },
-  })
-
-  const { data: { user: caller } } = await callerClient.auth.getUser()
-  if (!caller) return json({ error: 'Não autenticado' }, 401)
-
-  // Busca perfil do caller para obter tenant_id e nome
-  const { data: callerProfile } = await callerClient
-    .from('profiles')
-    .select('tenant_id, nome')
-    .eq('id', caller.id)
-    .single()
-
-  if (!callerProfile?.tenant_id) return json({ error: 'Perfil não encontrado' }, 403)
-
-  const body = await req.json()
-  const { email, nome, papel, tipo_usuario } = body
-
-  if (!email) return json({ error: 'email é obrigatório' }, 400)
-
-  // Admin client para operações privilegiadas
-  const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
-
-  // Gera link de convite (não envia email pelo Supabase)
-  const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
-    type: 'invite',
-    email,
-    options: { redirectTo: 'https://app.boostly.com.br/aceitar-convite' },
-  })
-
-  if (linkErr) return json({ error: linkErr.message }, 400)
-
-  const inviteLink = linkData?.properties?.action_link || 'https://app.boostly.com.br'
-
-  // Insere em pending_invites
-  const { error: insertErr } = await admin
-    .from('pending_invites')
-    .insert({
-      tenant_id:    callerProfile.tenant_id,
-      nome:         nome || email,
-      email,
-      papel:        papel || 'vendedor',
-      tipo_usuario: tipo_usuario || 'externo',
+    // Autentica o caller com o JWT do usuário logado
+    const authHeader   = req.headers.get('Authorization') || ''
+    const callerClient = createClient(SUPABASE_URL, anonKey, {
+      global: { headers: { Authorization: authHeader } },
     })
 
-  if (insertErr) console.error('[invite-user] pending_invites:', insertErr.message)
+    const { data: userData, error: userErr } = await callerClient.auth.getUser()
+    if (userErr || !userData?.user) return json({ error: 'Não autenticado' }, 401)
+    const caller = userData.user
 
-  // Busca nome do tenant
-  const { data: tenant } = await admin
-    .from('tenants')
-    .select('nome')
-    .eq('id', callerProfile.tenant_id)
-    .single()
+    // Busca perfil do caller
+    const { data: callerProfile, error: profileErr } = await callerClient
+      .from('profiles')
+      .select('tenant_id, nome')
+      .eq('id', caller.id)
+      .single()
 
-  // Envia email via send-email function
-  if (RESEND_API_KEY) {
-    await fetch(SEND_EMAIL_URL, {
+    if (profileErr || !callerProfile?.tenant_id) {
+      return json({ error: `Perfil não encontrado: ${profileErr?.message}` }, 403)
+    }
+
+    const body = await req.json()
+    const { email, nome, papel, tipo_usuario, contact_id } = body
+
+    if (!email) return json({ error: 'email é obrigatório' }, 400)
+
+    // Admin client para operações privilegiadas
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+
+    // Envia convite via REST API do Supabase Auth (mais confiável que o SDK)
+    const redirectTo = 'https://app.boostly.com.br/aceitar-convite'
+    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(redirectTo)}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${anonKey}`,
+        'apikey':        SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'Content-Type':  'application/json',
       },
       body: JSON.stringify({
-        template: 'convite_usuario',
-        to: email,
+        email,
         data: {
-          convidado_por: callerProfile.nome || caller.email,
-          tenant_nome:   tenant?.nome || 'Boostly',
-          link:          inviteLink,
+          tenant_id:  callerProfile.tenant_id,
+          contact_id: contact_id || null,
+          role:       papel || 'parceiro',
+          nome:       nome || email,
         },
       }),
     })
-  }
 
-  return json({ ok: true })
+    if (!inviteRes.ok) {
+      const errBody = await inviteRes.text()
+      console.error('[invite-user] auth/v1/invite error:', inviteRes.status, errBody)
+      let errMsg = errBody
+      try { errMsg = JSON.parse(errBody)?.msg || JSON.parse(errBody)?.message || errBody } catch {}
+
+      // Usuário já existe: vincula o profile e envia magic link para acesso
+      if (inviteRes.status === 422 || errMsg?.toLowerCase().includes('already been registered') || errMsg?.toLowerCase().includes('already registered')) {
+        const { data: existingUsers } = await admin.auth.admin.listUsers()
+        const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
+        if (existingUser) {
+          // Vincula contact_id e role ao profile existente; branch_id null = sem restrição de filial
+          await admin.from('profiles').update({
+            contact_id: contact_id || null,
+            role:       papel || 'parceiro',
+            branch_id:  null,
+          }).eq('id', existingUser.id)
+
+          // Envia magic link para o usuário acessar
+          const mlRedirect = 'https://app.boostly.com.br/aceitar-convite'
+          await fetch(`${SUPABASE_URL}/auth/v1/magiclink?redirect_to=${encodeURIComponent(mlRedirect)}`, {
+            method: 'POST',
+            headers: {
+              'apikey':        SERVICE_ROLE_KEY,
+              'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+              'Content-Type':  'application/json',
+            },
+            body: JSON.stringify({ email }),
+          })
+
+          return json({ ok: true, linked: true })
+        }
+      }
+
+      return json({ error: errMsg }, 400)
+    }
+
+    // Insere em pending_invites para rastreio
+    const { error: insertErr } = await admin
+      .from('pending_invites')
+      .insert({
+        tenant_id:    callerProfile.tenant_id,
+        nome:         nome || email,
+        email,
+        papel:        papel || 'parceiro',
+        tipo_usuario: tipo_usuario || 'externo',
+      })
+
+    if (insertErr) console.error('[invite-user] pending_invites:', insertErr.message)
+
+    return json({ ok: true })
+
+  } catch (e) {
+    console.error('[invite-user] uncaught:', e)
+    return json({ error: e instanceof Error ? e.message : String(e) }, 500)
+  }
 })

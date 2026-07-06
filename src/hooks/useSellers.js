@@ -34,10 +34,12 @@ function rowToSeller(row) {
     franquia_nome: cf.franquia_nome || '',
     meta_mensal:   row.meta_mensal || 0,
     comissao_perc: row.comissao_perc || 0,
-    observacoes:   row.observacoes || '',
-    criado:        row.created_at?.slice(0, 10) || '',
-    linkedin_url:  cf.linkedin_url || '',
-    whatsapp:      cf.whatsapp || '',
+    observacoes:        row.observacoes || '',
+    criado:             row.created_at?.slice(0, 10) || '',
+    linkedin_url:       cf.linkedin_url || '',
+    whatsapp:           cf.whatsapp || '',
+    portal_invited_at:  row.portal_invited_at || null,
+    funil_id:           row.funil_id || null,
   }
 }
 
@@ -56,6 +58,7 @@ function sellerToRow(s, tenantId, branchId) {
     meta_mensal:   s.meta_mensal ? Number(s.meta_mensal) : null,
     comissao_perc: s.comissao_perc ? Number(s.comissao_perc) : null,
     observacoes:   s.observacoes || null,
+    funil_id:      s.funil_id ? String(s.funil_id) : null,
     custom_fields: {
       role:          s.role,
       franquia_nome: s.franquia_nome,
@@ -136,5 +139,34 @@ export function useSellers() {
     return { ok: true }
   }, [tenantId, branchId])
 
-  return { sellers, loading, reload: load, save, remove, bulkSetStatus, importMany, setFuncionarios: setSellers, isMock: isMockMode }
+  const inviteToPortal = useCallback(async (seller) => {
+    if (!seller.email) return { ok: false, message: 'Contato sem e-mail cadastrado.' }
+    const { data: { session } } = await supabase.auth.getSession()
+    const res = await fetch(
+      `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/invite-user`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token}`,
+          'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({
+          email:      seller.email,
+          nome:       seller.nome,
+          papel:      'parceiro',
+          contact_id: seller.id,
+        }),
+      }
+    )
+    const json = await res.json()
+    if (!res.ok || json.error) return { ok: false, message: json.error || 'Erro ao enviar convite' }
+    // Marca a data do convite no seller
+    const now = new Date().toISOString()
+    await supabase.from('sellers').update({ portal_invited_at: now }).eq('id', seller.id)
+    setSellers(prev => prev.map(s => s.id === seller.id ? { ...s, portal_invited_at: now } : s))
+    return { ok: true }
+  }, [])
+
+  return { sellers, loading, reload: load, save, remove, bulkSetStatus, importMany, inviteToPortal, setFuncionarios: setSellers, isMock: isMockMode }
 }

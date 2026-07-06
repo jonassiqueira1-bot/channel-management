@@ -902,8 +902,8 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsForms() {
-  const [fields,  setFields]  = useLocalState('settings:form_fields_v2',  FIELDS_SEED)
-  const [layout,  setLayout]  = useLocalState('settings:form_layout_v2',  LAYOUT_SEED)
+  const [fields,  setFields]  = useLocalState('settings:form_fields_v3',  FIELDS_SEED)
+  const [layout,  setLayout]  = useLocalState('settings:form_layout_v3',  LAYOUT_SEED)
   const [editando, setEditando] = useState(null)
   const [search, setSearch] = useState('')
 

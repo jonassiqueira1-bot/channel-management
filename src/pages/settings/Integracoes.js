@@ -1662,6 +1662,7 @@ export default function Integracoes() {
         data={filtered}
         keyField="id"
         emptyLabel="Nenhuma integração encontrada."
+        onRowClick={row => setEditando(allProviders.find(p => p.id === row.id))}
         rowActions={[
           { label: 'Configurar', onClick: row => setEditando(allProviders.find(p => p.id === row.id)) },
           { label: 'Excluir', danger: true, onClick: row => handleExcluir(allProviders.find(p => p.id === row.id)) },

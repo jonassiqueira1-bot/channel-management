@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
+import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -142,6 +143,7 @@ const EMPTY_FORM = {
   franquia_id: null, franquia_nome: '',
   meta_mensal: '', observacoes: '',
   linkedin_url: '', whatsapp: '',
+  funil_id: null,
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -173,8 +175,10 @@ function RoleBadge({ role }) {
 }
 
 // ─── SlideOver de Cadastro ────────────────────────────────────────────────────
-function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franquiasOpts = [], todos = [] }) {
+function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInvite, franquiasOpts = [], todos = [] }) {
   const isNew = !initial?.id
+  const { funis } = useFunnels()
+  const funisAtivos = funis.filter(f => f.status === 'ativo')
   const [form, setForm] = useState(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
@@ -272,6 +276,13 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
           <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
         </FormField>
 
+        <FormField label="Funil de acesso (Portal)">
+          <select className="so-field" value={form.funil_id || ''} onChange={e => set('funil_id', e.target.value || null)}>
+            <option value="">Todos os funis</option>
+            {funisAtivos.map(f => <option key={f.id} value={f.id}>{f.nome}</option>)}
+          </select>
+        </FormField>
+
         <FormField label="LinkedIn">
           <input className="so-field" value={form.linkedin_url} onChange={e => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/usuario" />
         </FormField>
@@ -283,6 +294,38 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, franq
         <FormField label="Observações internas" style={{ gridColumn: 'span 2' }}>
           <textarea className="so-field" rows={3} style={{ resize:'vertical' }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
         </FormField>
+
+        {/* Acesso ao portal */}
+        {onInvite && (
+          <div style={{ gridColumn:'span 2', borderTop:'1px solid var(--border)', paddingTop:16, marginTop:4 }}>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', marginBottom:8 }}>
+              Acesso ao Portal
+            </div>
+            {initial?.portal_invited_at ? (
+              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                <span style={{ fontSize:12, color:'#059669', fontWeight:600 }}>✓ Convite enviado</span>
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                  em {new Date(initial.portal_invited_at).toLocaleDateString('pt-BR')}
+                </span>
+                <button
+                  type="button"
+                  onClick={onInvite}
+                  style={{ marginLeft:'auto', fontSize:11, padding:'4px 12px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', cursor:'pointer' }}
+                >
+                  Reenviar convite
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={onInvite}
+                style={{ width:'100%', padding:'9px 0', borderRadius:8, border:'1px solid #0EA5E9', background:'#E0F2FE', color:'#0369A1', fontWeight:700, fontSize:13, cursor:'pointer' }}
+              >
+                Convidar para o portal
+              </button>
+            )}
+          </div>
+        )}
       </FormGrid>
     </SlideOver>
   )
@@ -425,7 +468,7 @@ function AvatarCell({ nome, email }) {
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Vendedores() {
   const { parceiros }                                                        = useParceiros()
-  const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany } = useSellers()
+  const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany, inviteToPortal } = useSellers()
   const { registrar: log } = useAuditLog()
 
   const franquiasMap = useMemo(
@@ -481,6 +524,13 @@ export default function Vendedores() {
   }
   function openNew() { setEditing(null); setSlideOpen(true) }
   function openEdit(row) { setEditing(row); setSlideOpen(true) }
+
+  async function handleInvite(seller) {
+    if (!window.confirm(`Enviar convite de acesso ao portal para ${seller.nome} (${seller.email})?`)) return
+    const res = await inviteToPortal(seller)
+    if (!res.ok) alert(`Erro ao enviar convite: ${res.message}`)
+    else alert(`Convite enviado para ${seller.email}!`)
+  }
 
   // ── Export ───────────────────────────────────────────────────────────────────
   function handleExport() {
@@ -667,6 +717,7 @@ export default function Vendedores() {
         onSave={handleSave}
         onClose={() => { setSlideOpen(false); setEditing(null) }}
         onDelete={handleDelete}
+        onInvite={editing ? () => handleInvite(editing) : undefined}
         franquiasOpts={franquiasOpts}
       />
 

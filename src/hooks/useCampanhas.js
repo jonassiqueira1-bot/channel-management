@@ -16,8 +16,10 @@ export function useCampanhas(seeds = []) {
   const [loading, setLoading] = useState(true)
   const isMock = useRef(false)
   const tid = useRef(null)
+  const bid = useRef(null)
 
   useEffect(() => { tid.current = profile?.tenant_id }, [profile?.tenant_id])
+  useEffect(() => { bid.current = profile?.branch_id || activeBranchId || null }, [profile?.branch_id, activeBranchId])
 
   const fetch = useCallback(async () => {
     setLoading(true)
@@ -62,9 +64,11 @@ export function useCampanhas(seeds = []) {
       return { ok: true }
     }
     // Mapeamento campos do form → colunas do banco
+    const branchId = record.branch_id || bid.current || null
     const row = {
       id:           record.id,
       tenant_id:    tid.current,
+      branch_id:    branchId,
       nome:         record.name      || record.nome      || '',
       objetivo:     record.objective || record.objetivo  || '',
       descricao:    record.description || record.descricao || '',
@@ -72,7 +76,7 @@ export function useCampanhas(seeds = []) {
       fim:          record.end_date  || record.fim       || null,
       status:       record.status    || 'rascunho',
       pontua_metas: record.pontua_metas ?? false,
-      extra:        record.materials  ? JSON.stringify(record.materials) : (record.extra || null),
+      extra:        record.materials  ? record.materials : (record.extra || null),
       updated_at:   new Date().toISOString(),
     }
     const { error } = await supabase.from('campanhas').upsert(row, { onConflict: 'id' })

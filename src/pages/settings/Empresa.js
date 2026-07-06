@@ -238,6 +238,8 @@ export default function EmpresaISV() {
         subtitle={editandoUnidade === 'novo' ? 'Cadastro de unidade' : (cf.is_matriz ? 'Matriz' : 'Filial')}
         onSave={formUnidade.name?.trim() ? handleSaveUnidade : undefined}
         onCancel={fecharUnidade}
+        onDelete={editandoUnidade !== 'novo' && editandoUnidade.ativo !== false ? () => setConfirmDelUnidade(true) : undefined}
+        deleteLabel="Remover / Desativar"
       >
         <FPESection title="Logotipo">
           <LogoUpload value={cf.logo || ''} onChange={v => setCf('logo', v)} />
@@ -345,43 +347,34 @@ export default function EmpresaISV() {
           </label>
         </FPESection>
 
-        {editandoUnidade !== 'novo' && (
-          <FPESection title="Zona de perigo">
-            {editandoUnidade.ativo === false ? (
-              /* ── Filial inativa: mostrar opção de reativar ── */
-              <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                <div style={{ padding:'10px 14px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:8, fontSize:13, color:'#f59e0b' }}>
-                  Esta unidade está <strong>desativada</strong>. Ela não aparece no seletor de filiais, mas seus dados históricos foram preservados.
-                </div>
-                <button onClick={handleReactivateUnidade}
-                  style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #10b981', background:'none', color:'#10b981', fontSize:13, fontWeight:600, cursor:'pointer', width:'fit-content' }}>
-                  Reativar unidade
-                </button>
+        {editandoUnidade !== 'novo' && editandoUnidade.ativo === false && (
+          <FPESection title="Unidade desativada">
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ padding:'10px 14px', background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.25)', borderRadius:8, fontSize:13, color:'#f59e0b' }}>
+                Esta unidade está <strong>desativada</strong>. Ela não aparece no seletor de filiais, mas seus dados históricos foram preservados.
               </div>
-            ) : !confirmDelUnidade ? (
-              /* ── Filial ativa: opção de desativar/excluir ── */
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:2 }}>
-                  Se houver dados vinculados (oportunidades, empresas, contratos etc.), a unidade será <strong>desativada</strong> em vez de excluída, preservando o histórico.
-                </div>
-                <button onClick={() => setConfirmDelUnidade(true)}
-                  style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #ef4444', background:'none', color:'#ef4444', fontSize:13, fontWeight:600, cursor:'pointer', width:'fit-content' }}>
-                  Remover / Desativar unidade
-                </button>
-              </div>
-            ) : (
-              <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                <span style={{ fontSize:13, color:'var(--text-muted)' }}>Confirmar para <strong>{editandoUnidade.name}</strong>?</span>
-                <button onClick={handleDeleteUnidade}
-                  style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer' }}>
-                  Confirmar
-                </button>
-                <button onClick={() => setConfirmDelUnidade(false)}
-                  style={{ padding:'6px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer' }}>
-                  Cancelar
-                </button>
-              </div>
-            )}
+              <button onClick={handleReactivateUnidade}
+                style={{ padding:'8px 16px', borderRadius:8, border:'1px solid #10b981', background:'none', color:'#10b981', fontSize:13, fontWeight:600, cursor:'pointer', width:'fit-content' }}>
+                Reativar unidade
+              </button>
+            </div>
+          </FPESection>
+        )}
+        {confirmDelUnidade && (
+          <FPESection title="Confirmar remoção">
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontSize:13, color:'var(--text-muted)' }}>
+                Se houver dados vinculados, a unidade será <strong>desativada</strong> em vez de excluída. Confirmar para <strong>{editandoUnidade.name}</strong>?
+              </span>
+              <button onClick={handleDeleteUnidade}
+                style={{ padding:'6px 14px', borderRadius:7, border:'none', background:'#ef4444', color:'#fff', fontSize:12, fontWeight:700, cursor:'pointer', whiteSpace:'nowrap' }}>
+                Confirmar
+              </button>
+              <button onClick={() => setConfirmDelUnidade(false)}
+                style={{ padding:'6px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer', whiteSpace:'nowrap' }}>
+                Cancelar
+              </button>
+            </div>
           </FPESection>
         )}
       </FullPageEdit>

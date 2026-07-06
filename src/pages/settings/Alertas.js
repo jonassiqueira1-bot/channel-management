@@ -598,6 +598,7 @@ export default function SettingsAlertas() {
           loading={loading} search={search} onSearchChange={setSearch}
           newLabel="Nova regra" onNew={() => setEditing(emptyRule())}
           emptyLabel="Nenhuma regra de alerta configurada."
+          onRowClick={r => setEditing(r)}
           rowActions={[
             { label: 'Editar',  onClick: r => setEditing(r) },
             { label: 'Excluir', danger: true, onClick: r => handleRemove(r.id) },

@@ -996,6 +996,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
               onChange={e => {
                 const s = sellers.find(x => String(x.id) === e.target.value)
                 setCanal(p => ({ ...p, resp_ar_id: e.target.value || '', resp_ar: s?.nome || '' }))
+                patch('resp_ar_id', e.target.value || null)
               }}>
               <option value="">— Selecionar —</option>
               {sellers.filter(s => s.status !== 'inativo').map(s => (

@@ -39,6 +39,7 @@ function rowToEmpresa(row) {
     complemento:       row.address?.complemento || '',
     franquia_ar_id:    row.custom_fields?.franquia_ar_id || null,
     franquia_ar_nome:  row.custom_fields?.franquia_ar_nome || '',
+    resp_ar_id:        row.custom_fields?.resp_ar_id || null,
     branch_id:         row.branch_id || null,
     tenant_id:         row.tenant_id || null,
   }
@@ -76,6 +77,7 @@ function empresaToRow(form, tenantId, branchId) {
       inscricao_estadual: form.inscricao_estadual || '',
       franquia_ar_id:     form.franquia_ar_id || null,
       franquia_ar_nome:   form.franquia_ar_nome || '',
+      resp_ar_id:         form.resp_ar_id || null,
       origem:             form.origem || '',
     },
   }

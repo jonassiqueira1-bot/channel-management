@@ -12,6 +12,7 @@ import { SlideOver, FormField, FormGrid } from '../components/ui'
 import BrowseLayout from '../components/BrowseLayout'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { useCompanies } from '../hooks/useCompanies'
+import { useProfile } from '../hooks/useProfile'
 
 const STEP_ICONS = ['📋','✅','🎯','💡','🔍','📞','🤝','📊','⚡','🏆','📝','🔧','💬','🚀','⚙️','📌','🔑','💰','📅','🌟']
 
@@ -1285,7 +1286,9 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew,
 
 // ─── Root component ───────────────────────────────────────────────────────────
 export default function Playbooks() {
-  const isISV = USE_PROFILE === 'isv'
+  const { profile } = useProfile()
+  const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
+  const isISV = !isParceiro
 
   const { playbooks, steps, refs, resources, save: savePb, remove: deletePb, setPlaybooks, setSteps, setRefs, setResources } = usePlaybooks()
   const { registrar: log } = useAuditLog()
