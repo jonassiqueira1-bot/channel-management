@@ -40,7 +40,8 @@ BEGIN
   IF _contact_id IS NOT NULL THEN
     UPDATE public.profiles
     SET contact_id = _contact_id,
-        role       = 'parceiro'
+        role       = 'parceiro',
+        branch_id  = NULL
     WHERE id = NEW.id;
   END IF;
   RETURN NEW;
