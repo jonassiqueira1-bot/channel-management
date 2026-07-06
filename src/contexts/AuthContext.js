@@ -1,13 +1,14 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [session, setSession] = useState(undefined)
+  const [session, setSession] = useState(undefined) // undefined = ainda validando
+  const validatedRef = useRef(false)
 
   useEffect(() => {
-    // getUser() valida o JWT contra o servidor — detecta usuários deletados
+    // Valida JWT contra o servidor antes de liberar qualquer sessão ao app
     supabase.auth.getUser().then(({ data, error }) => {
       if (error || !data?.user) {
         supabase.auth.signOut()
@@ -15,10 +16,12 @@ export function AuthProvider({ children }) {
       } else {
         supabase.auth.getSession().then(({ data }) => setSession(data.session))
       }
+      validatedRef.current = true
     })
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
+      // Ignora eventos anteriores à validação inicial (evita race condition com localStorage)
+      if (validatedRef.current) setSession(sess)
     })
     return () => subscription.unsubscribe()
   }, [])
