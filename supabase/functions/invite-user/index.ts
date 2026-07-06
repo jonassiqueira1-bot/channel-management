@@ -51,7 +51,8 @@ serve(async (req) => {
     const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
 
     // Envia convite via REST API do Supabase Auth (mais confiável que o SDK)
-    const redirectTo = 'https://app.boostly.com.br/aceitar-convite'
+    const APP_URL = Deno.env.get('APP_URL') || 'https://app.boostly.com.br'
+    const redirectTo = `${APP_URL}/aceitar-convite`
     const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(redirectTo)}`, {
       method: 'POST',
       headers: {
@@ -95,7 +96,7 @@ serve(async (req) => {
           }).eq('id', existingUser.id)
 
           // Envia magic link para o usuário acessar
-          const mlRedirect = 'https://app.boostly.com.br/aceitar-convite'
+          const mlRedirect = `${APP_URL}/aceitar-convite`
           await fetch(`${SUPABASE_URL}/auth/v1/magiclink?redirect_to=${encodeURIComponent(mlRedirect)}`, {
             method: 'POST',
             headers: {
