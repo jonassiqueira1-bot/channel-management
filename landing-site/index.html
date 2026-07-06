@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Boostly — Gestão de canais de vendas</title>
+  <meta name="description" content="Pipeline, parceiros, contratos e comissões em uma só plataforma. Do lead ao pagamento, sem planilhas." />
+  <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-dark: #0D1117;
+      --bg-dark2: #161B27;
+      --blue: #5B8DEF;
+      --blue-dark: #4a7de0;
+      --text: #1A1916;
+      --text-soft: #5A5650;
+      --text-muted: #9A9590;
+      --surface: #ffffff;
+      --surface2: #F7F6F3;
+      --border: rgba(0,0,0,0.08);
+      --green: #059669;
+      --red: #DC2626;
+      --amber: #D97706;
+      --purple: #7C3AED;
+      --radius: 10px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: 'Plus Jakarta Sans', -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--surface);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAVBAR ─────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13,17,23,0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.06);
+      padding: 0 40px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      overflow: visible;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+    }
+
+    .logo-mark {
+      width: 30px;
+      height: 30px;
+      background: var(--blue);
+      border-radius: 7px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 16px;
+      color: white;
+      flex-shrink: 0;
+    }
+
+    .nav-logo span {
+      color: white;
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+
+    .nav-links a {
+      color: rgba(255,255,255,0.6);
+      text-decoration: none;
+      font-size: 14px;
+      font-weight: 500;
+      transition: color 0.15s;
+    }
+
+    .nav-links a:hover { color: white; }
+
+    .nav-cta {
+      background: var(--blue);
+      color: white !important;
+      padding: 8px 20px;
+      border-radius: 8px;
+      font-weight: 600 !important;
+      font-size: 14px !important;
+      transition: background 0.15s !important;
+    }
+
+    .nav-cta:hover { background: var(--blue-dark) !important; color: white !important; }
+
+    /* ── HERO ────────────────────────────────────────── */
+    .hero {
+      background: var(--bg-dark);
+      padding: 96px 40px 80px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(91,141,239,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(91,141,239,0.12);
+      border: 1px solid rgba(91,141,239,0.25);
+      border-radius: 20px;
+      padding: 5px 14px;
+      margin-bottom: 24px;
+      font-size: 13px;
+      color: #8ab4ff;
+      font-weight: 500;
+    }
+
+    .hero h1 {
+      font-size: clamp(32px, 5vw, 52px);
+      font-weight: 700;
+      color: white;
+      line-height: 1.15;
+      max-width: 640px;
+      margin: 0 auto 20px;
+      letter-spacing: -0.02em;
+    }
+
+    .hero h1 span {
+      background: linear-gradient(135deg, #5B8DEF, #a78bfa);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .hero p {
+      font-size: 18px;
+      color: rgba(255,255,255,0.5);
+      max-width: 480px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: white;
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+      display: inline-block;
+    }
+
+    .btn-primary:hover { background: var(--blue-dark); transform: translateY(-1px); }
+
+    .btn-secondary {
+      background: rgba(255,255,255,0.06);
+      color: rgba(255,255,255,0.75);
+      padding: 14px 28px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 500;
+      text-decoration: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      transition: background 0.15s;
+      display: inline-block;
+    }
+
+    .btn-secondary:hover { background: rgba(255,255,255,0.1); }
+
+    .hero-note {
+      margin-top: 18px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.28);
+    }
+
+    /* ── LOGOS / SOCIAL PROOF ────────────────────────── */
+    .social-proof {
+      background: var(--bg-dark);
+      border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 28px 40px;
+      text-align: center;
+    }
+
+    .social-proof p {
+      font-size: 13px;
+      color: rgba(255,255,255,0.3);
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+
+    .proof-stats {
+      display: flex;
+      justify-content: center;
+      gap: 48px;
+      flex-wrap: wrap;
+    }
+
+    .proof-stat strong {
+      display: block;
+      font-size: 28px;
+      font-weight: 700;
+      color: white;
+    }
+
+    .proof-stat span {
+      font-size: 13px;
+      color: rgba(255,255,255,0.4);
+    }
+
+    /* ── PROBLEMA ────────────────────────────────────── */
+    .section {
+      padding: 80px 40px;
+    }
+
+    .section-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+
+    .section-tag {
+      display: inline-block;
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--blue);
+      margin-bottom: 12px;
+    }
+
+    .section h2 {
+      font-size: clamp(24px, 3vw, 36px);
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 16px;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .section .subtitle {
+      font-size: 17px;
+      color: var(--text-soft);
+      max-width: 520px;
+      margin-bottom: 48px;
+      line-height: 1.7;
+    }
+
+    .problem-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    .problem-card {
+      background: #fff5f5;
+      border: 1px solid #fecaca;
+      border-radius: var(--radius);
+      padding: 24px;
+    }
+
+    .problem-icon {
+      font-size: 24px;
+      margin-bottom: 12px;
+    }
+
+    .problem-card h3 {
+      font-size: 15px;
+      font-weight: 600;
+      color: #991b1b;
+      margin-bottom: 6px;
+    }
+
+    .problem-card p {
+      font-size: 13px;
+      color: #b91c1c;
+      line-height: 1.6;
+    }
+
+    /* ── FEATURES ────────────────────────────────────── */
+    .features-bg { background: var(--surface2); }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .feature-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 28px;
+      transition: box-shadow 0.2s;
+    }
+
+    .feature-card:hover {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.07);
+    }
+
+    .feature-icon {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      margin-bottom: 16px;
+    }
+
+    .feature-card h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .feature-card p {
+      font-size: 14px;
+      color: var(--text-soft);
+      line-height: 1.6;
+    }
+
+    /* ── COMO FUNCIONA ───────────────────────────────── */
+    .steps {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      max-width: 600px;
+    }
+
+    .step {
+      display: flex;
+      gap: 20px;
+      position: relative;
+    }
+
+    .step-left {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .step-num {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--blue);
+      color: white;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .step-line {
+      width: 2px;
+      flex: 1;
+      background: var(--border);
+      margin: 6px 0;
+      min-height: 32px;
+    }
+
+    .step:last-child .step-line { display: none; }
+
+    .step-content {
+      padding-bottom: 36px;
+    }
+
+    .step-content h3 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 6px;
+      margin-top: 6px;
+    }
+
+    .step-content p {
+      font-size: 14px;
+      color: var(--text-soft);
+      line-height: 1.6;
+    }
+
+    /* ── PLANOS ──────────────────────────────────────── */
+    .plans-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+
+    .plan-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+    }
+
+    .plan-card.featured {
+      border: 2px solid var(--blue);
+      position: relative;
+    }
+
+    .plan-badge {
+      position: absolute;
+      top: -13px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--blue);
+      color: white;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 14px;
+      border-radius: 20px;
+      white-space: nowrap;
+    }
+
+    .plan-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-soft);
+      margin-bottom: 8px;
+    }
+
+    .plan-card.featured .plan-name { color: var(--blue); }
+
+    .plan-price {
+      font-size: 32px;
+      font-weight: 700;
+      color: var(--text);
+      line-height: 1;
+      margin-bottom: 4px;
+    }
+
+    .plan-price sup {
+      font-size: 16px;
+      font-weight: 500;
+      vertical-align: super;
+    }
+
+    .plan-price sub {
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--text-muted);
+    }
+
+    .plan-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      margin-top: 4px;
+    }
+
+    .plan-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 28px;
+    }
+
+    .plan-features li {
+      font-size: 14px;
+      color: var(--text-soft);
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .plan-features li::before {
+      content: '✓';
+      color: var(--green);
+      font-weight: 700;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .plan-btn {
+      display: block;
+      text-align: center;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: all 0.15s;
+    }
+
+    .plan-btn-outline {
+      border: 1.5px solid var(--border);
+      color: var(--text);
+    }
+
+    .plan-btn-outline:hover { border-color: var(--blue); color: var(--blue); }
+
+    .plan-btn-filled {
+      background: var(--blue);
+      color: white;
+    }
+
+    .plan-btn-filled:hover { background: var(--blue-dark); }
+
+    /* ── FAQ ─────────────────────────────────────────── */
+    .faq-list {
+      max-width: 640px;
+    }
+
+    details {
+      border-bottom: 1px solid var(--border);
+      padding: 20px 0;
+    }
+
+    details:first-child { border-top: 1px solid var(--border); }
+
+    summary {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+
+    summary::-webkit-details-marker { display: none; }
+
+    summary::after {
+      content: '+';
+      font-size: 20px;
+      color: var(--text-muted);
+      font-weight: 400;
+      flex-shrink: 0;
+    }
+
+    details[open] summary::after { content: '−'; }
+
+    details p {
+      font-size: 15px;
+      color: var(--text-soft);
+      line-height: 1.7;
+      margin-top: 12px;
+    }
+
+    /* ── CTA FINAL ───────────────────────────────────── */
+    .cta-final {
+      background: var(--bg-dark);
+      padding: 96px 40px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cta-final::before {
+      content: '';
+      position: absolute;
+      bottom: -100px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 500px;
+      height: 500px;
+      background: radial-gradient(circle, rgba(91,141,239,0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .cta-final h2 {
+      font-size: clamp(26px, 4vw, 42px);
+      font-weight: 700;
+      color: white;
+      max-width: 520px;
+      margin: 0 auto 16px;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .cta-final p {
+      font-size: 16px;
+      color: rgba(255,255,255,0.45);
+      margin-bottom: 36px;
+    }
+
+    /* ── FOOTER ──────────────────────────────────────── */
+    footer {
+      background: #080c12;
+      padding: 40px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    .footer-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .footer-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+    }
+
+    .footer-logo span {
+      color: rgba(255,255,255,0.5);
+      font-size: 14px;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: 24px;
+      list-style: none;
+    }
+
+    .footer-links a {
+      color: rgba(255,255,255,0.35);
+      font-size: 13px;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-links a:hover { color: rgba(255,255,255,0.7); }
+
+    .footer-copy {
+      color: rgba(255,255,255,0.2);
+      font-size: 12px;
+      width: 100%;
+      text-align: center;
+      margin-top: 24px;
+      padding-top: 24px;
+      border-top: 1px solid rgba(255,255,255,0.05);
+    }
+
+    /* ── RESPONSIVE ──────────────────────────────────── */
+    @media (max-width: 640px) {
+      nav { padding: 0 20px; }
+      .nav-links { display: none; }
+      .hero, .section, .cta-final { padding-left: 20px; padding-right: 20px; }
+      .social-proof { padding: 24px 20px; }
+      .proof-stats { gap: 24px; }
+      footer { padding: 32px 20px; }
+      .footer-inner { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+  <script type="text/javascript">window.$crisp=[];window.CRISP_WEBSITE_ID="5c56d2db-e204-4cb5-a19b-465e8d3cd17c";(function(){d=document;s=d.createElement("script");s.src="https://client.crisp.chat/l.js";s.async=1;d.getElementsByTagName("head")[0].appendChild(s);})();</script>
+</head>
+<body>
+
+  <!-- NAVBAR -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <div class="logo-mark">B</div>
+      <span>Boostly</span>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#funcionalidades">Funcionalidades</a></li>
+      <li><a href="#como-funciona">Como funciona</a></li>
+      <li><a href="#planos">Planos</a></li>
+      <li><a href="https://docs.boostly.com.br" target="_blank">Documentação</a></li>
+      <li><a href="https://app.boostly.com.br/login">Entrar</a></li>
+      <li><a href="#criar-conta" class="nav-cta">Criar conta grátis</a></li>
+    </ul>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-badge">✦ Gestão de canais de vendas</div>
+    <h1>Gerencie seu canal com <span>clareza total</span></h1>
+    <p>Pipeline, parceiros, contratos e comissões em uma só plataforma. Do lead ao pagamento, sem planilhas.</p>
+    <div class="hero-actions">
+      <a href="#criar-conta" class="btn-primary">Começar grátis →</a>
+      <a href="https://docs.boostly.com.br" class="btn-secondary">Ver documentação</a>
+    </div>
+    <p class="hero-note">Sem cartão de crédito · Configuração em minutos</p>
+  </section>
+
+  <!-- SOCIAL PROOF -->
+  <div class="social-proof">
+    <p>Números do canal</p>
+    <div class="proof-stats">
+      <div class="proof-stat">
+        <strong>360°</strong>
+        <span>Visão do canal</span>
+      </div>
+      <div class="proof-stat">
+        <strong>Zero</strong>
+        <span>Planilhas</span>
+      </div>
+      <div class="proof-stat">
+        <strong>1 lugar</strong>
+        <span>Para tudo</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROBLEMA -->
+  <section class="section">
+    <div class="section-inner">
+      <span class="section-tag">O problema</span>
+      <h2>Seu canal cresce, mas a visibilidade não acompanha</h2>
+      <p class="subtitle">Quando a operação está espalhada em e-mail, planilha e WhatsApp, você perde negócios sem nem saber.</p>
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="problem-icon">📊</div>
+          <h3>Planilhas desatualizadas</h3>
+          <p>Cada parceiro com sua versão, ninguém sabe qual é a real.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">👁️</div>
+          <h3>Pipeline invisível</h3>
+          <p>Não dá para saber onde cada oportunidade está parada.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">💸</div>
+          <h3>Comissões no escuro</h3>
+          <p>Cálculo manual, pagamentos atrasados, conflitos com parceiros.</p>
+        </div>
+        <div class="problem-card">
+          <div class="problem-icon">🔔</div>
+          <h3>Alertas que não chegam</h3>
+          <p>Renovações vencendo, projetos parados, clientes sumindo — tudo sem aviso.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="section features-bg" id="funcionalidades">
+    <div class="section-inner">
+      <span class="section-tag">Funcionalidades</span>
+      <h2>Tudo que seu canal precisa em um lugar</h2>
+      <p class="subtitle">Cada módulo foi pensado para o dia a dia de quem gerencia canais de venda indiretos.</p>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #eff6ff;">🎯</div>
+          <h3>Pipeline visual</h3>
+          <p>Funis kanban customizáveis por produto, perfil ou equipe. Veja onde cada oportunidade está em tempo real.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #f0fdf4;">🤝</div>
+          <h3>Gestão de parceiros</h3>
+          <p>Portal do parceiro, nível de maturidade, habilitações e performance do canal em um painel unificado.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #fefce8;">📋</div>
+          <h3>Contratos e pagamentos</h3>
+          <p>Do contrato fechado à cobrança gerada, sem sair da plataforma. Integrado com o Asaas.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #faf5ff;">💰</div>
+          <h3>Comissões automáticas</h3>
+          <p>Regras de comissionamento por produto, parceiro ou meta. Extrato transparente para cada vendedor.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #fff7ed;">📁</div>
+          <h3>Gestão de projetos</h3>
+          <p>Acompanhe implantações pós-venda com fases, tarefas e responsáveis. Metodologia MIT embutida.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #f0fdfa;">❤️</div>
+          <h3>Customer Success</h3>
+          <p>Health score, framework LAER e alertas automáticos para identificar clientes em risco antes que churnem.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #eff6ff;">🔔</div>
+          <h3>Alertas inteligentes</h3>
+          <p>Regras que monitoram o sistema e avisam no momento certo — renovações, metas, inatividade.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon" style="background: #fdf4ff;">🔗</div>
+          <h3>Integrações via webhook</h3>
+          <p>Receba leads de qualquer sistema externo automaticamente. Mapeamento de campos sem código.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- COMO FUNCIONA -->
+  <section class="section" id="como-funciona">
+    <div class="section-inner">
+      <span class="section-tag">Como funciona</span>
+      <h2>De zero ao canal rodando em minutos</h2>
+      <p class="subtitle">Sem implantação, sem consultoria. Você configura e sai usando.</p>
+      <div class="steps">
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-content">
+            <h3>Crie sua conta</h3>
+            <p>Cadastro em menos de 2 minutos. Sua conta já vem com funil padrão, perfis de acesso e tipos de ação configurados.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-content">
+            <h3>Convide sua equipe e parceiros</h3>
+            <p>Envie convites por e-mail com perfis de acesso personalizados. Cada usuário vê apenas o que precisa.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-content">
+            <h3>Configure seus produtos e funis</h3>
+            <p>Adapte o pipeline para o seu negócio. Crie funis por produto, defina etapas e critérios de avanço.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num">4</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-content">
+            <h3>Gerencie com clareza</h3>
+            <p>Pipeline, parceiros, projetos e comissões — tudo em um lugar. Alertas automáticos cuidam do que você não pode perder.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PLANOS -->
+  <section class="section features-bg" id="planos">
+    <div class="section-inner">
+      <span class="section-tag">Planos</span>
+      <h2>Simples, transparente, sem surpresa</h2>
+      <p class="subtitle">Escolha o plano certo para o tamanho do seu canal. Cancele quando quiser.</p>
+      <div class="plans-grid">
+        <div class="plan-card">
+          <div class="plan-name">Starter</div>
+          <div class="plan-price"><sup>R$</sup> 297<sub>/mês</sub></div>
+          <div class="plan-desc">1 filial · até 5 usuários</div>
+          <ul class="plan-features">
+            <li>Pipeline e parceiros</li>
+            <li>Tarefas e alertas</li>
+            <li>Contratos e pagamentos</li>
+            <li>Documentação completa</li>
+            <li>Suporte via chat</li>
+          </ul>
+          <a href="#criar-conta" class="plan-btn plan-btn-outline">Começar grátis</a>
+        </div>
+        <div class="plan-card featured">
+          <div class="plan-badge">Mais popular</div>
+          <div class="plan-name">Growth</div>
+          <div class="plan-price"><sup>R$</sup> 697<sub>/mês</sub></div>
+          <div class="plan-desc">até 3 filiais · usuários ilimitados</div>
+          <ul class="plan-features">
+            <li>Tudo do Starter</li>
+            <li>Comissões automáticas</li>
+            <li>Gestão de projetos</li>
+            <li>Customer Success</li>
+            <li>Integrações webhook</li>
+            <li>Relatórios avançados</li>
+          </ul>
+          <a href="#criar-conta" class="plan-btn plan-btn-filled">Começar grátis</a>
+        </div>
+        <div class="plan-card">
+          <div class="plan-name">Enterprise</div>
+          <div class="plan-price"><sup>R$</sup> 1.497<sub>/mês</sub></div>
+          <div class="plan-desc">Filiais ilimitadas · tudo incluso</div>
+          <ul class="plan-features">
+            <li>Tudo do Growth</li>
+            <li>Multi-filial ilimitado</li>
+            <li>API e acesso avançado</li>
+            <li>SLA dedicado</li>
+            <li>Onboarding assistido</li>
+          </ul>
+          <a href="#criar-conta" class="plan-btn plan-btn-outline">Falar com vendas</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ -->
+  <section class="section">
+    <div class="section-inner">
+      <span class="section-tag">Dúvidas frequentes</span>
+      <h2>Perguntas comuns</h2>
+      <div class="faq-list">
+        <details>
+          <summary>Preciso de cartão de crédito para criar conta?</summary>
+          <p>Não. Você cria a conta gratuitamente e explora a plataforma sem informar dados de pagamento. O cartão só é necessário ao assinar um plano pago.</p>
+        </details>
+        <details>
+          <summary>O que é uma filial?</summary>
+          <p>Uma filial representa uma unidade de negócio com dados completamente isolados — usuários, pipeline, parceiros e configurações independentes. Ideal para empresas que operam em múltiplas regiões ou marcas.</p>
+        </details>
+        <details>
+          <summary>Posso mudar de plano depois?</summary>
+          <p>Sim, a qualquer momento. O upgrade é imediato e o downgrade entra em vigor no próximo ciclo de cobrança. Nenhum dado é perdido na mudança.</p>
+        </details>
+        <details>
+          <summary>Como funciona a integração com sistemas externos?</summary>
+          <p>Via webhook — qualquer sistema que envie eventos HTTP pode alimentar o Boostly. O mapeamento de campos é feito sem código, diretamente pelo painel de Integrações.</p>
+        </details>
+        <details>
+          <summary>Meus dados ficam seguros?</summary>
+          <p>Sim. Cada conta tem isolamento completo de dados. Todos os acessos são autenticados e registrados em log de auditoria com retenção de 12 meses.</p>
+        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="cta-final" id="criar-conta">
+    <h2>Pronto para ter clareza sobre seu canal?</h2>
+    <p>Crie sua conta grátis em minutos. Sem cartão de crédito.</p>
+    <a href="https://app.boostly.com.br/signup" class="btn-primary" style="font-size: 16px; padding: 16px 36px;">Criar conta grátis →</a>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-inner">
+      <a href="/" class="footer-logo">
+        <div class="logo-mark">B</div>
+        <span>© 2026 Boostly</span>
+      </a>
+      <ul class="footer-links">
+        <li><a href="https://docs.boostly.com.br">Documentação</a></li>
+        <li><a href="https://docs.boostly.com.br/docs/termos-de-uso">Termos de Uso</a></li>
+        <li><a href="mailto:contato@boostly.com.br">Contato</a></li>
+        <li><a href="https://app.boostly.com.br/login">Entrar</a></li>
+      </ul>
+    </div>
+    <p class="footer-copy">Todos os direitos reservados.</p>
+  </footer>
+
+</body>
+</html>
