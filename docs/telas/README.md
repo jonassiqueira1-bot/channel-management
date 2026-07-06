@@ -34,36 +34,33 @@
 ---
 
 ## Módulos principais
-*(a documentar)*
 
-- Dashboard
-- Pipeline de Vendas
-- Empresas Parceiras
-- Contatos
-- Contatos de Canal
-- Franquias
-- Portal do Parceiro
-- Tarefas
-- Ações de Canal
-- Metas
-- Campanhas
-- Contratos
-- Pagamentos
-- Comissões
-- Projetos
-- Fechamento de Horas
-- Questionários
-- Documentos
-- Playbooks
-- Customer Success
-- Relatórios
-- Minha Conta
+- [Dashboard](dashboard.md)
+- [Pipeline de Vendas](pipeline.md)
+- [Empresas Parceiras](empresas.md)
+- [Contatos](contatos.md)
+- [Contatos de Canal](vendedores.md)
+- [Franquias](franquias.md)
+- [Portal do Parceiro](parceiros.md)
+- [Tarefas](tarefas.md)
+- [Ações de Canal](acoes.md)
+- [Metas](metas.md)
+- [Campanhas](campanhas.md)
+- [Contratos](contratos.md)
+- [Pagamentos](pagamentos.md)
+- [Comissões](comissoes.md)
+- [Projetos](projetos.md)
+- [Fechamento de Horas](fechamento-horas.md)
+- [Questionários](questionarios.md)
+- [Documentos](documentos.md)
+- [Playbooks](playbooks.md)
+- [Customer Success](customer-success.md)
+- [Relatórios](relatorios.md)
 
 ---
 
 ## Telas públicas
-*(a documentar)*
 
-- Login
-- Recuperar senha
-- Aceitar convite
+- [Login](login.md)
+- [Recuperar Senha](recuperar-senha.md)
+- [Aceitar Convite](aceitar-convite.md)

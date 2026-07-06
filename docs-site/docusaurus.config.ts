@@ -3,13 +3,11 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Boostly Docs',
+  title: 'Boostly',
   tagline: 'Documentação da plataforma Boostly',
   favicon: 'img/favicon.ico',
 
-  future: {
-    v4: true,
-  },
+  future: { v4: true },
 
   url: 'https://docs.boostly.com.br',
   baseUrl: '/',
@@ -20,6 +18,21 @@ const config: Config = {
     defaultLocale: 'pt-BR',
     locales: ['pt-BR'],
   },
+
+  plugins: [
+    [
+      '@easyops-cn/docusaurus-search-local',
+      {
+        hashed: true,
+        language: ['pt'],
+        searchBarPosition: 'navbar',
+        searchBarShortcutHint: false,
+        docsRouteBasePath: '/docs',
+        highlightSearchTermsOnTargetPage: true,
+        explicitSearchResultPath: true,
+      },
+    ],
+  ],
 
   presets: [
     [
@@ -53,10 +66,9 @@ const config: Config = {
           sidebarId: 'docsSidebar',
           position: 'left',
           label: 'Documentação',
-          to: '/docs/intro',
         },
         {
-          href: 'https://boostly.com.br',
+          href: 'https://www.boostly.com.br/login',
           label: 'Acessar plataforma',
           position: 'right',
         },
