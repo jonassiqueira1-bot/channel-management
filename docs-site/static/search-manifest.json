@@ -2,12 +2,12 @@
   {
     "title": "O que é o Boostly?",
     "path": "/docs/intro",
-    "excerpt": "title: O que é o Boostly? O **Boostly** é uma plataforma de gestão de canais de vendas white-label, desenvolvida para ISVs (Independent Software Vendors) que pr"
+    "excerpt": "O Boostly é uma plataforma de gestão de canais de vendas white-label, desenvolvida para ISVs (Independent Software Vendors) que precisam oferecer um CRM complet"
   },
   {
     "title": "Primeiros Passos",
     "path": "/docs/primeiros-passos",
-    "excerpt": "title: Primeiros Passos Acesse [boostly.com.br](https://boostly.com.br) e faça login com as credenciais fornecidas pelo seu administrador."
+    "excerpt": "Acesse [boostly.com.br](https://boostly.com.br) e faça login com as credenciais fornecidas pelo seu administrador. 1. Vá em Configurações → Funis"
   },
   {
     "title": "Ações de Canal",
@@ -172,7 +172,7 @@
   {
     "title": "Maturidade de Parceiros",
     "path": "/docs/configuracoes/maturidade-parceiros",
-    "excerpt": "Define os critérios que calculam o **score de maturidade** de cada parceiro. Cada critério tem um peso em pontos — a soma dos pesos ativos forma o score máximo "
+    "excerpt": "Define os critérios que calculam o score de maturidade de cada parceiro. Cada critério tem um peso em pontos — a soma dos pesos ativos forma o score máximo poss"
   },
   {
     "title": "Metas e KPIs",
@@ -227,32 +227,32 @@
   {
     "title": "Mapeamento de Campos",
     "path": "/docs/integracoes/mapeamento-de-campos",
-    "excerpt": "id: mapeamento-de-campos title: Mapeamento de Campos"
+    "excerpt": "O mapeamento define como os dados do payload do webhook se transformam nos campos de uma Oportunidade no Boostly. 1. Em Configurações → Integrações, abra a inte"
   },
   {
     "title": "Integração via Webhook",
     "path": "/docs/integracoes/webhook",
-    "excerpt": "title: Integração via Webhook O Boostly aceita leads de qualquer sistema externo via **webhook HTTP**. Cada tenant tem sua própria URL e token únicos."
+    "excerpt": "O Boostly aceita leads de qualquer sistema externo via webhook HTTP. Cada tenant tem sua própria URL e token únicos. 1. Vá em Configurações → Integrações"
   },
   {
     "title": "Alertas",
     "path": "/docs/alertas/configurando-regras",
-    "excerpt": "id: configurando-regras title: Configurando Regras de Alerta"
+    "excerpt": "O módulo de alertas permite criar regras automáticas que disparam notificações quando condições específicas são atendidas nos seus dados. 1. Vá em Configurações"
   },
   {
     "title": "Configurações Gerais",
     "path": "/docs/admin/configuracoes",
-    "excerpt": "title: Configurações Gerais Acesse **Configurações** no menu lateral para gerenciar todos os aspectos da sua conta."
+    "excerpt": "Acesse Configurações no menu lateral para gerenciar todos os aspectos da sua conta."
   },
   {
     "title": "Gestão de Usuários",
     "path": "/docs/admin/usuarios",
-    "excerpt": "title: Gestão de Usuários Gerencie quem tem acesso à sua conta Boostly em **Configurações → Usuários**."
+    "excerpt": "Gerencie quem tem acesso à sua conta Boostly em Configurações → Usuários. 1. Clique em Convidar Usuário"
   },
   {
     "title": "Funis",
     "path": "/docs/pipeline/funis",
-    "excerpt": "Funis representam os diferentes processos comerciais da sua empresa. Você pode ter múltiplos funis (ex: \"Vendas\", \"Pós-venda\", \"Renovação\"). 1. Vá em **Configur"
+    "excerpt": "Funis representam os diferentes processos comerciais da sua empresa. Você pode ter múltiplos funis (ex: \"Vendas\", \"Pós-venda\", \"Renovação\"). 1. Vá em Configuraç"
   },
   {
     "title": "Oportunidades",
@@ -262,6 +262,6 @@
   {
     "title": "Pipeline de Vendas",
     "path": "/docs/pipeline/visao-geral",
-    "excerpt": "title: Visão Geral do Pipeline O Pipeline é o coração do Boostly. Ele exibe suas oportunidades em formato **Kanban**, organizadas por funil e etapa."
+    "excerpt": "O Pipeline é o coração do Boostly. Ele exibe suas oportunidades em formato Kanban, organizadas por funil e etapa. Use o seletor no topo da página para alternar "
   }
 ]

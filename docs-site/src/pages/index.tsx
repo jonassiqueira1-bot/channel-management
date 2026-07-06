@@ -144,9 +144,6 @@ export default function Home() {
         </main>
       )}
 
-      <footer className={styles.footer}>
-        <span>© {new Date().getFullYear()} Boostly. Todos os direitos reservados.</span>
-      </footer>
     </Layout>
   );
 }
