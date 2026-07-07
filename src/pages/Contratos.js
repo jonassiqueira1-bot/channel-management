@@ -225,9 +225,9 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   }
 
   return (
-    <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'visible' }}>
       {/* cabeçalho do slot */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface2)', borderBottom: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface2)', borderBottom: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none', borderRadius: (itens||[]).length === 0 ? 9 : '9px 9px 0 0' }}>
         <span style={{ width: 20, height: 20, borderRadius: 5, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: `1px solid ${slot.color}33`, flexShrink: 0 }}>{slot.icon}</span>
         <div style={{ flex: 1 }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{slot.label}</span>
@@ -329,7 +329,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
           onFocus={() => setAddingOpen(true)}
         />
         {addingOpen && (
-          <div style={{ position: 'absolute', bottom: 'calc(100% - 6px)', left: 10, right: 10, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 100, overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
+          <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
             <div style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
               {[{ label: `Sugeridos (${suggested.length})`, val: false }, { label: 'Todos', val: true }].map(({ label, val }) => (
                 <button key={label} type="button"
