@@ -199,7 +199,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   ]
 
   function addItem(p) {
-    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '', primeira_compra: false }])
+    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, quantidade: 1, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '', primeira_compra: false }])
     setAddingQuery(''); setAddingOpen(false); setShowAll(false)
   }
 
@@ -212,15 +212,29 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
     onChange((itens||[]).filter((_, i) => i !== idx))
   }
 
+  function handleQtdChange(idx, q) {
+    const qtd  = Math.max(0.001, parseFloat(q) || 1)
+    const item = (itens||[])[idx] || {}
+    const tab  = parseFloat(item.tabela) || 0
+    const pct  = parseFloat(item.desconto_pct) || 0
+    const unitLiq = tab > 0 ? tab * (1 - pct / 100) : parseFloat(item.valor) || 0
+    updateItem(idx, { quantidade: qtd, valor: Math.round(unitLiq * qtd * 100) / 100 })
+  }
+
   function handleDescontoChange(idx, pct) {
-    const p   = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
-    const tab = parseFloat((itens||[])[idx]?.tabela) || 0
-    updateItem(idx, { desconto_pct: p, valor: tab > 0 ? Math.round(tab * (1 - p / 100) * 100) / 100 : (itens||[])[idx]?.valor })
+    const p    = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
+    const item = (itens||[])[idx] || {}
+    const tab  = parseFloat(item.tabela) || 0
+    const qtd  = parseFloat(item.quantidade) || 1
+    updateItem(idx, { desconto_pct: p, valor: tab > 0 ? Math.round(tab * (1 - p / 100) * qtd * 100) / 100 : item.valor })
   }
 
   function handleValorChange(idx, v) {
-    const tab = parseFloat((itens||[])[idx]?.tabela) || 0
-    const pct = tab > 0 && parseFloat(v) >= 0 ? Math.round((1 - parseFloat(v) / tab) * 10000) / 100 : (itens||[])[idx]?.desconto_pct
+    const item = (itens||[])[idx] || {}
+    const tab  = parseFloat(item.tabela) || 0
+    const qtd  = parseFloat(item.quantidade) || 1
+    const unitTab = tab > 0 ? tab * qtd : 0
+    const pct  = unitTab > 0 && parseFloat(v) >= 0 ? Math.round((1 - parseFloat(v) / unitTab) * 10000) / 100 : item.desconto_pct
     updateItem(idx, { valor: v, desconto_pct: Math.max(0, pct) })
   }
 
@@ -250,8 +264,16 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
         return (
           <div key={idx} style={{ borderBottom: idx < (itens||[]).length - 1 ? '1px solid var(--border)' : 'none' }}>
             {/* linha principal */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 90px 28px', gap: 6, alignItems: 'center', padding: '7px 12px', background: precisaAuth ? 'var(--red-bg)' : 'var(--surface)' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 90px 80px 90px 28px', gap: 6, alignItems: 'center', padding: '7px 12px', background: precisaAuth ? 'var(--red-bg)' : 'var(--surface)' }}>
               <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</div>
+              {/* quantidade */}
+              <input type="number" min="0.001" step="1"
+                style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none', textAlign: 'center' }}
+                value={item.quantidade ?? 1}
+                onChange={e => handleQtdChange(idx, e.target.value)}
+                title="Quantidade"
+                placeholder="1"
+              />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'right' }}>
                 {item.tabela ? fmtMoeda(item.tabela) : '—'}
               </div>
