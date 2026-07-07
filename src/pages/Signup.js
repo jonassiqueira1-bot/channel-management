@@ -48,42 +48,13 @@ export default function Signup() {
       const userId = authData.user?.id
       if (!userId) throw new Error('Erro ao criar usuário.')
 
-      // 2. Criar tenant
-      const slug = slugify(orgName) + '-' + Math.random().toString(36).slice(2, 6)
-      const { data: tenant, error: tenantErr } = await supabase
-        .from('tenants')
-        .insert({ name: orgName, slug, plan: 'trial', status: 'active' })
-        .select()
-        .single()
-      if (tenantErr) throw new Error(tenantErr.message)
-
-      // 3. Criar branch matriz
-      const { data: branch, error: branchErr } = await supabase
-        .from('tenant_branches')
-        .insert({ tenant_id: tenant.id, name: orgName + ' (Matriz)', code: 'MATRIZ', status: 'active' })
-        .select()
-        .single()
-      if (branchErr) throw new Error(branchErr.message)
-
-      // 4. Criar perfil do admin
-      const { error: profileErr } = await supabase
-        .from('profiles')
-        .insert({
-          id:        userId,
-          tenant_id: tenant.id,
-          branch_id: branch.id,
-          role:      'admin_isv',
-          nome,
-          status:    'ativo',
-        })
-      if (profileErr) throw new Error(profileErr.message)
-
-      // 5. Popular seed do tenant
-      const { error: seedErr } = await supabase.rpc('seed_tenant', {
-        p_tenant_id: tenant.id,
-        p_branch_id: branch.id,
+      // 2. Criar tenant, branch, perfil e seed via RPC (SECURITY DEFINER — funciona sem sessão)
+      const { error: createErr } = await supabase.rpc('signup_create_tenant', {
+        p_user_id:  userId,
+        p_org_name: orgName,
+        p_nome:     nome,
       })
-      if (seedErr) throw new Error(seedErr.message)
+      if (createErr) throw new Error(createErr.message)
 
       navigate('/dashboard')
     } catch (err) {
