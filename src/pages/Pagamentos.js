@@ -358,7 +358,7 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
     const built = { ...pagamento, ...form,
       amount_total_net: Math.max(0,(Number(form.amount_cdu)||0)+(Number(form.amount_sms)||0)+(Number(form.amount_services)||0)-(Number(form.amount_discount)||0)),
       valor_recebido: form.valor_recebido!==''?Number(form.valor_recebido)||0:null,
-      produto_id: form.produto_id?Number(form.produto_id):null,
+      produto_id: form.produto_id || null,
       processed: true,
     }
     if (form.produto_id && pagamento.company_id && form.due_date) {
@@ -731,7 +731,7 @@ function _PagamentoModalLegacy({ pagamento, onSave, onClose }) { // eslint-disab
                 ...pagamento, ...form,
                 amount_total_net: liquido,
                 valor_recebido: recebido,
-                produto_id: form.produto_id ? Number(form.produto_id) : null,
+                produto_id: form.produto_id || null,
                 processed: true,
               })
               onClose()
@@ -843,7 +843,7 @@ function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [
       status: form.status,
       processed: false,
       notes: form.notes,
-      produto_id: form.produto_id ? Number(form.produto_id) : null,
+      produto_id: form.produto_id || null,
       produto_nome: form.produto_nome || '',
       tenant_id: 't1',
       criado: new Date().toISOString().slice(0, 10),
@@ -1084,7 +1084,7 @@ export default function Pagamentos() {
       status: form.status,
       processed: false,
       notes: form.notes,
-      produto_id: form.produto_id ? Number(form.produto_id) : null,
+      produto_id: form.produto_id || null,
       produto_nome: form.produto_nome || '',
       tenant_id: 't1',
       criado: new Date().toISOString().slice(0, 10),
@@ -1204,13 +1204,24 @@ export default function Pagamentos() {
       // Gera um repasse por beneficiário individual
       beneficiarios.forEach(b => {
         const pp = b.pp
-        const cdu_val      = (pag.amount_cdu      || 0) * (Number(pp.cdu_pct)      || 0) / 100
-        const sms_val      = (pag.amount_sms      || 0) * (Number(pp.sms_pct)      || 0) / 100
-        const servicos_val = (pag.amount_services || 0) * (Number(pp.servicos_pct) || 0) / 100
-        // Se não tiver buckets discriminados, usa percentual sobre total líquido
-        const valorComissao = (cdu_val + sms_val + servicos_val) > 0
-          ? cdu_val + sms_val + servicos_val
-          : valorBase * ((Number(pp.cdu_pct) || Number(pp.sms_pct) || Number(pp.servicos_pct) || 0) / 100)
+        const cduPct      = Number(pp.cdu_pct)      || 0
+        const smsPct      = Number(pp.sms_pct)      || 0
+        const servicosPct = Number(pp.servicos_pct) || 0
+        const temBuckets  = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
+        let cdu_val = 0, sms_val = 0, servicos_val = 0, valorComissao = 0
+        if (temBuckets) {
+          // Aplica percentual sobre cada bucket discriminado
+          cdu_val      = (pag.amount_cdu      || 0) * cduPct      / 100
+          sms_val      = (pag.amount_sms      || 0) * smsPct      / 100
+          servicos_val = (pag.amount_services || 0) * servicosPct / 100
+          valorComissao = cdu_val + sms_val + servicos_val
+        }
+        if (valorComissao <= 0 && valorBase > 0) {
+          // Sem buckets: usa soma dos percentuais sobre o total líquido
+          const pctTotal = cduPct + smsPct + servicosPct
+          valorComissao  = valorBase * pctTotal / 100
+          servicos_val   = valorComissao // registra tudo em serviços para rastreabilidade
+        }
         if (valorComissao <= 0) return
 
         const origemDesc = b.fonte === 'time_interno'
