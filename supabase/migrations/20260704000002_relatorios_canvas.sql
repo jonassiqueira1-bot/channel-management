@@ -26,6 +26,11 @@ CREATE TABLE IF NOT EXISTS relatorios (
 
 ALTER TABLE relatorios ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "relatorios_select" ON relatorios;
+DROP POLICY IF EXISTS "relatorios_insert" ON relatorios;
+DROP POLICY IF EXISTS "relatorios_update" ON relatorios;
+DROP POLICY IF EXISTS "relatorios_delete" ON relatorios;
+
 -- SELECT: owner sempre vê; 'todos' = qualquer membro do tenant; 'equipe' = papeis_permitidos
 CREATE POLICY "relatorios_select" ON relatorios
   FOR SELECT USING (
@@ -69,6 +74,7 @@ RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN NEW.updated_at = now(); RETURN NEW; END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_relatorios_updated_at ON relatorios;
 CREATE TRIGGER trg_relatorios_updated_at
   BEFORE UPDATE ON relatorios
   FOR EACH ROW EXECUTE FUNCTION touch_relatorios_updated_at();

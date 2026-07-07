@@ -36,9 +36,7 @@ const TIPOS_ALVO = {
 }
 
 const TIPOS_META = {
-  valor:       { label: 'Valor de Vendas (R$)',               prefix: 'R$', suffix: '' },
-  atividade:   { label: 'Qtd. de Oportunidades / Atividades', prefix: '',   suffix: 'ops' },
-  operacional: { label: 'Não-Comercial / Operacional',        prefix: '',   suffix: '' },
+  valor: { label: 'Valor Comercial (R$)', prefix: 'R$', suffix: '' },
 }
 
 const STATUS_CFG = {
@@ -54,7 +52,6 @@ const TIPO_FILTER_OPTIONS = [
   { val: 'responsavel', label: 'Responsável',          desc: 'Vendedores e unidades' },
   { val: 'categoria',   label: 'Categoria de Produto', desc: 'Por segmento / categoria' },
   { val: 'produto',     label: 'Produto Específico',   desc: 'Por SKU / produto' },
-  { val: 'operacional', label: 'Métricas Operacionais',desc: 'Metas não-comerciais' },
 ]
 
 // ─── Mock seed ────────────────────────────────────────────────────────────────
@@ -128,11 +125,10 @@ function corBarra(p) {
   if (p >= 40)  return '#F59E0B'
   return '#EF4444'
 }
-function fmtCompact(v, tipo, goal) {
+function fmtCompact(v) {
   const n = Number(v)
-  const isCurrency = tipo === 'valor' || (tipo === 'operacional' && goal?.subtipo_operacional === 'moeda')
-  const sfx = tipo === 'atividade' ? 'ops'
-    : tipo === 'operacional' && goal?.valor_sufixo ? goal.valor_sufixo.slice(0,6) : ''
+  const isCurrency = true
+  const sfx = ''
   let num
   if (n >= 1000000) num = (n/1000000).toFixed(1).replace('.', ',') + 'M'
   else if (n >= 1000) num = (n/1000).toFixed(0) + 'k'
@@ -179,13 +175,9 @@ function calcRealizado(goal, contratosAtivos, produtos, equipes, vendedores) {
     filtrados = filtrados.filter(c => memNomes.includes(c.responsavel))
   }
 
-  if (goal.tipo_meta === 'atividade') return filtrados.length
-  if (goal.tipo_meta === 'valor') {
-    return filtrados.reduce((s, c) =>
-      s + (Number(c.valor_adesao) || 0) + (Number(c.valor_mrr) || 0) + (Number(c.valor_servico) || 0), 0)
-  }
-  // operacional: sem cálculo automático — mantém valor_atual salvo
-  return goal.valor_atual ?? 0
+  if (goal.origem_realizado === 'manual') return goal.valor_atual ?? 0
+  return filtrados.reduce((s, c) =>
+    s + (Number(c.valor_adesao) || 0) + (Number(c.valor_mrr) || 0) + (Number(c.valor_servico) || 0), 0)
 }
 
 // ─── Avatar simples ───────────────────────────────────────────────────────────
@@ -446,7 +438,7 @@ const pop = {
 }
 
 // ─── Célula da matriz (compacta) ─────────────────────────────────────────────
-function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit }) {
+function MatrixCell({ goal, onEdit }) {
   const [hover, setHover] = useState(false)
 
   if (!goal) {
@@ -457,13 +449,10 @@ function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit
     )
   }
 
-  const p   = pctReal(goal.valor_atual, goal.valor_alvo)
-  const cor = corBarra(Math.min(p, 100))
-  const goalTipo    = goal.tipo_meta || tipo_meta
-  const goalSubtipo = goal.subtipo_operacional || subtipo_operacional
-  const goalSufixo  = goal.valor_sufixo || valor_sufixo
-  const alvoFmt     = fmtCompact(goal.valor_alvo, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
-  const realFmt     = fmtCompact(goal.valor_atual, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
+  const p       = pctReal(goal.valor_atual, goal.valor_alvo)
+  const cor     = corBarra(Math.min(p, 100))
+  const alvoFmt = fmtCompact(goal.valor_alvo)
+  const realFmt = fmtCompact(goal.valor_atual)
   const pPct        = Math.min(p, 100)
 
   return (
@@ -550,9 +539,6 @@ function MatrixRow({ row, months, onEdit }) {
         <MatrixCell
           key={`${m.ano}-${m.mes}`}
           goal={row.goals[`${m.ano}-${m.mes}`] || null}
-          tipo_meta={row.tipo_meta}
-          subtipo_operacional={row.subtipo_operacional}
-          valor_sufixo={row.valor_sufixo}
           onEdit={handleCellEdit}
         />
       ))}
@@ -706,7 +692,7 @@ function MesCell({ mes, label, value, onChange, showPrefix, isCurrent }) {
 const EMPTY_MESES_VALORES = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, '']))
 const EMPTY_FORM = {
   tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', partner_id: '', category_id: '', product_id: '', equipe_id: '',
-  tipo_meta: 'valor', subtipo_operacional: 'quantidade', valor_sufixo: '',
+  tipo_meta: 'valor', origem_realizado: 'automatico',
   periodo_ano: String(ANO), meses_valores: { ...EMPTY_MESES_VALORES }, valor_padrao_str: '',
   status: 'ativa',
 }
@@ -750,9 +736,9 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       tipo_alvo: initial.tipo_alvo, id_vendedor: initial.id_vendedor || '',
       id_unidade: initial.id_unidade || '', partner_id: initial.partner_id || '', category_id: initial.category_id || '',
       product_id: initial.product_id || '', equipe_id: initial.equipe_id || '',
-      tipo_meta: initial.tipo_meta,
-      subtipo_operacional: initial.subtipo_operacional || 'quantidade',
-      valor_sufixo: initial.valor_sufixo || '', periodo_ano: String(initial.periodo_ano),
+      tipo_meta: 'valor',
+      origem_realizado: initial.origem_realizado || 'automatico',
+      periodo_ano: String(initial.periodo_ano),
       meses_valores: mv, valor_padrao_str: '', status: initial.status,
     }
   })
@@ -802,9 +788,8 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       equipe_id:   form.tipo_alvo==='equipe'    ? form.equipe_id    : null,
       alvo_nome: nome_ref, alvo_contexto: sub_ref,
       nome_ref, sub_ref,
-      tipo_meta: form.tipo_meta,
-      subtipo_operacional: form.tipo_meta==='operacional' ? form.subtipo_operacional : null,
-      valor_sufixo: form.tipo_meta==='operacional' && form.subtipo_operacional==='quantidade' ? (form.valor_sufixo||null) : null,
+      tipo_meta: 'valor',
+      origem_realizado: form.origem_realizado || 'automatico',
       periodo_ano: Number(form.periodo_ano), data_inicio:null, data_fim:null, status:form.status,
     }
 
@@ -834,10 +819,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
 
   const ALVO_OPTIONS = Object.entries(TIPOS_ALVO).map(([k,v]) => ({ val:k, label:v.label }))
   const modalAnos = [ANO-1, ANO, ANO+1]
-  const isOp  = form.tipo_meta === 'operacional'
-  const showR = form.tipo_meta === 'valor' || (isOp && form.subtipo_operacional === 'moeda')
-
-  const tipoMetaOpts  = Object.entries(TIPOS_META).map(([k,v]) => ({ value:k, label:v.label }))
   const periodoAnoOpts = [ANO-1, ANO, ANO+1].map(y => ({ value:String(y), label:String(y) }))
   const statusOpts     = Object.entries(STATUS_CFG).map(([k,v]) => ({ value:k, label:v.label }))
 
@@ -913,17 +894,13 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       {/* Aba Execução */}
       {activeTab === 'execucao' && isEditing && row && (() => {
         const sortedGoals = Object.values(row.goals).sort((a,b)=>(a.periodo_ano*12+a.periodo_mes)-(b.periodo_ano*12+b.periodo_mes))
-        const goalTipo    = initial.tipo_meta
-        const goalSubtipo = initial.subtipo_operacional
-        const goalSufixo  = initial.valor_sufixo
-        const showPfx     = goalTipo==='valor' || (goalTipo==='operacional' && goalSubtipo==='moeda')
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             <p style={{ margin:'0 0 4px', fontSize:12, color:'var(--text-muted)' }}>
               Preencha o valor realizado em cada mês.
             </p>
             {sortedGoals.map(g => {
-              const alvoFmt = fmtCompact(g.valor_alvo, goalTipo, { ...g, subtipo_operacional:goalSubtipo, valor_sufixo:goalSufixo })
+              const alvoFmt = fmtCompact(g.valor_alvo)
               const val = realizadoValues[g.id] ?? ''
               const p   = pctReal(parseInput(val), g.valor_alvo)
               const cor = corBarra(Math.min(p,100))
@@ -942,13 +919,13 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
                       </div>
                     </div>
                     <div style={{ position:'relative' }}>
-                      {showPfx && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
+                      <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>
                       <input type="text" inputMode="numeric"
                         placeholder={g.valor_atual > 0 ? fmtInput(String(g.valor_atual)) : '0'}
                         value={val}
                         onChange={e => setRealizadoValues(prev => ({ ...prev, [g.id]: fmtInput(e.target.value) }))}
                         style={{ width:'100%', boxSizing:'border-box',
-                          padding: showPfx ? '7px 10px 7px 26px' : '7px 10px',
+                          padding: '7px 10px 7px 26px',
                           borderRadius:7, border:`1.5px solid ${val ? cor : 'var(--border)'}`,
                           background:'var(--surface)', fontSize:13, fontWeight:700,
                           color:'var(--text)', fontFamily:'var(--mono)', outline:'none' }} />
@@ -1004,7 +981,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
                 Distribuição por Mês
               </span>
               <span style={{ fontSize:11, color:'var(--text-muted)', marginLeft:8 }}>
-                {form.periodo_ano} · {showR?'(R$)':isOp?`(${form.valor_sufixo||'qtd'})`:'(ops)'}
+                {form.periodo_ano} · (R$)
               </span>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -1018,10 +995,10 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
             <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', whiteSpace:'nowrap' }}>Padrão:</span>
             <div style={{ position:'relative', flex:1, maxWidth:160 }}>
-              {showR && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
+              <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>
               <input type="text" inputMode="numeric" placeholder="0" value={form.valor_padrao_str}
                 onChange={e => set('valor_padrao_str',fmtInput(e.target.value))}
-                style={{ width:'100%', boxSizing:'border-box', height:32, padding:showR?'0 10px 0 24px':'0 10px',
+                style={{ width:'100%', boxSizing:'border-box', height:32, padding:'0 10px 0 24px',
                   borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)',
                   fontSize:12, fontFamily:'var(--mono)', color:'var(--text)', outline:'none' }} />
             </div>
@@ -1038,7 +1015,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
             {Array.from({length:12},(_,i)=>i+1).map(mes => (
               <MesCell key={mes} mes={mes} label={MESES[mes-1].slice(0,3)}
                 value={form.meses_valores[mes]} onChange={setMes}
-                showPrefix={showR} isCurrent={mes===MES && Number(form.periodo_ano)===ANO} />
+                showPrefix={true} isCurrent={mes===MES && Number(form.periodo_ano)===ANO} />
             ))}
           </div>
           {errors.meses && (
@@ -1062,15 +1039,16 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       <FormSection label="Configuração">
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
           <div>
-            <span style={lbl}>Tipo de meta</span>
-            <select style={fldStyle} value={form.tipo_meta} onChange={e => set('tipo_meta', e.target.value)}>
-              {tipoMetaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div>
             <span style={lbl}>Ano</span>
             <select style={fldStyle} value={form.periodo_ano} onChange={e => set('periodo_ano', e.target.value)}>
               {periodoAnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <span style={lbl}>Origem do realizado</span>
+            <select style={fldStyle} value={form.origem_realizado} onChange={e => set('origem_realizado', e.target.value)}>
+              <option value="automatico">Automático — contratos do sistema</option>
+              <option value="manual">Manual — lançamento direto</option>
             </select>
           </div>
           {isEditing && (
@@ -1079,21 +1057,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
               <select style={fldStyle} value={form.status} onChange={e => set('status', e.target.value)}>
                 {statusOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-            </div>
-          )}
-          {isOp && (
-            <div>
-              <span style={lbl}>Natureza</span>
-              <select style={fldStyle} value={form.subtipo_operacional} onChange={e => set('subtipo_operacional', e.target.value)}>
-                <option value="quantidade">Quantidade</option>
-                <option value="moeda">Valor (R$)</option>
-              </select>
-            </div>
-          )}
-          {isOp && form.subtipo_operacional === 'quantidade' && (
-            <div>
-              <span style={lbl}>Sufixo</span>
-              <input style={fldStyle} value={form.valor_sufixo || ''} onChange={e => set('valor_sufixo', e.target.value)} placeholder="treinamentos…" />
             </div>
           )}
         </div>
@@ -1188,7 +1151,6 @@ export default function Metas() {
 
     // Filtro tipo de atribuição
     const byTipo = filterTipos.length === 0 ? inRange : inRange.filter(g => {
-      if (filterTipos.includes('operacional') && g.tipo_meta === 'operacional') return true
       if (filterTipos.includes('responsavel') && (g.tipo_alvo==='vendedor' || g.tipo_alvo==='unidade')) return true
       if (filterTipos.includes('categoria')   && g.tipo_alvo==='categoria') return true
       if (filterTipos.includes('produto')     && g.tipo_alvo==='produto')   return true
@@ -1225,13 +1187,12 @@ export default function Metas() {
     const entityMap = {}
     byResp.forEach(g => {
       const idRef  = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || g.equipe_id || 'global'
-      const key    = `${g.tipo_alvo}|${idRef}|${g.tipo_meta}`
+      const key    = `${g.tipo_alvo}|${idRef}`
       const nomeRef = resolveNome(g)
       const subRef  = resolveContexto(g)
       if (!entityMap[key]) {
         entityMap[key] = {
-          key, tipo_alvo: g.tipo_alvo, tipo_meta: g.tipo_meta,
-          subtipo_operacional: g.subtipo_operacional, valor_sufixo: g.valor_sufixo,
+          key, tipo_alvo: g.tipo_alvo, tipo_meta: 'valor',
           nome_ref: nomeRef, sub_ref: subRef, goals: {},
         }
       }

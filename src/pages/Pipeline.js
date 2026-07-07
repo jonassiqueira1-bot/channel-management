@@ -34,6 +34,7 @@ import {
   STAGE_CFG, RESOURCE_CFG,
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
+import { STORAGE_KEY as TIPOS_ACAO_KEY } from './settings/TiposAcao'
 import { useDocuments } from '../hooks/useDocuments'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCompanies } from '../hooks/useCompanies'
@@ -778,117 +779,33 @@ function CampanhaField({ value, onChange }) {
   )
 }
 
-// ─── Campo de Tipo de Tarefa com gerenciador inline ──────────────────────────
+// ─── Campo de Tipo de Tarefa — usa mesma fonte de Configurações → Tipos de Ação ─
+const TIPOS_TAREFA_FALLBACK = [
+  { label:'Ligação', icon:'📞', slug:'ligacao' },
+  { label:'E-mail',  icon:'✉',  slug:'email' },
+  { label:'Reunião', icon:'🗓', slug:'reuniao' },
+  { label:'Visita',  icon:'🚗', slug:'visita' },
+  { label:'WhatsApp',icon:'💬', slug:'whatsapp' },
+  { label:'Proposta',icon:'📄', slug:'proposta' },
+]
+
 function TipoTarefaField({ value, onChange }) {
-  const [tipos, setTipos] = useLocalState('pipeline:tiposTarefa', TIPOS_TAREFA_PADRAO)
-  const [mgr, setMgr]     = useState(false)
-  const [novoLabel, setNovoLabel] = useState('')
-  const [novoIcon, setNovoIcon]   = useState('☑')
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!mgr) return
-    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setMgr(false) }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [mgr])
-
-  function addTipo() {
-    const label = novoLabel.trim()
-    if (!label || tipos.some(t => t.label.toLowerCase() === label.toLowerCase())) return
-    setTipos([...tipos, { label, icon: novoIcon }])
-    setNovoLabel(''); setNovoIcon('☑')
-  }
-
-  function removeTipo(label) {
-    setTipos(tipos.filter(t => t.label !== label))
-    if (value === label) onChange(tipos[0]?.label || '')
-  }
-
-  // Resolve o ícone: tenta a lista editável, depois fallback nos ícones antigos
-  function iconFor(val) {
-    const found = tipos.find(t => t.label.toLowerCase() === val?.toLowerCase())
-    if (found) return found.icon
-    return TIPO_ICONS[val?.toLowerCase()] || '☑'
-  }
+  const [tiposAcao] = useLocalState(TIPOS_ACAO_KEY, [])
+  const tipos = tiposAcao.length ? tiposAcao : TIPOS_TAREFA_FALLBACK
 
   return (
-    <div style={{ position:'relative' }}>
-      <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-        <label style={{ fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase', letterSpacing:.5 }}>
-          Tipo
-        </label>
-        <button type="button" onClick={() => setMgr(v => !v)}
-          title="Gerenciar tipos de tarefa"
-          style={{ fontSize:10, padding:'1px 6px', borderRadius:4, border:'1px solid var(--border)',
-            background:'none', color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)', lineHeight:1.6 }}>
-          ⚙ editar lista
-        </button>
-      </div>
-
+    <div>
+      <label style={{ fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>
+        Tipo
+      </label>
       <select style={{ ...m.input, width:'100%' }} value={value} onChange={e => onChange(e.target.value)}>
+        <option value="">— Selecione —</option>
         {tipos.map(t => (
-          <option key={t.label} value={t.label}>{t.icon} {t.label}</option>
-        ))}
-        {/* Compat: opções antigas que podem estar salvas mas não na lista editável */}
-        {TIPOS_TAREFA.filter(old => !tipos.some(t => t.label.toLowerCase() === old)).map(old => (
-          <option key={old} value={old}>{TIPO_ICONS[old]} {old.charAt(0).toUpperCase()+old.slice(1)}</option>
+          <option key={t.slug || t.label} value={t.slug || t.label}>
+            {t.icon} {t.label}
+          </option>
         ))}
       </select>
-
-      {mgr && (
-        <div ref={ref} style={{ position:'absolute', top:'100%', left:0, right:0, zIndex:400, marginTop:4,
-          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
-          boxShadow:'0 12px 32px rgba(0,0,0,.18)', padding:14 }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:10 }}>
-            Tipos de tarefa disponíveis
-          </div>
-
-          <div style={{ maxHeight:180, overflowY:'auto', marginBottom:10, display:'flex', flexDirection:'column', gap:2 }}>
-            {tipos.map(t => (
-              <div key={t.label} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 8px',
-                borderRadius:6, background:'var(--surface2)', border:'1px solid var(--border2)' }}>
-                <span style={{ fontSize:15, flexShrink:0 }}>{t.icon}</span>
-                <span style={{ flex:1, fontSize:12, color:'var(--text)' }}>{t.label}</span>
-                <button type="button" onClick={() => removeTipo(t.label)}
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
-                    fontSize:13, padding:'0 3px', lineHeight:1 }}
-                  onMouseEnter={e => e.currentTarget.style.color='var(--red)'}
-                  onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>
-                  ✕
-                </button>
-              </div>
-            ))}
-            {tipos.length === 0 && (
-              <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:'12px 0' }}>
-                Nenhum tipo cadastrado
-              </div>
-            )}
-          </div>
-
-          {/* Adicionar novo */}
-          <div style={{ display:'flex', gap:6, alignItems:'center' }}>
-            <input style={{ ...m.input, width:46, textAlign:'center', fontSize:16, padding:'6px 4px', flexShrink:0 }}
-              placeholder="😀" value={novoIcon} maxLength={2}
-              onChange={e => setNovoIcon(e.target.value || '☑')} />
-            <input style={{ ...m.input, flex:1, fontSize:12 }}
-              placeholder="Nome do tipo…"
-              value={novoLabel}
-              onChange={e => setNovoLabel(e.target.value)}
-              onKeyDown={e => { if (e.key==='Enter') { e.preventDefault(); addTipo() } }} />
-            <button type="button" onClick={addTipo}
-              style={{ padding:'6px 12px', background:'var(--accent)', color:'#fff',
-                border:'none', borderRadius:6, fontSize:12, fontWeight:600,
-                cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-              + Add
-            </button>
-          </div>
-
-          <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:8 }}>
-            A lista é salva automaticamente para todas as tarefas.
-          </div>
-        </div>
-      )}
     </div>
   )
 }
@@ -4238,7 +4155,8 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
                 <span style={{ fontSize:11, color:'var(--text-muted)' }}>{playbookHintOpen ? '▲' : '▼'}</span>
               </button>
               {playbookHintOpen && (
-                <div style={{ padding:'0 20px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ padding:'0 20px 14px', display:'flex', flexDirection:'column', gap:8,
+                  maxHeight:320, overflowY:'auto' }}>
                   {playbookContextual.steps.map((s, i) => (
                     <div key={s.id || i} style={{ background:'#fff', border:'1px solid var(--accent)22',
                       borderRadius:8, padding:'10px 14px' }}>
@@ -4623,6 +4541,68 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
         </div>
       )}
 
+      {/* ── Objeções ── */}
+      {(() => {
+        const OBJ_CATS_VIEW = {
+          preco:        { label:'Preço',        icon:'💰', bg:'#FEF3C7', color:'#92400E' },
+          timing:       { label:'Timing',       icon:'⏱', bg:'#EDE9FE', color:'#5B21B6' },
+          concorrencia: { label:'Concorrência', icon:'⚔️', bg:'#DBEAFE', color:'#1E40AF' },
+          necessidade:  { label:'Necessidade',  icon:'🎯', bg:'#D1FAE5', color:'#065F46' },
+          autoridade:   { label:'Autoridade',   icon:'👤', bg:'#FEF9C3', color:'#854D0E' },
+          confianca:    { label:'Confiança',    icon:'🛡️', bg:'#F0FDF4', color:'#166534' },
+          outro:        { label:'Outro',        icon:'💬', bg:'#F3F4F6', color:'#374151' },
+        }
+        const todasObjecoes = playbook.objecoes || []
+        // Sem etapa definida = aparece sempre; com etapa = só na etapa correspondente
+        const objecoesFiltradas = todasObjecoes.filter(o => !o.etapa || o.etapa === stage)
+        if (!objecoesFiltradas.length) return null
+        return (
+          <div style={S.section}>
+            <SectionHeading icon="🛡️" label="Objeções Comuns" />
+            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+              {objecoesFiltradas.map((obj, i) => {
+                const cat = OBJ_CATS_VIEW[obj.categoria] || OBJ_CATS_VIEW.outro
+                const etapaCfg = obj.etapa ? STAGE_CFG[obj.etapa] : null
+                return (
+                  <div key={obj.id || i} style={{ background:'var(--surface)', border:'1px solid var(--border2)',
+                    borderRadius:10, overflow:'hidden' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px',
+                      background:'var(--surface2)', borderBottom:'1px solid var(--border2)' }}>
+                      <span style={{ fontSize:14 }}>{cat.icon}</span>
+                      <span style={{ flex:1, fontSize:12, fontWeight:700, color:'var(--text)' }}>
+                        {obj.objecao || '—'}
+                      </span>
+                      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:10,
+                        background: cat.bg, color: cat.color }}>{cat.label}</span>
+                      {etapaCfg && (
+                        <span style={{ fontSize:10, fontWeight:600, padding:'2px 8px', borderRadius:10,
+                          background: etapaCfg.bg || 'var(--surface2)', color: etapaCfg.color || 'var(--text-muted)' }}>
+                          {etapaCfg.icon} {etapaCfg.label || obj.etapa}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase',
+                          letterSpacing:'0.06em', marginBottom:4 }}>Resposta sugerida</div>
+                        <div style={{ fontSize:13, color:'var(--text-soft)', lineHeight:1.65 }}>{obj.resposta}</div>
+                      </div>
+                      {obj.escalonamento?.trim() && (
+                        <div style={{ background:'#FFF7ED', border:'1px solid #FED7AA', borderRadius:7, padding:'8px 12px' }}>
+                          <div style={{ fontSize:10, fontWeight:700, color:'#92400E', textTransform:'uppercase',
+                            letterSpacing:'0.06em', marginBottom:3 }}>Dica de escalonamento</div>
+                          <div style={{ fontSize:12, color:'#78350F', lineHeight:1.6 }}>{obj.escalonamento}</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })()}
+
       {/* ── Clientes de referência ── */}
       {refs.length > 0 && (
         <div style={S.section}>
@@ -4905,8 +4885,469 @@ const et = {
   trayFooter: { padding:'8px 14px', borderTop:'1px solid var(--border2)', background:'var(--surface2)' },
 }
 
+// ─── Bulk Action Modals ────────────────────────────────────────────────────────
+
+function BulkTaskModal({ oppIds, opps, onClose, saveTask }) {
+  const [tiposAcao] = useLocalState(TIPOS_ACAO_KEY, [])
+  const tipos = tiposAcao.length ? tiposAcao : TIPOS_TAREFA_FALLBACK
+  const { usuarios } = useUsuarios()
+  const [form, setForm] = useState({ titulo:'', tipo: tipos[0]?.slug||tipos[0]?.label||'', prazo:'', responsavel:'', prioridade:'media', descricao:'' })
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  async function handleSave() {
+    if (!form.titulo.trim()) return
+    setSaving(true)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      await saveTask({
+        titulo:        form.titulo,
+        tipo:          form.tipo,
+        prazo:         form.prazo || null,
+        responsavel:   form.responsavel || '',
+        prioridade:    form.prioridade,
+        descricao:     form.descricao || '',
+        status:        'pendente',
+        entidade_tipo: 'oportunidade',
+        entidade_id:   opp.id,
+        entidade_nome: opp.titulo || opp.empresa_nome || '',
+      })
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:480 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Criar tarefa em massa</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} selecionada{oppIds.size!==1?'s':''}</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={blk.label}>Título da tarefa *</label>
+            <input style={blk.input} value={form.titulo} onChange={e=>set('titulo',e.target.value)} placeholder="Ex: Ligar para cliente" autoFocus />
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={blk.label}>Tipo</label>
+              <select style={blk.input} value={form.tipo} onChange={e=>set('tipo',e.target.value)}>
+                {tipos.map(t=><option key={t.slug||t.label} value={t.slug||t.label}>{t.icon} {t.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label style={blk.label}>Prioridade</label>
+              <select style={blk.input} value={form.prioridade} onChange={e=>set('prioridade',e.target.value)}>
+                <option value="baixa">Baixa</option>
+                <option value="media">Média</option>
+                <option value="alta">Alta</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={blk.label}>Prazo</label>
+              <input style={blk.input} type="date" value={form.prazo} onChange={e=>set('prazo',e.target.value)} />
+            </div>
+            <div>
+              <label style={blk.label}>Responsável</label>
+              <select style={blk.input} value={form.responsavel} onChange={e=>set('responsavel',e.target.value)}>
+                <option value="">— Nenhum —</option>
+                {usuarios.filter(u=>u.status!=='inativo').map(u=><option key={u.id} value={u.nome}>{u.nome}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label style={blk.label}>Descrição</label>
+            <textarea style={{ ...blk.input, height:64, resize:'vertical' }} value={form.descricao} onChange={e=>set('descricao',e.target.value)} placeholder="Detalhes opcionais..." />
+          </div>
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!form.titulo.trim()||saving} onClick={handleSave}>
+            {saving ? 'Criando...' : `Criar ${oppIds.size} tarefa${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BulkPlaybookModal({ oppIds, opps, onClose, saveOpp }) {
+  const { playbooks } = usePlaybooks()
+  const ativos = playbooks.filter(p => p.status !== 'inativo')
+  const [selected, setSelected] = useState(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    if (!selected) return
+    setSaving(true)
+    const pb = ativos.find(p => p.id === selected)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      await saveOpp({ ...opp, playbook_id: selected, playbook_nome: pb?.titulo || pb?.title || '' })
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:480 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Relacionar playbook</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} selecionada{oppIds.size!==1?'s':''}</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:24 }}>
+          {ativos.length === 0
+            ? <div style={{ color:'var(--text-muted)', fontSize:13, textAlign:'center', padding:24 }}>Nenhum playbook ativo cadastrado.</div>
+            : <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {ativos.map(pb => (
+                  <label key={pb.id} style={{ ...blk.radioRow, ...(selected===pb.id?blk.radioRowActive:{}) }}>
+                    <input type="radio" name="pb" value={pb.id} checked={selected===pb.id} onChange={()=>setSelected(pb.id)} style={{ marginRight:10, accentColor:'var(--accent)' }} />
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{pb.titulo||pb.title}</div>
+                      {pb.description && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>{pb.description}</div>}
+                    </div>
+                  </label>
+                ))}
+              </div>
+          }
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!selected||saving} onClick={handleSave}>
+            {saving ? 'Salvando...' : `Relacionar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
+  const { usuarios }  = useUsuarios()
+  const { sellers }   = useSellers()
+  const { contacts }  = useContacts()
+  const [tipoMembro, setTipoMembro] = useState('interno')
+  const [papel, setPapel]           = useState('vendedor')
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [saving, setSaving] = useState(false)
+
+  const pool = useMemo(() => {
+    if (tipoMembro === 'interno') return usuarios.filter(u=>u.status!=='inativo').map(u=>({ id:`s_${u.id}`, nome:u.nome, sub:u.cargo||u.email||'' }))
+    if (tipoMembro === 'canal')   return sellers.map(s=>({ id:`c_${s.id}`, nome:s.nome, sub:s.empresa||'' }))
+    return contacts.map(c=>({ id:`ct_${c.id}`, nome:`${c.primeiro_nome||''} ${c.sobrenome||''}`.trim(), sub:c.empresa||'' }))
+  }, [tipoMembro, usuarios, sellers, contacts])
+
+  function toggle(id) {
+    setSelectedIds(prev => { const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n })
+  }
+
+  function selectAll() { setSelectedIds(new Set(pool.map(p=>p.id))) }
+  function clearAll()  { setSelectedIds(new Set()) }
+
+  async function handleSave() {
+    if (!selectedIds.size) return
+    setSaving(true)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      for (const uid of selectedIds) {
+        await addMembro({ oportunidade_id: opp.id, user_id: uid, papel, tipo_membro: tipoMembro })
+      }
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:520 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Adicionar à equipe</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} selecionada{oppIds.size!==1?'s':''}</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+            <div>
+              <label style={blk.label}>Tipo de membro</label>
+              <select style={blk.input} value={tipoMembro} onChange={e=>{setTipoMembro(e.target.value);setSelectedIds(new Set())}}>
+                <option value="interno">Equipe interna</option>
+                <option value="canal">Parceiro / Canal</option>
+                <option value="contato">Contato externo</option>
+              </select>
+            </div>
+            <div>
+              <label style={blk.label}>Papel</label>
+              <select style={blk.input} value={papel} onChange={e=>setPapel(e.target.value)}>
+                <option value="vendedor">Vendedor</option>
+                <option value="cs">Customer Success</option>
+                <option value="tecnico">Técnico</option>
+                <option value="gerente">Gerente</option>
+                <option value="outro">Outro</option>
+              </select>
+            </div>
+          </div>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
+            <label style={{ ...blk.label, margin:0 }}>{pool.length} disponíveis</label>
+            <div style={{ display:'flex', gap:8 }}>
+              <button style={blk.linkBtn} onClick={selectAll}>Todos</button>
+              <button style={blk.linkBtn} onClick={clearAll}>Limpar</button>
+            </div>
+          </div>
+          <div style={{ maxHeight:240, overflowY:'auto', display:'flex', flexDirection:'column', gap:4 }}>
+            {pool.length===0
+              ? <div style={{ color:'var(--text-muted)', fontSize:12, textAlign:'center', padding:16 }}>Nenhum {tipoMembro==='interno'?'usuário':tipoMembro==='canal'?'parceiro':'contato'} encontrado.</div>
+              : pool.map(p=>(
+                  <label key={p.id} style={{ ...blk.radioRow, cursor:'pointer', ...(selectedIds.has(p.id)?blk.radioRowActive:{}) }}>
+                    <input type="checkbox" checked={selectedIds.has(p.id)} onChange={()=>toggle(p.id)} style={{ marginRight:10, accentColor:'var(--accent)' }} />
+                    <div>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.nome}</div>
+                      {p.sub && <div style={{ fontSize:11, color:'var(--text-muted)' }}>{p.sub}</div>}
+                    </div>
+                  </label>
+                ))
+            }
+          </div>
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!selectedIds.size||saving} onClick={handleSave}>
+            {saving ? 'Adicionando...' : `Adicionar ${selectedIds.size||''} membro${selectedIds.size!==1?'s':''} em ${oppIds.size} opp${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BulkOrigemCampanhaModal({ oppIds, opps, onClose, saveOpp }) {
+  const [campanhas] = useLocalState('settings:campanhas_v1', CAMPANHAS_SETTINGS_DEFAULT)
+  const campanhasAtivas = campanhas.filter(c => c.status === 'active' || c.status === 'draft')
+  const [origem, setOrigem]     = useState('')
+  const [campanha, setCampanha] = useState('')
+  const [saving, setSaving]     = useState(false)
+
+  async function handleSave() {
+    if (!origem && !campanha) return
+    setSaving(true)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      await saveOpp({
+        ...opp,
+        ...(origem   ? { origem }                      : {}),
+        ...(campanha ? { campanha_id: campanha || null } : {}),
+      })
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:440 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Editar Origem e Campanha</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} selecionada{oppIds.size!==1?'s':''} — apenas os campos preenchidos serão alterados</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={blk.label}>Origem <span style={{ fontWeight:400, color:'var(--text-muted)' }}>(deixe em branco para não alterar)</span></label>
+            <select style={blk.input} value={origem} onChange={e=>setOrigem(e.target.value)}>
+              <option value="">— Não alterar —</option>
+              {ORIGENS.map(o=><option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label style={blk.label}>Campanha <span style={{ fontWeight:400, color:'var(--text-muted)' }}>(deixe em branco para não alterar)</span></label>
+            <select style={blk.input} value={campanha} onChange={e=>setCampanha(e.target.value)}>
+              <option value="">— Não alterar —</option>
+              <option value="__clear__">Remover campanha</option>
+              {campanhasAtivas.map(c=><option key={c.id} value={c.id}>{c.nome||c.name||c.id}</option>)}
+              {campanhasAtivas.length===0 && CAMPANHAS_PADRAO.map(c=><option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={(!origem && !campanha) || saving} onClick={handleSave}>
+            {saving ? 'Salvando...' : `Aplicar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function BulkProdutosModal({ oppIds, opps, onClose, saveOpp }) {
+  const { produtos } = useProducts()
+  const produtosAtivos = (produtos || []).filter(p => p.status === 'ativo')
+  const [q, setQ]             = useState('')
+  const [selected, setSelected] = useState([]) // [{ produto_id, produto_nome, produto_codigo, tipo, cobranca, desconto_max, quantidade, preco_unitario, desconto_pct, subtotal }]
+  const [syncValor, setSyncValor] = useState(false)
+  const [saving, setSaving]   = useState(false)
+
+  const sugestoes = useMemo(() => {
+    const lq = q.toLowerCase()
+    return produtosAtivos.filter(p =>
+      !selected.find(s => s.produto_id === p.id) &&
+      (!q.trim() || (p.nome||'').toLowerCase().includes(lq) || (p.codigo||'').toLowerCase().includes(lq))
+    ).slice(0, 8)
+  }, [q, produtosAtivos, selected])
+
+  function recalc(item) {
+    const base = Number(item.preco_unitario || 0)
+    const qty  = Number(item.quantidade || 1)
+    const desc = Math.min(Number(item.desconto_pct || 0), item.desconto_max || 0)
+    return { ...item, desconto_pct: Number(item.desconto_pct || 0), subtotal: base * qty * (1 - desc / 100) }
+  }
+
+  function addProduto(p) {
+    setSelected(prev => [...prev, recalc({
+      produto_id: p.id, produto_nome: p.nome, produto_codigo: p.codigo,
+      tipo: p.tipo, cobranca: p.cobranca, desconto_max: p.desconto_max || 0,
+      quantidade: 1, preco_unitario: p.preco, desconto_pct: 0, subtotal: p.preco,
+    })])
+    setQ('')
+  }
+
+  function removeProduto(pid) { setSelected(prev => prev.filter(s => s.produto_id !== pid)) }
+
+  async function handleSave() {
+    if (!selected.length) return
+    setSaving(true)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      const existentes = opp.itens || []
+      const novos = selected.filter(s => !existentes.find(e => e.produto_id === s.produto_id))
+      if (!novos.length && !syncValor) continue
+      const allItens = [...existentes, ...novos]
+      const patch = { ...opp, itens: allItens }
+      if (syncValor) {
+        const sms     = allItens.filter(i => (i.tipo||'').toLowerCase() === 'saas').reduce((s,i) => s+i.subtotal, 0)
+        const cdu     = allItens.filter(i => (i.tipo||'').toLowerCase() === 'licenca').reduce((s,i) => s+i.subtotal, 0)
+        const servico = allItens.filter(i => !['saas','licenca'].includes((i.tipo||'').toLowerCase())).reduce((s,i) => s+i.subtotal, 0)
+        if (sms     > 0) patch.valor_sms     = Math.round(sms)
+        if (cdu     > 0) patch.valor_cdu     = Math.round(cdu)
+        if (servico > 0) patch.valor_servico  = Math.round(servico)
+      }
+      await saveOpp(patch)
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:480 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Adicionar Produtos</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} — produtos já vinculados à oportunidade não serão duplicados</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:14 }}>
+          <div style={{ position:'relative' }}>
+            <label style={blk.label}>Buscar produto</label>
+            <input style={blk.input} placeholder="Nome ou código…" value={q} onChange={e=>setQ(e.target.value)} />
+            {q.trim() && sugestoes.length > 0 && (
+              <div style={{ position:'absolute', left:0, right:0, background:'var(--surface)',
+                border:'1px solid var(--border)', borderRadius:8, boxShadow:'0 8px 24px rgba(0,0,0,.12)',
+                zIndex:200, maxHeight:200, overflowY:'auto', marginTop:2 }}>
+                {sugestoes.map(p => (
+                  <div key={p.id} onClick={() => addProduto(p)}
+                    style={{ padding:'8px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:10, borderBottom:'1px solid var(--border2)' }}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{p.nome}</div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{p.codigo}</div>
+                    </div>
+                    <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text-soft)' }}>
+                      {Number(p.preco||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          {selected.length > 0 && (
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <label style={blk.label}>Produtos selecionados</label>
+              {selected.map(s => (
+                <div key={s.produto_id} style={{ display:'flex', alignItems:'center', gap:8,
+                  background:'var(--surface2)', borderRadius:7, padding:'8px 10px', border:'1px solid var(--border)' }}>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{s.produto_nome}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{s.produto_codigo}</div>
+                  </div>
+                  <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text-soft)' }}>
+                    {Number(s.preco_unitario||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+                  </span>
+                  <button onClick={() => removeProduto(s.produto_id)}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 2px' }}>✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+          {selected.length === 0 && !q.trim() && (
+            <div style={{ textAlign:'center', padding:'12px 0', color:'var(--text-muted)', fontSize:12 }}>
+              Busque e selecione os produtos a adicionar
+            </div>
+          )}
+          {selected.length > 0 && (
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer',
+              padding:'10px 12px', borderRadius:8, border:'1px solid var(--border)',
+              background: syncValor ? 'var(--accent-glow)' : 'var(--surface2)',
+              borderColor: syncValor ? 'var(--accent)' : 'var(--border)', transition:'all .15s' }}>
+              <input type="checkbox" checked={syncValor} onChange={e => setSyncValor(e.target.checked)}
+                style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
+              <div>
+                <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>
+                  Usar valores dos produtos como valor das oportunidades
+                </div>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>
+                  SaaS → MRR · Licença → CDU · Demais → Serviço
+                </div>
+              </div>
+            </label>
+          )}
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={!selected.length || saving} onClick={handleSave}>
+            {saving ? 'Salvando...' : `Adicionar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const blk = {
+  label:         { fontSize:11, fontWeight:700, color:'var(--text-soft)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:5 },
+  input:         { width:'100%', padding:'8px 10px', background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:7, fontSize:13, color:'var(--text)', fontFamily:'var(--font)', boxSizing:'border-box' },
+  radioRow:      { display:'flex', alignItems:'center', padding:'10px 12px', border:'1px solid var(--border)', borderRadius:8, cursor:'pointer', transition:'all .15s', background:'var(--surface2)' },
+  radioRowActive:{ borderColor:'var(--accent)', background:'var(--accent-glow)' },
+  linkBtn:       { fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontWeight:600, padding:'2px 4px', fontFamily:'var(--font)' },
+}
+
 // ─── Import Modal ─────────────────────────────────────────────────────────────
-const IMPORT_COLS = ['titulo','empresa_nome','etapa_nome','valor','prazo','responsavel','origem']
+const IMPORT_COLS_BASE = ['titulo','empresa_nome','empresa_cnpj','etapa_nome','valor','prazo','responsavel','origem']
 
 function parseCSV(text) {
   const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n')
@@ -4926,25 +5367,48 @@ function parseCSV(text) {
   return { headers, rows }
 }
 
-function validateImportRow(row, idx, etapas) {
+function validateImportRow(row, idx, etapas, cfFields) {
   const errors = []
   if (!row.titulo?.trim()) errors.push('Título é obrigatório')
   if (!row.empresa_nome?.trim()) errors.push('Empresa é obrigatória')
   if (row.valor && isNaN(parseFloat(row.valor))) errors.push('Valor inválido')
   if (row.prazo && !/^\d{4}-\d{2}-\d{2}$/.test(row.prazo)) errors.push('Prazo inválido (use AAAA-MM-DD)')
   if (row.origem && !ORIGENS.includes(row.origem)) errors.push(`Origem inválida. Use: ${ORIGENS.join(', ')}`)
+  // campos customizados obrigatórios
+  ;(cfFields || []).filter(f => f.required).forEach(f => {
+    if (!row[f.key]?.trim()) errors.push(`${f.label} é obrigatório`)
+  })
   return errors
 }
 
-function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
+// Campos de oportunidade que NÃO são colunas base do CSV (mapeados por field_key)
+const IMPORT_BASE_KEYS = new Set(['titulo','empresa_id','empresa_nome','primary_contact_id','situacao','etapa_id','responsavel','origem','campanha_id','prazo','playbook_id','valor_cdu','valor_sms','valor_servico','valor_desconto','motivo_perda'])
+
+function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addCompany }) {
+  // lê campos do formLayout — mesma fonte dos campos que aparecem na tela de oportunidade
+  const { fieldById } = useFormLayout('opportunities')
+  const customFormFields = useMemo(() => {
+    return Object.values(fieldById)
+      .filter(f => f.entity === 'opportunities' && !IMPORT_BASE_KEYS.has(f.field_key))
+      .map(f => ({ key: f.field_key, label: f.label, required: f.is_required || false }))
+  }, [fieldById])
+
   const [step, setStep]     = useState('upload')
   const [parsed, setParsed] = useState(null)
   const [dragging, setDragging] = useState(false)
+  const [importing, setImporting] = useState(false)
   const fileRef             = useRef(null)
 
+  // colunas dinâmicas = base + campos customizados do formLayout
+  const allCols = useMemo(() => {
+    const cfCols = customFormFields.map(f => f.key)
+    return [...IMPORT_COLS_BASE, ...cfCols]
+  }, [customFormFields])
+
   function handleDownloadTemplate() {
-    const example = ['Expansão norte','Empresa Exemplo','Proposta','1200','2026-09-30','João Silva','Inbound']
-    const csv = [IMPORT_COLS.join(';'), example.join(';')].join('\n')
+    const cfExample = customFormFields.map(() => '')
+    const example = ['Expansão norte','Empresa Exemplo','12.345.678/0001-99','Proposta','1200','2026-09-30','João Silva','Inbound', ...cfExample]
+    const csv = [allCols.join(';'), example.join(';')].join('\n')
     const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob); const a = document.createElement('a')
     a.href=url; a.download='template_oportunidades.csv'; a.click(); URL.revokeObjectURL(url)
@@ -4956,7 +5420,7 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
     reader.onload = e => {
       const { headers, rows } = parseCSV(e.target.result)
       const rowResults = rows.map((row, i) => {
-        const errors = validateImportRow(row, i, etapas)
+        const errors = validateImportRow(row, i, etapas, customFormFields)
         return { row, errors, ok: errors.length===0, line: i+2 }
       })
       setParsed({ fileName:file.name, rowResults })
@@ -4965,25 +5429,64 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
     reader.readAsText(file, 'UTF-8')
   }
 
-  function handleConfirmImport() {
-    const okRows = parsed.rowResults.filter(r => r.ok).map(r => {
-      const etapa = etapas.find(e => e.nome.toLowerCase()===r.row.etapa_nome?.toLowerCase()) || etapas[0]
-      return {
-        ...EMPTY_OPP, ...r.row,
-        funil_id: funilAtivo,
-        etapa_id: etapa?.id,
-        valor: parseFloat(r.row.valor)||0,
-        id: novoId(),
-        criado: new Date().toISOString().slice(0,10),
-        origem: r.row.origem || 'Inbound',
+  async function handleConfirmImport() {
+    setImporting(true)
+    const okRows = parsed.rowResults.filter(r => r.ok)
+
+    // resolve empresa_id: usa existente ou cria nova com status rascunho
+    const companiesByName = {}
+    ;(companies || []).forEach(c => { companiesByName[c.nome?.toLowerCase()] = c })
+    const companiesByCnpj = {}
+    ;(companies || []).forEach(c => { if (c.cnpj) companiesByCnpj[c.cnpj.replace(/\D/g,'')] = c })
+    const createdCache = {}
+
+    async function resolveEmpresa(nome, cnpj) {
+      const key = nome.toLowerCase()
+      const cnpjClean = (cnpj||'').replace(/\D/g,'')
+      // busca por CNPJ primeiro, depois nome
+      if (cnpjClean && companiesByCnpj[cnpjClean]) return companiesByCnpj[cnpjClean].id
+      if (companiesByName[key]) return companiesByName[key].id
+      if (createdCache[key]) return createdCache[key]
+      // cria empresa com status rascunho
+      const result = await addCompany({ nome, cnpj: cnpj || '', status: 'rascunho' })
+      if (result?.ok && result?.data?.id) {
+        createdCache[key] = result.data.id
+        return result.data.id
       }
-    })
+      return null
+    }
+
+    const importRows = []
+    for (const { row } of okRows) {
+      const etapa = etapas.find(e => e.nome.toLowerCase()===row.etapa_nome?.toLowerCase()) || etapas[0]
+      // campos customizados extraídos do CSV
+      const custom_fields = {}
+      customFormFields.forEach(f => { if (row[f.key] !== undefined) custom_fields[f.key] = row[f.key] })
+      const empresa_id = await resolveEmpresa(row.empresa_nome, row.empresa_cnpj)
+      importRows.push({
+        ...EMPTY_OPP,
+        titulo:      row.titulo,
+        empresa_nome: row.empresa_nome,
+        empresa_id:  empresa_id,
+        funil_id:    funilAtivo,
+        etapa_id:    etapa?.id,
+        valor:       parseFloat(row.valor)||0,
+        prazo:       row.prazo || null,
+        responsavel: row.responsavel || '',
+        origem:      row.origem || 'Inbound',
+        id:          novoId(),
+        criado:      new Date().toISOString().slice(0,10),
+        custom_fields,
+      })
+    }
+
     const log = {
       id:Date.now(), fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
-      total:parsed.rowResults.length, imported:okRows.length,
+      total:parsed.rowResults.length, imported:importRows.length,
       errors:parsed.rowResults.filter(r=>!r.ok).length, rows:parsed.rowResults, scope:'importados',
     }
-    onImport(okRows, log)
+    onImport(importRows, log)
+    setImporting(false)
     onClose()
   }
 
@@ -5006,7 +5509,7 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
             <div style={imp.templateBox}>
               <div>
                 <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Template CSV</div>
-                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{IMPORT_COLS.length} colunas — inclui linha de exemplo</div>
+                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>{allCols.length} colunas — inclui linha de exemplo{customFormFields.length > 0 ? ` + ${customFormFields.length} campo(s) personalizado(s)` : ''}</div>
               </div>
               <button style={imp.templateBtn} onClick={handleDownloadTemplate}>↓ Baixar template</button>
             </div>
@@ -5021,7 +5524,10 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
             </div>
             <div style={imp.colsBox}>
               <div style={imp.colsLabel}>Colunas esperadas</div>
-              <div style={imp.colsList}>{IMPORT_COLS.map(c=><span key={c} style={imp.colTag}>{c}</span>)}</div>
+              <div style={imp.colsList}>
+                {IMPORT_COLS_BASE.map(c=><span key={c} style={imp.colTag}>{c}</span>)}
+                {customFormFields.map(f=><span key={f.key} style={{ ...imp.colTag, background:'var(--accent)22', color:'var(--accent)', borderColor:'var(--accent)44' }}>{f.key}{f.required?' *':''}</span>)}
+              </div>
             </div>
           </div>
         )}
@@ -5060,8 +5566,8 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport }) {
               <Button variant="secondary" onClick={()=>setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount>0&&okCount>0&&<span style={{ fontSize:12, color:'var(--yellow-text)' }}>{errCount} linha{errCount>1?'s':''} serão ignoradas</span>}
-              <Button disabled={okCount===0} onClick={handleConfirmImport}>
-                Importar {okCount} oportunidade{okCount!==1?'s':''}
+              <Button disabled={okCount===0 || importing} onClick={handleConfirmImport}>
+                {importing ? 'Importando...' : `Importar ${okCount} oportunidade${okCount!==1?'s':''}`}
               </Button>
             </div>
           </div>
@@ -5898,6 +6404,7 @@ export default function Pipeline() {
 
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
+  const { companies, add: addCompany } = useCompanies()
   const { registrar: log } = useAuditLog()
   // Corrige opps sem funil_id — atribui o funil padrão automaticamente
   useEffect(() => {
@@ -5910,6 +6417,7 @@ export default function Pipeline() {
   const [cfFields] = useCustomFields('oportunidade')
   // ── estado efêmero (não persiste) ────────────────────────────────────────
   const { tarefas, save: saveTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
+  const { add: addMembroOpp } = useOppMembros()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
   const [acoesOpen, setAcoesOpen]       = useState(false)
@@ -5918,6 +6426,11 @@ export default function Pipeline() {
   const [fechamentoModal, setFechamentoModal] = useState(null)
   const [importModal, setImportModal]   = useState(false)
   const [importLogs, setImportLogs]     = useState([])
+  const [bulkTaskModal, setBulkTaskModal]             = useState(false)
+  const [bulkPlaybookModal, setBulkPlaybookModal]     = useState(false)
+  const [bulkEquipeModal, setBulkEquipeModal]         = useState(false)
+  const [bulkOrigemModal, setBulkOrigemModal]         = useState(false)
+  const [bulkProdutosModal, setBulkProdutosModal]     = useState(false)
   const [exportLogs, setExportLogs]     = useState([])
   const [showTray, setShowTray]         = useState(false)
   const [selected, setSelected]         = useState(new Set())
@@ -6286,6 +6799,22 @@ export default function Pipeline() {
               </button>
             ))}
             <div style={{ width:1, background:'rgba(255,255,255,0.2)', alignSelf:'stretch', margin:'0 4px' }} />
+            <button style={p.bulkBtn} onClick={()=>setBulkTaskModal(true)} title="Criar tarefa para todas selecionadas">
+              ✓ Tarefa
+            </button>
+            <button style={p.bulkBtn} onClick={()=>setBulkPlaybookModal(true)} title="Relacionar playbook">
+              📋 Playbook
+            </button>
+            <button style={p.bulkBtn} onClick={()=>setBulkEquipeModal(true)} title="Adicionar membros à equipe">
+              👥 Equipe
+            </button>
+            <button style={p.bulkBtn} onClick={()=>setBulkOrigemModal(true)} title="Editar Origem e Campanha">
+              🏷 Origem
+            </button>
+            <button style={p.bulkBtn} onClick={()=>setBulkProdutosModal(true)} title="Adicionar produtos">
+              📦 Produtos
+            </button>
+            <div style={{ width:1, background:'rgba(255,255,255,0.2)', alignSelf:'stretch', margin:'0 4px' }} />
             <button style={{ ...p.bulkBtn, color:'#FCA5A5', borderColor:'rgba(252,165,165,0.3)' }} onClick={()=>applyBulk('delete')}>
               Excluir
             </button>
@@ -6308,7 +6837,7 @@ export default function Pipeline() {
         <KanbanBoard
           etapas={etapas}
           filtered={filtered}
-          allOpps={opps}
+          allOpps={opps.filter(o => String(o.funil_id) === String(funilAtivo))}
           setModal={setModal}
           moveToStage={moveToStage}
         />
@@ -6347,7 +6876,53 @@ export default function Pipeline() {
           onClose={()=>setImportModal(false)}
           funilAtivo={funilAtivo}
           etapas={etapas}
+          companies={companies}
+          addCompany={addCompany}
           onImport={(rows, log)=>{ importOpps(rows); setImportLogs(prev=>[log,...prev]) }}
+        />
+      )}
+
+      {bulkTaskModal && (
+        <BulkTaskModal
+          oppIds={selected}
+          opps={opps}
+          onClose={()=>setBulkTaskModal(false)}
+          saveTask={saveTask}
+        />
+      )}
+
+      {bulkPlaybookModal && (
+        <BulkPlaybookModal
+          oppIds={selected}
+          opps={opps}
+          onClose={()=>setBulkPlaybookModal(false)}
+          saveOpp={saveOpp}
+        />
+      )}
+
+      {bulkEquipeModal && (
+        <BulkEquipeModal
+          oppIds={selected}
+          opps={opps}
+          onClose={()=>setBulkEquipeModal(false)}
+          addMembro={addMembroOpp}
+        />
+      )}
+
+      {bulkOrigemModal && (
+        <BulkOrigemCampanhaModal
+          oppIds={selected}
+          opps={opps}
+          onClose={()=>setBulkOrigemModal(false)}
+          saveOpp={saveOpp}
+        />
+      )}
+      {bulkProdutosModal && (
+        <BulkProdutosModal
+          oppIds={selected}
+          opps={opps}
+          onClose={()=>setBulkProdutosModal(false)}
+          saveOpp={saveOpp}
         />
       )}
 

@@ -197,12 +197,12 @@ function ObjecaoEditor({ value, onChange, onCancel, onConfirm, stageCfg = STAGE_
   const set = (k, v) => onChange({ ...value, [k]: v })
   const cat = OBJ_CATS[value.categoria]
   return (
-    <div style={{ border: `2px solid ${cat.color}`, borderRadius: 12, padding: 18, background: cat.bg + '55', display: 'flex', flexDirection: 'column', gap: 14 }}>
+    <div style={{ border: `2px solid ${cat.color}`, borderRadius: 12, padding: '20px 24px', background: cat.bg + '55', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* linha 1: categoria + etapa */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <div>
           <label style={oe.lbl}>Categoria</label>
-          <select className="fpe-field" value={value.categoria} onChange={e => set('categoria', e.target.value)}>
+          <select className="fpe-field" style={{ width: '100%', boxSizing: 'border-box' }} value={value.categoria} onChange={e => set('categoria', e.target.value)}>
             {Object.entries(OBJ_CATS).map(([k, v]) => (
               <option key={k} value={k}>{v.icon} {v.label}</option>
             ))}
@@ -210,7 +210,7 @@ function ObjecaoEditor({ value, onChange, onCancel, onConfirm, stageCfg = STAGE_
         </div>
         <div>
           <label style={oe.lbl}>Etapa do funil</label>
-          <select className="fpe-field" value={value.etapa} onChange={e => set('etapa', e.target.value)}>
+          <select className="fpe-field" style={{ width: '100%', boxSizing: 'border-box' }} value={value.etapa} onChange={e => set('etapa', e.target.value)}>
             <option value="">— Qualquer etapa —</option>
             {Object.entries(stageCfg).map(([k, v]) => (
               <option key={k} value={k}>{v.icon ? `${v.icon} ` : ''}{v.label}</option>
@@ -222,7 +222,8 @@ function ObjecaoEditor({ value, onChange, onCancel, onConfirm, stageCfg = STAGE_
       {/* linha 2: o que o prospect diz */}
       <div>
         <label style={oe.lbl}>O que o prospect diz <span style={oe.req}>*</span></label>
-        <input className="fpe-field" value={value.objecao} onChange={e => set('objecao', e.target.value)}
+        <textarea className="fpe-field" value={value.objecao} onChange={e => set('objecao', e.target.value)}
+          rows={2} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
           placeholder='Ex: "Já usamos um CRM, não precisamos de mais uma ferramenta."' />
       </div>
 
@@ -233,13 +234,15 @@ function ObjecaoEditor({ value, onChange, onCancel, onConfirm, stageCfg = STAGE_
           <span style={oe.hint}> — siga: Reconheça → Aprofunde → Responda → Confirme</span>
         </label>
         <textarea className="fpe-field" value={value.resposta} onChange={e => set('resposta', e.target.value)}
-          rows={4} placeholder={'Reconheça: "Entendo, isso é uma preocupação comum…"\nAprofunde: "Como vocês estão gerenciando X hoje?"\nResponda: "Nossa solução resolve isso porque…"\nConfirme: "Isso faz sentido para vocês?"'} />
+          rows={6} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
+          placeholder={'Reconheça: "Entendo, isso é uma preocupação comum…"\nAprofunde: "Como vocês estão gerenciando X hoje?"\nResponda: "Nossa solução resolve isso porque…"\nConfirme: "Isso faz sentido para vocês?"'} />
       </div>
 
       {/* linha 4: escalonamento (opcional) */}
       <div>
         <label style={oe.lbl}>Dica de escalonamento <span style={oe.opt}>(opcional)</span></label>
-        <input className="fpe-field" value={value.escalonamento} onChange={e => set('escalonamento', e.target.value)}
+        <textarea className="fpe-field" value={value.escalonamento} onChange={e => set('escalonamento', e.target.value)}
+          rows={2} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical' }}
           placeholder='Ex: Se persistir, acionar especialista técnico ou apresentar caso de uso do setor.' />
       </div>
 
@@ -568,7 +571,7 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG, s
       columns={1}
       saveLabel="Salvar etapa"
     >
-      <FormGrid cols={2}>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 2fr', gap:12, alignItems:'end' }}>
         {!showStatusContrato && (
           <FormField label="Etapa">
             <select className="so-field" value={form.stage} onChange={e => set('stage', e.target.value)}>
@@ -587,7 +590,7 @@ function StepSlideOver({ open, initial, onSave, onClose, stageCfg = STAGE_CFG, s
           <input className="so-field" value={form.title} onChange={e => set('title', e.target.value)}
             placeholder="Ex: Identificando o Parceiro Ideal" />
         </FormField>
-      </FormGrid>
+      </div>
       <FormField label="Ícone da atividade">
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--surface2)',

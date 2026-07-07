@@ -23,7 +23,7 @@ $$;
 -- ── 2. Tabelas que já têm branch_id — aplicar trigger ───────────────────────
 DO $$ DECLARE t text; BEGIN
   FOR t IN SELECT unnest(ARRAY[
-    'companies','contacts','opportunities','products','projects','contracts',
+    'companies','contacts','oportunidades','products','projects','contracts',
     'payments','actions','sellers','goals','customer_health',
     'habilitacoes','tipos_acao','campanhas','parceiros',
     'perfis_acesso','equipes','indicadores','metas_kpi','documents'
@@ -96,7 +96,7 @@ CREATE TRIGGER trg_set_branch_id
 -- ── 4. Backfill: registros sem branch_id recebem a branch Matriz do tenant ──
 DO $$ DECLARE t text; mid uuid; BEGIN
   FOR t IN SELECT unnest(ARRAY[
-    'companies','contacts','opportunities','products','projects','contracts',
+    'companies','contacts','oportunidades','products','projects','contracts',
     'payments','actions','sellers','goals','customer_health',
     'habilitacoes','tipos_acao','campanhas','parceiros',
     'perfis_acesso','equipes','indicadores','metas_kpi','documents',
