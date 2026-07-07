@@ -1883,7 +1883,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 // ─── Aprovação de Lotes ───────────────────────────────────────────────────────
-function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
+function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) {
   const [periodo, setPeriodo]   = useState(() => new Date().toISOString().slice(0, 7))
   const { aprovacoes, upsert: upsertAprovacao } = useCommissionApprovals()
   const [selected, setSelected] = useState(new Set())
@@ -2108,7 +2108,14 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog }) {
                       <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>{p.data_vencimento ? fmtDate(p.data_vencimento) : '—'}</div>
                       <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text)', textAlign:'right' }}>{fmt(p.valor_comissao || 0)}</div>
                       <div style={{ textAlign:'center' }}><StatusTag status={p.status} /></div>
-                      <div />
+                      <div style={{ textAlign:'right' }}>
+                        {onOpenRepasse && (
+                          <button onClick={e => { e.stopPropagation(); onOpenRepasse({ type:'edit', data:p }) }}
+                            style={{ padding:'3px 9px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                            Abrir
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )
                 })}
@@ -2247,7 +2254,7 @@ export default function Comissoes() {
         <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} onEdit={openPayment} period={period} isAdmin={isAdmin} profile={profile} />
       )}
       {tab === 'aprovacao' && (
-        <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} />
+        <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} onOpenRepasse={openPayment} />
       )}
       {tab === 'regras' && isAdmin && (
         <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} parceiros={parceiros} onSavePersonas={persistPersonas} />

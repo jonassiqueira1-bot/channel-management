@@ -18,7 +18,10 @@ import BrowseLayout from '../components/BrowseLayout'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissions } from '../hooks/useCommissions'
 import { useProjects } from '../hooks/useProjects'
+import { useOppMembros } from '../hooks/useOppMembros'
+import { useUsuarios } from '../hooks/useUsuarios'
 import ActionFeedback from '../components/ActionFeedback'
+import BatchProgress from '../components/BatchProgress'
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -337,6 +340,7 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
     notes:           pagamento.notes||'',
   })
   const [dirty, setDirty] = useState(false)
+  const [statusBloqueado, setStatusBloqueado] = useState(false)
   const [savedOk, setSavedOk] = useState(false)
 
   function set(k, v) { setForm(f=>({...f,[k]:v})); setDirty(true); setSavedOk(false) }
@@ -389,9 +393,24 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
       <FormSection label="Fatura" />
       <FormGrid cols={2}>
         <FormField label="Status">
-          <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
+          <select className="so-field" value={form.status}
+            onChange={e => {
+              if (pagamento.status === 'pago' && e.target.value !== 'pago') {
+                setStatusBloqueado(true)
+                return
+              }
+              setStatusBloqueado(false)
+              set('status', e.target.value)
+            }}>
             {Object.entries(STATUS_PAGAMENTO).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
           </select>
+          {statusBloqueado && (
+            <div style={{ marginTop:6, padding:'7px 10px', borderRadius:7,
+              background:'#FEF3C7', border:'1px solid #F59E0B',
+              fontSize:11, color:'#92400E', lineHeight:1.5 }}>
+              Este pagamento já foi confirmado como recebido e não pode ser revertido. Caso necessário, crie um novo lançamento de ajuste.
+            </div>
+          )}
         </FormField>
         <FormField label="Produto">
           <SearchSelect
@@ -953,17 +972,18 @@ export default function Pagamentos() {
   const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
   const { registrar: log } = useAuditLog()
   const { contratos } = useContracts()
-  const { savePayment: saveCommissionPayment, rules: commissionRules } = useCommissions()
+  const { savePayment: saveCommissionPayment, rules: commissionRules, personas: commissionPersonas } = useCommissions()
   const { projetos } = useProjects()
+  const { membros: oppMembros } = useOppMembros()
+  const { usuarios } = useUsuarios()
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
   const [filtroStatus, setFiltroStatus]         = useLocalState('pagamentos:filtroStatus', '')
   const [filtroProcessado, setFiltroProcessado] = useLocalState('pagamentos:filtroProcessado', '')
   const { produtos: produtosReais } = useProducts()
-  const produtosNovo = produtosReais.length > 0
-    ? produtosReais.filter(p => p.status === 'ativo')
-    : MOCK_PRODUTOS.filter(p => p.status === 'ativo')
+  const produtosNovo = produtosReais.length > 0 ? produtosReais : MOCK_PRODUTOS
+  const produtosAtivos = produtosNovo.filter(p => p.status === 'ativo')
 
   // ── estado efêmero ────────────────────────────────────────────────────────
   const [detalheModal, setDetalheModal]       = useState(null)
@@ -974,14 +994,24 @@ export default function Pagamentos() {
   const [importModal, setImportModal]         = useState(false)
   const [recebidoFeedback, setRecebidoFeedback] = useState(null) // { pag, steps }
   const [confirmComissao, setConfirmComissao] = useState(null)   // pag aguardando confirmação
+  const [batchProgress, setBatchProgress]     = useState(null)   // { operations: [...] }
+  const [inconsistenciaModal, setInconsistenciaModal] = useState(null) // { itens: [...], ids: [...] }
 
   const periodos = useMemo(() => periodosUnicos(pagamentos), [pagamentos])
-  const [periodo, setPeriodo] = useState(() => periodos[0] || { month:6, year:2026 })
+  const now = new Date()
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+  const firstOfMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+  const [periododeDe, setPeriodoDe] = useLocalState('pagamentos:filtroDe', firstOfMonthStr)
+  const [periodoAte, setPeriodoAte] = useLocalState('pagamentos:filtroAte', todayStr)
 
   const doPeriodo = useMemo(() => {
-    const key = periodoKey(periodo)
-    return pagamentos.filter(p => p.reference_month === key)
-  }, [pagamentos, periodo])
+    return pagamentos.filter(p => {
+      const ref = (p.reference_month || p.due_date || '').slice(0, 10)
+      if (periododeDe && ref < periododeDe) return false
+      if (periodoAte  && ref > periodoAte)  return false
+      return true
+    })
+  }, [pagamentos, periododeDe, periodoAte])
 
   const lista = useMemo(() => {
     const q = search.toLowerCase()
@@ -1013,7 +1043,7 @@ export default function Pagamentos() {
     const headers = ['contract_numero','company_nome','num_documento','data_emissao','parcela',
                      'amount_cdu','amount_sms','amount_services','amount_discount','amount_total_net',
                      'valor_recebido','reference_month','due_date','data_baixa','status','processed']
-    const fileName = `pagamentos_${periodoKey(periodo).slice(0,7)}_${new Date().toISOString().slice(0,10)}.csv`
+    const fileName = `pagamentos_ate_${periodoAte}_${new Date().toISOString().slice(0,10)}.csv`
     const csv = [headers.join(';'), ...lista.map(p => headers.map(h => p[h]??'').join(';'))].join('\n')
     const blob = new Blob(['﻿'+csv], { type:'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob); const a = document.createElement('a')
@@ -1065,51 +1095,152 @@ export default function Pagamentos() {
   // Gera repasses de comissão para um pagamento recém marcado como pago
   function gerarRepasses(pag) {
     try {
-      const ref    = pag.reference_month || ''
-      const parts  = ref.slice(0, 7).split('-')
+      const ref = pag.reference_month || ''
+      const parts = ref.slice(0, 7).split('-')
       const periodo_ano = parts[0] ? Number(parts[0]) : new Date().getFullYear()
       const periodo_mes = parts[1] ? Number(parts[1]) : new Date().getMonth() + 1
+      const valorBase   = Number(pag.amount_total_net) || 0
 
-      const regrasAtivas = (commissionRules || []).filter(r => r.ativo !== false && r.status !== 'inativa')
+      const regrasAtivas = (commissionRules || []).filter(r =>
+        r.ativo !== false && r.status !== 'inativa' && r.status !== 'inativo'
+      )
+      if (!regrasAtivas.length) return
+
+      // Contrato vinculado ao pagamento
+      const contrato = contratos.find(c =>
+        String(c.id) === String(pag.contract_id) ||
+        c.numero === pag.contract_numero
+      )
+
+      // Monta set de beneficiários: { userId, nome, regraId, fonte }
+      // fonte = 'regra_filial' | 'time_interno'
+      const beneficiarios = []
 
       regrasAtivas.forEach(rule => {
-        // Filtra por produto se a regra tiver filtro
+        // ── Filtro de produto ──────────────────────────────────────────────
         if (rule.produto_filtro_tipo === 'produto' && rule.produto_ids?.length > 0) {
           if (!rule.produto_ids.map(String).includes(String(pag.produto_id))) return
         }
+        if (rule.produto_filtro_tipo === 'categoria' && rule.produto_categorias?.length > 0) {
+          const prodCat = produtosNovo.find(p => String(p.id) === String(pag.produto_id))?.categoria || ''
+          if (!rule.produto_categorias.includes(prodCat)) return
+        }
 
+        // ── Personas da regra com percentuais ─────────────────────────────
         const percs = rule.persona_percentuais || []
+
+        // CASO 1: Regra sem vínculo de oportunidade → aplica a todos os
+        // usuários vinculados às personas da regra (nível filial)
         percs.forEach(pp => {
           if (!pp.persona_id && !pp.persona_slug) return
-          const cdu_val      = (pag.amount_cdu      || 0) * (Number(pp.cdu_pct)      || 0) / 100
-          const sms_val      = (pag.amount_sms      || 0) * (Number(pp.sms_pct)      || 0) / 100
-          const servicos_val = (pag.amount_services || 0) * (Number(pp.servicos_pct) || 0) / 100
-          const valor_comissao = cdu_val + sms_val + servicos_val
-          if (valor_comissao <= 0) return
+          const pct = (Number(pp.cdu_pct) || 0) + (Number(pp.sms_pct) || 0) + (Number(pp.servicos_pct) || 0)
+          if (pct <= 0) return
 
-          saveCommissionPayment({
-            rule_id:           rule.id,
-            company_id:        pag.company_id  || null,
-            contract_id:       pag.contract_id || null,
-            beneficiario_id:   pp.persona_id   || null,
-            beneficiario_nome: pp.persona_nome  || pp.persona_slug || '',
-            persona_slug:      pp.persona_slug  || '',
-            periodo_mes,
-            periodo_ano,
-            valor_bruto:       Number(pag.amount_total_net) || 0,
-            valor_comissao,
-            status:            'pendente',
-            observacoes:       `Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`,
-            custom_fields: {
-              base_cdu:              cdu_val,
-              base_sms:              sms_val,
-              base_servicos:         servicos_val,
-              contract_numero:       pag.contract_numero || '',
-              company_nome:          pag.company_nome    || '',
-              produto_nome:          pag.produto_nome    || '',
-              origem_pagamento_id:   pag.id,
-            },
+          const persona = (commissionPersonas || []).find(p =>
+            String(p.id) === String(pp.persona_id) || p.slug === pp.persona_slug
+          )
+
+          if (persona?.usuario_id) {
+            // Persona ligada a um usuário específico
+            const usuario = (usuarios || []).find(u => String(u.id) === String(persona.usuario_id))
+            beneficiarios.push({
+              regraId:    rule.id,
+              personaId:  persona.id,
+              personaSlug:persona.slug || '',
+              userId:     persona.usuario_id,
+              nome:       usuario?.nome || usuario?.email || persona.label || '',
+              pp,
+              fonte:      'regra_filial',
+            })
+          } else {
+            // Persona sem usuário específico (genérica) — gera repasse pelo label da persona
+            beneficiarios.push({
+              regraId:    rule.id,
+              personaId:  persona?.id || pp.persona_id,
+              personaSlug:persona?.slug || pp.persona_slug || '',
+              userId:     null,
+              nome:       persona?.label || pp.persona_nome || pp.persona_slug || '',
+              pp,
+              fonte:      'regra_filial',
+            })
+          }
+        })
+
+        // CASO 2: Contrato tem oportunidade → busca Time Interno da oportunidade
+        if (contrato?.opportunity_id) {
+          const membrosOpp = (oppMembros || []).filter(m =>
+            String(m.oportunidade_id) === String(contrato.opportunity_id) &&
+            m.tipo_membro === 'interno'
+          )
+          membrosOpp.forEach(membro => {
+            // Verifica se este usuário tem uma persona com esta regra
+            const personaDoUser = (commissionPersonas || []).find(p => String(p.usuario_id) === String(membro.user_id))
+            const ppDoUser = personaDoUser
+              ? percs.find(pp => String(pp.persona_id) === String(personaDoUser.id) || pp.persona_slug === personaDoUser.slug)
+              : null
+            if (!ppDoUser) return
+            const pct = (Number(ppDoUser.cdu_pct) || 0) + (Number(ppDoUser.sms_pct) || 0) + (Number(ppDoUser.servicos_pct) || 0)
+            if (pct <= 0) return
+
+            const usuario = (usuarios || []).find(u => String(u.id) === String(membro.user_id))
+            // evita duplicata com CASO 1
+            const jaTem = beneficiarios.some(b => b.regraId === rule.id && String(b.userId) === String(membro.user_id))
+            if (jaTem) return
+
+            beneficiarios.push({
+              regraId:     rule.id,
+              personaId:   personaDoUser?.id || null,
+              personaSlug: personaDoUser?.slug || '',
+              userId:      membro.user_id,
+              nome:        usuario?.nome || usuario?.email || `Usuário ${membro.user_id}`,
+              pp:          ppDoUser,
+              fonte:       'time_interno',
+              papel:       membro.papel || 'vendedor',
+            })
           })
+        }
+      })
+
+      // Gera um repasse por beneficiário individual
+      beneficiarios.forEach(b => {
+        const pp = b.pp
+        const cdu_val      = (pag.amount_cdu      || 0) * (Number(pp.cdu_pct)      || 0) / 100
+        const sms_val      = (pag.amount_sms      || 0) * (Number(pp.sms_pct)      || 0) / 100
+        const servicos_val = (pag.amount_services || 0) * (Number(pp.servicos_pct) || 0) / 100
+        // Se não tiver buckets discriminados, usa percentual sobre total líquido
+        const valorComissao = (cdu_val + sms_val + servicos_val) > 0
+          ? cdu_val + sms_val + servicos_val
+          : valorBase * ((Number(pp.cdu_pct) || Number(pp.sms_pct) || Number(pp.servicos_pct) || 0) / 100)
+        if (valorComissao <= 0) return
+
+        const origemDesc = b.fonte === 'time_interno'
+          ? `Time interno (${b.papel || 'membro'}) — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
+          : `Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
+
+        saveCommissionPayment({
+          rule_id:           b.regraId,
+          company_id:        pag.company_id  || null,
+          contract_id:       pag.contract_id || null,
+          beneficiario_id:   b.userId        || b.personaId || null,
+          beneficiario_nome: b.nome,
+          persona_slug:      b.personaSlug,
+          periodo_mes,
+          periodo_ano,
+          valor_bruto:       valorBase,
+          valor_comissao:    valorComissao,
+          status:            'pendente',
+          observacoes:       origemDesc,
+          custom_fields: {
+            base_cdu:            cdu_val,
+            base_sms:            sms_val,
+            base_servicos:       servicos_val,
+            contract_numero:     pag.contract_numero || '',
+            company_nome:        pag.company_nome    || '',
+            produto_nome:        pag.produto_nome    || '',
+            origem_pagamento_id: pag.id,
+            fonte_repasse:       b.fonte,
+            opportunity_id:      contrato?.opportunity_id || null,
+          },
         })
       })
     } catch (e) {
@@ -1127,85 +1258,166 @@ export default function Pagamentos() {
     }
   }
 
+  function gerarProvisaoProximoMes(pag) {
+    // Só gera se o produto estiver cadastrado com cobrança Mensal
+    const produto = produtosNovo.find(p => String(p.id) === String(pag.produto_id))
+    // também tenta pelo nome caso o id não bata
+    const produtoFinal = produto || produtosNovo.find(p => p.nome === pag.produto_nome)
+    if (!produtoFinal || produtoFinal.cobranca !== 'mensal') return
+
+    // Calcula próximo mês a partir de reference_month
+    const ref = pag.reference_month || pag.due_date || ''
+    const base = ref ? new Date(ref + 'T12:00:00') : new Date()
+    const proximo = new Date(base.getFullYear(), base.getMonth() + 1, 1)
+    const nextYear  = proximo.getFullYear()
+    const nextMonth = String(proximo.getMonth() + 1).padStart(2, '0')
+    const nextKey   = `${nextYear}-${nextMonth}-01`
+
+    // Evita duplicata: mesmo produto + empresa + vencimento já existente pendente
+    const jaExiste = pagamentos.some(p =>
+      String(p.produto_id) === String(pag.produto_id) &&
+      String(p.company_id) === String(pag.company_id) &&
+      (p.due_date || '').slice(0, 7) === `${nextYear}-${nextMonth}` &&
+      p.status !== 'cancelado'
+    )
+    if (jaExiste) return
+
+    const dataRecebimento = pag.data_baixa || pag.reference_month || ref
+    const dataFmt = dataRecebimento
+      ? new Date(dataRecebimento + 'T12:00:00').toLocaleDateString('pt-BR')
+      : ''
+    const nfRef = pag.num_documento || pag.contract_numero || ''
+    const obsProvisao = [
+      `Provisão gerada automaticamente por recebimento de cobrança mensal.`,
+      `Pagamento de origem: ${nfRef ? `NF/Doc ${nfRef}` : 'sem número'}${dataFmt ? ` recebido em ${dataFmt}` : ''}.`,
+    ].join(' ')
+
+    // Incrementa parcela: "N/M" → "(N+1)/(M+1)"
+    const parcelaAtual = pag.parcela || '1/1'
+    const [numStr, denStr] = parcelaAtual.split('/')
+    const nextNum = (parseInt(numStr, 10) || 1) + 1
+    const nextDen = (parseInt(denStr, 10) || 1) + 1
+    const nextParcela = `${nextNum}/${nextDen}`
+
+    const provisao = {
+      ...pag,
+      id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      status:          'pendente',
+      processed:       false,
+      inconsistencia:  false,
+      reference_month: nextKey,
+      due_date:        nextKey,
+      data_pagamento:  null,
+      data_baixa:      null,
+      parcela:         nextParcela,
+      notes:           obsProvisao,
+    }
+    savePagamento(provisao)
+  }
+
+  function detectarInconsistencias(ids) {
+    const selecionados = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
+    const provisoes = pagamentos.filter(p => p.status === 'pendente' || p.status === 'provisao')
+    const itens = []
+    for (const pag of selecionados) {
+      if (!pag.contract_numero) continue
+      const mesRef = (pag.reference_month || '').slice(0, 7) // YYYY-MM
+      const provisao = provisoes.find(p =>
+        p.contract_numero === pag.contract_numero &&
+        (p.reference_month || '').slice(0, 7) === mesRef &&
+        p.id !== pag.id
+      )
+      const valorPago = parseFloat(pag.amount_total_net || 0)
+      const valorProv = provisao ? parseFloat(provisao.amount_total_net || 0) : null
+      if (provisao && valorProv !== null && Math.abs(valorPago - valorProv) > 0.01) {
+        itens.push({
+          pag,
+          motivo: `Valor divergente da provisão: recebido ${fmtMoeda(valorPago)} vs provisionado ${fmtMoeda(valorProv)}`,
+        })
+      }
+    }
+    // provisões sem pagamento correspondente entre os selecionados
+    for (const prov of provisoes) {
+      if (!prov.contract_numero) continue
+      const mesRef = (prov.reference_month || '').slice(0, 7)
+      const temPagamento = selecionados.some(p =>
+        p.contract_numero === prov.contract_numero &&
+        (p.reference_month || '').slice(0, 7) === mesRef
+      )
+      if (!temPagamento && selecionados.some(p => p.contract_numero === prov.contract_numero)) {
+        const jaFlagged = itens.some(i => i.pag.contract_numero === prov.contract_numero)
+        if (!jaFlagged) {
+          itens.push({
+            pag: prov,
+            motivo: `Provisão sem pagamento correspondente no período ${mesRef}`,
+          })
+        }
+      }
+    }
+    return itens
+  }
+
+  async function executarBulkReceber(ids, inconsistencias = []) {
+    const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
+    const inconsistenciaIds = new Set(inconsistencias.map(i => i.pag.id))
+    const ops = [
+      { id: 'receber', label: 'Registrando recebimentos', total: naoEramPagos.length, done: 0 },
+      { id: 'comissoes', label: 'Gerando comissões e repasses', total: naoEramPagos.length, done: 0 },
+    ]
+    setBatchProgress({ operations: ops })
+    for (let i = 0; i < naoEramPagos.length; i++) {
+      const raw = naoEramPagos[i]
+      const temInconsistencia = inconsistenciaIds.has(raw.id)
+      const motivoInc = temInconsistencia ? inconsistencias.find(x => x.pag.id === raw.id)?.motivo : null
+      const pag = {
+        ...raw,
+        status: 'pago',
+        inconsistencia: temInconsistencia,
+        notes: motivoInc
+          ? `${raw.notes ? raw.notes + '\n' : ''}[Inconsistência] ${motivoInc}`
+          : raw.notes,
+      }
+      await savePagamento(pag)
+      setBatchProgress(prev => ({
+        operations: prev.operations.map(op =>
+          op.id === 'receber' ? { ...op, done: i + 1 } : op
+        ),
+      }))
+    }
+    for (let i = 0; i < naoEramPagos.length; i++) {
+      const pag = { ...naoEramPagos[i], status: 'pago' }
+      gerarRepasses(pag)
+      gerarProvisaoProximoMes(pag)
+      setBatchProgress(prev => ({
+        operations: prev.operations.map(op =>
+          op.id === 'comissoes' ? { ...op, done: i + 1 } : op
+        ),
+      }))
+    }
+  }
+
   function confirmarGerarComissao(pag) {
     setConfirmComissao(null)
     gerarRepasses(pag)
-    const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' ||
-      (pag.notes || '').toLowerCase().includes('fechamento de horas')
-    const temValores = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
+    gerarProvisaoProximoMes(pag)
+    const contrato = contratos.find(c =>
+      String(c.id) === String(pag.contract_id) || c.numero === pag.contract_numero
+    )
+    const temOportunidade = !!contrato?.opportunity_id
     const steps = [
       { id: 'recebimento', label: `Recebimento registrado — ${pag.company_nome || pag.contract_numero}` },
-      { id: 'tipo',        label: isFromProjeto
-          ? `Origem: Serviços de projeto — ${pag.contract_numero || 'N/D'}`
-          : `Origem: Venda — Contrato ${pag.contract_numero || 'N/D'}` },
-      { id: 'comissao',    label: 'Gerando lançamento de comissão pendente', skip: !temValores },
-      { id: 'repasse',     label: 'Calculando repasses por persona' },
+      { id: 'regras',      label: 'Verificando regras de comissão ativas' },
+      { id: 'repasse',     label: temOportunidade
+          ? 'Gerando repasses — Time interno + regras da filial'
+          : 'Gerando repasses — Regras da filial' },
     ]
     setRecebidoFeedback({ pag, steps })
-  }
-
-  function gerarLancamentoComissao(pag) {
-    // Determina origem (projeto vs venda)
-    const isFromProjeto = pag.origin_type === 'projeto' || pag._origem === 'fechamento_horas' ||
-      (pag.notes || '').toLowerCase().includes('fechamento de horas')
-
-    // Tipo de receita dominante
-    const cdu      = Number(pag.amount_cdu)      || 0
-    const sms      = Number(pag.amount_sms)      || 0
-    const services = Number(pag.amount_services) || 0
-    let receita_tipo = 'Serviços'
-    if (!isFromProjeto) {
-      if (cdu >= sms && cdu >= services && cdu > 0)      receita_tipo = 'CDU'
-      else if (sms >= cdu && sms >= services && sms > 0) receita_tipo = 'SMS'
-      else if (services > 0)                             receita_tipo = 'Serviços'
-    }
-
-    // Descrição/origem descritiva
-    const descricao = isFromProjeto
-      ? `Comissão de Serviços — Projeto: ${pag.contract_numero || 'N/D'}`
-      : `Comissão de Vendas — Contrato: ${pag.contract_numero || 'N/D'} — ${pag.company_nome || ''}`
-
-    // Extrai mês/ano do reference_month (formato YYYY-MM-DD)
-    const ref   = pag.reference_month || pag.data_emissao || ''
-    const parts = ref.slice(0, 7).split('-')
-    const periodo_ano = parts[0] ? Number(parts[0]) : new Date().getFullYear()
-    const periodo_mes = parts[1] ? Number(parts[1]) : new Date().getMonth() + 1
-
-    saveCommissionPayment({
-      status:            'pendente',
-      valor_bruto:       Number(pag.amount_total_net) || 0,
-      valor_comissao:    0,
-      beneficiario_id:   null,
-      beneficiario_nome: null,
-      persona_slug:      null,
-      rule_id:           null,
-      company_id:        pag.company_id  || null,
-      contract_id:       pag.contract_id || null,
-      periodo_mes,
-      periodo_ano,
-      observacoes:       descricao,
-      custom_fields: {
-        receita_tipo,
-        origem:              isFromProjeto ? 'projeto' : 'venda',
-        origem_pagamento_id: pag.id,
-        contract_numero:     pag.contract_numero || '',
-        company_nome:        pag.company_nome    || '',
-        produto_nome:        pag.produto_nome    || '',
-        amount_cdu:          cdu,
-        amount_sms:          sms,
-        amount_services:     services,
-      },
-    })
   }
 
   function handleNovoPagamento(pag) {
     const pagComOrigem = { ...pag, origin_type: pag.origin_type || 'manual' }
     savePagamento(pagComOrigem)
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
-    gerarLancamentoComissao(pagComOrigem)
-    // navega para o período do novo pagamento
-    const ref = parsePeriodo(pag.reference_month)
-    setPeriodo(ref)
   }
 
   function handleImport(rows) {
@@ -1213,8 +1425,7 @@ export default function Pagamentos() {
   }
 
   function gerarTodos() {
-    const key = periodoKey(periodo)
-    setPagamentos(prev => prev.map(p => p.reference_month === key && !p.processed ? { ...p, processed: true } : p))
+    setPagamentos(prev => prev.map(p => !p.processed ? { ...p, processed: true } : p))
   }
 
   // ── KPIs node ─────────────────────────────────────────────────────────────
@@ -1339,14 +1550,40 @@ export default function Pagamentos() {
         filters={FILTERS_DEF}
         activeFilters={activeFiltersNorm}
         onFilterChange={handleFilterChange}
-        onNew={() => setNovoPagForm({ ...EMPTY_PAG, reference_month: periodoKey(periodo), due_date: periodoKey(periodo) })}
+        extraFilters={
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase',
+              letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8 }}>
+              Período
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {[
+                { label:'De', value: periododeDe, set: setPeriodoDe },
+                { label:'Até', value: periodoAte, set: setPeriodoAte },
+              ].map(({ label, value, set }) => (
+                <div key={label}>
+                  <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:4 }}>{label}</div>
+                  <input type="date" value={value} onChange={e => set(e.target.value)}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 9px',
+                      borderRadius:7, border:'1px solid var(--border)',
+                      background:'var(--surface2)', color:'var(--text)',
+                      fontSize:12, fontFamily:'var(--mono)', outline:'none' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        }
+        onNew={() => setNovoPagForm({ ...EMPTY_PAG, reference_month: periododeDe || todayStr, due_date: periododeDe || todayStr })}
         newLabel="Novo Pagamento"
         bulkActions={[
           { label: '✓ Gerar faturas', onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p)) },
           { label: 'Marcar como recebido', onClick: ids => {
-            const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
-            setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, status: 'pago' } : p))
-            naoEramPagos.forEach(p => gerarRepasses({ ...p, status: 'pago' }))
+            const inconsistencias = detectarInconsistencias(ids)
+            if (inconsistencias.length > 0) {
+              setInconsistenciaModal({ itens: inconsistencias, ids })
+            } else {
+              executarBulkReceber(ids)
+            }
           }},
           { label: 'Excluir', onClick: ids => {
             if (window.confirm(`Excluir ${ids.length} pagamento(s) permanentemente?`))
@@ -1356,20 +1593,6 @@ export default function Pagamentos() {
         onRowClick={p => setDetalheModal(p)}
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}
-        secondaryActions={
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <PeriodoPicker value={periodo} onChange={p => setPeriodo(p)} periodos={periodos} />
-            <Button onClick={() => setGerarTodosModal(true)}>
-              + Gerar Todos
-              {naoProcessados.length > 0 && (
-                <span style={{ marginLeft:6, background:'rgba(255,255,255,0.25)', borderRadius:10,
-                  padding:'1px 7px', fontSize:10, fontWeight:800, fontFamily:'var(--mono)' }}>
-                  {naoProcessados.length}
-                </span>
-              )}
-            </Button>
-          </div>
-        }
         emptyState={
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, color:'var(--text-muted)' }}>
             <span style={{ fontSize:28, opacity:0.3 }}>💸</span>
@@ -1455,8 +1678,8 @@ export default function Pagamentos() {
                           .map(i => String(i.produto_id)).filter(Boolean)
                       : []
                     const opcoesDisponiveis = idsDoContrato.length > 0
-                      ? produtosNovo.filter(p => idsDoContrato.includes(String(p.id)))
-                      : produtosNovo
+                      ? produtosAtivos.filter(p => idsDoContrato.includes(String(p.id)))
+                      : produtosAtivos
                     return (
                       <SearchSelect
                         options={opcoesDisponiveis.map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))}
@@ -1520,10 +1743,6 @@ export default function Pagamentos() {
         })()}
       </SlideOver>
 
-      {gerarTodosModal && (
-        <GerarTodosModal periodo={periodo} pendentes={naoProcessados}
-          onConfirm={gerarTodos} onClose={() => setGerarTodosModal(false)} />
-      )}
       {importModal && (
         <ImportModal onClose={() => setImportModal(false)} onImport={handleImport} />
       )}
@@ -1536,6 +1755,58 @@ export default function Pagamentos() {
           onClose={() => setRecebidoFeedback(null)}
           stepDelay={750}
           autoClose={4500}
+        />
+      )}
+
+      {/* ── Modal de inconsistências antes do lote ── */}
+      {inconsistenciaModal && createPortal(
+        <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.72)', backdropFilter:'blur(4px)',
+          display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:9999 }}>
+          <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:500,
+            boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden' }}>
+            <div style={{ padding:'20px 24px 16px', borderBottom:'1px solid var(--border)', display:'flex', gap:14, alignItems:'flex-start' }}>
+              <div style={{ width:42, height:42, borderRadius:12, background:'#FEF3C7', display:'flex',
+                alignItems:'center', justifyContent:'center', fontSize:20, flexShrink:0 }}>⚠</div>
+              <div>
+                <div style={{ fontWeight:700, fontSize:15, color:'var(--text)' }}>Inconsistências encontradas</div>
+                <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:3 }}>
+                  {inconsistenciaModal.itens.length} pagamento(s) com não conformidade antes do lote.
+                </div>
+              </div>
+            </div>
+            <div style={{ padding:'14px 24px', maxHeight:220, overflowY:'auto', display:'flex', flexDirection:'column', gap:8 }}>
+              {inconsistenciaModal.itens.map((item, i) => (
+                <div key={i} style={{ background:'#FFFBEB', border:'1px solid #FDE68A', borderRadius:8,
+                  padding:'9px 12px', fontSize:12, color:'#92400E' }}>
+                  <div style={{ fontWeight:600 }}>{item.pag.company_nome || item.pag.contract_numero}</div>
+                  <div style={{ marginTop:2, opacity:0.85 }}>{item.motivo}</div>
+                </div>
+              ))}
+            </div>
+            <div style={{ padding:'14px 24px 20px', borderTop:'1px solid var(--border)', display:'flex', gap:10, justifyContent:'flex-end' }}>
+              <button onClick={() => setInconsistenciaModal(null)}
+                style={{ padding:'8px 18px', border:'1px solid var(--border)', borderRadius:8,
+                  background:'var(--surface2)', color:'var(--text)', fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
+                Cancelar
+              </button>
+              <button onClick={() => { const { ids, itens } = inconsistenciaModal; setInconsistenciaModal(null); executarBulkReceber(ids, itens) }}
+                style={{ padding:'8px 18px', border:'none', borderRadius:8,
+                  background:'#D97706', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+                Confirmar mesmo assim
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ── Progresso de lote ── */}
+      {batchProgress && (
+        <BatchProgress
+          title="Processando pagamentos em lote"
+          operations={batchProgress.operations}
+          onClose={() => setBatchProgress(null)}
+          autoClose={3000}
         />
       )}
 

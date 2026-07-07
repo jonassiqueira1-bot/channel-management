@@ -366,6 +366,7 @@ export default function BrowseLayout({
   filters          = [],
   activeFilters    = {},
   onFilterChange,
+  extraFilters,
   search           = '',
   onSearchChange,
   bulkActions      = [],
@@ -414,8 +415,35 @@ export default function BrowseLayout({
   const [openId, setOpenId] = useState(null)
 
   // Visibilidade e ordem de colunas
-  const [colOrder,   setColOrder]   = useState(() => columns.map(c => c.key))
-  const [hiddenCols, setHiddenCols] = useState(new Set())
+  const [colOrder, setColOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storagePrefix + '_co')
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        // merge: keep saved order, append any new columns, drop removed ones
+        const allKeys = new Set(columns.map(c => c.key))
+        const merged  = parsed.filter(k => allKeys.has(k))
+        columns.forEach(c => { if (!merged.includes(c.key)) merged.push(c.key) })
+        return merged
+      }
+    } catch {}
+    return columns.map(c => c.key)
+  })
+  const [hiddenCols, setHiddenCols] = useState(() => {
+    try {
+      const saved = localStorage.getItem(storagePrefix + '_hc')
+      if (saved) return new Set(JSON.parse(saved))
+    } catch {}
+    return new Set()
+  })
+
+  // Persiste colOrder e hiddenCols
+  useEffect(() => {
+    try { localStorage.setItem(storagePrefix + '_co', JSON.stringify(colOrder)) } catch {}
+  }, [storagePrefix, colOrder])
+  useEffect(() => {
+    try { localStorage.setItem(storagePrefix + '_hc', JSON.stringify([...hiddenCols])) } catch {}
+  }, [storagePrefix, hiddenCols])
 
   // Sincroniza colOrder quando a prop columns mudar
   useEffect(() => {
@@ -964,6 +992,11 @@ export default function BrowseLayout({
 
             {/* Filtros */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+              {extraFilters && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {extraFilters}
+                </div>
+              )}
               {filters.map(f => {
                 const vals = activeFilters[f.key] || []
                 return (
