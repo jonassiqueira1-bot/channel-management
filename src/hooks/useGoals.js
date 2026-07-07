@@ -32,7 +32,7 @@ function rowToGoal(row) {
     id:                  row.id,
     tipo_alvo:           row.tipo_alvo,
     id_vendedor:         cf.id_vendedor || null,
-    id_unidade:          cf.id_unidade  || null,
+    partner_id:          cf.partner_id  || (row.tipo_alvo === 'parceiro' ? row.alvo_id : null) || null,
     category_id:         cf.category_id || null,
     product_id:          cf.product_id  || null,
     alvo_id:             row.alvo_id    || null,
@@ -41,6 +41,7 @@ function rowToGoal(row) {
     tipo_meta:           row.tipo_meta,
     subtipo_operacional: row.subtipo_operacional || null,
     valor_sufixo:        row.valor_sufixo || null,
+    origem_realizado:    row.origem_realizado || 'automatico',
     periodo_mes:         row.periodo_mes,
     periodo_ano:         row.periodo_ano,
     valor_planejado:     row.valor_planejado || 0,
@@ -55,12 +56,12 @@ function goalToRow(g, tenantId, branchId) {
     tenant_id:           tenantId,
     branch_id:           branchId || null,
     tipo_alvo:           g.tipo_alvo,
-    alvo_id:             g.alvo_id || g.id_vendedor || g.id_unidade || g.category_id || g.product_id || null,
+    alvo_id:             g.alvo_id || g.id_vendedor || g.id_unidade || g.partner_id || g.category_id || g.product_id || null,
     alvo_nome:           g.alvo_nome || null,
     alvo_contexto:       g.alvo_contexto || null,
-    tipo_meta:           g.tipo_meta || 'valor',
-    subtipo_operacional: g.subtipo_operacional || null,
-    valor_sufixo:        g.valor_sufixo || null,
+    tipo_meta:           'valor',
+    subtipo_operacional: null,
+    valor_sufixo:        null,
     periodo_mes:         Number(g.periodo_mes),
     periodo_ano:         Number(g.periodo_ano),
     valor_planejado:     g.valor_planejado != null ? Number(g.valor_planejado)
@@ -70,7 +71,7 @@ function goalToRow(g, tenantId, branchId) {
     status:              g.status || 'ativa',
     custom_fields: {
       id_vendedor:  g.id_vendedor,
-      id_unidade:   g.id_unidade,
+      partner_id:   g.partner_id,
       category_id:  g.category_id,
       product_id:   g.product_id,
       lancamentos:  g.custom_fields?.lancamentos || [],
@@ -177,14 +178,42 @@ export function useGoals() {
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) {
-      setGoals(prev => { const next = prev.filter(g => g.id !== id); saveMockToStorage(next); return next })
+      setGoals(prev => {
+        const target = prev.find(g => g.id === id)
+        if (!target) return prev
+        const next = prev.filter(g =>
+          !(g.tipo_alvo === target.tipo_alvo &&
+            g.periodo_ano === target.periodo_ano &&
+            (g.alvo_id || null) === (target.alvo_id || null))
+        )
+        saveMockToStorage(next)
+        return next
+      })
       return { ok: true }
     }
-    const { error } = await softDelete('goals', id)
-    if (error) return { ok: false, message: error.message }
-    setGoals(prev => prev.filter(g => g.id !== id))
+    // Busca todos os IDs do grupo (mesmo tipo_alvo + alvo_id + periodo_ano)
+    const { data: targetData } = await supabase.from('goals')
+      .select('id,tipo_alvo,alvo_id,periodo_ano')
+      .eq('id', id)
+      .single()
+    if (!targetData) return { ok: false, message: 'Meta não encontrada' }
+    const { tipo_alvo, alvo_id, periodo_ano } = targetData
+    let q = supabase.from('goals')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .eq('tipo_alvo', tipo_alvo)
+      .eq('periodo_ano', periodo_ano)
+    if (alvo_id) q = q.eq('alvo_id', alvo_id)
+    else q = q.is('alvo_id', null)
+    const { data: groupData } = await q
+    const ids = (groupData || []).map(r => r.id)
+    // Deleta cada registro individualmente para respeitar RLS
+    for (const gid of ids) {
+      await softDelete('goals', gid)
+    }
+    setGoals(prev => prev.filter(g => !ids.includes(g.id)))
     return { ok: true }
-  }, [])
+  }, [tenantId])
 
   return { goals, loading, reload: load, save, remove, setGoals, isMock: isMockMode }
 }

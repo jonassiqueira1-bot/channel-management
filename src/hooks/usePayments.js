@@ -51,6 +51,7 @@ function rowToPayment(row) {
     status:           row.status || 'pendente',
     processed:        cf.processed || false,
     notes:            row.descricao || '',
+    inconsistencia:   row.inconsistencia || false,
     tenant_id:        row.tenant_id || null,
     branch_id:        row.branch_id || null,
   }
@@ -65,6 +66,7 @@ function paymentToRow(p, tenantId, branchId) {
     vencimento:     p.due_date || null,
     data_pagamento: p.reference_month || null,
     descricao:      p.notes || '',
+    inconsistencia: p.inconsistencia || false,
     // Todos os campos extras em custom_fields (evita erros de colunas inexistentes)
     custom_fields: {
       contract_id:      p.contract_id,

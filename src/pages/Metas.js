@@ -17,6 +17,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useParceiros } from '../hooks/useParceiros'
+import { useUsuarios } from '../hooks/useUsuarios'
 import { useGoals } from '../hooks/useGoals'
 import { useProducts } from '../hooks/useProducts'
 import { useContracts } from '../hooks/useContracts'
@@ -28,7 +29,6 @@ import { useAuditLog } from '../hooks/useAuditLog'
 // ─── Tipos de alvo ────────────────────────────────────────────────────────────
 const TIPOS_ALVO = {
   vendedor:  { label: 'Por Vendedor',             badgeLabel: 'Vendedor',  badgeColor: 'var(--accent)', badgeBg: '#F5F3FF', badgeBorder: '#DDD6FE' },
-  unidade:   { label: 'Por Unidade / Franquia',   badgeLabel: 'Unidade',   badgeColor: '#1D4ED8', badgeBg: '#EFF6FF', badgeBorder: '#BFDBFE' },
   parceiro:  { label: 'Por Parceiro',             badgeLabel: 'Parceiro',  badgeColor: '#D97706', badgeBg: '#FFFBEB', badgeBorder: '#FDE68A' },
   categoria: { label: 'Por Categoria de Produto', badgeLabel: 'Categoria', badgeColor: '#0891B2', badgeBg: '#ECFEFF', badgeBorder: '#A5F3FC' },
   produto:   { label: 'Por Produto Específico',   badgeLabel: 'Produto',   badgeColor: '#059669', badgeBg: '#F0FDF4', badgeBorder: '#A7F3D0' },
@@ -36,9 +36,7 @@ const TIPOS_ALVO = {
 }
 
 const TIPOS_META = {
-  valor:       { label: 'Valor de Vendas (R$)',               prefix: 'R$', suffix: '' },
-  atividade:   { label: 'Qtd. de Oportunidades / Atividades', prefix: '',   suffix: 'ops' },
-  operacional: { label: 'Não-Comercial / Operacional',        prefix: '',   suffix: '' },
+  valor: { label: 'Valor Comercial (R$)', prefix: 'R$', suffix: '' },
 }
 
 const STATUS_CFG = {
@@ -54,7 +52,6 @@ const TIPO_FILTER_OPTIONS = [
   { val: 'responsavel', label: 'Responsável',          desc: 'Vendedores e unidades' },
   { val: 'categoria',   label: 'Categoria de Produto', desc: 'Por segmento / categoria' },
   { val: 'produto',     label: 'Produto Específico',   desc: 'Por SKU / produto' },
-  { val: 'operacional', label: 'Métricas Operacionais',desc: 'Metas não-comerciais' },
 ]
 
 // ─── Mock seed ────────────────────────────────────────────────────────────────
@@ -128,11 +125,10 @@ function corBarra(p) {
   if (p >= 40)  return '#F59E0B'
   return '#EF4444'
 }
-function fmtCompact(v, tipo, goal) {
+function fmtCompact(v) {
   const n = Number(v)
-  const isCurrency = tipo === 'valor' || (tipo === 'operacional' && goal?.subtipo_operacional === 'moeda')
-  const sfx = tipo === 'atividade' ? 'ops'
-    : tipo === 'operacional' && goal?.valor_sufixo ? goal.valor_sufixo.slice(0,6) : ''
+  const isCurrency = true
+  const sfx = ''
   let num
   if (n >= 1000000) num = (n/1000000).toFixed(1).replace('.', ',') + 'M'
   else if (n >= 1000) num = (n/1000).toFixed(0) + 'k'
@@ -179,13 +175,9 @@ function calcRealizado(goal, contratosAtivos, produtos, equipes, vendedores) {
     filtrados = filtrados.filter(c => memNomes.includes(c.responsavel))
   }
 
-  if (goal.tipo_meta === 'atividade') return filtrados.length
-  if (goal.tipo_meta === 'valor') {
-    return filtrados.reduce((s, c) =>
-      s + (Number(c.valor_adesao) || 0) + (Number(c.valor_mrr) || 0) + (Number(c.valor_servico) || 0), 0)
-  }
-  // operacional: sem cálculo automático — mantém valor_atual salvo
-  return goal.valor_atual ?? 0
+  if (goal.origem_realizado === 'manual') return goal.valor_atual ?? 0
+  return filtrados.reduce((s, c) =>
+    s + (Number(c.valor_adesao) || 0) + (Number(c.valor_mrr) || 0) + (Number(c.valor_servico) || 0), 0)
 }
 
 // ─── Avatar simples ───────────────────────────────────────────────────────────
@@ -446,7 +438,7 @@ const pop = {
 }
 
 // ─── Célula da matriz (compacta) ─────────────────────────────────────────────
-function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit }) {
+function MatrixCell({ goal, onEdit }) {
   const [hover, setHover] = useState(false)
 
   if (!goal) {
@@ -457,13 +449,10 @@ function MatrixCell({ goal, tipo_meta, subtipo_operacional, valor_sufixo, onEdit
     )
   }
 
-  const p   = pctReal(goal.valor_atual, goal.valor_alvo)
-  const cor = corBarra(Math.min(p, 100))
-  const goalTipo    = goal.tipo_meta || tipo_meta
-  const goalSubtipo = goal.subtipo_operacional || subtipo_operacional
-  const goalSufixo  = goal.valor_sufixo || valor_sufixo
-  const alvoFmt     = fmtCompact(goal.valor_alvo, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
-  const realFmt     = fmtCompact(goal.valor_atual, goalTipo, { ...goal, subtipo_operacional: goalSubtipo, valor_sufixo: goalSufixo })
+  const p       = pctReal(goal.valor_atual, goal.valor_alvo)
+  const cor     = corBarra(Math.min(p, 100))
+  const alvoFmt = fmtCompact(goal.valor_alvo)
+  const realFmt = fmtCompact(goal.valor_atual)
   const pPct        = Math.min(p, 100)
 
   return (
@@ -550,9 +539,6 @@ function MatrixRow({ row, months, onEdit }) {
         <MatrixCell
           key={`${m.ano}-${m.mes}`}
           goal={row.goals[`${m.ano}-${m.mes}`] || null}
-          tipo_meta={row.tipo_meta}
-          subtipo_operacional={row.subtipo_operacional}
-          valor_sufixo={row.valor_sufixo}
           onEdit={handleCellEdit}
         />
       ))}
@@ -705,13 +691,13 @@ function MesCell({ mes, label, value, onChange, showPrefix, isCurrent }) {
 // ─── Modal Nova/Editar Meta ───────────────────────────────────────────────────
 const EMPTY_MESES_VALORES = Object.fromEntries(Array.from({ length: 12 }, (_, i) => [i + 1, '']))
 const EMPTY_FORM = {
-  tipo_alvo: 'vendedor', id_vendedor: '', id_unidade: '', partner_id: '', category_id: '', product_id: '', equipe_id: '',
-  tipo_meta: 'valor', subtipo_operacional: 'quantidade', valor_sufixo: '',
+  tipo_alvo: 'vendedor', id_vendedor: '', partner_id: '', category_id: '', product_id: '', equipe_id: '',
+  tipo_meta: 'valor', origem_realizado: 'automatico',
   periodo_ano: String(ANO), meses_valores: { ...EMPTY_MESES_VALORES }, valor_padrao_str: '',
   status: 'ativa',
 }
 
-function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unidades, parceiros, categorias, produtos, equipes, saveRef }) {
+function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, parceiros, categorias, produtos, equipes, saveRef }) {
   const isEditing = !!initial
   const [activeTab, setActiveTab] = useState('meta') // 'meta' | 'execucao'
 
@@ -722,12 +708,47 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       Object.values(row.goals).map(g => [g.id, g.valor_atual > 0 ? fmtInput(String(g.valor_atual)) : ''])
     )
   })
+  // Controla quais cards de lançamentos estão recolhidos (por goal id)
+  const [lancCollapsed, setLancCollapsed] = useState({})
 
   function handleSaveRealizado() {
-    const records = Object.values(row.goals).map(g => ({
-      ...g,
-      valor_atual: parseInput(realizadoValues[g.id] || '0'),
-    }))
+    const now = new Date()
+    const records = Object.values(row.goals).map(g => {
+      const novoValor = parseInput(realizadoValues[g.id] || '0')
+      const lancamentos = g.custom_fields?.lancamentos || []
+
+      // Se o valor mudou em relação ao que veio de lançamentos automáticos,
+      // registra um lançamento manual cobrindo a diferença
+      const somaAuto = lancamentos
+        .filter(l => l.tipo !== 'manual')
+        .reduce((s, l) => s + (l.valor || 0), 0)
+      const somaManual = lancamentos
+        .filter(l => l.tipo === 'manual')
+        .reduce((s, l) => s + (l.valor || 0), 0)
+      const totalAtual = somaAuto + somaManual
+
+      let novasLancamentos = lancamentos.filter(l => l.tipo !== 'manual')
+      if (novoValor !== somaAuto) {
+        // Registra lançamento manual com o delta em relação ao automático
+        const valorManual = novoValor - somaAuto
+        if (valorManual !== 0) {
+          novasLancamentos = [...novasLancamentos, {
+            tipo: 'manual',
+            valor: valorManual,
+            data: now.toISOString().slice(0, 10),
+            descricao: 'Lançamento manual',
+            mes: g.periodo_mes,
+            ano: g.periodo_ano,
+          }]
+        }
+      }
+
+      return {
+        ...g,
+        valor_atual: novoValor,
+        custom_fields: { ...g.custom_fields, lancamentos: novasLancamentos },
+      }
+    })
     onSave(records)
   }
 
@@ -748,11 +769,11 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
     }
     return {
       tipo_alvo: initial.tipo_alvo, id_vendedor: initial.id_vendedor || '',
-      id_unidade: initial.id_unidade || '', partner_id: initial.partner_id || '', category_id: initial.category_id || '',
+      partner_id: initial.partner_id || '', category_id: initial.category_id || '',
       product_id: initial.product_id || '', equipe_id: initial.equipe_id || '',
-      tipo_meta: initial.tipo_meta,
-      subtipo_operacional: initial.subtipo_operacional || 'quantidade',
-      valor_sufixo: initial.valor_sufixo || '', periodo_ano: String(initial.periodo_ano),
+      tipo_meta: 'valor',
+      origem_realizado: initial.origem_realizado || 'automatico',
+      periodo_ano: String(initial.periodo_ano),
       meses_valores: mv, valor_padrao_str: '', status: initial.status,
     }
   })
@@ -772,7 +793,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
   function validate() {
     const e = {}
     if (form.tipo_alvo==='vendedor'  && !form.id_vendedor)  e.ref='Selecione um vendedor'
-    if (form.tipo_alvo==='unidade'   && !form.id_unidade)   e.ref='Selecione uma unidade'
     if (form.tipo_alvo==='parceiro'  && !form.partner_id)   e.ref='Selecione um parceiro'
     if (form.tipo_alvo==='categoria' && !form.category_id)  e.ref='Selecione uma categoria'
     if (form.tipo_alvo==='produto'   && !form.product_id)   e.ref='Selecione um produto'
@@ -785,8 +805,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
     e.preventDefault()
     if (!validate()) return
     let nome_ref = '', sub_ref = ''
-    if (form.tipo_alvo==='vendedor')       { const v=vendedores.find(x=>x.id===form.id_vendedor); nome_ref=v?.nome||''; sub_ref=v?.unidade||v?.franquia||'' }
-    else if (form.tipo_alvo==='unidade')   { const u=unidades.find(x=>x.id===form.id_unidade);    nome_ref=u?.nome||'' }
+    if (form.tipo_alvo==='vendedor')       { const v=vendedores.find(x=>x.id===form.id_vendedor); nome_ref=v?.nome||''; sub_ref=v?.unidade||'' }
     else if (form.tipo_alvo==='parceiro')  { const p=parceiros.find(x=>x.id===form.partner_id);   nome_ref=p?.nome||''; sub_ref='Parceiro' }
     else if (form.tipo_alvo==='categoria') { nome_ref=form.category_id; sub_ref='Categoria de produto' }
     else if (form.tipo_alvo==='produto')   { const p=produtos.find(x=>x.id===form.product_id); nome_ref=p?.nome||''; sub_ref=p?.categoria||'' }
@@ -795,16 +814,14 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
     const base = {
       tipo_alvo: form.tipo_alvo,
       id_vendedor: form.tipo_alvo==='vendedor'  ? form.id_vendedor  : null,
-      id_unidade:  form.tipo_alvo==='unidade'   ? form.id_unidade   : null,
       partner_id:  form.tipo_alvo==='parceiro'  ? form.partner_id   : null,
       category_id: form.tipo_alvo==='categoria' ? form.category_id  : null,
       product_id:  form.tipo_alvo==='produto'   ? form.product_id   : null,
       equipe_id:   form.tipo_alvo==='equipe'    ? form.equipe_id    : null,
       alvo_nome: nome_ref, alvo_contexto: sub_ref,
       nome_ref, sub_ref,
-      tipo_meta: form.tipo_meta,
-      subtipo_operacional: form.tipo_meta==='operacional' ? form.subtipo_operacional : null,
-      valor_sufixo: form.tipo_meta==='operacional' && form.subtipo_operacional==='quantidade' ? (form.valor_sufixo||null) : null,
+      tipo_meta: 'valor',
+      origem_realizado: form.origem_realizado || 'automatico',
       periodo_ano: Number(form.periodo_ano), data_inicio:null, data_fim:null, status:form.status,
     }
 
@@ -834,10 +851,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
 
   const ALVO_OPTIONS = Object.entries(TIPOS_ALVO).map(([k,v]) => ({ val:k, label:v.label }))
   const modalAnos = [ANO-1, ANO, ANO+1]
-  const isOp  = form.tipo_meta === 'operacional'
-  const showR = form.tipo_meta === 'valor' || (isOp && form.subtipo_operacional === 'moeda')
-
-  const tipoMetaOpts  = Object.entries(TIPOS_META).map(([k,v]) => ({ value:k, label:v.label }))
   const periodoAnoOpts = [ANO-1, ANO, ANO+1].map(y => ({ value:String(y), label:String(y) }))
   const statusOpts     = Object.entries(STATUS_CFG).map(([k,v]) => ({ value:k, label:v.label }))
 
@@ -870,14 +883,13 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       <div>
         <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)',
           textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>
-          {{ vendedor:'Vendedor', unidade:'Unidade / Franquia', parceiro:'Parceiro', categoria:'Categoria de produto', produto:'Produto', equipe:'Equipe' }[form.tipo_alvo]}
+          {{ vendedor:'Vendedor', parceiro:'Parceiro', categoria:'Categoria de produto', produto:'Produto', equipe:'Equipe' }[form.tipo_alvo]}
         </div>
         <select style={{ width:'100%', padding:'9px 11px', borderRadius:8, border:`1px solid ${errors.ref?'var(--red)':'var(--border)'}`,
           background:'var(--surface2)', fontSize:13, color:'var(--text)', fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }}
-          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='unidade'?form.id_unidade:form.tipo_alvo==='parceiro'?form.partner_id:form.tipo_alvo==='categoria'?form.category_id:form.tipo_alvo==='equipe'?form.equipe_id:form.product_id}
+          value={form.tipo_alvo==='vendedor'?form.id_vendedor:form.tipo_alvo==='parceiro'?form.partner_id:form.tipo_alvo==='categoria'?form.category_id:form.tipo_alvo==='equipe'?form.equipe_id:form.product_id}
           onChange={e => {
             if (form.tipo_alvo==='vendedor')       set('id_vendedor',e.target.value)
-            else if (form.tipo_alvo==='unidade')   set('id_unidade',e.target.value)
             else if (form.tipo_alvo==='parceiro')  set('partner_id',e.target.value)
             else if (form.tipo_alvo==='categoria') set('category_id',e.target.value)
             else if (form.tipo_alvo==='equipe')    set('equipe_id',e.target.value)
@@ -885,7 +897,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
           }}>
           <option value="">— Selecione —</option>
           {form.tipo_alvo==='vendedor'  && vendedores.map(v=><option key={v.id} value={v.id}>{v.nome}{v.unidade?` · ${v.unidade}`:''}</option>)}
-          {form.tipo_alvo==='unidade'   && unidades.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
           {form.tipo_alvo==='parceiro'  && parceiros.map(p=><option key={p.id} value={p.id}>{p.nome}</option>)}
           {form.tipo_alvo==='categoria' && categorias.map(c=><option key={c} value={c}>{c}</option>)}
           {form.tipo_alvo==='produto'   && produtos.map(p=><option key={p.id} value={p.id}>{p.nome}{p.categoria?` · ${p.categoria}`:''}</option>)}
@@ -913,17 +924,13 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       {/* Aba Execução */}
       {activeTab === 'execucao' && isEditing && row && (() => {
         const sortedGoals = Object.values(row.goals).sort((a,b)=>(a.periodo_ano*12+a.periodo_mes)-(b.periodo_ano*12+b.periodo_mes))
-        const goalTipo    = initial.tipo_meta
-        const goalSubtipo = initial.subtipo_operacional
-        const goalSufixo  = initial.valor_sufixo
-        const showPfx     = goalTipo==='valor' || (goalTipo==='operacional' && goalSubtipo==='moeda')
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
             <p style={{ margin:'0 0 4px', fontSize:12, color:'var(--text-muted)' }}>
               Preencha o valor realizado em cada mês.
             </p>
             {sortedGoals.map(g => {
-              const alvoFmt = fmtCompact(g.valor_alvo, goalTipo, { ...g, subtipo_operacional:goalSubtipo, valor_sufixo:goalSufixo })
+              const alvoFmt = fmtCompact(g.valor_alvo)
               const val = realizadoValues[g.id] ?? ''
               const p   = pctReal(parseInput(val), g.valor_alvo)
               const cor = corBarra(Math.min(p,100))
@@ -942,13 +949,13 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
                       </div>
                     </div>
                     <div style={{ position:'relative' }}>
-                      {showPfx && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
+                      <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>
                       <input type="text" inputMode="numeric"
                         placeholder={g.valor_atual > 0 ? fmtInput(String(g.valor_atual)) : '0'}
                         value={val}
                         onChange={e => setRealizadoValues(prev => ({ ...prev, [g.id]: fmtInput(e.target.value) }))}
                         style={{ width:'100%', boxSizing:'border-box',
-                          padding: showPfx ? '7px 10px 7px 26px' : '7px 10px',
+                          padding: '7px 10px 7px 26px',
                           borderRadius:7, border:`1.5px solid ${val ? cor : 'var(--border)'}`,
                           background:'var(--surface)', fontSize:13, fontWeight:700,
                           color:'var(--text)', fontFamily:'var(--mono)', outline:'none' }} />
@@ -958,35 +965,58 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
                            : <span style={{ fontSize:11, color:'var(--text-muted)' }}>—</span>}
                     </div>
                   </div>
-                  {lancamentos.length > 0 && (
-                    <div style={{ borderTop:'1px solid var(--border)', padding:'6px 10px 8px' }}>
-                      <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>
-                        Origem dos lançamentos
+                  {lancamentos.length > 0 && (() => {
+                    const collapsed = !!lancCollapsed[g.id]
+                    return (
+                      <div style={{ borderTop:'1px solid var(--border)' }}>
+                        {/* Header clicável */}
+                        <button
+                          type="button"
+                          onClick={() => setLancCollapsed(prev => ({ ...prev, [g.id]: !prev[g.id] }))}
+                          style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between',
+                            padding:'5px 10px', background:'none', border:'none', cursor:'pointer',
+                            fontFamily:'var(--font)' }}>
+                          <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)',
+                            textTransform:'uppercase', letterSpacing:'0.06em' }}>
+                            Origem dos lançamentos ({lancamentos.length})
+                          </span>
+                          <span style={{ fontSize:11, color:'var(--text-muted)', transition:'transform 0.15s',
+                            display:'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>▼</span>
+                        </button>
+                        {/* Lista de lançamentos */}
+                        {!collapsed && (
+                          <div style={{ padding:'0 10px 8px' }}>
+                            {lancamentos.map((l, i) => (
+                              <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
+                                fontSize:11, padding:'3px 0',
+                                borderBottom: i < lancamentos.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+                                  {l.tipo === 'manual'
+                                    ? <span style={{ fontWeight:700, color:'var(--text-muted)', fontFamily:'var(--mono)',
+                                        fontSize:10, background:'var(--surface)', border:'1px solid var(--border)',
+                                        borderRadius:4, padding:'1px 5px' }}>MANUAL</span>
+                                    : <span style={{ fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{l.contrato_numero}</span>
+                                  }
+                                  {l.empresa_nome && <><span style={{ color:'var(--text-muted)' }}>·</span>
+                                  <span style={{ color:'var(--text-soft)' }}>{l.empresa_nome}</span></>}
+                                  {l.produto_nome && <span style={{ color:'var(--text-muted)' }}>({l.produto_nome})</span>}
+                                  {l.descricao && l.tipo === 'manual' && <span style={{ color:'var(--text-muted)' }}>{l.descricao}</span>}
+                                </div>
+                                <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
+                                  <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                                    {l.data ? new Date(l.data + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : ''}
+                                  </span>
+                                  <span style={{ fontWeight:700, color: l.valor >= 0 ? '#10B981' : '#EF4444', fontFamily:'var(--mono)' }}>
+                                    {l.valor >= 0 ? '+' : ''}{(l.valor || 0).toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 })}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                      {lancamentos.map((l, i) => (
-                        <div key={i} style={{ display:'flex', justifyContent:'space-between', alignItems:'center',
-                          fontSize:11, padding:'3px 0',
-                          borderBottom: i < lancamentos.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                          <div>
-                            <span style={{ fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{l.contrato_numero}</span>
-                            <span style={{ color:'var(--text-muted)', margin:'0 5px' }}>·</span>
-                            <span style={{ color:'var(--text-soft)' }}>{l.empresa_nome}</span>
-                            {l.produto_nome && (
-                              <span style={{ color:'var(--text-muted)', marginLeft:5 }}>({l.produto_nome})</span>
-                            )}
-                          </div>
-                          <div style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-                            <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-                              {l.data ? new Date(l.data + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit' }) : ''}
-                            </span>
-                            <span style={{ fontWeight:700, color:'#10B981', fontFamily:'var(--mono)' }}>
-                              +{l.valor.toLocaleString('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 })}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )
             })}
@@ -1004,7 +1034,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
                 Distribuição por Mês
               </span>
               <span style={{ fontSize:11, color:'var(--text-muted)', marginLeft:8 }}>
-                {form.periodo_ano} · {showR?'(R$)':isOp?`(${form.valor_sufixo||'qtd'})`:'(ops)'}
+                {form.periodo_ano} · (R$)
               </span>
             </div>
             <div style={{ display:'flex', alignItems:'center', gap:6 }}>
@@ -1018,10 +1048,10 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
           <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 14px', borderBottom:'1px solid var(--border)', background:'var(--surface)' }}>
             <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', whiteSpace:'nowrap' }}>Padrão:</span>
             <div style={{ position:'relative', flex:1, maxWidth:160 }}>
-              {showR && <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>}
+              <span style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', fontSize:11, fontWeight:700, color:'var(--text-muted)', pointerEvents:'none' }}>R$</span>
               <input type="text" inputMode="numeric" placeholder="0" value={form.valor_padrao_str}
                 onChange={e => set('valor_padrao_str',fmtInput(e.target.value))}
-                style={{ width:'100%', boxSizing:'border-box', height:32, padding:showR?'0 10px 0 24px':'0 10px',
+                style={{ width:'100%', boxSizing:'border-box', height:32, padding:'0 10px 0 24px',
                   borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)',
                   fontSize:12, fontFamily:'var(--mono)', color:'var(--text)', outline:'none' }} />
             </div>
@@ -1038,7 +1068,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
             {Array.from({length:12},(_,i)=>i+1).map(mes => (
               <MesCell key={mes} mes={mes} label={MESES[mes-1].slice(0,3)}
                 value={form.meses_valores[mes]} onChange={setMes}
-                showPrefix={showR} isCurrent={mes===MES && Number(form.periodo_ano)===ANO} />
+                showPrefix={true} isCurrent={mes===MES && Number(form.periodo_ano)===ANO} />
             ))}
           </div>
           {errors.meses && (
@@ -1062,15 +1092,16 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
       <FormSection label="Configuração">
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
           <div>
-            <span style={lbl}>Tipo de meta</span>
-            <select style={fldStyle} value={form.tipo_meta} onChange={e => set('tipo_meta', e.target.value)}>
-              {tipoMetaOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-          <div>
             <span style={lbl}>Ano</span>
             <select style={fldStyle} value={form.periodo_ano} onChange={e => set('periodo_ano', e.target.value)}>
               {periodoAnoOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <span style={lbl}>Origem do realizado</span>
+            <select style={fldStyle} value={form.origem_realizado} onChange={e => set('origem_realizado', e.target.value)}>
+              <option value="automatico">Automático — contratos do sistema</option>
+              <option value="manual">Manual — lançamento direto</option>
             </select>
           </div>
           {isEditing && (
@@ -1079,21 +1110,6 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, unida
               <select style={fldStyle} value={form.status} onChange={e => set('status', e.target.value)}>
                 {statusOpts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
-            </div>
-          )}
-          {isOp && (
-            <div>
-              <span style={lbl}>Natureza</span>
-              <select style={fldStyle} value={form.subtipo_operacional} onChange={e => set('subtipo_operacional', e.target.value)}>
-                <option value="quantidade">Quantidade</option>
-                <option value="moeda">Valor (R$)</option>
-              </select>
-            </div>
-          )}
-          {isOp && form.subtipo_operacional === 'quantidade' && (
-            <div>
-              <span style={lbl}>Sufixo</span>
-              <input style={fldStyle} value={form.valor_sufixo || ''} onChange={e => set('valor_sufixo', e.target.value)} placeholder="treinamentos…" />
             </div>
           )}
         </div>
@@ -1128,16 +1144,17 @@ export default function Metas() {
   const { contratos: todosContratos } = useContracts()
 
   // ── Dados reais de referência ─────────────────────────────────────────────
-  const [funcionarios]  = useLocalState(FUNC_STORAGE_KEY, [])
+  const { usuarios } = useUsuarios()
   const { parceiros: parceirosData } = useParceiros()
-  const [categoriasData] = useLocalState('produtos:categorias', [])
   const [equipesData]   = useLocalState('settings:equipes_v1', [])
 
-  const vendedores = funcionarios.map(f => ({ id: f.id, nome: f.nome, unidade: f.empresa || '' }))
-  const unidades   = (parceirosData || []).map(p => ({ id: String(p.id), nome: p.codigo ? `[${p.codigo}] ${p.nome}` : p.nome }))
+  const vendedores = (usuarios || []).filter(u => u.status !== 'inativo').map(u => ({ id: String(u.id), nome: u.nome || u.email || '', unidade: '' }))
   const parceiros  = (parceirosData || []).filter(p => p.situacao !== 'inativo').map(p => ({ id: String(p.id), nome: p.codigo ? `[${p.codigo}] ${p.nome}` : p.nome }))
-  const categorias = categoriasData
   const produtos   = produtosStore
+  const categorias = useMemo(() => {
+    const set = new Set((produtos || []).map(p => p.categoria).filter(Boolean))
+    return [...set].sort((a, b) => a.localeCompare(b, 'pt-BR'))
+  }, [produtos])
   const equipes    = equipesData.filter(e => e.status !== 'inativa')
 
   // Período De/Até
@@ -1188,7 +1205,6 @@ export default function Metas() {
 
     // Filtro tipo de atribuição
     const byTipo = filterTipos.length === 0 ? inRange : inRange.filter(g => {
-      if (filterTipos.includes('operacional') && g.tipo_meta === 'operacional') return true
       if (filterTipos.includes('responsavel') && (g.tipo_alvo==='vendedor' || g.tipo_alvo==='unidade')) return true
       if (filterTipos.includes('categoria')   && g.tipo_alvo==='categoria') return true
       if (filterTipos.includes('produto')     && g.tipo_alvo==='produto')   return true
@@ -1207,7 +1223,7 @@ export default function Metas() {
       const raw = g.alvo_nome || g.nome_ref || ''
       if (raw) return raw
       if (g.tipo_alvo === 'vendedor')  { const v = vendedores.find(x => x.id === g.id_vendedor);  return v?.nome || '' }
-      if (g.tipo_alvo === 'unidade')   { const u = unidades.find(x => x.id === g.id_unidade);     return u?.nome || '' }
+      if (g.tipo_alvo === 'parceiro')  { const p = parceiros.find(x => x.id === g.partner_id || x.id === g.alvo_id); return p?.nome || '' }
       if (g.tipo_alvo === 'categoria') { return g.category_id || '' }
       if (g.tipo_alvo === 'produto')   { const p = produtos.find(x => String(x.id) === String(g.product_id)); return p?.nome || '' }
       if (g.tipo_alvo === 'equipe')    { const e = equipes.find(x => x.id === g.equipe_id);       return e?.nome || '' }
@@ -1225,13 +1241,12 @@ export default function Metas() {
     const entityMap = {}
     byResp.forEach(g => {
       const idRef  = g.id_vendedor || g.id_unidade || g.category_id || g.product_id || g.equipe_id || 'global'
-      const key    = `${g.tipo_alvo}|${idRef}|${g.tipo_meta}`
+      const key    = `${g.tipo_alvo}|${idRef}`
       const nomeRef = resolveNome(g)
       const subRef  = resolveContexto(g)
       if (!entityMap[key]) {
         entityMap[key] = {
-          key, tipo_alvo: g.tipo_alvo, tipo_meta: g.tipo_meta,
-          subtipo_operacional: g.subtipo_operacional, valor_sufixo: g.valor_sufixo,
+          key, tipo_alvo: g.tipo_alvo, tipo_meta: 'valor',
           nome_ref: nomeRef, sub_ref: subRef, goals: {},
         }
       }
@@ -1249,7 +1264,7 @@ export default function Metas() {
       if (ORDER[a.tipo_alvo] !== ORDER[b.tipo_alvo]) return ORDER[a.tipo_alvo] - ORDER[b.tipo_alvo]
       return a.nome_ref.localeCompare(b.nome_ref, 'pt-BR')
     })
-  }, [goals, deMes, deAno, ateMes, ateAno, filterTipos, filterVendedor, vendedores, unidades, categorias, produtos, equipes])
+  }, [goals, deMes, deAno, ateMes, ateAno, filterTipos, filterVendedor, vendedores, parceiros, categorias, produtos, equipes])
 
   // ── KPIs de resumo ──────────────────────────────────────────────────────
   const kpis = useMemo(() => {
@@ -1466,7 +1481,6 @@ export default function Metas() {
             onSave={handleSave}
             onDelete={(id) => { handleDelete(id); setModal(null) }}
             vendedores={vendedores}
-            unidades={unidades}
             parceiros={parceiros}
             categorias={categorias}
             produtos={produtos}

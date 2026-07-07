@@ -30,6 +30,7 @@ $$;
 -- ── 2. Recriar policies de profiles sem recursão ────────────────────────────
 DROP POLICY IF EXISTS "profiles: admin all"    ON public.profiles;
 DROP POLICY IF EXISTS "profiles: admin manage" ON public.profiles;
+DROP POLICY IF EXISTS "profiles: admin view"   ON public.profiles;
 DROP POLICY IF EXISTS "profiles: self"         ON public.profiles;
 DROP POLICY IF EXISTS "profiles: self update"  ON public.profiles;
 
