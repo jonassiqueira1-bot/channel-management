@@ -1263,8 +1263,11 @@ export default function Pagamentos() {
     const anterior = pagamentos.find(p => p.id === pag.id)
     savePagamento(pag)
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
-    console.log('[handleSave] status:', pag.status, '| anterior:', anterior?.status, '| vai mostrar popup:', pag.status === 'pago' && anterior?.status !== 'pago')
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
+      // Executa imediatamente — sem depender de confirmação manual
+      gerarRepasses(pag)
+      gerarProvisaoProximoMes(pag)
+      // Mostra popup apenas como feedback visual (sem botão de confirmação necessário)
       setConfirmComissao(pag)
     }
   }
@@ -1408,9 +1411,8 @@ export default function Pagamentos() {
   }
 
   function confirmarGerarComissao(pag) {
+    // Ações já executadas em handleSave — apenas fecha o popup e mostra feedback
     setConfirmComissao(null)
-    gerarRepasses(pag)
-    gerarProvisaoProximoMes(pag)
     const contrato = contratos.find(c =>
       String(c.id) === String(pag.contract_id) || c.numero === pag.contract_numero
     )
@@ -1419,8 +1421,8 @@ export default function Pagamentos() {
       { id: 'recebimento', label: `Recebimento registrado — ${pag.company_nome || pag.contract_numero}` },
       { id: 'regras',      label: 'Verificando regras de comissão ativas' },
       { id: 'repasse',     label: temOportunidade
-          ? 'Gerando repasses — Time interno + regras da filial'
-          : 'Gerando repasses — Regras da filial' },
+          ? 'Repasses gerados — Time interno + regras da filial'
+          : 'Repasses gerados — Regras da filial' },
     ]
     setRecebidoFeedback({ pag, steps })
   }
@@ -1838,7 +1840,7 @@ export default function Pagamentos() {
                 <div>
                   <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Pagamento recebido</div>
                   <div style={{ fontSize:12.5, color:'var(--text-muted)', marginTop:3 }}>
-                    Ao confirmar, as seguintes ações serão executadas automaticamente:
+                    As seguintes ações foram executadas automaticamente:
                   </div>
                 </div>
               </div>
@@ -1877,15 +1879,10 @@ export default function Pagamentos() {
               </div>
               {/* Footer */}
               <div style={{ padding:'14px 24px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:10 }}>
-                <button onClick={() => setConfirmComissao(null)}
-                  style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)',
-                    background:'transparent', color:'var(--text-muted)', fontSize:13, cursor:'pointer' }}>
-                  Cancelar
-                </button>
                 <button onClick={() => confirmarGerarComissao(pag)}
                   style={{ padding:'8px 20px', borderRadius:8, border:'none',
                     background:'#10B981', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer' }}>
-                  Confirmar e gerar comissão
+                  OK, entendido
                 </button>
               </div>
             </div>
