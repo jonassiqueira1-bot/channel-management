@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import { useActions } from '../hooks/useActions'
@@ -6,6 +6,8 @@ import { useAuditLog } from '../hooks/useAuditLog'
 import { useBranches } from '../hooks/useBranches'
 import { useParceiros } from '../hooks/useParceiros'
 import { useTiposAcao } from '../hooks/useTiposAcao'
+import { useTasks } from '../hooks/useTasks'
+import { useUsuarios } from '../hooks/useUsuarios'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -29,7 +31,38 @@ function initials(nome) {
   return (nome || '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
+// ─── Tarefa constants (espelhados de Tarefas.js) ─────────────────────────────
+const T_STATUS = {
+  pendente:     { label:'Pendente',     color:'#F59E0B', bg:'#FEF3C7', text:'#92400E' },
+  em_andamento: { label:'Em andamento', color:'#3B82F6', bg:'#DBEAFE', text:'#1E3A5F' },
+  concluida:    { label:'Concluída',    color:'#10B981', bg:'#D1FAE5', text:'#065F46' },
+  cancelada:    { label:'Cancelada',    color:'#9CA3AF', bg:'#F3F4F6', text:'#6B7280' },
+}
+const T_PRIORIDADE = {
+  baixa:   { label:'Baixa',   color:'#6B7280' },
+  media:   { label:'Média',   color:'#3B82F6' },
+  alta:    { label:'Alta',    color:'#F59E0B' },
+  urgente: { label:'Urgente', color:'#EF4444' },
+}
+const EMPTY_TAREFA = {
+  titulo:'', descricao:'', tipo:'', status:'pendente', prioridade:'media',
+  data_inicio:'', prazo:'',
+  responsavel_id:null, responsavel_nome:'',
+  entidade_tipo:'acao', entidade_id:null, entidade_nome:'',
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
+const TIPOS_TAREFA_DEFAULT = [
+  { slug:'ligacao',    icon:'📞', label:'Ligação'       },
+  { slug:'email',      icon:'✉️',  label:'E-mail'        },
+  { slug:'reuniao',    icon:'🤝', label:'Reunião'       },
+  { slug:'proposta',   icon:'📄', label:'Proposta'      },
+  { slug:'follow_up',  icon:'🔁', label:'Follow-up'     },
+  { slug:'suporte',    icon:'🛠️', label:'Suporte'       },
+  { slug:'treinamento',icon:'🎓', label:'Treinamento'   },
+  { slug:'outro',      icon:'📌', label:'Outro'         },
+]
+
 const RESPONSAVEIS = [
   { id: 'u1', nome: 'Lucas Ferreira' },
   { id: 'u2', nome: 'Carla Menezes' },
@@ -102,9 +135,253 @@ function AvatarCell({ nome }) {
   )
 }
 
+// ─── Mini form de tarefa dentro da ação ──────────────────────────────────────
+function TarefaInlineForm({ acao, onSave, onCancel, tiposTarefa }) {
+  const { usuarios: usuariosRaw } = useUsuarios()
+  const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
+  const [form, setForm] = useState({ ...EMPTY_TAREFA, entidade_id: acao?.id, entidade_nome: acao?.titulo || '' })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  function handleSave() {
+    if (!form.titulo.trim()) return
+    const u = usuarios.find(u => String(u.id) === String(form.responsavel_id))
+    onSave({ ...form, responsavel_nome: u?.nome || '' })
+  }
+
+  const inp = { width:'100%', padding:'7px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, fontSize:13, color:'var(--text)', fontFamily:'var(--font)', boxSizing:'border-box' }
+  const lbl = { fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }
+
+  return (
+    <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:'16px', display:'flex', flexDirection:'column', gap:12 }}>
+      <div>
+        <label style={lbl}>Título *</label>
+        <input style={inp} placeholder="Título da tarefa…" value={form.titulo} onChange={e => set('titulo', e.target.value)} autoFocus />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        <div>
+          <label style={lbl}>Tipo</label>
+          <select style={inp} value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+            <option value="">— Selecione —</option>
+            {tiposTarefa.map(t => <option key={t.slug||t.id} value={t.slug||t.id}>{t.icon} {t.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Prioridade</label>
+          <select style={inp} value={form.prioridade} onChange={e => set('prioridade', e.target.value)}>
+            {Object.entries(T_PRIORIDADE).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Prazo</label>
+          <input style={inp} type="date" value={form.prazo} onChange={e => set('prazo', e.target.value)} />
+        </div>
+        <div>
+          <label style={lbl}>Responsável</label>
+          <select style={inp} value={form.responsavel_id || ''} onChange={e => set('responsavel_id', e.target.value)}>
+            <option value="">— Nenhum —</option>
+            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style={lbl}>Descrição</label>
+        <textarea style={{ ...inp, resize:'vertical' }} rows={2} value={form.descricao} onChange={e => set('descricao', e.target.value)} placeholder="Detalhes ou contexto…" />
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onCancel} style={{ padding:'6px 14px', background:'none', border:'1px solid var(--border)', borderRadius:7, fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+        <button onClick={handleSave} disabled={!form.titulo.trim()} style={{ padding:'6px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', opacity: form.titulo.trim() ? 1 : 0.5 }}>Salvar tarefa</button>
+      </div>
+    </div>
+  )
+}
+
+// ─── Aba de tarefas da ação ───────────────────────────────────────────────────
+function AcaoTarefasTab({ acao, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
+  const { usuarios: usuariosRaw } = useUsuarios()
+  const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
+  const [addingNew, setAddingNew] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [editForm, setEditForm]   = useState(null)
+  const [filtroStatus, setFiltroStatus] = useState('todas')
+
+  const minhasTarefas = useMemo(() =>
+    tarefas.filter(t => String(t.entidade_id) === String(acao?.id) && t.entidade_tipo === 'acao'),
+  [tarefas, acao])
+
+  const tarefasVisiveis = useMemo(() =>
+    filtroStatus === 'todas' ? minhasTarefas : minhasTarefas.filter(t => t.status === filtroStatus),
+  [minhasTarefas, filtroStatus])
+
+  async function handleAdd(form) {
+    await saveTarefa({ ...form, entidade_tipo:'acao', entidade_id: String(acao.id), entidade_nome: acao.titulo })
+    setAddingNew(false)
+  }
+
+  async function handleUpdate() {
+    if (!editForm?.titulo?.trim()) return
+    const u = usuarios.find(u => String(u.id) === String(editForm.responsavel_id))
+    await saveTarefa({ ...editForm, responsavel_nome: u?.nome || editForm.responsavel_nome || '' })
+    setEditingId(null); setEditForm(null)
+  }
+
+  async function toggleStatus(t) {
+    const order = ['pendente', 'em_andamento', 'concluida']
+    const idx = order.indexOf(t.status)
+    const next = order[(idx + 1) % order.length]
+    await saveTarefa({ ...t, status: next })
+  }
+
+  const inp = { width:'100%', padding:'7px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, fontSize:13, color:'var(--text)', fontFamily:'var(--font)', boxSizing:'border-box' }
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }
+
+  const total      = minhasTarefas.length
+  const concluidas = minhasTarefas.filter(t => t.status === 'concluida').length
+  const andamento  = minhasTarefas.filter(t => t.status === 'em_andamento').length
+  const pendentes  = minhasTarefas.filter(t => t.status === 'pendente').length
+  const pct        = total ? Math.round((concluidas / total) * 100) : 0
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+
+      {/* ── Cabeçalho: progresso + pills de filtro ── */}
+      {total > 0 && (
+        <div style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 16px', border:'1px solid var(--border2)', display:'flex', flexDirection:'column', gap:10 }}>
+          {/* barra de progresso */}
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{concluidas} de {total} concluídas</span>
+            <span style={{ fontSize:13, fontWeight:800, color: pct===100 ? '#10B981' : 'var(--accent)', fontFamily:'var(--mono)' }}>{pct}%</span>
+          </div>
+          <div style={{ height:7, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+            <div style={{ height:'100%', borderRadius:99, background: pct===100 ? '#10B981' : 'var(--accent)', width:`${pct}%`, transition:'width .4s' }} />
+          </div>
+          {/* pills de status como filtro rápido */}
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {[
+              { key:'todas',       label:`Todas (${total})`,            color:'var(--text-muted)',  bg:'var(--border)' },
+              { key:'pendente',    label:`Pendentes (${pendentes})`,    color:'#92400E', bg:'#FEF3C7' },
+              { key:'em_andamento',label:`Em andamento (${andamento})`, color:'#1E3A5F', bg:'#DBEAFE' },
+              { key:'concluida',   label:`Concluídas (${concluidas})`,  color:'#065F46', bg:'#D1FAE5' },
+            ].map(p => (
+              <button key={p.key} onClick={() => setFiltroStatus(p.key)}
+                style={{ padding:'3px 10px', borderRadius:99, border: filtroStatus===p.key ? `2px solid ${p.color}` : '2px solid transparent',
+                  background: filtroStatus===p.key ? p.bg : 'transparent', color: filtroStatus===p.key ? p.color : 'var(--text-muted)',
+                  fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)', transition:'all .15s' }}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Lista de tarefas ── */}
+      {tarefasVisiveis.length === 0 && total > 0 && (
+        <div style={{ textAlign:'center', padding:'20px 0', color:'var(--text-muted)', fontSize:12 }}>Nenhuma tarefa neste status.</div>
+      )}
+
+      {tarefasVisiveis.map(t => {
+        const stCfg = T_STATUS[t.status] || T_STATUS.pendente
+        const prCfg = T_PRIORIDADE[t.prioridade] || T_PRIORIDADE.media
+        const isEditing = editingId === t.id
+        const vencida = t.prazo && t.status !== 'concluida' && t.prazo < new Date().toISOString().slice(0,10)
+
+        if (isEditing && editForm) {
+          return (
+            <div key={t.id} style={{ background:'var(--surface2)', border:'2px solid var(--accent)', borderRadius:10, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              <div><label style={lbl}>Título</label><input style={inp} value={editForm.titulo} onChange={e => setEditForm(f=>({...f,titulo:e.target.value}))} autoFocus /></div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div><label style={lbl}>Status</label>
+                  <select style={inp} value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))}>
+                    {Object.entries(T_STATUS).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div><label style={lbl}>Prioridade</label>
+                  <select style={inp} value={editForm.prioridade} onChange={e => setEditForm(f=>({...f,prioridade:e.target.value}))}>
+                    {Object.entries(T_PRIORIDADE).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div><label style={lbl}>Prazo</label><input style={inp} type="date" value={editForm.prazo||''} onChange={e => setEditForm(f=>({...f,prazo:e.target.value}))} /></div>
+                <div><label style={lbl}>Responsável</label>
+                  <select style={inp} value={editForm.responsavel_id||''} onChange={e => setEditForm(f=>({...f,responsavel_id:e.target.value}))}>
+                    <option value="">— Nenhum —</option>
+                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div><label style={lbl}>Tipo</label>
+                <select style={inp} value={editForm.tipo||''} onChange={e => setEditForm(f=>({...f,tipo:e.target.value}))}>
+                  <option value="">— Selecione —</option>
+                  {tiposTarefa.map(t => <option key={t.slug||t.id} value={t.slug||t.id}>{t.icon} {t.label}</option>)}
+                </select>
+              </div>
+              <div><label style={lbl}>Descrição</label><textarea style={{...inp,resize:'vertical'}} rows={2} value={editForm.descricao||''} onChange={e => setEditForm(f=>({...f,descricao:e.target.value}))} /></div>
+              <div style={{ display:'flex', gap:8, justifyContent:'space-between', alignItems:'center' }}>
+                <button onClick={() => { if(window.confirm('Excluir esta tarefa?')) { deleteTarefa(t.id); setEditingId(null) } }}
+                  style={{ padding:'6px 12px', background:'none', border:'1px solid #FCA5A5', borderRadius:7, fontSize:12, color:'#DC2626', cursor:'pointer', fontFamily:'var(--font)' }}>🗑 Excluir</button>
+                <div style={{ display:'flex', gap:6 }}>
+                  <button onClick={() => { setEditingId(null); setEditForm(null) }} style={{ padding:'6px 14px', background:'none', border:'1px solid var(--border)', borderRadius:7, fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+                  <button onClick={handleUpdate} style={{ padding:'6px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>Salvar</button>
+                </div>
+              </div>
+            </div>
+          )
+        }
+
+        return (
+          <div key={t.id}
+            style={{ background:'var(--surface)', border:`1px solid ${vencida ? '#FCA5A5' : 'var(--border2)'}`,
+              borderLeft:`3px solid ${stCfg.color}`, borderRadius:10, padding:'11px 14px',
+              display:'flex', alignItems:'flex-start', gap:10, transition:'border .15s' }}>
+            {/* toggle status */}
+            <button onClick={() => toggleStatus(t)} title={`Status: ${stCfg.label} — clique para avançar`}
+              style={{ width:22, height:22, borderRadius:'50%', border:`2px solid ${stCfg.color}`,
+                background: t.status==='concluida' ? stCfg.color : t.status==='em_andamento' ? stCfg.color+'33' : 'transparent',
+                cursor:'pointer', flexShrink:0, marginTop:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+              {t.status === 'concluida'    && <span style={{ color:'#fff', fontSize:11, fontWeight:900, lineHeight:1 }}>✓</span>}
+              {t.status === 'em_andamento' && <span style={{ fontSize:9, fontWeight:900, color:stCfg.color }}>▶</span>}
+            </button>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
+                textDecoration: t.status==='concluida' ? 'line-through' : 'none',
+                opacity: t.status==='concluida' ? 0.45 : 1, lineHeight:1.3 }}>
+                {t.titulo}
+                {vencida && <span style={{ marginLeft:6, fontSize:10, color:'#EF4444', fontWeight:700 }}>⚠ Vencida</span>}
+              </div>
+              {t.descricao && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3, lineHeight:1.5 }}>{t.descricao}</div>}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:7, alignItems:'center' }}>
+                <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99, background:stCfg.bg, color:stCfg.text }}>{stCfg.label}</span>
+                <span style={{ fontSize:10, fontWeight:600, color:prCfg.color }}>● {prCfg.label}</span>
+                {t.tipo && (() => { const tp = tiposTarefa.find(x => (x.slug||x.id) === t.tipo); return tp ? <span style={{ fontSize:10, color:'var(--text-muted)' }}>{tp.icon} {tp.label}</span> : null })()}
+                {t.prazo && <span style={{ fontSize:10, color: vencida ? '#EF4444' : 'var(--text-muted)', fontFamily:'var(--mono)', fontWeight: vencida ? 700 : 400 }}>📅 {t.prazo}</span>}
+                {t.responsavel_nome && <span style={{ fontSize:10, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
+              </div>
+            </div>
+            <button onClick={() => { setEditingId(t.id); setEditForm({...t}) }}
+              style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text-muted)',
+                fontSize:11, padding:'4px 8px', flexShrink:0, fontFamily:'var(--font)' }}>Editar</button>
+          </div>
+        )
+      })}
+
+      {/* ── Botão nova tarefa / form inline ── */}
+      {addingNew
+        ? <TarefaInlineForm acao={acao} onSave={handleAdd} onCancel={() => setAddingNew(false)} tiposTarefa={tiposTarefa} />
+        : (
+          <button onClick={() => { setAddingNew(true); setFiltroStatus('todas') }}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', background:'none',
+              border:'2px dashed var(--border)', borderRadius:10, cursor:'pointer', color:'var(--text-muted)',
+              fontSize:13, fontFamily:'var(--font)', width:'100%' }}>
+            <span style={{ fontSize:18, lineHeight:1 }}>+</span> Nova tarefa
+          </button>
+        )
+      }
+    </div>
+  )
+}
+
 // ─── SlideOver de cadastro ────────────────────────────────────────────────────
-function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, empresasOpts, responsaveisOpts }) {
+function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, empresasOpts, responsaveisOpts, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
   const isNew = !initial?.id
+  const [tab, setTab] = useState('dados')
   const [form, setForm]   = useState(initial ? { ...EMPTY_ACAO, ...initial } : { ...EMPTY_ACAO })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
@@ -112,16 +389,23 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   useMemo(() => {
     setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
     setErrs({})
+    setTab('dados')
   }, [initial])
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
+
+  const tarefasDaAcao = useMemo(() =>
+    tarefas.filter(t => String(t.entidade_id) === String(initial?.id) && t.entidade_tipo === 'acao'),
+  [tarefas, initial])
+
+  const tarefasBadge = tarefasDaAcao.length || undefined
 
   function handleSave() {
     const e = {}
     if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
     if (!form.empresa_id)    e.empresa_id = 'Selecione a unidade/franquia'
     if (!form.data_inicio)   e.data_inicio = 'Data de início é obrigatória'
-    if (Object.keys(e).length) { setErrs(e); return }
+    if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
     const emp  = empresasOpts.find(e => String(e.id) === String(form.empresa_id))
     const resp = responsaveisOpts.find(r => r.id === form.responsavel_id)
     setSaving(true)
@@ -134,6 +418,12 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
     })
     setSaving(false)
   }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  const tabs = [
+    { key:'dados',   label:'Dados' },
+    { key:'tarefas', label:'Tarefas', badge: tarefasBadge },
+  ]
 
   return (
     <SlideOver
@@ -148,66 +438,98 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       saveLabel={isNew ? 'Criar Ação' : 'Salvar alterações'}
       columns={2}
     >
-      <FormGrid cols={2}>
+      {/* ── Tab bar ── */}
+      <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:20, paddingBottom:0 }}>
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'8px 16px', background:'none', border:'none',
+              borderBottom: tab===t.key ? '2px solid var(--accent)' : '2px solid transparent',
+              color: tab===t.key ? 'var(--accent)' : 'var(--text-muted)',
+              fontWeight: tab===t.key ? 700 : 500, fontSize:13, cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1 }}>
+            {t.label}
+            {t.badge && <span style={{ fontSize:10, fontWeight:700, background:'var(--accent)', color:'#fff', borderRadius:99, padding:'1px 6px', marginLeft:2 }}>{t.badge}</span>}
+          </button>
+        ))}
+      </div>
 
-        <FormField label="Tipo de ação" required>
-          <select className="so-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
-            {Object.entries(tiposMap).map(([k, c]) => (
-              <option key={k} value={k}>{c.icon} {c.label}</option>
-            ))}
-          </select>
-        </FormField>
+      {/* ── Aba Dados ── */}
+      {tab === 'dados' && (
+        <FormGrid cols={2}>
+          <FormField label="Tipo de ação" required>
+            <select className="so-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+              {Object.entries(tiposMap).map(([k, c]) => (
+                <option key={k} value={k}>{c.icon} {c.label}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <FormField label="Status">
-          <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
-            {Object.entries(STATUS_ACAO).map(([k, c]) => (
-              <option key={k} value={k}>{c.label}</option>
-            ))}
-          </select>
-        </FormField>
+          <FormField label="Status">
+            <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
+              {Object.entries(STATUS_ACAO).map(([k, c]) => (
+                <option key={k} value={k}>{c.label}</option>
+              ))}
+            </select>
+          </FormField>
 
-        <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
-          <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
-            style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
-        </FormField>
+          <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
+            <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
+              style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
+          </FormField>
 
-        <FormField label="Unidade / Franquia" required error={errs.empresa_id} style={{ gridColumn: 'span 2' }}>
-          <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}
-            style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
-            <option value="">— Selecione —</option>
-            {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-          </select>
-        </FormField>
+          <FormField label="Unidade / Franquia" required error={errs.empresa_id} style={{ gridColumn: 'span 2' }}>
+            <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}
+              style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
+              <option value="">— Selecione —</option>
+              {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          </FormField>
 
-        <FormField label="Responsável (ISV)">
-          <select className="so-field" value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
-            <option value="">— Selecione —</option>
-            {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
-          </select>
-        </FormField>
+          <FormField label="Responsável (ISV)">
+            <select className="so-field" value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
+              <option value="">— Selecione —</option>
+              {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+            </select>
+          </FormField>
 
-        <FormField label="Local">
-          <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
-        </FormField>
+          <FormField label="Local">
+            <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
+          </FormField>
 
-        <FormField label="Data e hora de início" required error={errs.data_inicio}>
-          <input className="so-field" type="datetime-local" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
-            style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
-        </FormField>
+          <FormField label="Data e hora de início" required error={errs.data_inicio}>
+            <input className="so-field" type="datetime-local" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
+              style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
+          </FormField>
 
-        <FormField label="Data e hora de fim">
-          <input className="so-field" type="datetime-local" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
-        </FormField>
+          <FormField label="Data e hora de fim">
+            <input className="so-field" type="datetime-local" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
+          </FormField>
 
-        <FormField label="Vagas" style={{ gridColumn: 'span 2' }}>
-          <input className="so-field" type="number" min="0" value={form.vagas} onChange={e => set('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
-        </FormField>
+          <FormField label="Vagas" style={{ gridColumn: 'span 2' }}>
+            <input className="so-field" type="number" min="0" value={form.vagas} onChange={e => set('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
+          </FormField>
 
-        <FormField label="Descrição / Objetivos" style={{ gridColumn: 'span 2' }}>
-          <textarea className="so-field" rows={4} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
-        </FormField>
+          <FormField label="Descrição / Objetivos" style={{ gridColumn: 'span 2' }}>
+            <textarea className="so-field" rows={4} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
+          </FormField>
+        </FormGrid>
+      )}
 
-      </FormGrid>
+      {/* ── Aba Tarefas ── */}
+      {tab === 'tarefas' && !isNew && (
+        <AcaoTarefasTab
+          acao={initial}
+          tarefas={tarefas}
+          saveTarefa={saveTarefa}
+          deleteTarefa={deleteTarefa}
+          tiposTarefa={tiposTarefa}
+        />
+      )}
+      {tab === 'tarefas' && isNew && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
+          <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar tarefas.</div>
+        </div>
+      )}
     </SlideOver>
   )
 }
@@ -215,6 +537,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Acoes() {
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
+  const { tarefas, save: saveTarefa, remove: deleteTarefa } = useTasks()
   const { registrar: log } = useAuditLog()
   const { parceiros: franquiasCad } = useParceiros()
   const { branches }   = useBranches()
@@ -224,6 +547,10 @@ export default function Acoes() {
     const base = tiposLista.length ? tiposLista : Object.entries(TIPOS_ACAO_DEFAULT).map(([k, v]) => ({ ...v, slug: k, uso: 'acao' }))
     const filtrados = base.filter(t => t.ativo !== false && (!t.uso || t.uso === 'acao' || t.uso === 'ambos'))
     return filtrados.length ? listToMap(filtrados) : TIPOS_ACAO_DEFAULT
+  }, [tiposLista])
+  const tiposTarefa = useMemo(() => {
+    const lista = tiposLista.filter(t => t.ativo !== false && (t.uso === 'tarefa' || t.uso === 'ambos'))
+    return lista.length ? lista : TIPOS_TAREFA_DEFAULT
   }, [tiposLista])
 
   const [slideOpen, setSlideOpen] = useState(false)
@@ -390,6 +717,23 @@ export default function Acoes() {
           </div>
         </div>
         {acao.vagas && <VagasBar vagas={acao.vagas} inscritos={acao.inscritos} />}
+        {(() => {
+          const ts = tarefas.filter(t => String(t.entidade_id) === String(acao.id) && t.entidade_tipo === 'acao')
+          if (!ts.length) return null
+          const done = ts.filter(t => t.status === 'concluida').length
+          const pct = Math.round((done / ts.length) * 100)
+          return (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
+                <span style={{ fontSize:10, color:'var(--text-muted)' }}>✅ {done}/{ts.length} tarefas</span>
+                <span style={{ fontSize:10, fontWeight:700, color: pct===100 ? '#10B981' : 'var(--accent)' }}>{pct}%</span>
+              </div>
+              <div style={{ height:4, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+                <div style={{ height:'100%', background: pct===100 ? '#10B981' : 'var(--accent)', borderRadius:99, width:`${pct}%`, transition:'width .3s' }} />
+              </div>
+            </div>
+          )
+        })()}
       </div>
     )
   }
@@ -454,12 +798,20 @@ export default function Acoes() {
         const agendadas  = grupo.acoes.filter(a => a.status === 'agendado').length
         const realizadas = grupo.acoes.filter(a => a.status === 'realizado').length
         const canceladas = grupo.acoes.filter(a => a.status === 'cancelado').length
+
+        // tarefas de todas as ações deste grupo
+        const idsAcoes = new Set(grupo.acoes.map(a => String(a.id)))
+        const tarefasGrupo = tarefas.filter(t => t.entidade_tipo === 'acao' && idsAcoes.has(String(t.entidade_id)))
+        const tPendentes   = tarefasGrupo.filter(t => t.status === 'pendente').length
+        const tAndamento   = tarefasGrupo.filter(t => t.status === 'em_andamento').length
+        const tConcluidas  = tarefasGrupo.filter(t => t.status === 'concluida').length
+
         return (
           <div key={grupo.id} style={{ border:'1px solid var(--border)', borderRadius:12,
             background:'var(--surface)', boxShadow:'var(--shadow)', overflow:'hidden' }}>
             {/* Cabeçalho do grupo */}
             <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border2)',
-              background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+              background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
               <div style={{ display:'flex', alignItems:'center', gap:12 }}>
                 <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent-glow)',
                   display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>🏢</div>
@@ -467,10 +819,12 @@ export default function Acoes() {
                   <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>{grupo.nome}</div>
                   <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
                     {grupo.acoes.length} ação{grupo.acoes.length !== 1 ? 'ões' : ''}
+                    {tarefasGrupo.length > 0 && ` · ${tarefasGrupo.length} tarefa${tarefasGrupo.length !== 1 ? 's' : ''}`}
                   </div>
                 </div>
               </div>
-              <div style={{ display:'flex', gap:8 }}>
+              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                {/* Indicadores de ações */}
                 {[{ label:'Agendadas', val:agendadas, color:'#F59E0B' },
                   { label:'Realizadas', val:realizadas, color:'#10B981' },
                   { label:'Canceladas', val:canceladas, color:'#EF4444' }].map(k => k.val > 0 && (
@@ -480,11 +834,26 @@ export default function Acoes() {
                     <div style={{ fontSize:9, color:k.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
                   </div>
                 ))}
+                {/* Separador + indicadores de tarefas */}
+                {tarefasGrupo.length > 0 && (
+                  <>
+                    <div style={{ width:1, background:'var(--border)', alignSelf:'stretch', margin:'0 4px' }} />
+                    {[{ label:'Pendentes', val:tPendentes, color:'#F59E0B', bg:'#FEF3C7' },
+                      { label:'Andamento', val:tAndamento, color:'#3B82F6', bg:'#DBEAFE' },
+                      { label:'Concluídas', val:tConcluidas, color:'#10B981', bg:'#D1FAE5' }].map(k => k.val > 0 && (
+                      <div key={k.label} style={{ textAlign:'center', padding:'4px 12px', borderRadius:8,
+                        background:k.bg, border:`1px solid ${k.color}44`, display:'flex', flexDirection:'column', alignItems:'center' }}>
+                        <div style={{ fontSize:9, color:k.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:1 }}>📋 {k.label}</div>
+                        <div style={{ fontSize:16, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.val}</div>
+                      </div>
+                    ))}
+                  </>
+                )}
               </div>
             </div>
             {/* Cards das ações */}
             <div style={{ padding:'16px 20px', display:'grid',
-              gridTemplateColumns:'repeat(auto-fill, minmax(280px, 1fr))', gap:12 }}>
+              gridTemplateColumns:'repeat(auto-fill, minmax(270px, 1fr))', gap:12 }}>
               {grupo.acoes.map(acao => renderCard(acao))}
             </div>
           </div>
@@ -557,6 +926,10 @@ export default function Acoes() {
         tiposMap={tiposMap}
         empresasOpts={empresasOpts}
         responsaveisOpts={responsaveisOpts}
+        tarefas={tarefas}
+        saveTarefa={saveTarefa}
+        deleteTarefa={deleteTarefa}
+        tiposTarefa={tiposTarefa}
       />
     </>
   )

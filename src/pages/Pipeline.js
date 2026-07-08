@@ -4553,8 +4553,12 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
           outro:        { label:'Outro',        icon:'💬', bg:'#F3F4F6', color:'#374151' },
         }
         const todasObjecoes = playbook.objecoes || []
-        // Sem etapa definida = aparece sempre; com etapa = só na etapa correspondente
-        const objecoesFiltradas = todasObjecoes.filter(o => !o.etapa || o.etapa === stage)
+        console.log('[OppPlaybook] objecoes:', todasObjecoes, 'stage:', stage, 'playbook.id:', playbook.id)
+        // stage null = etapa não mapeada → mostra todas
+        // stage definido: mostra sem etapa + com etapa correspondente
+        const objecoesFiltradas = !stage
+          ? todasObjecoes
+          : todasObjecoes.filter(o => !o.etapa || o.etapa === stage)
         if (!objecoesFiltradas.length) return null
         return (
           <div style={S.section}>
@@ -5394,6 +5398,7 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
   }, [fieldById])
 
   const [step, setStep]     = useState('upload')
+  const [progress, setProgress] = useState({ current: 0, total: 0, empresasCriadas: 0, label: '' })
   const [parsed, setParsed] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -5430,64 +5435,70 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
   }
 
   async function handleConfirmImport() {
-    setImporting(true)
     const okRows = parsed.rowResults.filter(r => r.ok)
+    const total  = okRows.length
+    setProgress({ current: 0, total, empresasCriadas: 0, label: 'Preparando…' })
+    setStep('importing')
 
-    // resolve empresa_id: usa existente ou cria nova com status rascunho
     const companiesByName = {}
-    ;(companies || []).forEach(c => { companiesByName[c.nome?.toLowerCase()] = c })
+    ;(companies || []).forEach(c => {
+      const n = (c.fantasia || c.razao || '').toLowerCase()
+      if (n) companiesByName[n] = c
+    })
     const companiesByCnpj = {}
     ;(companies || []).forEach(c => { if (c.cnpj) companiesByCnpj[c.cnpj.replace(/\D/g,'')] = c })
     const createdCache = {}
+    let empresasCriadas = 0
 
     async function resolveEmpresa(nome, cnpj) {
       const key = nome.toLowerCase()
       const cnpjClean = (cnpj||'').replace(/\D/g,'')
-      // busca por CNPJ primeiro, depois nome
       if (cnpjClean && companiesByCnpj[cnpjClean]) return companiesByCnpj[cnpjClean].id
       if (companiesByName[key]) return companiesByName[key].id
       if (createdCache[key]) return createdCache[key]
-      // cria empresa com status rascunho
-      const result = await addCompany({ nome, cnpj: cnpj || '', status: 'rascunho' })
+      const result = await addCompany({ razao: nome, fantasia: nome, cnpj: cnpj || '', tipo: 'rascunho' })
       if (result?.ok && result?.data?.id) {
         createdCache[key] = result.data.id
+        empresasCriadas++
         return result.data.id
       }
       return null
     }
 
     const importRows = []
-    for (const { row } of okRows) {
+    for (let i = 0; i < okRows.length; i++) {
+      const { row } = okRows[i]
+      setProgress({ current: i + 1, total, empresasCriadas, label: row.titulo || row.empresa_nome || `Linha ${i + 2}` })
       const etapa = etapas.find(e => e.nome.toLowerCase()===row.etapa_nome?.toLowerCase()) || etapas[0]
-      // campos customizados extraídos do CSV
       const custom_fields = {}
       customFormFields.forEach(f => { if (row[f.key] !== undefined) custom_fields[f.key] = row[f.key] })
       const empresa_id = await resolveEmpresa(row.empresa_nome, row.empresa_cnpj)
       importRows.push({
         ...EMPTY_OPP,
-        titulo:      row.titulo,
+        titulo:       row.titulo,
         empresa_nome: row.empresa_nome,
-        empresa_id:  empresa_id,
-        funil_id:    funilAtivo,
-        etapa_id:    etapa?.id,
-        valor:       parseFloat(row.valor)||0,
-        prazo:       row.prazo || null,
-        responsavel: row.responsavel || '',
-        origem:      row.origem || 'Inbound',
-        id:          novoId(),
-        criado:      new Date().toISOString().slice(0,10),
+        empresa_id:   empresa_id,
+        funil_id:     funilAtivo,
+        etapa_id:     etapa?.id,
+        valor:        parseFloat(row.valor)||0,
+        prazo:        row.prazo || null,
+        responsavel:  row.responsavel || '',
+        origem:       row.origem || 'Inbound',
+        id:           novoId(),
+        criado:       new Date().toISOString().slice(0,10),
         custom_fields,
       })
     }
 
+    setProgress(p => ({ ...p, current: total, empresasCriadas, label: 'Salvando oportunidades…' }))
     const log = {
       id:Date.now(), fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
       total:parsed.rowResults.length, imported:importRows.length,
       errors:parsed.rowResults.filter(r=>!r.ok).length, rows:parsed.rowResults, scope:'importados',
     }
-    onImport(importRows, log)
-    setImporting(false)
-    onClose()
+    await onImport(importRows, log)
+    setStep('done')
+    setProgress(p => ({ ...p, empresasCriadas, label: 'Concluído!' }))
   }
 
   const okCount  = parsed?.rowResults.filter(r=>r.ok).length ?? 0
@@ -5566,10 +5577,55 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
               <Button variant="secondary" onClick={()=>setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount>0&&okCount>0&&<span style={{ fontSize:12, color:'var(--yellow-text)' }}>{errCount} linha{errCount>1?'s':''} serão ignoradas</span>}
-              <Button disabled={okCount===0 || importing} onClick={handleConfirmImport}>
-                {importing ? 'Importando...' : `Importar ${okCount} oportunidade${okCount!==1?'s':''}`}
+              <Button disabled={okCount===0} onClick={handleConfirmImport}>
+                {`Importar ${okCount} oportunidade${okCount!==1?'s':''}`}
               </Button>
             </div>
+          </div>
+        )}
+
+        {(step==='importing' || step==='done') && (
+          <div style={{ padding:'32px 28px', display:'flex', flexDirection:'column', gap:24, alignItems:'center' }}>
+            {step==='importing' ? (
+              <>
+                <div style={{ fontSize:32 }}>⏳</div>
+                <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Importando…</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize:40 }}>✅</div>
+                <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Importação concluída!</div>
+              </>
+            )}
+
+            {/* Barra de progresso */}
+            <div style={{ width:'100%', maxWidth:440 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
+                <span style={{ fontSize:12, color:'var(--text-muted)', maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {progress.label}
+                </span>
+                <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                  {progress.current}/{progress.total}
+                </span>
+              </div>
+              <div style={{ height:8, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+                <div style={{
+                  height:'100%', borderRadius:99, transition:'width 0.2s ease',
+                  background: step==='done' ? '#10B981' : 'var(--accent)',
+                  width: progress.total ? `${Math.round((progress.current/progress.total)*100)}%` : '0%',
+                }} />
+              </div>
+              <div style={{ marginTop:6, fontSize:11, color:'var(--text-muted)', display:'flex', gap:16 }}>
+                <span>✓ <strong>{progress.current}</strong> oportunidade{progress.current!==1?'s':''} processada{progress.current!==1?'s':''}</span>
+                {progress.empresasCriadas > 0 && (
+                  <span>🏢 <strong>{progress.empresasCriadas}</strong> empresa{progress.empresasCriadas!==1?'s':''} criada{progress.empresasCriadas!==1?'s':''}</span>
+                )}
+              </div>
+            </div>
+
+            {step==='done' && (
+              <Button onClick={onClose}>Fechar</Button>
+            )}
           </div>
         )}
       </div>
@@ -6878,7 +6934,7 @@ export default function Pipeline() {
           etapas={etapas}
           companies={companies}
           addCompany={addCompany}
-          onImport={(rows, log)=>{ importOpps(rows); setImportLogs(prev=>[log,...prev]) }}
+          onImport={async (rows, log)=>{ await importOpps(rows); setImportLogs(prev=>[log,...prev]) }}
         />
       )}
 

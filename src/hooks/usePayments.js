@@ -45,8 +45,9 @@ function rowToPayment(row) {
     valor_recebido:   cf.valor_recebido || 0,
     parcela:          cf.parcela || '',
     // Colunas diretas no schema: reference_month, due_date, notes, processed
-    reference_month:  row.reference_month || cf.reference_month || '',
-    due_date:         row.due_date        || cf.due_date        || '',
+    reference_month:  row.reference_month  || cf.reference_month  || '',
+    due_date:         row.due_date         || cf.due_date         || '',
+    data_fechamento:  row.data_fechamento  || cf.data_fechamento  || null,
     status:           row.status || 'pendente',
     processed:        row.processed ?? cf.processed ?? false,
     notes:            row.notes || cf.notes || '',
@@ -67,6 +68,7 @@ function paymentToRow(p, tenantId, branchId) {
     // Colunas adicionadas via migration 20260707000003
     reference_month: p.reference_month || null,
     due_date:        p.due_date || null,
+    data_fechamento: p.data_fechamento || null,
     notes:           p.notes || '',
     processed:       p.processed ?? false,
     inconsistencia:  p.inconsistencia || false,

@@ -279,7 +279,7 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   })
 
   return (
-    <div style={{ padding: embedded ? '0' : '24px 28px', maxWidth: 860, margin: embedded ? undefined : '0 auto' }}>
+    <div style={{ padding: embedded ? '0' : '24px 28px' }}>
 
       {/* Título */}
       {!embedded && (
@@ -290,19 +290,6 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
           </div>
         </div>
       )}
-
-      {/* Seletor de período */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
-            letterSpacing: '.05em', display: 'block', marginBottom: 4 }}>Período</label>
-          <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
-            style={{ ...inp, width: 160 }} />
-        </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'flex-end', paddingBottom: 2 }}>
-          {mesLabel(periodo)} · {logsNoPeriodo.length} apontamento(s) · {fmtH(totalHoras)} no total
-        </div>
-      </div>
 
       {/* KPIs */}
       {showKpis && <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10, marginBottom: 20 }}>
@@ -320,6 +307,19 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
           </div>
         ))}
       </div>}
+
+      {/* Seletor de período */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
+        <div>
+          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
+            letterSpacing: '.05em', display: 'block', marginBottom: 4 }}>Período</label>
+          <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
+            style={{ ...inp, width: 160 }} />
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'flex-end', paddingBottom: 2 }}>
+          {mesLabel(periodo)} · {logsNoPeriodo.length} apontamento(s) · {fmtH(totalHoras)} no total
+        </div>
+      </div>
 
       {/* Fluxo visual */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginBottom: 20,

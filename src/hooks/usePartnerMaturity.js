@@ -146,11 +146,11 @@ export function usePartnerScores(parceiros, params) {
     // actions: vínculo via custom_fields.empresa_id → parceiro.id
     // habilitacoes: vínculo via partner_habilitacoes table
     const [sellersRes, oppsRes, contractsRes, companiesRes, actionsRes, habLinksRes] = await Promise.all([
-      supabase.from('sellers').select('id, custom_fields, status'),
+      supabase.from('sellers').select('id, parceiro_id, custom_fields, status'),
       supabase.from('oportunidades').select('id, company_id, owner_id, situacao, created_at'),
       supabase.from('contracts').select('id, company_id, status'),
       supabase.from('companies').select('id, custom_fields'),
-      supabase.from('actions').select('id, custom_fields, created_at'),
+      supabase.from('actions').select('id, company_id, custom_fields, created_at'),
       supabase.from('partner_habilitacoes').select('parceiro_id, habilitacao_id'),
     ])
 
@@ -162,31 +162,34 @@ export function usePartnerScores(parceiros, params) {
     const habLinks  = habLinksRes.data  || []
 
     // Índice: parceiro_id → Set<seller_id>
+    // sellers tem parceiro_id como coluna direta; custom_fields.franquia_id é fallback de registros antigos
     const parceiroSellers = {}
     sellers.forEach(s => {
-      const fid = s.custom_fields?.franquia_id
+      const fid = String(s.parceiro_id || s.custom_fields?.franquia_id || '')
       if (!fid) return
       if (!parceiroSellers[fid]) parceiroSellers[fid] = new Set()
       parceiroSellers[fid].add(s.id)
     })
 
     // Índice: company_id → parceiro_id (via campo Canal da Empresa)
+    // franquia_ar_id pode ser UUID ou numérico — normaliza para String
     const companyParceiro = {}
     companies.forEach(c => {
       const fid = c.custom_fields?.franquia_ar_id
-      if (fid) companyParceiro[c.id] = fid
+      if (fid) companyParceiro[String(c.id)] = String(fid)
     })
 
     // Índice: parceiro_id → count de habilitações vinculadas
     const parceiroHabCount = {}
     habLinks.forEach(h => {
-      parceiroHabCount[h.parceiro_id] = (parceiroHabCount[h.parceiro_id] || 0) + 1
+      const pid = String(h.parceiro_id)
+      parceiroHabCount[pid] = (parceiroHabCount[pid] || 0) + 1
     })
 
     const now = new Date()
 
     function countFor(origem, parceiro_id, param) {
-      const sellerIds = parceiroSellers[parceiro_id] || new Set()
+      const pid = String(parceiro_id)
 
       switch (origem) {
         // Contatos Canais vinculados ao parceiro (alias de sellers)
@@ -194,14 +197,15 @@ export function usePartnerScores(parceiros, params) {
         // Vendedores vinculados ao parceiro
         case 'sellers':
           return sellers.filter(s => {
-            const fid = s.custom_fields?.franquia_id
-            return fid === parceiro_id && s.status !== 'inativo'
+            const fid = String(s.parceiro_id || s.custom_fields?.franquia_id || '')
+            return fid === pid && s.status !== 'inativo'
           }).length
 
         // Oportunidades das empresas vinculadas ao parceiro
         case 'oportunidades': {
           let list = opps.filter(o =>
-            companyParceiro[o.company_id] === parceiro_id && o.situacao === 'em_andamento'
+            companyParceiro[String(o.company_id)] === pid &&
+            (o.situacao === 'em_andamento' || o.situacao === 'aberto')
           )
           if (param.janela_dias) {
             const cutoff = new Date(now - param.janela_dias * 86400000)
@@ -213,12 +217,16 @@ export function usePartnerScores(parceiros, params) {
         // Contratos ativos de empresas vinculadas ao parceiro via campo Canal
         case 'contracts':
           return contracts.filter(c =>
-            companyParceiro[c.company_id] === parceiro_id && c.status === 'ativo'
+            companyParceiro[String(c.company_id)] === pid && c.status === 'ativo'
           ).length
 
-        // Ações registradas para este parceiro (via empresa_id no custom_fields)
+        // Ações registradas para este parceiro
+        // empresa_id pode estar em custom_fields (hook atual) ou em company_id (coluna direta)
         case 'actions': {
-          let list = actions.filter(a => a.custom_fields?.empresa_id === parceiro_id)
+          let list = actions.filter(a => {
+            const eid = String(a.custom_fields?.empresa_id || a.company_id || '')
+            return eid === pid
+          })
           if (param.janela_dias) {
             const cutoff = new Date(now - param.janela_dias * 86400000)
             list = list.filter(a => new Date(a.created_at) >= cutoff)
@@ -228,7 +236,7 @@ export function usePartnerScores(parceiros, params) {
 
         // Habilitações vinculadas via partner_habilitacoes
         case 'habilitacoes':
-          return parceiroHabCount[parceiro_id] || 0
+          return parceiroHabCount[pid] || 0
 
         default:
           return 0

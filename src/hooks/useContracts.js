@@ -23,6 +23,12 @@ function migrarSlotLegado(cf, slot) {
 
 function rowToContrato(row) {
   const cf = row.custom_fields || {}
+  // Unifica os três slots legados em `itens` (novo formato unificado)
+  const itensLegados = [
+    ...(cf.itens_adesao  || migrarSlotLegado(cf, 'adesao')).map(i => ({ ...i, _slot: 'adesao' })),
+    ...(cf.itens_mrr     || migrarSlotLegado(cf, 'mrr')).map(i => ({ ...i, _slot: 'mrr' })),
+    ...(cf.itens_servico || migrarSlotLegado(cf, 'servico')).map(i => ({ ...i, _slot: 'servico' })),
+  ]
   return {
     id:              row.id,
     numero:          row.numero || '',
@@ -32,6 +38,8 @@ function rowToContrato(row) {
     primeira_compra: cf.primeira_compra || false,
     vigencia_inicio: row.data_inicio || '',
     vigencia_fim:    row.data_fim || '',
+    itens:           cf.itens?.length > 0 ? cf.itens : itensLegados,
+    // mantém compatibilidade com código legado que lê itens_*
     itens_adesao:    cf.itens_adesao  || migrarSlotLegado(cf, 'adesao'),
     itens_mrr:       cf.itens_mrr     || migrarSlotLegado(cf, 'mrr'),
     itens_servico:   cf.itens_servico || migrarSlotLegado(cf, 'servico'),
@@ -62,6 +70,8 @@ function contratoToRow(c, tenantId, branchId) {
     custom_fields: {
       empresa_nome:       c.empresa_nome,
       primeira_compra:    c.primeira_compra,
+      itens:              c.itens || [],
+      // legado — mantido para relatórios e integrações existentes
       itens_adesao:       c.itens_adesao  || [],
       itens_mrr:          c.itens_mrr     || [],
       itens_servico:      c.itens_servico || [],
