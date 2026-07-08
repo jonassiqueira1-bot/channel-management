@@ -1307,6 +1307,7 @@ export default function Pagamentos() {
     const anterior = pagamentos.find(p => p.id === pag.id)
     savePagamento(pag)
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
+    console.log('[handleSave] status=', pag.status, 'anterior=', anterior?.status, 'produto_id=', pag.produto_id, 'company_id=', pag.company_id)
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
       // Executa imediatamente — sem depender de confirmação manual
       gerarRepasses(pag)
@@ -1321,7 +1322,13 @@ export default function Pagamentos() {
     const produto = produtosNovo.find(p => String(p.id) === String(pag.produto_id))
     // também tenta pelo nome caso o id não bata
     const produtoFinal = produto || produtosNovo.find(p => p.nome === pag.produto_nome)
-    if (!produtoFinal || produtoFinal.cobranca !== 'mensal') return
+    console.log('[provisão] pag.produto_id=', pag.produto_id, 'pag.produto_nome=', pag.produto_nome)
+    console.log('[provisão] produtosNovo ids=', produtosNovo.map(p=>({id:p.id,nome:p.nome,cobranca:p.cobranca})).slice(0,5))
+    console.log('[provisão] produtoFinal=', produtoFinal)
+    if (!produtoFinal || produtoFinal.cobranca !== 'mensal') {
+      console.log('[provisão] BLOQUEADO — produto não encontrado ou cobranca !=', produtoFinal?.cobranca)
+      return
+    }
 
     // Calcula próximo mês a partir de reference_month
     const ref = pag.reference_month || pag.due_date || ''
@@ -1342,7 +1349,8 @@ export default function Pagamentos() {
       (p.reference_month || '').slice(0, 7) === `${nextYear}-${nextMonthStr}` &&
       p.status !== 'cancelado'
     )
-    if (jaExiste) return
+    console.log('[provisão] nextRefKey=', nextRefKey, 'jaExiste=', jaExiste)
+    if (jaExiste) { console.log('[provisão] BLOQUEADO por duplicata'); return }
 
     const dataRecebimento = pag.data_baixa || pag.reference_month || ref
     const dataFmt = dataRecebimento
