@@ -62,17 +62,15 @@ function paymentToRow(p, tenantId, branchId) {
     branch_id:       branchId || null,
     company_id:      p.company_id || null,
     status:          p.status || 'pendente',
-    // Colunas legadas (NOT NULL no banco real)
-    descricao:       p.notes || p.descricao || '',
-    vencimento:      p.due_date || p.vencimento || null,
-    data_pagamento:  p.reference_month || p.data_pagamento || null,
-    // Colunas novas adicionadas via migration
+    // Coluna legada NOT NULL — deve sempre ser enviada
+    descricao:       p.notes || '',
+    // Colunas adicionadas via migration 20260707000003
     reference_month: p.reference_month || null,
     due_date:        p.due_date || null,
     notes:           p.notes || '',
     processed:       p.processed ?? false,
     inconsistencia:  p.inconsistencia || false,
-    // Valores numéricos diretos (amount_total_net é GENERATED — não enviar)
+    // Valores numéricos (amount_total_net é GENERATED — não enviar)
     amount_cdu:      Number(p.amount_cdu)      || 0,
     amount_sms:      Number(p.amount_sms)      || 0,
     amount_services: Number(p.amount_services) || 0,
