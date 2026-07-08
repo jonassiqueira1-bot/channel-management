@@ -26,7 +26,6 @@ function rowToPayment(row) {
   const cf = row.custom_fields || {}
   return {
     id:               row.id,
-    // Campos que podem não existir na tabela real → lê de custom_fields como fallback
     contract_id:      cf.contract_id || null,
     contract_numero:  cf.contract_numero || '',
     project_id:       cf.project_id || null,
@@ -35,22 +34,22 @@ function rowToPayment(row) {
     company_nome:     row.companies?.nome_fantasia || row.companies?.razao_social || cf.company_nome || '',
     produto_id:       cf.produto_id || null,
     produto_nome:     cf.produto_nome || '',
-    amount_cdu:       cf.amount_cdu || 0,
-    amount_sms:       cf.amount_sms || 0,
-    amount_services:  cf.amount_services || 0,
-    amount_discount:  cf.amount_discount || 0,
-    amount_total_net: cf.amount_total_net || 0,
+    amount_cdu:       Number(row.amount_cdu)      || cf.amount_cdu      || 0,
+    amount_sms:       Number(row.amount_sms)      || cf.amount_sms      || 0,
+    amount_services:  Number(row.amount_services) || cf.amount_services || 0,
+    amount_discount:  Number(row.amount_discount) || cf.amount_discount || 0,
+    amount_total_net: Number(row.amount_total_net)|| cf.amount_total_net|| 0,
     num_documento:    cf.num_documento || '',
     data_emissao:     cf.data_emissao || '',
     data_baixa:       cf.data_baixa || '',
     valor_recebido:   cf.valor_recebido || 0,
     parcela:          cf.parcela || '',
-    // Colunas de data — schema real usa vencimento/data_pagamento
-    reference_month:  row.data_pagamento || cf.reference_month || '',
-    due_date:         row.vencimento     || cf.due_date        || '',
+    // Colunas diretas no schema: reference_month, due_date, notes, processed
+    reference_month:  row.reference_month || cf.reference_month || '',
+    due_date:         row.due_date        || cf.due_date        || '',
     status:           row.status || 'pendente',
-    processed:        cf.processed || false,
-    notes:            row.descricao || '',
+    processed:        row.processed ?? cf.processed ?? false,
+    notes:            row.notes || cf.notes || '',
     inconsistencia:   row.inconsistencia || false,
     tenant_id:        row.tenant_id || null,
     branch_id:        row.branch_id || null,
@@ -59,36 +58,35 @@ function rowToPayment(row) {
 
 function paymentToRow(p, tenantId, branchId) {
   return {
-    tenant_id:      tenantId,
-    branch_id:      branchId || null,
-    company_id:     p.company_id || null,
-    status:         p.status || 'pendente',
-    vencimento:     p.due_date || null,
-    data_pagamento: p.reference_month || null,
-    descricao:      p.notes || '',
-    inconsistencia: p.inconsistencia || false,
-    // Todos os campos extras em custom_fields (evita erros de colunas inexistentes)
+    tenant_id:       tenantId,
+    branch_id:       branchId || null,
+    company_id:      p.company_id || null,
+    status:          p.status || 'pendente',
+    // Colunas diretas no schema payments
+    reference_month: p.reference_month || null,
+    due_date:        p.due_date || null,
+    notes:           p.notes || '',
+    processed:       p.processed ?? false,
+    inconsistencia:  p.inconsistencia || false,
+    // Valores numéricos diretos (amount_total_net é GENERATED — não enviar)
+    amount_cdu:      Number(p.amount_cdu)      || 0,
+    amount_sms:      Number(p.amount_sms)      || 0,
+    amount_services: Number(p.amount_services) || 0,
+    amount_discount: Number(p.amount_discount) || 0,
+    // Campos extras que não existem como colunas → custom_fields
     custom_fields: {
-      contract_id:      p.contract_id,
-      contract_numero:  p.contract_numero,
-      company_nome:     p.company_nome,
-      project_id:       p.project_id,
-      origin_type:      p.origin_type,
-      produto_id:       p.produto_id,
-      produto_nome:     p.produto_nome,
-      amount_cdu:       p.amount_cdu,
-      amount_sms:       p.amount_sms,
-      amount_services:  p.amount_services,
-      amount_discount:  p.amount_discount,
-      amount_total_net: p.amount_total_net,
-      num_documento:    p.num_documento,
-      data_emissao:     p.data_emissao,
-      data_baixa:       p.data_baixa,
-      valor_recebido:   p.valor_recebido,
-      parcela:          p.parcela,
-      processed:        p.processed,
-      due_date:         p.due_date,
-      reference_month:  p.reference_month,
+      contract_id:     p.contract_id,
+      contract_numero: p.contract_numero,
+      company_nome:    p.company_nome,
+      project_id:      p.project_id,
+      origin_type:     p.origin_type,
+      produto_id:      p.produto_id,
+      produto_nome:    p.produto_nome,
+      num_documento:   p.num_documento,
+      data_emissao:    p.data_emissao,
+      data_baixa:      p.data_baixa,
+      valor_recebido:  p.valor_recebido,
+      parcela:         p.parcela,
     },
   }
 }
@@ -118,7 +116,7 @@ export function usePayments() {
     }
 
     let _q = supabase.from('payments').select('*, companies(nome_fantasia, razao_social)')
-    const { data, error } = await _q.order('vencimento', { ascending: false })
+    const { data, error } = await _q.order('due_date', { ascending: false })
 
     if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
 
