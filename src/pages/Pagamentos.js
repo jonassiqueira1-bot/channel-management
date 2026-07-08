@@ -1128,6 +1128,107 @@ const FILTERS_DEF = [
   { key: 'processado', label: 'Processado', options: [{ value:'sim', label:'Gerado' }, { value:'nao', label:'Pendente' }] },
 ]
 
+// ─── ConfirmBulkModal ─────────────────────────────────────────────────────────
+function ConfirmBulkModal({ ids, pagamentos, produtosNovo, onConfirm, onCancel }) {
+  const [isFechamento, setIsFechamento] = useState(false)
+
+  const selecionados = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
+  const totalValor   = selecionados.reduce((s, p) => s + (p.amount_total_net || 0), 0)
+  const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR', { minimumFractionDigits:2 })}`
+
+  const comProvisao = selecionados.filter(p => {
+    const prod = produtosNovo.find(pr => String(pr.id) === String(p.produto_id))
+      || produtosNovo.find(pr => pr.nome === p.produto_nome)
+    return prod?.cobranca === 'mensal'
+  }).length
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.72)', backdropFilter:'blur(4px)',
+      display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:9999 }}>
+      <div style={{ background:'var(--surface)', borderRadius:16, width:'100%', maxWidth:480,
+        boxShadow:'0 24px 60px rgba(0,0,0,0.28)', overflow:'hidden', fontFamily:'var(--font)' }}>
+
+        {/* Header */}
+        <div style={{ padding:'22px 24px 16px', borderBottom:'1px solid var(--border)' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div style={{ width:40, height:40, borderRadius:10, background:'#DBEAFE',
+              display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>
+              ✅
+            </div>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>
+                Confirmar processamento em lote
+              </div>
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
+                Revise o resumo abaixo antes de iniciar
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Resumo */}
+        <div style={{ padding:'16px 24px', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            {[
+              ['Pagamentos a processar', selecionados.length],
+              ['Valor total líquido', fmtR(totalValor)],
+              ['Vão gerar nova provisão', comProvisao],
+              ['Já recebidos (ignorados)', ids.length - selecionados.length],
+            ].map(([label, val]) => (
+              <div key={label} style={{ background:'var(--surface2)', borderRadius:8,
+                padding:'10px 14px', border:'1px solid var(--border)' }}>
+                <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:3 }}>{label}</div>
+                <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{val}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Opção de Fechamento */}
+          <button
+            type="button"
+            onClick={() => setIsFechamento(v => !v)}
+            style={{ display:'flex', alignItems:'flex-start', gap:12, padding:'12px 14px',
+              background: isFechamento ? '#EFF6FF' : 'var(--surface2)',
+              border: `2px solid ${isFechamento ? '#3B82F6' : 'var(--border)'}`,
+              borderRadius:10, cursor:'pointer', textAlign:'left', transition:'all 0.15s',
+              fontFamily:'var(--font)', width:'100%' }}>
+            <div style={{ width:18, height:18, borderRadius:4, flexShrink:0, marginTop:1,
+              border:`2px solid ${isFechamento ? '#3B82F6' : 'var(--border2)'}`,
+              background: isFechamento ? '#3B82F6' : 'transparent',
+              display:'flex', alignItems:'center', justifyContent:'center', transition:'all 0.15s' }}>
+              {isFechamento && <span style={{ color:'#fff', fontSize:11, fontWeight:800, lineHeight:1 }}>✓</span>}
+            </div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color: isFechamento ? '#1D4ED8' : 'var(--text)' }}>
+                Este é um Fechamento Mensal
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2, lineHeight:1.4 }}>
+                Marca os pagamentos com a data de fechamento e gera o Relatório de Fechamento com valores liberados e inconsistências
+              </div>
+            </div>
+          </button>
+
+          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px' }}>
+            <div style={{ fontSize:11, color:'var(--text-muted)', lineHeight:1.5 }}>
+              <strong style={{ color:'var(--text)' }}>Etapas:</strong>{' '}
+              Registrar recebimento · Verificar inconsistências · Gerar provisões · Calcular comissões
+              {isFechamento && <span style={{ color:'#1D4ED8', fontWeight:600 }}> · Gerar Relatório de Fechamento</span>}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ padding:'14px 24px 20px', display:'flex', justifyContent:'flex-end', gap:10 }}>
+          <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={() => onConfirm(isFechamento)} disabled={selecionados.length === 0}>
+            Processar {selecionados.length} pagamento{selecionados.length !== 1 ? 's' : ''}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 const FECHAMENTO_LS_KEY = 'pagamentos:fechamentos_v1'
 function loadFechamentos() { try { return JSON.parse(localStorage.getItem(FECHAMENTO_LS_KEY)||'[]') } catch { return [] } }
 function saveFechamentos(list) { try { localStorage.setItem(FECHAMENTO_LS_KEY, JSON.stringify(list)) } catch {} }
@@ -1272,6 +1373,7 @@ export default function Pagamentos() {
   const [confirmComissao, setConfirmComissao] = useState(null)   // pag aguardando confirmação
   const [batchProgress, setBatchProgress]     = useState(null)   // { operations: [...] }
   const [inconsistenciaModal, setInconsistenciaModal] = useState(null) // { itens: [...], ids: [...] }
+  const [confirmBulkModal, setConfirmBulkModal]       = useState(null) // { ids: [...] }
   const [fechamentos, setFechamentos]         = useState(() => loadFechamentos())
   const [fechamentoModal, setFechamentoModal] = useState(false)
 
@@ -1698,7 +1800,7 @@ export default function Pagamentos() {
     return itens
   }
 
-  async function executarBulkReceber(ids, inconsistencias = []) {
+  async function executarBulkReceber(ids, inconsistencias = [], isFechamento = false) {
     const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
     const inconsistenciaIds = new Set(inconsistencias.map(i => i.pag.id))
     const ops = [
@@ -1715,9 +1817,11 @@ export default function Pagamentos() {
       const raw = naoEramPagos[i]
       const temInconsistencia = inconsistenciaIds.has(raw.id)
       const motivoInc = temInconsistencia ? inconsistencias.find(x => x.pag.id === raw.id)?.motivo : null
+      const hoje = new Date().toISOString().slice(0, 10)
       const pag = {
         ...raw, status: 'pago', inconsistencia: temInconsistencia,
         notes: motivoInc ? `${raw.notes ? raw.notes + '\n' : ''}[Inconsistência] ${motivoInc}` : raw.notes,
+        data_fechamento: isFechamento ? hoje : (raw.data_fechamento || null),
       }
       await savePagamento(pag)
       pagosList.push(pag)
@@ -1744,24 +1848,28 @@ export default function Pagamentos() {
       setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='comissoes' ? {...op,done:i+1} : op) }))
     }
 
-    // Salvar relatório de fechamento
-    const usuario = session?.user?.email || 'desconhecido'
-    const valorLiberado = pagosList.filter(p=>!p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
-    const valorInconsistente = pagosList.filter(p=>p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
-    const fechamento = {
-      id: Date.now(),
-      data: new Date().toLocaleString('pt-BR'),
-      usuario,
-      totalProcessados: pagosList.length,
-      totalProvisoes: provisoesGeradas.length,
-      valorLiberado,
-      valorInconsistente,
-      inconsistentes: pagosList.filter(p=>p.inconsistencia).map(p=>({
-        id:p.id, company_nome:p.company_nome, contract_numero:p.contract_numero,
-        reference_month:p.reference_month, amount_total_net:p.amount_total_net, notes:p.notes,
-      })),
+    // Relatório de fechamento — apenas quando o usuário marcou "Fechamento Mensal"
+    if (isFechamento) {
+      const usuario = session?.user?.email || 'desconhecido'
+      const dataFechamento = new Date().toISOString().slice(0, 10)
+      const valorLiberado = pagosList.filter(p=>!p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
+      const valorInconsistente = pagosList.filter(p=>p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
+      const fechamento = {
+        id: Date.now(),
+        data: new Date().toLocaleString('pt-BR'),
+        dataFechamento,
+        usuario,
+        totalProcessados: pagosList.length,
+        totalProvisoes: provisoesGeradas.length,
+        valorLiberado,
+        valorInconsistente,
+        inconsistentes: pagosList.filter(p=>p.inconsistencia).map(p=>({
+          id:p.id, company_nome:p.company_nome, contract_numero:p.contract_numero,
+          reference_month:p.reference_month, amount_total_net:p.amount_total_net, notes:p.notes,
+        })),
+      }
+      setFechamentos(prev => { const next=[fechamento,...prev]; saveFechamentos(next); return next })
     }
-    setFechamentos(prev => { const next=[fechamento,...prev]; saveFechamentos(next); return next })
   }
 
   function confirmarGerarComissao(pag) {
@@ -1944,18 +2052,13 @@ export default function Pagamentos() {
         newLabel="Novo Pagamento"
         bulkActions={[
           { label: '✓ Gerar faturas', onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? { ...p, processed: true } : p)) },
-          { label: 'Marcar como recebido', onClick: ids => {
-            const inconsistencias = detectarInconsistencias(ids)
-            if (inconsistencias.length > 0) {
-              setInconsistenciaModal({ itens: inconsistencias, ids })
-            } else {
-              executarBulkReceber(ids)
-            }
-          }},
-          { label: 'Alterar Status ▾', type:'dropdown', options:[
-            { label:'Pendente',   onClick: ids => setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'pendente'}:p)) },
-            { label:'Cancelado',  onClick: ids => setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'cancelado'}:p)) },
-          ]},
+          { label: 'Marcar como recebido', onClick: ids => setConfirmBulkModal({ ids }) },
+          { label: 'Alterar Status ▾', type:'dropdown', options:
+            Object.entries(STATUS_PAGAMENTO).map(([key, cfg]) => ({
+              label: cfg.label,
+              onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? {...p, status:key} : p)),
+            }))
+          },
           { label: 'Excluir', onClick: ids => {
             if (window.confirm(`Excluir ${ids.length} pagamento(s) permanentemente?`))
               setPagamentos(prev => prev.filter(p => !ids.includes(p.id)))
@@ -2144,6 +2247,26 @@ export default function Pagamentos() {
       )}
 
       {/* ── Modal de inconsistências antes do lote ── */}
+      {confirmBulkModal && createPortal(
+        <ConfirmBulkModal
+          ids={confirmBulkModal.ids}
+          pagamentos={pagamentos}
+          produtosNovo={produtosNovo}
+          onCancel={() => setConfirmBulkModal(null)}
+          onConfirm={(isFechamento) => {
+            const { ids } = confirmBulkModal
+            setConfirmBulkModal(null)
+            const inconsistencias = detectarInconsistencias(ids)
+            if (inconsistencias.length > 0) {
+              setInconsistenciaModal({ itens: inconsistencias, ids, isFechamento })
+            } else {
+              executarBulkReceber(ids, [], isFechamento)
+            }
+          }}
+        />,
+        document.body
+      )}
+
       {inconsistenciaModal && createPortal(
         <div style={{ position:'fixed', inset:0, background:'rgba(10,15,30,0.72)', backdropFilter:'blur(4px)',
           display:'flex', alignItems:'center', justifyContent:'center', padding:20, zIndex:9999 }}>
@@ -2174,7 +2297,7 @@ export default function Pagamentos() {
                   background:'var(--surface2)', color:'var(--text)', fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>
                 Cancelar
               </button>
-              <button onClick={() => { const { ids, itens } = inconsistenciaModal; setInconsistenciaModal(null); executarBulkReceber(ids, itens) }}
+              <button onClick={() => { const { ids, itens, isFechamento } = inconsistenciaModal; setInconsistenciaModal(null); executarBulkReceber(ids, itens, isFechamento) }}
                 style={{ padding:'8px 18px', border:'none', borderRadius:8,
                   background:'#D97706', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
                 Confirmar mesmo assim
