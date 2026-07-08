@@ -22,6 +22,8 @@ import { useOppMembros } from '../hooks/useOppMembros'
 import { useUsuarios } from '../hooks/useUsuarios'
 import ActionFeedback from '../components/ActionFeedback'
 import BatchProgress from '../components/BatchProgress'
+import { useAuth } from '../contexts/AuthContext'
+import { useCompanies } from '../hooks/useCompanies'
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -161,160 +163,318 @@ function ProcessadoBadge({ processed }) {
 
 
 // ─── ImportModal ──────────────────────────────────────────────────────────────
-const IMPORT_HEADERS = ['contract_numero','company_nome','num_documento','data_emissao','parcela',
-                        'amount_cdu','amount_sms','amount_services','amount_discount',
-                        'reference_month','due_date','status']
-const TEMPLATE_CSV   = IMPORT_HEADERS.join(';')+
-  '\nCTR-2024-001;Nexus Tech;NF100200;2026-07-01;1/1;890;47;450;0;2026-07-01;2026-07-10;pendente'
+const IMPORT_BASE_KEYS = new Set([
+  'contract_numero','company_nome','company_cnpj','num_documento','data_emissao','parcela',
+  'amount_cdu','amount_sms','amount_services','amount_discount',
+  'reference_month','due_date','status','notes',
+])
 
-function parseCSV(text) {
-  const lines = text.trim().split(/\r?\n/)
+function parseCSVPag(text) {
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').trim().split('\n')
   if (lines.length < 2) return { headers:[], rows:[] }
-  const headers = lines[0].split(';').map(h=>h.trim())
-  const rows = lines.slice(1).map(l => {
-    const vals = l.split(';')
-    const obj = {}
-    headers.forEach((h,i) => { obj[h]=(vals[i]||'').trim() })
-    return obj
+  const sep = lines[0].includes(';') ? ';' : ','
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g,''))
+  const rows = lines.slice(1).map(line => {
+    const cells = []; let cur='', inQ=false
+    for (const ch of line) {
+      if (ch==='"') { inQ=!inQ }
+      else if (ch===sep && !inQ) { cells.push(cur.trim()); cur='' }
+      else cur+=ch
+    }
+    cells.push(cur.trim())
+    return Object.fromEntries(headers.map((h,i) => [h, cells[i]??'']))
   })
   return { headers, rows }
 }
 
-function validateImportRow(row) {
+function validateImportRowPag(row, cfFields=[]) {
   const errors = []
-  if (!row.contract_numero) errors.push('contract_numero obrigatório')
-  if (!row.company_nome)    errors.push('company_nome obrigatório')
+  if (!row.contract_numero?.trim()) errors.push('contract_numero obrigatório')
+  if (!row.company_nome?.trim())    errors.push('company_nome obrigatório')
   if (!row.reference_month || !/^\d{4}-\d{2}-\d{2}$/.test(row.reference_month))
     errors.push('reference_month inválido (AAAA-MM-DD)')
   if (row.status && !STATUS_PAGAMENTO[row.status])
     errors.push(`status inválido: ${row.status}`)
+  cfFields.filter(f=>f.required).forEach(f => {
+    if (!row[f.key]?.trim()) errors.push(`${f.label} obrigatório`)
+  })
   return errors
 }
 
-function ImportModal({ onClose, onImport }) {
-  const [parsed, setParsed] = useState(null)
-  const [fileName, setFileName] = useState('')
+function ImportModal({ onClose, onImport, companies, addCompany, contratos, saveContrato }) {
+  const { fieldById } = useFormLayout('payments')
+  const customFormFields = useMemo(() => (
+    Object.values(fieldById||{})
+      .filter(f => f.entity === 'payments' && !IMPORT_BASE_KEYS.has(f.field_key))
+      .map(f => ({ key: f.field_key, label: f.label, required: f.is_required||false }))
+  ), [fieldById])
 
-  function handleFile(e) {
-    const file = e.target.files?.[0]
+  const allCols = useMemo(() => [
+    ...Array.from(IMPORT_BASE_KEYS),
+    ...customFormFields.map(f=>f.key),
+  ], [customFormFields])
+
+  const [step, setStep]         = useState('upload')   // upload | preview | importing | done
+  const [parsed, setParsed]     = useState(null)
+  const [dragging, setDragging] = useState(false)
+  const [progress, setProgress] = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, label:'' })
+  const fileRef = useRef(null)
+
+  function handleDownloadTemplate() {
+    const cfEx = customFormFields.map(() => '')
+    const example = ['CTR-2026-001','Nexus Tech','12.345.678/0001-99','NF100200','2026-07-01','1/1','890','47','450','0','2026-07-01','2026-07-31','pendente','', ...cfEx]
+    const csv = ['﻿'+allCols.join(';'), example.slice(0,allCols.length).join(';')].join('\n')
+    const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a = document.createElement('a'); a.href=url; a.download='template_pagamentos.csv'; a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  function processFile(file) {
     if (!file) return
-    setFileName(file.name)
     const reader = new FileReader()
-    reader.onload = ev => {
-      const { headers, rows } = parseCSV(ev.target.result)
-      const rowResults = rows.map((row, i) => {
-        const errors = validateImportRow(row)
+    reader.onload = e => {
+      const { rows } = parseCSVPag(e.target.result)
+      const rowResults = rows.map((row,i) => {
+        const errors = validateImportRowPag(row, customFormFields)
         return { row, errors, ok:errors.length===0, line:i+2 }
       })
-      setParsed({ headers, rows, rowResults })
+      setParsed({ fileName:file.name, rowResults })
+      setStep('preview')
     }
     reader.readAsText(file, 'UTF-8')
   }
 
-  function handleDownloadTemplate() {
-    const blob = new Blob([TEMPLATE_CSV], { type:'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob); const a = document.createElement('a')
-    a.href=url; a.download='template_pagamentos.csv'; a.click(); URL.revokeObjectURL(url)
-  }
+  async function handleConfirmImport() {
+    const okRows = parsed.rowResults.filter(r=>r.ok)
+    const total  = okRows.length
+    setProgress({ current:0, total, empresasCriadas:0, contratosCriados:0, label:'Preparando…' })
+    setStep('importing')
 
-  function handleConfirmImport() {
-    const okRows = parsed.rowResults.filter(r=>r.ok).map(r => {
-      const cdu      = parseFloat(r.row.amount_cdu)||0
-      const sms      = parseFloat(r.row.amount_sms)||0
-      const services = parseFloat(r.row.amount_services)||0
-      const discount = parseFloat(r.row.amount_discount)||0
-      return {
-        id: 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2),
-        contract_id: null, contract_numero: r.row.contract_numero,
-        company_id: null,  company_nome: r.row.company_nome,
-        num_documento: r.row.num_documento||null,
-        data_emissao:  r.row.data_emissao||null,
-        parcela:       r.row.parcela||'1/1',
-        amount_cdu: cdu, amount_sms: sms,
-        amount_services: services, amount_discount: discount,
-        amount_total_net: cdu+sms+services-discount,
-        valor_recebido: null, data_baixa: null,
-        reference_month: r.row.reference_month,
-        due_date: r.row.due_date||null,
-        status: STATUS_PAGAMENTO[r.row.status] ? r.row.status : 'pendente',
-        processed: false, notes: '', tenant_id:'t1',
-        criado: new Date().toISOString().slice(0,10),
+    // índices para lookup rápido
+    const compByName = {}; const compByCnpj = {}
+    ;(companies||[]).forEach(c => {
+      const n=(c.fantasia||c.razao||'').toLowerCase(); if(n) compByName[n]=c
+      if(c.cnpj) compByCnpj[c.cnpj.replace(/\D/g,'')]=c
+    })
+    const ctrByNum = {}
+    ;(contratos||[]).forEach(c => { if(c.numero) ctrByNum[c.numero.toLowerCase()]=c })
+    const createdComp = {}; const createdCtr = {}
+    let empresasCriadas=0, contratosCriados=0
+
+    async function resolveEmpresa(nome, cnpj) {
+      const key = nome.toLowerCase()
+      const cnpjClean = (cnpj||'').replace(/\D/g,'')
+      if(cnpjClean && compByCnpj[cnpjClean]) return compByCnpj[cnpjClean].id
+      if(compByName[key]) return compByName[key].id
+      if(createdComp[key]) return createdComp[key]
+      const result = await addCompany({ razao:nome, fantasia:nome, cnpj:cnpj||'', tipo:'rascunho' })
+      if(result?.ok && result?.data?.id) {
+        createdComp[key]=result.data.id; empresasCriadas++; return result.data.id
       }
-    })
-    onImport(okRows, {
-      id:Date.now(), fileName, date:new Date().toLocaleString('pt-BR'),
-      total:okRows.length, errors:parsed.rowResults.filter(r=>!r.ok).length, scope:'importados',
-    })
-    onClose()
+      return null
+    }
+
+    async function resolveContrato(numero, companyId, companyNome) {
+      const key = numero.toLowerCase()
+      if(ctrByNum[key]) return ctrByNum[key].id
+      if(createdCtr[key]) return createdCtr[key]
+      const result = await saveContrato({
+        id: 'imp_ctr_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+        numero, company_id:companyId, company_nome:companyNome,
+        status:'ativo', tipo:'', criado:new Date().toISOString().slice(0,10),
+      })
+      if(result?.ok) {
+        const id = result?.data?.id || key
+        createdCtr[key]=id; contratosCriados++; return id
+      }
+      return null
+    }
+
+    const importRows = []
+    for (let i=0; i<okRows.length; i++) {
+      const { row } = okRows[i]
+      setProgress({ current:i+1, total, empresasCriadas, contratosCriados, label:`${row.company_nome} — ${row.contract_numero}` })
+      const empresa_id     = await resolveEmpresa(row.company_nome, row.company_cnpj)
+      const contract_id    = await resolveContrato(row.contract_numero, empresa_id, row.company_nome)
+      const custom_fields  = {}
+      customFormFields.forEach(f => { if(row[f.key]!==undefined) custom_fields[f.key]=row[f.key] })
+      const cdu=parseFloat(row.amount_cdu)||0, sms=parseFloat(row.amount_sms)||0
+      const services=parseFloat(row.amount_services)||0, discount=parseFloat(row.amount_discount)||0
+      importRows.push({
+        id: 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2),
+        contract_id, contract_numero:row.contract_numero,
+        company_id:empresa_id, company_nome:row.company_nome,
+        num_documento:row.num_documento||null, data_emissao:row.data_emissao||null,
+        parcela:row.parcela||'1/1',
+        amount_cdu:cdu, amount_sms:sms, amount_services:services, amount_discount:discount,
+        amount_total_net:cdu+sms+services-discount,
+        valor_recebido:null, data_baixa:null,
+        reference_month:row.reference_month, due_date:row.due_date||null,
+        status:STATUS_PAGAMENTO[row.status]?row.status:'pendente',
+        processed:false, notes:row.notes||'', custom_fields,
+        criado:new Date().toISOString().slice(0,10),
+      })
+    }
+
+    setProgress(p=>({...p, current:total, empresasCriadas, contratosCriados, label:'Salvando…'}))
+    const log = {
+      id:Date.now(), fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
+      total:parsed.rowResults.length, imported:importRows.length,
+      errors:parsed.rowResults.filter(r=>!r.ok).length,
+      rowResults:parsed.rowResults, scope:'importados',
+      empresasCriadas, contratosCriados,
+    }
+    await onImport(importRows, log)
+    setStep('done')
+    setProgress(p=>({...p, label:'Concluído!'}))
   }
 
-  const okCount = parsed?.rowResults.filter(r=>r.ok).length||0
-  const SL = { fontSize:11, fontWeight:700, color:'#64748B', textTransform:'uppercase',
-               letterSpacing:'0.08em', display:'block', marginBottom:5 }
+  const okCount  = parsed?.rowResults.filter(r=>r.ok).length??0
+  const errCount = parsed?.rowResults.filter(r=>!r.ok).length??0
+
+  const impBox = {
+    border:'2px dashed var(--border)', borderRadius:12, padding:32,
+    textAlign:'center', cursor:'pointer', transition:'border-color 0.2s, background 0.2s',
+    background:dragging?'var(--accent-glow)':'var(--surface2)',
+    borderColor:dragging?'var(--accent)':'var(--border)',
+  }
 
   return (
     <div style={ov.wrap} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
-      <div style={{ ...ov.modal, maxWidth:560 }}>
+      <div style={{ ...ov.modal, maxWidth:640 }}>
         <div style={ov.header}>
           <div>
-            <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Importar pagamentos</div>
-            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>CSV com separador ponto-e-vírgula (;) — UTF-8</div>
+            <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Importar Pagamentos</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
+              {step==='upload' && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
+              {step==='preview' && `${parsed?.fileName} — ${okCount} válidos${errCount>0?`, ${errCount} com erro`:''}` }
+              {step==='importing' && `Processando ${progress.current} de ${progress.total}…`}
+              {step==='done' && 'Importação concluída'}
+            </div>
           </div>
           <button style={ov.xBtn} onClick={onClose}>✕</button>
         </div>
-        <div style={{ padding:'20px 24px' }}>
-          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)',
-            borderRadius:10, padding:14, marginBottom:16 }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:10 }}>
-              <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Template CSV</span>
-              <button onClick={handleDownloadTemplate}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px',
-                  background:ACCENT, color:'#fff', border:'none', borderRadius:7,
-                  fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
-                ⬇ Baixar template
-              </button>
+
+        {step==='upload' && (
+          <div style={{ padding:24 }}>
+            {/* Template */}
+            <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:14, marginBottom:20 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Template CSV</span>
+                <button onClick={handleDownloadTemplate}
+                  style={{ display:'flex', alignItems:'center', gap:6, padding:'5px 12px',
+                    background:ACCENT, color:'#fff', border:'none', borderRadius:7,
+                    fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  ⬇ Baixar template
+                </button>
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', overflowX:'auto', whiteSpace:'nowrap' }}>
+                {allCols.join(' · ')}
+              </div>
+              {customFormFields.length>0 && (
+                <div style={{ marginTop:6, fontSize:11, color:'var(--accent)' }}>
+                  + {customFormFields.length} campo{customFormFields.length>1?'s':''} customizados incluídos no template
+                </div>
+              )}
             </div>
-            <div style={{ background:'var(--surface)', borderRadius:7, border:'1px solid var(--border2)',
-              padding:'10px 12px', fontFamily:'var(--mono)', fontSize:11, color:'var(--text-soft)',
-              overflow:'auto', whiteSpace:'pre' }}>
-              {TEMPLATE_CSV}
+            {/* Drop zone */}
+            <div
+              style={impBox}
+              onClick={() => fileRef.current?.click()}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]) }}
+            >
+              <div style={{ fontSize:28, marginBottom:8 }}>📂</div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>
+                Arraste o arquivo CSV aqui
+              </div>
+              <div style={{ fontSize:12, color:'var(--text-muted)' }}>ou clique para selecionar</div>
+              <input ref={fileRef} type="file" accept=".csv" style={{ display:'none' }}
+                onChange={e => processFile(e.target.files[0])} />
             </div>
           </div>
-          <div style={{ marginBottom:14 }}>
-            <label style={SL}>Selecionar arquivo</label>
-            <input type="file" accept=".csv" onChange={handleFile}
-              style={{ display:'block', fontSize:13, color:'var(--text)', fontFamily:'var(--font)',
-                padding:'8px', border:'1px dashed var(--border)', borderRadius:8, width:'100%',
-                boxSizing:'border-box', background:'var(--surface2)', cursor:'pointer' }} />
-          </div>
-          {parsed && (
-            <div style={{ maxHeight:220, overflowY:'auto', border:'1px solid var(--border)',
-              borderRadius:8, background:'var(--surface2)' }}>
-              {parsed.rowResults.map((r, i) => (
-                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'8px 12px',
-                  borderBottom:i<parsed.rowResults.length-1?'1px solid var(--border2)':'none',
-                  background:r.ok?'transparent':'rgba(239,68,68,0.04)' }}>
+        )}
+
+        {step==='preview' && parsed && (
+          <div style={{ padding:'0 0 4px' }}>
+            <div style={{ maxHeight:360, overflowY:'auto' }}>
+              {parsed.rowResults.map((r,i) => (
+                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 24px',
+                  borderBottom:'1px solid var(--border2)',
+                  background:r.ok?'transparent':'rgba(239,68,68,0.03)' }}>
                   <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)',
-                    color:r.ok?'#10B981':'#EF4444', flexShrink:0, marginTop:2 }}>
+                    color:r.ok?'#10B981':'#EF4444', flexShrink:0, marginTop:2, minWidth:36 }}>
                     {r.ok?'✓':'✗'} L{r.line}
                   </span>
                   <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, color:'var(--text)', fontWeight:600,
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)',
                       overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                       {r.row.contract_numero} · {r.row.company_nome}
+                      {r.row.reference_month && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:8 }}>{r.row.reference_month}</span>}
                     </div>
-                    {!r.ok && <div style={{ fontSize:11, color:'#EF4444', marginTop:2 }}>{r.errors.join(', ')}</div>}
+                    {!r.ok && <div style={{ fontSize:11, color:'#EF4444', marginTop:2 }}>{r.errors.join(' · ')}</div>}
                   </div>
+                  {r.ok && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                    {parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0) > 0
+                      ? `R$ ${(parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+                      : ''}
+                  </span>}
                 </div>
               ))}
             </div>
-          )}
-        </div>
+          </div>
+        )}
+
+        {step==='importing' && (
+          <div style={{ padding:32, textAlign:'center' }}>
+            <div style={{ fontSize:32, marginBottom:12 }}>⚙️</div>
+            <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:6 }}>{progress.label}</div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:20 }}>
+              {progress.current} / {progress.total} registros
+            </div>
+            <div style={{ height:6, background:'var(--border)', borderRadius:3, overflow:'hidden', marginBottom:10 }}>
+              <div style={{ height:'100%', background:'var(--accent)', borderRadius:3,
+                width:`${progress.total>0?Math.round(progress.current/progress.total*100):0}%`,
+                transition:'width 0.3s ease' }} />
+            </div>
+            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>
+                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa${progress.empresasCriadas>1?'s':''} criada${progress.empresasCriadas>1?'s':''}`}
+                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
+                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato${progress.contratosCriados>1?'s':''} criado${progress.contratosCriados>1?'s':''}`}
+              </div>
+            )}
+          </div>
+        )}
+
+        {step==='done' && (
+          <div style={{ padding:32, textAlign:'center' }}>
+            <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
+              {progress.current} pagamento{progress.current!==1?'s':''} importado{progress.current!==1?'s':''}
+            </div>
+            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>
+                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa${progress.empresasCriadas>1?'s':''} criada${progress.empresasCriadas>1?'s':''}`}
+                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
+                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato${progress.contratosCriados>1?'s':''} criado${progress.contratosCriados>1?'s':''}`}
+              </div>
+            )}
+          </div>
+        )}
+
         <div style={ov.footer}>
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={okCount===0} onClick={handleConfirmImport}>
-            Importar {okCount} pagamento{okCount!==1?'s':''}
-          </Button>
+          {step==='upload' && <Button variant="secondary" onClick={onClose}>Cancelar</Button>}
+          {step==='preview' && <>
+            <Button variant="secondary" onClick={()=>setStep('upload')}>← Voltar</Button>
+            <Button disabled={okCount===0} onClick={handleConfirmImport}>
+              Importar {okCount} pagamento{okCount!==1?'s':''}
+            </Button>
+          </>}
+          {step==='importing' && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Aguarde…</span>}
+          {step==='done' && <Button onClick={onClose}>Fechar</Button>}
         </div>
       </div>
     </div>
@@ -968,10 +1128,126 @@ const FILTERS_DEF = [
   { key: 'processado', label: 'Processado', options: [{ value:'sim', label:'Gerado' }, { value:'nao', label:'Pendente' }] },
 ]
 
+const FECHAMENTO_LS_KEY = 'pagamentos:fechamentos_v1'
+function loadFechamentos() { try { return JSON.parse(localStorage.getItem(FECHAMENTO_LS_KEY)||'[]') } catch { return [] } }
+function saveFechamentos(list) { try { localStorage.setItem(FECHAMENTO_LS_KEY, JSON.stringify(list)) } catch {} }
+
+function exportFechamentoExcel(fechamento) {
+  const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+  const incRows = (fechamento.inconsistentes||[]).map(i =>
+    `<tr><td>${esc(i.company_nome)}</td><td>${esc(i.contract_numero)}</td><td>${esc(i.reference_month)}</td><td>${esc(fmtR(i.amount_total_net))}</td><td>${esc((i.notes||'').split('\n').find(l=>l.startsWith('[Inconsistência]'))||'')}</td></tr>`
+  ).join('')
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"/></head><body>
+<table border="1">
+<thead><tr><th colspan="2"><b>Relatório de Fechamento — ${esc(fechamento.data)}</b></th></tr></thead>
+<tbody>
+<tr><td><b>Operador</b></td><td>${esc(fechamento.usuario)}</td></tr>
+<tr><td><b>Data/Hora</b></td><td>${esc(fechamento.data)}</td></tr>
+<tr><td><b>Registros Processados</b></td><td>${fechamento.totalProcessados}</td></tr>
+<tr><td><b>Provisões Geradas</b></td><td>${fechamento.totalProvisoes}</td></tr>
+<tr><td><b>Valor Liberado (sem problemas)</b></td><td>${esc(fmtR(fechamento.valorLiberado))}</td></tr>
+<tr><td><b>Valor com Inconsistências</b></td><td>${esc(fmtR(fechamento.valorInconsistente))}</td></tr>
+</tbody>
+</table>
+${incRows.length>0?`<br/><table border="1">
+<thead><tr><th><b>Empresa</b></th><th><b>Contrato</b></th><th><b>Competência</b></th><th><b>Valor</b></th><th><b>Motivo</b></th></tr></thead>
+<tbody>${incRows}</tbody>
+</table>`:''}
+</body></html>`
+  const blob = new Blob(['﻿'+html],{type:'application/vnd.ms-excel;charset=utf-8'})
+  const url=URL.createObjectURL(blob); const a=document.createElement('a')
+  a.href=url; a.download=`fechamento_${fechamento.id}.xls`; a.click(); URL.revokeObjectURL(url)
+}
+
+function FechamentoModal({ fechamentos, onClose }) {
+  const [selected, setSelected] = useState(fechamentos[0]?.id||null)
+  const fch = fechamentos.find(f=>f.id===selected)
+  const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+  return (
+    <div style={ov.wrap} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
+      <div style={{...ov.modal, maxWidth:720, maxHeight:'90vh', display:'flex', flexDirection:'column'}}>
+        <div style={ov.header}>
+          <div>
+            <div style={{fontSize:16,fontWeight:800,color:'var(--text)'}}>Relatório de Fechamento</div>
+            <div style={{fontSize:12,color:'var(--text-muted)',marginTop:2}}>{fechamentos.length} operaç{fechamentos.length===1?'ão':'ões'} registrada{fechamentos.length===1?'':'s'}</div>
+          </div>
+          <button style={ov.xBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{display:'flex',flex:1,minHeight:0,overflow:'hidden'}}>
+          {/* Lista de operações */}
+          <div style={{width:200,borderRight:'1px solid var(--border)',overflowY:'auto',padding:'8px 0',flexShrink:0}}>
+            {fechamentos.length===0 && <div style={{fontSize:12,color:'var(--text-muted)',padding:'12px 16px'}}>Nenhum fechamento registrado</div>}
+            {fechamentos.map(f=>(
+              <button key={f.id} onClick={()=>setSelected(f.id)} style={{
+                width:'100%',textAlign:'left',padding:'10px 14px',border:'none',cursor:'pointer',
+                fontFamily:'var(--font)',background:selected===f.id?'var(--accent-glow)':'none',
+                borderLeft:`3px solid ${selected===f.id?'var(--accent)':'transparent'}`,
+              }}>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--text)',lineHeight:1.3}}>{f.data}</div>
+                <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{f.totalProcessados} registros</div>
+              </button>
+            ))}
+          </div>
+          {/* Detalhe */}
+          <div style={{flex:1,overflowY:'auto',padding:20}}>
+            {!fch && <div style={{fontSize:13,color:'var(--text-muted)',textAlign:'center',paddingTop:40}}>Selecione um fechamento</div>}
+            {fch && (<>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
+                {[
+                  ['Operador',fch.usuario],
+                  ['Data/Hora',fch.data],
+                  ['Registros Processados',fch.totalProcessados],
+                  ['Provisões Geradas',fch.totalProvisoes||0],
+                  ['Valor Liberado',fmtR(fch.valorLiberado)],
+                  ['Valor com Inconsistências',fmtR(fch.valorInconsistente)],
+                ].map(([label,val])=>(
+                  <div key={label} style={{background:'var(--surface2)',borderRadius:8,padding:'10px 14px',border:'1px solid var(--border)'}}>
+                    <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:3}}>{label}</div>
+                    <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{val}</div>
+                  </div>
+                ))}
+              </div>
+              {fch.inconsistentes?.length>0 && (<>
+                <div style={{fontSize:12,fontWeight:700,color:'#92400E',marginBottom:8}}>
+                  ⚠ {fch.inconsistentes.length} pagamento{fch.inconsistentes.length>1?'s':''} com inconsistência
+                </div>
+                <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
+                  {fch.inconsistentes.map((inc,i)=>(
+                    <div key={i} style={{padding:'8px 12px',borderBottom:i<fch.inconsistentes.length-1?'1px solid var(--border2)':'none',background:'rgba(239,68,68,0.03)'}}>
+                      <div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{inc.company_nome} · {inc.contract_numero}</div>
+                      <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
+                        {inc.reference_month} · {fmtR(inc.amount_total_net)}
+                        {inc.notes && <span style={{marginLeft:8,color:'#EF4444'}}>{inc.notes.split('\n').find(l=>l.startsWith('[Inconsistência]'))||''}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>)}
+              {(!fch.inconsistentes||fch.inconsistentes.length===0) && (
+                <div style={{fontSize:12,color:'#10B981',padding:'12px',background:'#D1FAE520',borderRadius:8,border:'1px solid #10B98140'}}>
+                  ✓ Nenhuma inconsistência registrada nesta operação
+                </div>
+              )}
+            </>)}
+          </div>
+        </div>
+        <div style={ov.footer}>
+          <Button variant="secondary" onClick={onClose}>Fechar</Button>
+          {fch && <Button onClick={()=>exportFechamentoExcel(fch)}>⬇ Exportar Excel</Button>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Pagamentos() {
+  const { session } = useAuth()
   const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
   const { registrar: log } = useAuditLog()
-  const { contratos } = useContracts()
+  const { contratos, save: saveContrato } = useContracts()
+  const { companies, add: addCompany } = useCompanies()
   const { savePayment: saveCommissionPayment, rules: commissionRules, personas: commissionPersonas } = useCommissions()
   const { projetos } = useProjects()
   const { membros: oppMembros } = useOppMembros()
@@ -996,6 +1272,8 @@ export default function Pagamentos() {
   const [confirmComissao, setConfirmComissao] = useState(null)   // pag aguardando confirmação
   const [batchProgress, setBatchProgress]     = useState(null)   // { operations: [...] }
   const [inconsistenciaModal, setInconsistenciaModal] = useState(null) // { itens: [...], ids: [...] }
+  const [fechamentos, setFechamentos]         = useState(() => loadFechamentos())
+  const [fechamentoModal, setFechamentoModal] = useState(false)
 
   const periodos = useMemo(() => periodosUnicos(pagamentos), [pagamentos])
   const now = new Date()
@@ -1307,7 +1585,6 @@ export default function Pagamentos() {
     const anterior = pagamentos.find(p => p.id === pag.id)
     savePagamento(pag)
     log('editar', 'pagamento', pag.id, { descricao: `Pagamento editado: ${pag.company_nome || ''} — ${pag.reference_month || ''}${pag.status !== anterior?.status ? ` (status: ${pag.status})` : ''}` })
-    console.log('[handleSave] status=', pag.status, 'anterior=', anterior?.status, 'produto_id=', pag.produto_id, 'company_id=', pag.company_id)
     if (pag.status === 'pago' && anterior?.status !== 'pago') {
       // Executa imediatamente — sem depender de confirmação manual
       gerarRepasses(pag)
@@ -1322,16 +1599,10 @@ export default function Pagamentos() {
     const produto = produtosNovo.find(p => String(p.id) === String(pag.produto_id))
     // também tenta pelo nome caso o id não bata
     const produtoFinal = produto || produtosNovo.find(p => p.nome === pag.produto_nome)
-    console.log('[provisão] pag.produto_id=', pag.produto_id, 'pag.produto_nome=', pag.produto_nome)
-    console.log('[provisão] produtosNovo ids=', produtosNovo.map(p=>({id:p.id,nome:p.nome,cobranca:p.cobranca})).slice(0,5))
-    console.log('[provisão] produtoFinal=', produtoFinal)
-    if (!produtoFinal || produtoFinal.cobranca !== 'mensal') {
-      console.log('[provisão] BLOQUEADO — produto não encontrado ou cobranca !=', produtoFinal?.cobranca)
-      return
-    }
+    if (!produtoFinal || produtoFinal.cobranca !== 'mensal') return
 
-    // Calcula próximo mês a partir de reference_month
-    const ref = pag.reference_month || pag.due_date || ''
+    // Base: data_baixa (data em que o pagamento foi recebido); fallback para reference_month/due_date
+    const ref = pag.data_baixa || pag.reference_month || pag.due_date || ''
     const base = ref ? new Date(ref + 'T12:00:00') : new Date()
     const nextYear  = base.getMonth() === 11 ? base.getFullYear() + 1 : base.getFullYear()
     const nextMonth = base.getMonth() === 11 ? 1 : base.getMonth() + 2 // getMonth() é 0-based
@@ -1349,8 +1620,7 @@ export default function Pagamentos() {
       (p.reference_month || '').slice(0, 7) === `${nextYear}-${nextMonthStr}` &&
       p.status !== 'cancelado'
     )
-    console.log('[provisão] nextRefKey=', nextRefKey, 'jaExiste=', jaExiste)
-    if (jaExiste) { console.log('[provisão] BLOQUEADO por duplicata'); return }
+    if (jaExiste) return
 
     const dataRecebimento = pag.data_baixa || pag.reference_month || ref
     const dataFmt = dataRecebimento
@@ -1383,6 +1653,7 @@ export default function Pagamentos() {
       notes:           obsProvisao,
     }
     savePagamento(provisao)
+    return provisao
   }
 
   function detectarInconsistencias(ids) {
@@ -1431,39 +1702,66 @@ export default function Pagamentos() {
     const naoEramPagos = pagamentos.filter(p => ids.includes(p.id) && p.status !== 'pago')
     const inconsistenciaIds = new Set(inconsistencias.map(i => i.pag.id))
     const ops = [
-      { id: 'receber', label: 'Registrando recebimentos', total: naoEramPagos.length, done: 0 },
-      { id: 'comissoes', label: 'Gerando comissões e repasses', total: naoEramPagos.length, done: 0 },
+      { id: 'receber',        label: 'Registrando recebimentos',      total: naoEramPagos.length, done: 0 },
+      { id: 'inconsistencias',label: 'Verificando inconsistências',   total: naoEramPagos.length, done: 0 },
+      { id: 'provisoes',      label: 'Gerando novas provisões',       total: naoEramPagos.length, done: 0 },
+      { id: 'comissoes',      label: 'Gerando comissões e repasses',  total: naoEramPagos.length, done: 0 },
     ]
     setBatchProgress({ operations: ops })
+
+    // Etapa 1 — salvar status pago
+    const pagosList = []
     for (let i = 0; i < naoEramPagos.length; i++) {
       const raw = naoEramPagos[i]
       const temInconsistencia = inconsistenciaIds.has(raw.id)
       const motivoInc = temInconsistencia ? inconsistencias.find(x => x.pag.id === raw.id)?.motivo : null
       const pag = {
-        ...raw,
-        status: 'pago',
-        inconsistencia: temInconsistencia,
-        notes: motivoInc
-          ? `${raw.notes ? raw.notes + '\n' : ''}[Inconsistência] ${motivoInc}`
-          : raw.notes,
+        ...raw, status: 'pago', inconsistencia: temInconsistencia,
+        notes: motivoInc ? `${raw.notes ? raw.notes + '\n' : ''}[Inconsistência] ${motivoInc}` : raw.notes,
       }
       await savePagamento(pag)
-      setBatchProgress(prev => ({
-        operations: prev.operations.map(op =>
-          op.id === 'receber' ? { ...op, done: i + 1 } : op
-        ),
-      }))
+      pagosList.push(pag)
+      setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='receber' ? {...op,done:i+1} : op) }))
     }
-    for (let i = 0; i < naoEramPagos.length; i++) {
-      const pag = { ...naoEramPagos[i], status: 'pago' }
-      gerarRepasses(pag)
-      gerarProvisaoProximoMes(pag)
-      setBatchProgress(prev => ({
-        operations: prev.operations.map(op =>
-          op.id === 'comissoes' ? { ...op, done: i + 1 } : op
-        ),
-      }))
+
+    // Etapa 2 — verificar inconsistências (já marcadas acima, só atualiza barra)
+    for (let i = 0; i < pagosList.length; i++) {
+      await new Promise(r => setTimeout(r, 10))
+      setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='inconsistencias' ? {...op,done:i+1} : op) }))
     }
+
+    // Etapa 3 — gerar provisões
+    const provisoesGeradas = []
+    for (let i = 0; i < pagosList.length; i++) {
+      const prov = gerarProvisaoProximoMes(pagosList[i])
+      if (prov) provisoesGeradas.push(prov)
+      setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='provisoes' ? {...op,done:i+1} : op) }))
+    }
+
+    // Etapa 4 — comissões e repasses
+    for (let i = 0; i < pagosList.length; i++) {
+      gerarRepasses(pagosList[i])
+      setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='comissoes' ? {...op,done:i+1} : op) }))
+    }
+
+    // Salvar relatório de fechamento
+    const usuario = session?.user?.email || 'desconhecido'
+    const valorLiberado = pagosList.filter(p=>!p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
+    const valorInconsistente = pagosList.filter(p=>p.inconsistencia).reduce((s,p)=>s+(p.amount_total_net||0),0)
+    const fechamento = {
+      id: Date.now(),
+      data: new Date().toLocaleString('pt-BR'),
+      usuario,
+      totalProcessados: pagosList.length,
+      totalProvisoes: provisoesGeradas.length,
+      valorLiberado,
+      valorInconsistente,
+      inconsistentes: pagosList.filter(p=>p.inconsistencia).map(p=>({
+        id:p.id, company_nome:p.company_nome, contract_numero:p.contract_numero,
+        reference_month:p.reference_month, amount_total_net:p.amount_total_net, notes:p.notes,
+      })),
+    }
+    setFechamentos(prev => { const next=[fechamento,...prev]; saveFechamentos(next); return next })
   }
 
   function confirmarGerarComissao(pag) {
@@ -1654,6 +1952,10 @@ export default function Pagamentos() {
               executarBulkReceber(ids)
             }
           }},
+          { label: 'Alterar Status ▾', type:'dropdown', options:[
+            { label:'Pendente',   onClick: ids => setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'pendente'}:p)) },
+            { label:'Cancelado',  onClick: ids => setPagamentos(prev=>prev.map(p=>ids.includes(p.id)?{...p,status:'cancelado'}:p)) },
+          ]},
           { label: 'Excluir', onClick: ids => {
             if (window.confirm(`Excluir ${ids.length} pagamento(s) permanentemente?`))
               setPagamentos(prev => prev.filter(p => !ids.includes(p.id)))
@@ -1662,6 +1964,9 @@ export default function Pagamentos() {
         onRowClick={p => setDetalheModal(p)}
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}
+        extraMenuItems={[
+          { label: '📊 Relatório de Fechamento', dividerBefore: true, onClick: () => setFechamentoModal(true) },
+        ]}
         emptyState={
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:8, color:'var(--text-muted)' }}>
             <span style={{ fontSize:28, opacity:0.3 }}>💸</span>
@@ -1813,7 +2118,18 @@ export default function Pagamentos() {
       </SlideOver>
 
       {importModal && (
-        <ImportModal onClose={() => setImportModal(false)} onImport={handleImport} />
+        <ImportModal
+          onClose={() => setImportModal(false)}
+          onImport={handleImport}
+          companies={companies}
+          addCompany={addCompany}
+          contratos={contratos}
+          saveContrato={saveContrato}
+        />
+      )}
+
+      {fechamentoModal && (
+        <FechamentoModal fechamentos={fechamentos} onClose={() => setFechamentoModal(false)} />
       )}
 
       {recebidoFeedback && (

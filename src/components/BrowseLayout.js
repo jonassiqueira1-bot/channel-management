@@ -83,6 +83,44 @@ function exportExcel(cols, rows, filename) {
   downloadFile(html, filename + '.xls', 'application/vnd.ms-excel;charset=utf-8')
 }
 
+// ── BulkDropdown ──────────────────────────────────────────────────────────────
+function BulkDropdown({ label, options, selected, setSelected }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o=>!o)}
+        style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px',
+          background:'rgba(255,255,255,0.15)', border:'1px solid rgba(255,255,255,0.3)',
+          borderRadius:7, color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer',
+          fontFamily:'var(--font)' }}>
+        {label}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, minWidth:140,
+          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
+          boxShadow:'0 8px 24px rgba(0,0,0,0.12)', zIndex:300, overflow:'hidden' }}>
+          {options.map((opt, i) => (
+            <button key={i} type="button" onClick={() => { opt.onClick([...selected]); setSelected(new Set()); setOpen(false) }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'9px 14px',
+                border:'none', background:'none', fontSize:13, color:'var(--text)',
+                cursor:'pointer', fontFamily:'var(--font)' }}
+              onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+              onMouseLeave={e=>e.currentTarget.style.background='none'}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── constantes ────────────────────────────────────────────────────────────────
 const PAGE_SIZES = [20, 50, 100]
 const STORAGE_NS = 'browse_layout_'
@@ -379,6 +417,7 @@ export default function BrowseLayout({
   onImport,
   onExportCsv,              // override: callback personalizado (opcional)
   onExportExcel,            // override: callback personalizado (opcional)
+  extraMenuItems,           // [{label, onClick, dividerBefore?}] — itens extras no menu de três pontos
   secondaryActions,
   onRowClick,
 }) {
@@ -655,15 +694,19 @@ export default function BrowseLayout({
             )}
 
             {bulkActions.map((a, i) => (
-              <button
-                key={i}
-                type="button"
-                style={{ ...s.bulkBtn, ...(a.variant === 'danger' ? s.bulkBtnDanger : {}) }}
-                onClick={() => { a.onClick([...selected]); setSelected(new Set()) }}
-              >
-                {a.icon && a.icon}
-                {a.label}
-              </button>
+              a.type === 'dropdown' ? (
+                <BulkDropdown key={i} label={a.label} options={a.options} selected={selected} setSelected={setSelected} />
+              ) : (
+                <button
+                  key={i}
+                  type="button"
+                  style={{ ...s.bulkBtn, ...(a.variant === 'danger' ? s.bulkBtnDanger : {}) }}
+                  onClick={() => { a.onClick([...selected]); setSelected(new Set()) }}
+                >
+                  {a.icon && a.icon}
+                  {a.label}
+                </button>
+              )
             ))}
             <button
               type="button"
@@ -810,6 +853,12 @@ export default function BrowseLayout({
                   Exportar Excel (.xls)
                 </div>
                 {onImport && <><div style={s.dropdownDivider} /><div style={s.dropdownItem} onClick={onImport}>Importar dados</div></>}
+                {(extraMenuItems||[]).map((item, i) => (
+                  <span key={i}>
+                    {item.dividerBefore && <div style={s.dropdownDivider} />}
+                    <div style={s.dropdownItem} onClick={() => { setOpenId(null); item.onClick() }}>{item.label}</div>
+                  </span>
+                ))}
               </Dropdown>
 
               {/* Botão primário */}
