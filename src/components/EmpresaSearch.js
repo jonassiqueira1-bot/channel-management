@@ -54,14 +54,18 @@ export default function EmpresaSearch({ value, label, onChange, placeholder = 'B
   }, [])
 
   const opts = useMemo(() => {
-    const q = query.toLowerCase()
+    const q = query.trim().toLowerCase()
+    if (!q) return companies.slice(0, 8)
+    const qDigits = q.replace(/\D/g, '')
     return companies
       .filter(e => {
-        const nome = (e.fantasia || e.razao || '').toLowerCase()
-        const cnpj = (e.cnpj || '').replace(/\D/g, '')
-        return nome.includes(q) || cnpj.includes(q.replace(/\D/g, ''))
+        const fantasia = (e.fantasia || '').toLowerCase()
+        const razao    = (e.razao    || '').toLowerCase()
+        const cnpj     = String(e.cnpj || '').replace(/\D/g, '')
+        return fantasia.includes(q) || razao.includes(q) ||
+               (qDigits && cnpj.includes(qDigits))
       })
-      .slice(0, 8)
+      .slice(0, 10)
   }, [query, companies])
 
   function getNome(e) { return e.fantasia || e.razao || '' }
