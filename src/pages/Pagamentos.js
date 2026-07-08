@@ -1326,16 +1326,20 @@ export default function Pagamentos() {
     // Calcula próximo mês a partir de reference_month
     const ref = pag.reference_month || pag.due_date || ''
     const base = ref ? new Date(ref + 'T12:00:00') : new Date()
-    const proximo = new Date(base.getFullYear(), base.getMonth() + 1, 1)
-    const nextYear  = proximo.getFullYear()
-    const nextMonth = String(proximo.getMonth() + 1).padStart(2, '0')
-    const nextKey   = `${nextYear}-${nextMonth}-01`
+    const nextYear  = base.getMonth() === 11 ? base.getFullYear() + 1 : base.getFullYear()
+    const nextMonth = base.getMonth() === 11 ? 1 : base.getMonth() + 2 // getMonth() é 0-based
+    const nextMonthStr = String(nextMonth).padStart(2, '0')
+    // último dia do próximo mês: dia 0 do mês seguinte = último dia do mês desejado
+    const ultimoDia = new Date(nextYear, nextMonth, 0).getDate()
+    const nextRefKey    = `${nextYear}-${nextMonthStr}-01`   // competência: sempre dia 01
+    const nextDueDate   = `${nextYear}-${nextMonthStr}-${String(ultimoDia).padStart(2, '0')}`  // vencimento: último dia
 
-    // Evita duplicata: mesmo produto + empresa + vencimento já existente pendente
-    const jaExiste = pagamentos.some(p =>
+    // Evita duplicata: mesmo produto + empresa + competência já existente (não cancelado)
+    const jaExiste = (pag.produto_id && pag.company_id) && pagamentos.some(p =>
+      p.id !== pag.id &&
       String(p.produto_id) === String(pag.produto_id) &&
       String(p.company_id) === String(pag.company_id) &&
-      (p.due_date || '').slice(0, 7) === `${nextYear}-${nextMonth}` &&
+      (p.reference_month || '').slice(0, 7) === `${nextYear}-${nextMonthStr}` &&
       p.status !== 'cancelado'
     )
     if (jaExiste) return
@@ -1363,8 +1367,8 @@ export default function Pagamentos() {
       status:          'pendente',
       processed:       false,
       inconsistencia:  false,
-      reference_month: nextKey,
-      due_date:        nextKey,
+      reference_month: nextRefKey,
+      due_date:        nextDueDate,
       data_pagamento:  null,
       data_baixa:      null,
       parcela:         nextParcela,
