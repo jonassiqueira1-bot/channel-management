@@ -1870,7 +1870,7 @@ export default function Pagamentos() {
           reference_month:p.reference_month, amount_total_net:p.amount_total_net, notes:p.notes,
         })),
       }
-      setFechamentos(prev => { const next=[fechamento,...prev]; saveFechamentos(next); return next })
+      setFechamentos(prev => { const next=[fechamento,...prev].slice(0,60); saveFechamentos(next); return next })
     }
   }
 
@@ -2058,7 +2058,10 @@ export default function Pagamentos() {
           { label: 'Alterar Status ▾', type:'dropdown', options:
             Object.entries(STATUS_PAGAMENTO).map(([key, cfg]) => ({
               label: cfg.label,
-              onClick: ids => setPagamentos(prev => prev.map(p => ids.includes(p.id) ? {...p, status:key} : p)),
+              onClick: ids => {
+                if (key === 'pago') { setConfirmBulkModal({ ids }); return }
+                setPagamentos(prev => prev.map(p => ids.includes(p.id) ? {...p, status:key} : p))
+              },
             }))
           },
           { label: 'Excluir', onClick: ids => {
