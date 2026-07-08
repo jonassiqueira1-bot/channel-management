@@ -1114,7 +1114,7 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
   const isEscal  = comb.tipo_calculo === 'escalonado'
 
   return (
-    <div style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+    <div style={{ border:'2px solid var(--accent)', borderRadius:12, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.08)' }}>
       {/* Header */}
       <div onClick={() => setOpen(o => !o)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', cursor:'pointer', background:'var(--surface2)', userSelect:'none' }}>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
