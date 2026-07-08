@@ -1374,6 +1374,8 @@ export default function Pagamentos() {
   const [batchProgress, setBatchProgress]     = useState(null)   // { operations: [...] }
   const [inconsistenciaModal, setInconsistenciaModal] = useState(null) // { itens: [...], ids: [...] }
   const [confirmBulkModal, setConfirmBulkModal]       = useState(null) // { ids: [...] }
+  const [pendingBulkEdit, setPendingBulkEdit]         = useState(null) // { ids, changes }
+  const bulkEditCloseRef = useRef(null)
   const [fechamentos, setFechamentos]         = useState(() => loadFechamentos())
   const [fechamentoModal, setFechamentoModal] = useState(false)
 
@@ -2065,6 +2067,31 @@ export default function Pagamentos() {
           }},
         ]}
         onRowClick={p => setDetalheModal(p)}
+        bulkEditFields={[
+          { key: 'status', label: 'Status', type: 'select',
+            options: Object.entries(STATUS_PAGAMENTO).map(([k, v]) => ({ value: k, label: v.label })) },
+          { key: 'due_date',        label: 'Vencimento',  type: 'date' },
+          { key: 'reference_month', label: 'Competência', type: 'date' },
+          { key: 'data_baixa',      label: 'Data da Baixa', type: 'date' },
+          { key: 'notes',           label: 'Observações', type: 'textarea' },
+        ]}
+        onBulkEdit={(ids, changes) => {
+          // Mudança para "pago" → intercepta para mostrar confirmação com steps
+          if (changes.status === 'pago') {
+            setPendingBulkEdit({ ids, changes })
+            setConfirmBulkModal({ ids })
+            return false // impede o painel de fechar
+          }
+          // Demais mudanças → aplica direto
+          setPagamentos(prev => prev.map(p =>
+            ids.includes(p.id) ? { ...p, ...changes } : p
+          ))
+          ids.forEach(id => {
+            const pag = pagamentos.find(p => p.id === id)
+            if (pag) savePagamento({ ...pag, ...changes })
+          })
+        }}
+        bulkEditCloseRef={bulkEditCloseRef}
         onImport={() => setImportModal(true)}
         onExportCsv={handleExport}
         extraMenuItems={[
@@ -2252,10 +2279,16 @@ export default function Pagamentos() {
           ids={confirmBulkModal.ids}
           pagamentos={pagamentos}
           produtosNovo={produtosNovo}
-          onCancel={() => setConfirmBulkModal(null)}
+          onCancel={() => {
+            setConfirmBulkModal(null)
+            setPendingBulkEdit(null)
+            // painel fica aberto para o usuário revisar/corrigir
+          }}
           onConfirm={(isFechamento) => {
             const { ids } = confirmBulkModal
             setConfirmBulkModal(null)
+            setPendingBulkEdit(null)
+            bulkEditCloseRef.current?.()
             const inconsistencias = detectarInconsistencias(ids)
             if (inconsistencias.length > 0) {
               setInconsistenciaModal({ itens: inconsistencias, ids, isFechamento })

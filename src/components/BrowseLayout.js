@@ -410,6 +410,7 @@ export default function BrowseLayout({
   bulkActions      = [],
   bulkEditFields,
   onBulkEdit,
+  bulkEditCloseRef,   // ref preenchida com closeBulkEdit — permite fechar o painel externamente
   renderCard,
   storageKey       = 'default',
   exportFilename,           // nome base do arquivo exportado; default = storageKey
@@ -611,10 +612,19 @@ export default function BrowseLayout({
       if (on) changes[k] = bulkEdits[k] ?? ''
     })
     if (Object.keys(changes).length === 0) return
-    onBulkEdit?.([...selected], changes)
+    // onBulkEdit pode retornar false para interceptar (ex: mostrar popup de confirmação)
+    const result = onBulkEdit?.([...selected], changes)
+    if (result === false) return   // interceptado — não fecha o painel
     setBulkEditOpen(false)
     setSelected(new Set())
   }
+
+  // permite fechar o painel externamente (ex: após confirmação assíncrona)
+  function closeBulkEdit() {
+    setBulkEditOpen(false)
+    setSelected(new Set())
+  }
+  if (bulkEditCloseRef) bulkEditCloseRef.current = closeBulkEdit
 
   // ── drag-and-drop de reordenação de colunas ───────────────────────────────
   const dragKey = useRef(null)
