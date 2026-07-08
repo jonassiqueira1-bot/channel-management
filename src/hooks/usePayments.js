@@ -62,7 +62,11 @@ function paymentToRow(p, tenantId, branchId) {
     branch_id:       branchId || null,
     company_id:      p.company_id || null,
     status:          p.status || 'pendente',
-    // Colunas diretas no schema payments
+    // Colunas legadas (NOT NULL no banco real)
+    descricao:       p.notes || p.descricao || '',
+    vencimento:      p.due_date || p.vencimento || null,
+    data_pagamento:  p.reference_month || p.data_pagamento || null,
+    // Colunas novas adicionadas via migration
     reference_month: p.reference_month || null,
     due_date:        p.due_date || null,
     notes:           p.notes || '',
