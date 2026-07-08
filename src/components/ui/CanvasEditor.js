@@ -309,11 +309,175 @@ function RenderEl({ el, source, sources }) {
     )
   }
 
+  if (el.tipo === 'quebra_pagina') {
+    return (
+      <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',gap:8,pointerEvents:'none',userSelect:'none'}}>
+        <div style={{flex:1,height:1,borderTop:'2px dashed #94A3B8'}}/>
+        <span style={{fontSize:9,fontWeight:700,color:'#94A3B8',textTransform:'uppercase',letterSpacing:'0.1em',whiteSpace:'nowrap',background:'transparent'}}>↵ Nova Página</span>
+        <div style={{flex:1,height:1,borderTop:'2px dashed #94A3B8'}}/>
+      </div>
+    )
+  }
+
+  // ── Tipos exclusivos de proposta ─────────────────────────────────────────────
+
+  if (el.tipo === 'variavel') {
+    const pd = el._projetoData || {}
+    const hoje = new Date().toLocaleDateString('pt-BR')
+    const vars = {
+      '{{produto}}': pd.produto || '—',
+      '{{data}}': hoje,
+      '{{empresa}}': pd.empresa || pd.nome || '—',
+      '{{nome_proposta}}': pd.nome || '—',
+      '{{investimento}}': pd.investimento ? `R$ ${Number(pd.investimento).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : '—',
+    }
+    const texto = (d.conteudo || '').replace(/\{\{[^}]+\}\}/g, m => vars[m] ?? m)
+    return (
+      <div style={{
+        fontSize: d.tamanhoFonte||14, fontWeight: d.negrito?700:400,
+        fontStyle: d.italico?'italic':'normal',
+        color: d.cor||'#18181b', textAlign: d.alinhamento||'left',
+        lineHeight: 1.6, padding: 4, width:'100%', height:'100%', wordBreak:'break-word',
+        whiteSpace:'pre-wrap',
+      }}>
+        {texto || <span style={{color:'#a1a1aa',fontSize:11}}>Clique para editar conteúdo com variáveis…</span>}
+      </div>
+    )
+  }
+
+  if (el.tipo === 'escopo') {
+    const pd = el._projetoData || {}
+    const fases = pd.wbs || []
+    if (!fases.length) {
+      return (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#a1a1aa',fontSize:11,flexDirection:'column',gap:4}}>
+          <span style={{fontSize:20}}>📋</span>
+          <span>WBS/Escopo da proposta</span>
+        </div>
+      )
+    }
+    const corCab = d.cor || '#1E3A5F'
+    // Separate contemplated (mostrar != false) from not contemplated (mostrar === false)
+    const fasesCont = fases.map(f => ({ ...f, atividades: (f.atividades||[]).filter(a=>a.mostrar!==false) })).filter(f=>f.atividades.length>0)
+    const naoContemplados = fases.flatMap(f => (f.atividades||[]).filter(a=>a.mostrar===false).map(a=>({ ...a, fase: f.nome })))
+    return (
+      <div style={{width:'100%',height:'100%',overflowY:'auto',fontSize:10}}>
+        <div style={{background:corCab,color:'#fff',padding:'4px 8px',fontWeight:700,fontSize:11,borderRadius:'4px 4px 0 0'}}>
+          {d.titulo || 'Escopo do Projeto'}
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead>
+            <tr style={{background:'#f4f4f5'}}>
+              <th style={{padding:'3px 6px',textAlign:'left',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7'}}>Fase / Atividade</th>
+              <th style={{padding:'3px 6px',textAlign:'center',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7',whiteSpace:'nowrap'}}>Horas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {fasesCont.map((fase,fi) => [
+              <tr key={`f${fi}`} style={{background:'#EFF6FF'}}>
+                <td colSpan={2} style={{padding:'3px 6px',fontWeight:700,color:'#1E3A5F',fontSize:10,borderBottom:'1px solid #e4e4e7'}}>{fase.nome}</td>
+              </tr>,
+              ...(fase.atividades||[]).map((atv,ai) => (
+                <tr key={`f${fi}a${ai}`} style={{background:ai%2?'#fafafa':'#fff'}}>
+                  <td style={{padding:'2px 6px 2px 14px',color:'#52525b',borderBottom:'1px solid #f4f4f5'}}>{atv.nome||atv.descricao}</td>
+                  <td style={{padding:'2px 6px',textAlign:'center',color:'#374151',fontFamily:'monospace',borderBottom:'1px solid #f4f4f5',whiteSpace:'nowrap'}}>{atv.horas||0}h</td>
+                </tr>
+              ))
+            ])}
+          </tbody>
+        </table>
+        {naoContemplados.length > 0 && (
+          <div style={{marginTop:6}}>
+            <div style={{background:'#fff',borderTop:'2px solid #DC2626',padding:'4px 8px 2px',fontWeight:700,fontSize:10,color:'#DC2626',letterSpacing:'0.03em'}}>
+              Itens não contemplados
+            </div>
+            <table style={{width:'100%',borderCollapse:'collapse'}}>
+              <tbody>
+                {naoContemplados.map((atv,i) => (
+                  <tr key={i} style={{background:i%2?'#fef2f2':'#fff'}}>
+                    <td style={{padding:'2px 6px 2px 12px',color:'#7f1d1d',fontSize:9,borderBottom:'1px solid #fecaca'}}>
+                      <span style={{color:'#DC2626',marginRight:4,fontWeight:700}}>—</span>
+                      {atv.nome||atv.descricao}
+                    </td>
+                    <td style={{padding:'2px 6px',textAlign:'right',color:'#DC2626',fontSize:9,borderBottom:'1px solid #fecaca',whiteSpace:'nowrap',fontStyle:'italic'}}>{atv.fase}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    )
+  }
+
+  if (el.tipo === 'investimento') {
+    const pd = el._projetoData || {}
+    const tarifas = pd.tarifas || []
+    const itens   = pd.itens   || []
+    const corCab  = d.cor || '#1E3A5F'
+    const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+    // Aggregate hours per tarifa papel, multiply by valor_hora
+    const tm = {}
+    tarifas.forEach(t => { tm[t.papel] = { label: t.label || t.papel, valor: Number(t.valor_hora||0) } })
+    const hByPapel = { analista:0, coordenacao:0, especialista:0 }
+    itens.filter(i=>i.nivel===2).forEach(a => {
+      const hA = Number(a.hr_analista||0), hC = Number(a.hr_coord||0)
+      if (a.tipo_hora==='analista'    || a.tipo_hora==='ana_coord') hByPapel.analista    += hA
+      if (a.tipo_hora==='coordenacao' || a.tipo_hora==='ana_coord') hByPapel.coordenacao += hC
+      if (a.tipo_hora==='especialista')                              hByPapel.especialista+= hA
+    })
+    const linhas = Object.entries(tm)
+      .map(([papel,{label,valor}]) => ({ nome:label, horas:hByPapel[papel]||0, unit:valor, total:(hByPapel[papel]||0)*valor }))
+      .filter(l => l.horas > 0)
+    const totalGeral = linhas.reduce((s,l)=>s+l.total,0)
+    if (!linhas.length) {
+      return (
+        <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#a1a1aa',fontSize:11,flexDirection:'column',gap:4}}>
+          <span style={{fontSize:20}}>💰</span>
+          <span>Quadro de Investimento</span>
+        </div>
+      )
+    }
+    return (
+      <div style={{width:'100%',height:'100%',overflowY:'auto',fontSize:10}}>
+        <div style={{background:corCab,color:'#fff',padding:'4px 8px',fontWeight:700,fontSize:11,borderRadius:'4px 4px 0 0'}}>
+          {d.titulo || 'Quadro de Investimento'}
+        </div>
+        <table style={{width:'100%',borderCollapse:'collapse'}}>
+          <thead>
+            <tr style={{background:'#f4f4f5'}}>
+              <th style={{padding:'3px 6px',textAlign:'left',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7'}}>Perfil</th>
+              <th style={{padding:'3px 6px',textAlign:'center',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7'}}>Horas</th>
+              <th style={{padding:'3px 6px',textAlign:'right',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7',whiteSpace:'nowrap'}}>R$/h</th>
+              <th style={{padding:'3px 6px',textAlign:'right',fontSize:9,color:'#71717a',fontWeight:700,textTransform:'uppercase',borderBottom:'1px solid #e4e4e7',whiteSpace:'nowrap'}}>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {linhas.map((l,i)=>(
+              <tr key={i} style={{background:i%2?'#fafafa':'#fff'}}>
+                <td style={{padding:'3px 6px',color:'#374151',borderBottom:'1px solid #f4f4f5'}}>{l.nome}</td>
+                <td style={{padding:'3px 6px',textAlign:'center',color:'#52525b',borderBottom:'1px solid #f4f4f5',fontFamily:'monospace'}}>{l.horas}h</td>
+                <td style={{padding:'3px 6px',textAlign:'right',color:'#52525b',borderBottom:'1px solid #f4f4f5',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fmtR(l.unit)}</td>
+                <td style={{padding:'3px 6px',textAlign:'right',color:'#374151',fontWeight:600,borderBottom:'1px solid #f4f4f5',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fmtR(l.total)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{background:corCab}}>
+              <td colSpan={3} style={{padding:'4px 6px',fontWeight:700,color:'#fff',fontSize:10}}>Total</td>
+              <td style={{padding:'4px 6px',textAlign:'right',fontWeight:800,color:'#fff',fontFamily:'monospace',whiteSpace:'nowrap'}}>{fmtR(totalGeral)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    )
+  }
+
   return null
 }
 
 // ── Painel de propriedades ────────────────────────────────────────────────────
-function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange }) {
+function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mode, projetoData }) {
   const [aba, setAba] = useState('el')
   const d = el?.dados || {}
   const source = el ? sources.find(s => s.id === d.sourceId) : null
@@ -435,6 +599,25 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange }) 
             <div>
               <label style={lbl}>{el.tipo==='forma'?'Texto interno':'Conteúdo'}</label>
               <textarea style={{...inp,resize:'vertical',lineHeight:1.6,minHeight:64}} value={d.conteudo||''} onChange={e=>upd({conteudo:e.target.value})}/>
+              {/* Variáveis disponíveis em modo proposta */}
+              {mode==='proposta' && el.tipo==='texto' && (
+                <div style={{marginTop:6,display:'flex',flexDirection:'column',gap:2}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>Inserir variável</div>
+                  {[
+                    {tag:'{{produto}}',   label:'Produto',       val: projetoData?.produto || ''},
+                    {tag:'{{data}}',      label:'Data atual',    val: new Date().toLocaleDateString('pt-BR')},
+                    {tag:'{{empresa}}',   label:'Empresa',       val: projetoData?.empresa || projetoData?.nome || ''},
+                    {tag:'{{nome_proposta}}', label:'Nome da proposta', val: projetoData?.nome || ''},
+                    {tag:'{{investimento}}', label:'Investimento', val: projetoData?.investimento ? `R$ ${Number(projetoData.investimento).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : ''},
+                  ].map(v=>(
+                    <button key={v.tag} onClick={()=>upd({conteudo:(d.conteudo||'')+v.tag})}
+                      style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'3px 7px',border:'1px solid var(--border)',borderRadius:4,background:'var(--surface2)',fontSize:10,cursor:'pointer',fontFamily:'var(--font)',textAlign:'left',gap:6}}>
+                      <span style={{color:'var(--accent)',fontFamily:'monospace',fontWeight:700}}>{v.tag}</span>
+                      {v.val && <span style={{color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',maxWidth:80}}>{v.val}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -487,7 +670,7 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange }) 
           )}
 
           {/* Tamanho texto */}
-          {['texto','forma'].includes(el.tipo) && (
+          {['texto','forma','variavel'].includes(el.tipo) && (
             <div>
               <label style={lbl}>Tamanho da fonte</label>
               <input type="number" style={inp} min={8} max={72} value={d.tamanhoFonte||14} onChange={e=>upd({tamanhoFonte:Number(e.target.value)})}/>
@@ -505,7 +688,7 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange }) 
           )}
 
           {/* Alinhamento texto */}
-          {el.tipo==='texto' && (
+          {['texto','variavel'].includes(el.tipo) && (
             <div>
               <label style={lbl}>Alinhamento</label>
               <div style={{display:'flex',gap:4}}>
@@ -593,6 +776,31 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange }) 
                     style={{width:28,height:24,border:'1px solid var(--border)',borderRadius:4,cursor:'pointer',padding:1,marginLeft:'auto'}}/>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* Variável — conteúdo com tags */}
+          {el.tipo==='variavel' && (
+            <div>
+              <label style={lbl}>Conteúdo</label>
+              <textarea style={{...inp,resize:'vertical',lineHeight:1.6,minHeight:72}} value={d.conteudo||''} onChange={e=>upd({conteudo:e.target.value})}/>
+              <div style={{marginTop:6,display:'flex',flexDirection:'column',gap:2}}>
+                <div style={{fontSize:9,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em',marginBottom:2}}>Variáveis disponíveis</div>
+                {['{{produto}}','{{data}}','{{empresa}}','{{nome_proposta}}','{{investimento}}'].map(v=>(
+                  <button key={v} onClick={()=>upd({conteudo:(d.conteudo||'')+v})}
+                    style={{textAlign:'left',padding:'3px 6px',border:'1px solid var(--border)',borderRadius:4,background:'var(--surface2)',fontSize:10,cursor:'pointer',fontFamily:'monospace',color:'var(--accent)',fontWeight:600}}>
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Escopo / Investimento — título e cor */}
+          {['escopo','investimento'].includes(el.tipo) && (
+            <div>
+              <label style={lbl}>Título do bloco</label>
+              <input style={inp} value={d.titulo||''} onChange={e=>upd({titulo:e.target.value})}/>
             </div>
           )}
 
@@ -1085,8 +1293,12 @@ export default function CanvasEditor({
       grafico: { w: usableW, h: 200, dados: { tipoGrafico:'bar', metrica:'COUNT', titulo:'Gráfico', cor:'#2563EB' } },
       tabela:  { w: usableW, h: 200, dados: { limite:10, campos:[] } },
       imagem:  { w: usableW, h: 200, dados: { url:'', fit:'cover', raio:0 } },
-      divisor: { w: usableW, h: 16,  dados: { cor:'#e4e4e7', espessura:1, estilo:'solid' } },
-      forma:   { w: 160, h: 80, dados: { tipoForma:'retangulo', cor:'#2563EB', corFundo:'#EFF6FF', raio:8 } },
+      divisor:     { w: usableW, h: 16,  dados: { cor:'#e4e4e7', espessura:1, estilo:'solid' } },
+      forma:       { w: 160, h: 80, dados: { tipoForma:'retangulo', cor:'#2563EB', corFundo:'#EFF6FF', raio:8 } },
+      variavel:     { w: usableW, h: 60,  dados: { conteudo:'{{produto}}', tamanhoFonte:14, alinhamento:'left', cor:'#18181b' } },
+      escopo:       { w: usableW, h: 280, dados: { titulo:'Escopo do Projeto', cor:'#1E3A5F' } },
+      investimento: { w: usableW, h: 200, dados: { titulo:'Quadro de Investimento', cor:'#1E3A5F' } },
+      quebra_pagina:{ w: usableW, h: 24,  dados: {} },
     }
     const base = defaults[tipo] || { w:300, h:100, dados:{} }
     const novo = {
@@ -1102,6 +1314,28 @@ export default function CanvasEditor({
 
   const updateEl = useCallback((el) => setElementos(prev => prev.map(e => e.id===el.id?el:e)), [])
   const deleteEl = useCallback((id) => { setElementos(prev => prev.filter(e=>e.id!==id)); setSelecionadoId(null) }, [])
+
+  // Atalhos de teclado: Delete/Backspace para excluir, setas para mover
+  useEffect(() => {
+    const onKey = (e) => {
+      // Não disparar se foco está em input/textarea/[contenteditable]
+      const tag = document.activeElement?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || document.activeElement?.isContentEditable) return
+      if (!selecionadoId) return
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteEl(selecionadoId)
+      } else if (['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)) {
+        e.preventDefault()
+        const step = e.shiftKey ? 10 : 1
+        const dx = e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0
+        const dy = e.key==='ArrowUp'?-step:e.key==='ArrowDown'?step:0
+        setElementos(prev => prev.map(el => el.id===selecionadoId ? {...el, x:Math.max(0,el.x+dx), y:Math.max(0,el.y+dy)} : el))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [selecionadoId, deleteEl])
 
   const handleSave = useCallback(async () => {
     setSaving(true)
@@ -1162,6 +1396,49 @@ export default function CanvasEditor({
               </button>
             )
           })}
+          {/* Proposta-only items */}
+          {mode==='proposta' && (
+            <>
+              <div style={{width:36,height:1,background:'var(--border)',margin:'4px 0'}}/>
+              {[
+                { tipo:'variavel',     icon:'{}',  label:'Var.' },
+                { tipo:'quebra_pagina',icon:'↵',   label:'Págs.' },
+                { tipo:'escopo',       icon:'📋',  label:'WBS'  },
+                { tipo:'investimento', icon:'💰',  label:'R$'   },
+              ].map(p=>{
+                const isOpen = subPaleta===p.tipo
+                return (
+                  <button key={p.tipo} title={p.label}
+                    onClick={()=>{ if(p.tipo==='variavel'||p.tipo==='quebra_pagina'){addEl(p.tipo)}else{setSubPaleta(isOpen?null:p.tipo)} }}
+                    style={{width:44,height:44,borderRadius:9,border:`1px solid ${isOpen?'var(--accent)':'var(--border)'}`,background:isOpen?'var(--accent)12':'var(--surface2)',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:2,fontFamily:'var(--font)',transition:'border-color .15s'}}
+                    onMouseEnter={e=>{if(!isOpen){e.currentTarget.style.borderColor='var(--accent)';e.currentTarget.style.background='var(--accent)08'}}}
+                    onMouseLeave={e=>{if(!isOpen){e.currentTarget.style.borderColor='var(--border)';e.currentTarget.style.background='var(--surface2)'}}}>
+                    <span style={{fontSize:13,lineHeight:1,color:isOpen?'var(--accent)':'var(--text-soft)'}}>{p.icon}</span>
+                    <span style={{fontSize:7,color:isOpen?'var(--accent)':'var(--text-muted)',fontWeight:500}}>{p.label}</span>
+                  </button>
+                )
+              })}
+              {/* Flyout para escopo/investimento */}
+              {(subPaleta==='escopo'||subPaleta==='investimento') && (
+                <div style={{position:'absolute',left:64,top:0,width:180,background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.12)',padding:8,zIndex:20}}>
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',paddingBottom:6,borderBottom:'1px solid var(--border)',marginBottom:4}}>
+                    <span style={{fontSize:10,fontWeight:700,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                      {subPaleta==='escopo'?'WBS / Escopo':'Quadro de Investimento'}
+                    </span>
+                    <button onClick={()=>setSubPaleta(null)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',padding:0}}><X size={12}/></button>
+                  </div>
+                  <button onClick={()=>addEl(subPaleta)}
+                    style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',border:'none',background:'none',cursor:'pointer',borderRadius:7,textAlign:'left',fontFamily:'var(--font)',width:'100%',fontSize:12,color:'var(--text-soft)'}}
+                    onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+                    onMouseLeave={e=>e.currentTarget.style.background='none'}>
+                    <span>{subPaleta==='escopo'?'📋':'💰'}</span>
+                    {subPaleta==='escopo'?'Tabela de escopo da proposta':'Tabela de investimento'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
           <div style={{flex:1}}/>
 
           {/* Submenu flyout */}
@@ -1243,101 +1520,166 @@ export default function CanvasEditor({
         <div ref={canvasRef} style={{flex:1,overflowY:'auto',overflowX:'auto',background:'#e8e8e8',display:'flex',justifyContent:'center',padding:'24px'}}
           onClick={()=>setSelecionadoId(null)}>
           {(() => {
-            const ps = pageSize(config)
-            const mg = config.margens || CONFIG_PADRAO.margens
-            const cab = config.cabecalho || CONFIG_PADRAO.cabecalho
-            const rod = config.rodape    || CONFIG_PADRAO.rodape
-            const headerH = cab.ativo ? 60 : 0
+            const ps        = pageSize(config)
+            const mg        = config.margens   || CONFIG_PADRAO.margens
+            const cab       = config.cabecalho || CONFIG_PADRAO.cabecalho
+            const rod       = config.rodape    || CONFIG_PADRAO.rodape
+            const headerH   = cab.ativo ? 60 : 0
+            const footerH   = rod.ativo ? 32 : 0
             const usableTop  = (mg.top||76) + headerH
             const usableLeft = mg.left||76
+            const usableH    = ps.h - usableTop - (mg.bottom||76) - footerH
+
+            // Compute page segments using quebra_pagina elements as hard breaks
+            const breaks = elementos
+              .filter(e => e.tipo === 'quebra_pagina')
+              .map(e => e.y)
+              .sort((a,b) => a-b)
+
+            // Build continuous segments: [(segStart, segEnd), ...]
+            // Within each segment, auto-split into pages if content exceeds usableH
+            const segBoundaries = [0, ...breaks, Infinity]
+            const pages = [] // { segStartY, pageStartY, pageEndY }
+            for (let s = 0; s < segBoundaries.length - 1; s++) {
+              const segStart = segBoundaries[s]
+              const segEnd   = segBoundaries[s + 1]
+              // find elements in this segment (excluding the break itself at start)
+              const segEls = elementos.filter(e =>
+                e.tipo !== 'quebra_pagina' && e.y >= segStart && (segEnd === Infinity || e.y < segEnd)
+              )
+              // also include the break marker at segStart (if s > 0)
+              const maxElY = segEls.length ? Math.max(...segEls.map(e => e.y + e.h)) : segStart
+              // How many auto-pages this segment needs
+              const segHeight = Math.max(0, maxElY - segStart)
+              const nAutoPages = Math.max(1, Math.ceil(segHeight / usableH))
+              for (let p = 0; p < nAutoPages; p++) {
+                pages.push({
+                  segStartY: segStart,
+                  pageStartY: segStart + p * usableH,
+                  pageEndY:   segStart + (p + 1) * usableH,
+                  pageNum: pages.length + 1,
+                  isFirstInSeg: p === 0,
+                })
+              }
+            }
+            if (!pages.length) pages.push({ segStartY:0, pageStartY:0, pageEndY:usableH, pageNum:1, isFirstInSeg:true })
+
+            const totalH = pages.length * ps.h + (pages.length - 1) * 24
+
             return (
-              <div style={{transform:`scale(${zoom})`,transformOrigin:'top center',marginBottom:`${(zoom-1)*ps.h}px`}} onClick={e=>e.stopPropagation()}>
-                <div style={{width:ps.w, height:ps.h, background:pageBg(config), position:'relative', flexShrink:0, boxShadow:'0 4px 32px rgba(0,0,0,0.18)', overflow:'hidden'}}>
+              <div style={{transform:`scale(${zoom})`,transformOrigin:'top center',marginBottom:`${(zoom-1)*totalH}px`,display:'flex',flexDirection:'column',gap:24,alignItems:'center'}} onClick={e=>e.stopPropagation()}>
+                {pages.map(({ pageStartY, pageEndY, pageNum, isFirstInSeg }, pi) => {
 
-                  {/* Marca d'água */}
-                  {config.marcaDagua?.ativo && (
-                    <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none',zIndex:2}}>
-                      <span style={{fontSize:72,fontWeight:900,color:`rgba(0,0,0,${config.marcaDagua?.opacidade||0.06})`,transform:'rotate(-35deg)',letterSpacing:8,userSelect:'none'}}>
-                        {config.marcaDagua?.texto||'RASCUNHO'}
-                      </span>
-                    </div>
-                  )}
+                  // Elements belonging to this page (by Y in continuous space)
+                  const pageEls = elementos.filter(el => {
+                    if (el.tipo === 'quebra_pagina') return el.y >= pageStartY && el.y < pageEndY
+                    return el.y >= pageStartY && el.y < pageEndY
+                  })
 
-                  {/* Cabeçalho */}
-                  {cab.ativo && (
-                    <div style={{
-                      position:'absolute',top:0,left:0,right:0,height:60,zIndex:1,
-                      background: cabBg(cab),
-                      backgroundImage: cab.tipoFundo==='imagem' && cab.imagemUrl ? `url(${cab.imagemUrl})` : undefined,
-                      backgroundSize: cab.imagemAjuste||'cover',
-                      backgroundPosition:'center',
-                      backgroundRepeat:'no-repeat',
-                      display:'flex',alignItems:'center',padding:`0 ${usableLeft}px`,gap:14,
-                    }}>
-                      {/* overlay semitransparente sobre imagem para legibilidade do texto */}
-                      {cab.tipoFundo==='imagem' && cab.imagemUrl && cab.imagemOverlay && (
-                        <div style={{position:'absolute',inset:0,background:`rgba(0,0,0,${cab.imagemOpacidade??0.35})`,zIndex:0}}/>
-                      )}
-                      <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:14,width:'100%'}}>
-                        {cab.logoLetra && (
-                          <div style={{width:32,height:32,background:'rgba(255,255,255,0.9)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                            <span style={{fontSize:12,fontWeight:800,color:cab.corFundo||'#1E3A5F'}}>{cab.logoLetra}</span>
-                          </div>
-                        )}
-                        <div>
-                          <div style={{fontSize:13,fontWeight:700,color: cab.tipoFundo==='imagem'?'#fff':'#fff',lineHeight:1.2}}>{cab.titulo||titulo}</div>
-                          {cab.subtitulo && <div style={{fontSize:10,color:'rgba(255,255,255,0.65)'}}>{cab.subtitulo}</div>}
+                  return (
+                    <div key={pi} style={{width:ps.w, height:ps.h, background:pageBg(config), position:'relative', flexShrink:0, boxShadow:'0 4px 32px rgba(0,0,0,0.18)', overflow:'hidden'}}>
+
+                      {/* Page number label (outside, above) */}
+                      {!readOnly && pi > 0 && (
+                        <div style={{position:'absolute',top:-20,left:0,right:0,textAlign:'center',fontSize:9,color:'#94A3B8',pointerEvents:'none'}}>
+                          Página {pageNum}
                         </div>
-                        {projetoData && (
-                          <div style={{marginLeft:'auto',textAlign:'right'}}>
-                            <div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>Proposta para</div>
-                            <div style={{fontSize:12,fontWeight:700,color:'#fff'}}>{projetoData.empresa||projetoData.nome}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Guide de margens */}
-                  <div style={{position:'absolute',top:usableTop,left:usableLeft,right:mg.right||76,bottom:(mg.bottom||76)+(rod.ativo?32:0),border:'1px dashed rgba(37,99,235,0.13)',pointerEvents:'none',zIndex:1}}/>
-
-                  {/* Elementos */}
-                  {elementos.map(el => {
-                    const isSel = el.id === selecionadoId
-                    const src = sources.find(s => s.id === (el.dados?.sourceId))
-                    return (
-                      <div key={el.id}
-                        style={{position:'absolute',left:usableLeft+el.x,top:usableTop+el.y,width:el.w,height:el.h,border:`1.5px solid ${isSel?'#2563EB':'transparent'}`,boxShadow:isSel?'0 0 0 3px rgba(37,99,235,0.15)':'none',cursor:readOnly?'default':'move',overflow:'hidden',boxSizing:'border-box',zIndex:3}}
-                        onClick={e=>{e.stopPropagation();!readOnly&&setSelecionadoId(el.id)}}
-                        onMouseDown={e=>{e.preventDefault();!readOnly&&handleDragStart(e,el)}}>
-                        <RenderEl el={el} source={src} sources={sources}/>
-                        {isSel && !readOnly && (
-                          <div style={{position:'absolute',bottom:-5,right:-5,width:10,height:10,background:'#2563EB',border:'2px solid #fff',borderRadius:2,cursor:'se-resize',zIndex:4}}
-                            onMouseDown={e=>{e.preventDefault();e.stopPropagation();handleDragStart(e,el,'resize')}}/>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {/* Rodapé */}
-                  {rod.ativo && (
-                    <div style={{
-                      position:'absolute',bottom:0,left:0,right:0,height:32,zIndex:1,
-                      background: rod.tipoFundo==='imagem' && rod.imagemUrl ? 'none' : (rod.corFundo||'#f4f4f5'),
-                      backgroundImage: rod.tipoFundo==='imagem' && rod.imagemUrl ? `url(${rod.imagemUrl})` : undefined,
-                      backgroundSize: rod.imagemAjuste||'cover',
-                      backgroundPosition:'center',
-                      backgroundRepeat:'no-repeat',
-                      display:'flex',alignItems:'center',justifyContent:'space-between',padding:`0 ${usableLeft}px`,
-                    }}>
-                      {rod.tipoFundo==='imagem' && rod.imagemUrl && rod.imagemOverlay && (
-                        <div style={{position:'absolute',inset:0,background:`rgba(0,0,0,${rod.imagemOpacidade??0.25})`,zIndex:0}}/>
                       )}
-                      <span style={{position:'relative',zIndex:1,fontSize:9,color:rod.corTexto||'#a1a1aa'}}>{rod.texto||''}</span>
-                      {rod.paginacao && <span style={{position:'relative',zIndex:1,fontSize:9,color:rod.corTexto||'#a1a1aa'}}>Pág. 1</span>}
+
+                      {/* Marca d'água */}
+                      {config.marcaDagua?.ativo && (
+                        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',pointerEvents:'none',zIndex:2}}>
+                          <span style={{fontSize:72,fontWeight:900,color:`rgba(0,0,0,${config.marcaDagua?.opacidade||0.06})`,transform:'rotate(-35deg)',letterSpacing:8,userSelect:'none'}}>
+                            {config.marcaDagua?.texto||'RASCUNHO'}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Cabeçalho */}
+                      {cab.ativo && (
+                        <div style={{
+                          position:'absolute',top:0,left:0,right:0,height:60,zIndex:1,
+                          background: cabBg(cab),
+                          backgroundImage: cab.tipoFundo==='imagem' && cab.imagemUrl ? `url(${cab.imagemUrl})` : undefined,
+                          backgroundSize: cab.imagemAjuste||'cover',
+                          backgroundPosition:'center',
+                          backgroundRepeat:'no-repeat',
+                          display:'flex',alignItems:'center',padding:`0 ${usableLeft}px`,gap:14,
+                        }}>
+                          {cab.tipoFundo==='imagem' && cab.imagemUrl && cab.imagemOverlay && (
+                            <div style={{position:'absolute',inset:0,background:`rgba(0,0,0,${cab.imagemOpacidade??0.35})`,zIndex:0}}/>
+                          )}
+                          <div style={{position:'relative',zIndex:1,display:'flex',alignItems:'center',gap:14,width:'100%'}}>
+                            {cab.logoLetra && (
+                              <div style={{width:32,height:32,background:'rgba(255,255,255,0.9)',borderRadius:6,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                                <span style={{fontSize:12,fontWeight:800,color:cab.corFundo||'#1E3A5F'}}>{cab.logoLetra}</span>
+                              </div>
+                            )}
+                            <div>
+                              <div style={{fontSize:13,fontWeight:700,color:'#fff',lineHeight:1.2}}>{cab.titulo||titulo}</div>
+                              {cab.subtitulo && <div style={{fontSize:10,color:'rgba(255,255,255,0.65)'}}>{cab.subtitulo}</div>}
+                            </div>
+                            {projetoData && pi === 0 && (
+                              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                                <div style={{fontSize:10,color:'rgba(255,255,255,0.7)'}}>Proposta para</div>
+                                <div style={{fontSize:12,fontWeight:700,color:'#fff'}}>{projetoData.empresa||projetoData.nome}</div>
+                              </div>
+                            )}
+                            {projetoData && pi > 0 && (
+                              <div style={{marginLeft:'auto',textAlign:'right'}}>
+                                <div style={{fontSize:9,color:'rgba(255,255,255,0.6)'}}>Página {pageNum}</div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Guide de margens */}
+                      <div style={{position:'absolute',top:usableTop,left:usableLeft,right:mg.right||76,bottom:(mg.bottom||76)+footerH,border:'1px dashed rgba(37,99,235,0.13)',pointerEvents:'none',zIndex:1}}/>
+
+                      {/* Elementos desta página */}
+                      {pageEls.map(el => {
+                        const isSel  = el.id === selecionadoId
+                        const src    = sources.find(s => s.id === (el.dados?.sourceId))
+                        const localY = el.y - pageStartY
+                        return (
+                          <div key={el.id}
+                            style={{position:'absolute',left:usableLeft+el.x,top:usableTop+localY,width:el.w,height:el.h,
+                              border:`1.5px solid ${isSel?'#2563EB':'transparent'}`,
+                              boxShadow:isSel?'0 0 0 3px rgba(37,99,235,0.15)':'none',
+                              cursor:readOnly?'default':'move',overflow:'hidden',boxSizing:'border-box',zIndex:3}}
+                            onClick={e=>{e.stopPropagation();!readOnly&&setSelecionadoId(el.id)}}
+                            onMouseDown={e=>{e.preventDefault();!readOnly&&handleDragStart(e,el)}}>
+                            <RenderEl el={{...el, _projetoData: projetoData}} source={src} sources={sources}/>
+                            {isSel && !readOnly && (
+                              <div style={{position:'absolute',bottom:-5,right:-5,width:10,height:10,background:'#2563EB',border:'2px solid #fff',borderRadius:2,cursor:'se-resize',zIndex:4}}
+                                onMouseDown={e=>{e.preventDefault();e.stopPropagation();handleDragStart(e,el,'resize')}}/>
+                            )}
+                          </div>
+                        )
+                      })}
+
+                      {/* Rodapé */}
+                      {rod.ativo && (
+                        <div style={{
+                          position:'absolute',bottom:0,left:0,right:0,height:32,zIndex:1,
+                          background: rod.tipoFundo==='imagem' && rod.imagemUrl ? 'none' : (rod.corFundo||'#f4f4f5'),
+                          backgroundImage: rod.tipoFundo==='imagem' && rod.imagemUrl ? `url(${rod.imagemUrl})` : undefined,
+                          backgroundSize: rod.imagemAjuste||'cover',
+                          backgroundPosition:'center',
+                          backgroundRepeat:'no-repeat',
+                          display:'flex',alignItems:'center',justifyContent:'space-between',padding:`0 ${usableLeft}px`,
+                        }}>
+                          {rod.tipoFundo==='imagem' && rod.imagemUrl && rod.imagemOverlay && (
+                            <div style={{position:'absolute',inset:0,background:`rgba(0,0,0,${rod.imagemOpacidade??0.25})`,zIndex:0}}/>
+                          )}
+                          <span style={{position:'relative',zIndex:1,fontSize:9,color:rod.corTexto||'#a1a1aa'}}>{rod.texto||''}</span>
+                          {rod.paginacao && <span style={{position:'relative',zIndex:1,fontSize:9,color:rod.corTexto||'#a1a1aa'}}>Pág. {pageNum}</span>}
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                  )
+                })}
               </div>
             )
           })()}
@@ -1353,6 +1695,8 @@ export default function CanvasEditor({
           onDelete={()=>selecionado&&deleteEl(selecionado.id)}
           config={config}
           onConfigChange={setConfig}
+          mode={mode}
+          projetoData={projetoData}
         />
       )}
 

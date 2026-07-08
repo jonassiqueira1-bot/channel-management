@@ -35,16 +35,28 @@ export function useLocalState(key, defaultValue) {
   // Estabiliza defaultValue para não entrar no dep array como referência nova a cada render
   const defaultValueRef = useRef(defaultValue)
 
+  // Rastreia o último valor serializado escrito/recebido para evitar ping-pong entre instâncias
+  const lastSerialized = useRef(null)
+
   // Ouve mudanças de outras instâncias na mesma aba
   const onSameTab = useCallback((e) => {
     if (writing.current) return
     if (e.detail?.key !== key) return
-    try { setState(JSON.parse(e.detail.serialized)) } catch {}
+    // Evita loop: se já temos esse valor, ignora
+    if (e.detail.serialized === lastSerialized.current) return
+    try {
+      lastSerialized.current = e.detail.serialized
+      setState(JSON.parse(e.detail.serialized))
+    } catch {}
   }, [key])
 
   const onStorage = useCallback((e) => {
     if (e.key !== key) return
-    try { setState(e.newValue ? JSON.parse(e.newValue) : defaultValueRef.current) } catch {}
+    if (e.newValue === lastSerialized.current) return
+    try {
+      lastSerialized.current = e.newValue
+      setState(e.newValue ? JSON.parse(e.newValue) : defaultValueRef.current)
+    } catch {}
   }, [key])
 
   useEffect(() => {

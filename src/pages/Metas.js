@@ -966,7 +966,7 @@ function MetaDetail({ initial, row, onClose, onSave, onDelete, vendedores, parce
                     </div>
                   </div>
                   {lancamentos.length > 0 && (() => {
-                    const collapsed = !!lancCollapsed[g.id]
+                    const collapsed = !lancCollapsed[g.id]
                     return (
                       <div style={{ borderTop:'1px solid var(--border)' }}>
                         {/* Header clicável */}

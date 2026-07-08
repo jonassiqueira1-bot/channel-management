@@ -11,13 +11,15 @@ import { useProjects } from '../hooks/useProjects'
 import { useOpportunities } from '../hooks/useOpportunities'
 import SearchSelect from '../components/SearchSelect'
 import { useSellers } from '../hooks/useSellers'
+import { useUsuarios } from '../hooks/useUsuarios'
 import { useProfile } from '../hooks/useProfile'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
-import { MOCK_PRODUTOS } from '../data/mockProdutos'
+import { useProducts } from '../hooks/useProducts'
+import { useCompanies } from '../hooks/useCompanies'
 import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useTimeLogs } from '../hooks/useTimeLogs'
@@ -2247,16 +2249,17 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
   const [expandido, setExpandido] = useState({})
   const [mesRef, setMesRef] = useState(() => new Date().toISOString().slice(0, 7)) // 'YYYY-MM'
   const [filtroStatus, setFiltroStatus] = useState('todos')
-  const { sellers } = useSellers()
   const { profile } = useProfile()
+  const { usuarios } = useUsuarios()
 
-  // Pool de usuários: sellers do Supabase; fallback para profile do usuário atual
+  // Pool de usuários: apenas usuários do sistema (profiles), nunca sellers/contatos
   const usuariosCad = useMemo(() => {
-    if (sellers.length > 0) return sellers.map(s => ({ id: s.id, nome: s.nome, cargo: s.cargo || s.perfil || '' }))
-    // sellers vazio → mostra pelo menos o usuário logado
+    const ativos = usuarios.filter(u => u.status !== 'inativo')
+    if (ativos.length > 0) return ativos.map(u => ({ id: u.id, nome: u.nome || u.email || u.id, cargo: u.papel || '' }))
+    // fallback: pelo menos o usuário logado
     if (profile?.id) return [{ id: profile.id, nome: profile.nome || profile.email || 'Usuário', cargo: profile.papel || '' }]
     return []
-  }, [sellers, profile])
+  }, [usuarios, profile])
 
   // Horas apontadas por user_id (ou user_name como fallback) no mês de referência
   const horasPorUser = useMemo(() => {
@@ -2564,10 +2567,11 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
 }
 
 // ─── KPI card ─────────────────────────────────────────────────────────────────
-function KpiCard({ label, value, color }) {
+function KpiCard({ label, value, color, last = false }) {
   return (
-    <div style={{ flex: 1, padding: '14px 32px', display: 'flex', flexDirection: 'column', justifyContent: 'center', borderRight: '1px solid var(--border)', borderTop: `3px solid ${color}` }}>
-      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1 }}>{value}</div>
+    <div style={{ flex: 1, padding: '14px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center',
+      borderRight: last ? 'none' : '1px solid var(--border2)', borderTop: `3px solid ${color}` }}>
+      <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', letterSpacing: '-0.5px', lineHeight: 1, fontFamily: 'var(--mono)' }}>{value}</div>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 4 }}>{label}</div>
     </div>
   )
@@ -2982,13 +2986,14 @@ function ProdutoSearch({ produto_id, onChange }) {
   const [query, setQuery] = useState('')
   const [open,  setOpen]  = useState(false)
   const ref = useRef(null)
+  const { produtos } = useProducts()
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
-  const ativos     = MOCK_PRODUTOS.filter(p => p.status === 'ativo')
+  const ativos     = produtos.filter(p => p.status === 'ativo')
   const sugestoes  = query ? ativos.filter(p => (p.nome + p.codigo + p.categoria).toLowerCase().includes(query.toLowerCase())) : ativos
-  const selecionado = MOCK_PRODUTOS.find(p => p.id === produto_id)
+  const selecionado = produtos.find(p => String(p.id) === String(produto_id))
   return (
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{fontSize:12,color:'var(--text-muted)'}}>Selecione o produto do catálogo que esta proposta cobre. Um produto por proposta.</div>
@@ -3074,26 +3079,132 @@ function propToWord(prop) {
   return md
 }
 
-function downloadProposta(prop) {
-  const estilo = (() => { try { return { ...DEFAULT_ESTILO, ...JSON.parse(localStorage.getItem(PROP_ESTILO_KEY) || '{}') } } catch(e) { return DEFAULT_ESTILO } })()
-  const cor = estilo.cor_primaria || '#6366F1'
+function canvasToWordHtml(elementos, pd, cor, incluirHoras = true) {
+  const hoje = new Date().toLocaleDateString('pt-BR')
+  const vars = {
+    '{{produto}}':       pd?.produto || '—',
+    '{{data}}':          hoje,
+    '{{empresa}}':       pd?.empresa || pd?.nome || '—',
+    '{{nome_proposta}}': pd?.nome || '—',
+    '{{investimento}}':  pd?.investimento ? `R$ ${Number(pd.investimento).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : '—',
+  }
+  const rv = t => (t||'').replace(/\{\{[^}]+\}\}/g, m => vars[m] ?? m)
+  const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+  const els = [...elementos].sort((a,b) => a.y - b.y)
+  let body = ''
+  for (const el of els) {
+    const d = el.dados || {}
+    if (el.tipo === 'texto' || el.tipo === 'variavel') {
+      const txt = rv(d.conteudo || '')
+      const fs  = d.tamanhoFonte || 14
+      const fw  = d.negrito ? 'bold' : 'normal'
+      const fi  = d.italico ? 'italic' : 'normal'
+      const al  = d.alinhamento || 'left'
+      const cl  = d.cor || '#18181b'
+      if (fs >= 24)      body += `<h1 style="color:${cl};text-align:${al}">${txt}</h1>\n`
+      else if (fs >= 17) body += `<h2 style="color:${cl};text-align:${al}">${txt}</h2>\n`
+      else               body += `<p style="font-size:${fs}pt;font-weight:${fw};font-style:${fi};color:${cl};text-align:${al};white-space:pre-wrap;margin:4pt 0;line-height:1.5">${txt}</p>\n`
+    } else if (el.tipo === 'divisor') {
+      if ((d.cor||'') !== 'transparent')
+        body += `<hr style="border:none;border-top:${d.espessura||1}px ${d.estilo||'solid'} ${d.cor||'#e4e4e7'};margin:8pt 0"/>\n`
+      else
+        body += `<div style="height:${(d.espessura||1)*4}pt"></div>\n`
+    } else if (el.tipo === 'quebra_pagina') {
+      body += `<div style="page-break-after:always"></div>\n`
+    } else if (el.tipo === 'forma') {
+      body += `<div style="background:${d.corFundo||'#EFF6FF'};border:${d.bordaEspessura||1}px solid ${d.cor||'#2563EB'};border-radius:${d.raio||6}px;padding:8pt 12pt;font-size:${d.tamanhoFonte||13}pt;font-weight:${d.negrito?'bold':'normal'};color:${d.cor||'#2563EB'};margin:6pt 0">${rv(d.conteudo||'')}</div>\n`
+    } else if (el.tipo === 'kpi') {
+      body += `<div style="display:inline-block;padding:8pt 14pt;background:#EFF6FF;border-left:4px solid ${d.cor||cor};margin:4pt 0">`
+      if (d.titulo) body += `<div style="font-size:8pt;color:#71717a;text-transform:uppercase;letter-spacing:1px">${d.titulo}</div>`
+      body += `<div style="font-size:18pt;font-weight:bold;color:${d.cor||cor}">${d.prefixo||''}—${d.sufixo||''}</div></div>\n`
+    } else if (el.tipo === 'escopo') {
+      const wbs = pd?.wbs || []
+      const cc  = d.cor || '#1E3A5F'
+      const fasesCont = wbs.map(f=>({...f,atividades:(f.atividades||[]).filter(a=>a.mostrar!==false)})).filter(f=>f.atividades.length>0)
+      const naoContemplados = wbs.flatMap(f=>(f.atividades||[]).filter(a=>a.mostrar===false).map(a=>({...a,fase:f.nome})))
+      body += `<h2 style="color:${cc}">${d.titulo||'Escopo do Projeto'}</h2>`
+      if (incluirHoras) {
+        body += `<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:6pt"><thead><tr style="background:${cc}"><th style="padding:5pt 8pt;color:#fff;text-align:left;border:1px solid ${cc}">Fase / Atividade</th><th style="padding:5pt 8pt;color:#fff;text-align:center;border:1px solid ${cc};width:60pt">Horas</th></tr></thead><tbody>`
+        for (const fase of fasesCont) {
+          body += `<tr style="background:#EFF6FF"><td colspan="2" style="padding:4pt 8pt;font-weight:bold;color:#1E3A5F;border:1px solid #dde">${fase.nome}</td></tr>`
+          for (const atv of fase.atividades)
+            body += `<tr><td style="padding:3pt 8pt 3pt 18pt;border:1px solid #eee">${atv.nome}</td><td style="padding:3pt 8pt;text-align:center;border:1px solid #eee">${atv.horas||0}h</td></tr>`
+        }
+        body += `</tbody></table>\n`
+      } else {
+        body += `<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:6pt"><thead><tr style="background:${cc}"><th style="padding:5pt 8pt;color:#fff;text-align:left;border:1px solid ${cc}">Fase / Atividade</th></tr></thead><tbody>`
+        for (const fase of fasesCont) {
+          body += `<tr style="background:#EFF6FF"><td style="padding:4pt 8pt;font-weight:bold;color:#1E3A5F;border:1px solid #dde">${fase.nome}</td></tr>`
+          for (const atv of fase.atividades)
+            body += `<tr><td style="padding:3pt 8pt 3pt 18pt;border:1px solid #eee">${atv.nome}</td></tr>`
+        }
+        body += `</tbody></table>\n`
+      }
+      if (naoContemplados.length) {
+        body += `<p style="font-weight:bold;color:#DC2626;font-size:10pt;margin:8pt 0 4pt;border-top:2pt solid #DC2626;padding-top:4pt">Itens não contemplados</p>`
+        body += `<table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt"><tbody>`
+        naoContemplados.forEach((atv,i)=>{ body+=`<tr style="background:${i%2?'#fef2f2':'#fff'}"><td style="padding:2pt 8pt 2pt 14pt;color:#7f1d1d;border:1px solid #fecaca"><span style="color:#DC2626;font-weight:bold">— </span>${atv.nome}</td><td style="padding:2pt 8pt;text-align:right;color:#DC2626;font-style:italic;border:1px solid #fecaca;white-space:nowrap">${atv.fase}</td></tr>` })
+        body += `</tbody></table>\n`
+      }
+    } else if (el.tipo === 'investimento') {
+      const tarifas = pd?.tarifas||[]; const itens = pd?.itens||[]
+      const cc  = d.cor || '#1E3A5F'
+      // Aggregate hours per tarifa papel × valor_hora (same logic as calcInvestimento)
+      const tm = {}
+      tarifas.forEach(t => { tm[t.papel] = { label: t.label||t.papel, valor: Number(t.valor_hora||0) } })
+      const hByPapel = { analista:0, coordenacao:0, especialista:0 }
+      itens.filter(i=>i.nivel===2).forEach(a => {
+        const hA=Number(a.hr_analista||0), hC=Number(a.hr_coord||0)
+        if (a.tipo_hora==='analista'    || a.tipo_hora==='ana_coord') hByPapel.analista    += hA
+        if (a.tipo_hora==='coordenacao' || a.tipo_hora==='ana_coord') hByPapel.coordenacao += hC
+        if (a.tipo_hora==='especialista')                              hByPapel.especialista+= hA
+      })
+      const linhas = Object.entries(tm)
+        .map(([papel,{label,valor}]) => ({ nome:label, horas:hByPapel[papel]||0, unit:valor, total:(hByPapel[papel]||0)*valor }))
+        .filter(l => l.horas > 0)
+      const tot = linhas.reduce((s,l)=>s+l.total,0)
+      body += `<h2 style="color:${cc}">${d.titulo||'Quadro de Investimento'}</h2>`
+      body += `<table style="width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:12pt"><thead><tr style="background:${cc}"><th style="padding:5pt 8pt;color:#fff;text-align:left;border:1px solid ${cc}">Perfil</th><th style="padding:5pt 8pt;color:#fff;text-align:center;border:1px solid ${cc};width:50pt">Horas</th><th style="padding:5pt 8pt;color:#fff;text-align:right;border:1px solid ${cc};width:70pt">R$/h</th><th style="padding:5pt 8pt;color:#fff;text-align:right;border:1px solid ${cc};width:80pt">Total</th></tr></thead><tbody>`
+      linhas.forEach((l,i)=>{ body+=`<tr style="background:${i%2?'#fafafa':'#fff'}"><td style="padding:3pt 8pt;border:1px solid #eee">${l.nome}</td><td style="padding:3pt 8pt;text-align:center;border:1px solid #eee;font-family:monospace">${l.horas}h</td><td style="padding:3pt 8pt;text-align:right;border:1px solid #eee;font-family:monospace">${fmtR(l.unit)}</td><td style="padding:3pt 8pt;text-align:right;font-weight:bold;border:1px solid #eee;font-family:monospace">${fmtR(l.total)}</td></tr>` })
+      body += `<tr style="background:${cc}"><td colspan="3" style="padding:5pt 8pt;font-weight:bold;color:#fff;border:1px solid ${cc}">Total</td><td style="padding:5pt 8pt;text-align:right;font-weight:bold;color:#fff;border:1px solid ${cc};font-family:monospace">${fmtR(tot)}</td></tr>`
+      body += `</tbody></table>\n`
+    }
+  }
+  return body
+}
+
+function downloadProposta(prop, docRelatorio, pd, incluirHoras = true) {
+  const estilo  = (() => { try { return { ...DEFAULT_ESTILO, ...JSON.parse(localStorage.getItem(PROP_ESTILO_KEY) || '{}') } } catch(e) { return DEFAULT_ESTILO } })()
+  const cor     = estilo.cor_primaria || '#1E3A5F'
+  const hoje    = new Date().toLocaleDateString('pt-BR')
+  const empresa = pd?.empresa || prop.empresa_nome || ''
   const footerTxt = (estilo.footer_texto || '')
-    .replace(/\{\{empresa_nome\}\}/g, prop.empresa_nome || '')
-    .replace(/\{\{opp_titulo\}\}/g, prop.opp_titulo || '')
-    .replace(/\{\{data\}\}/g, new Date().toLocaleDateString('pt-BR'))
-    .replace(/\{\{ano\}\}/g, new Date().getFullYear())
-  const md = propToWord(prop)
-  const body = md
-    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-    .replace(/^# (.+)$/gm,'<h1>$1</h1>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
-    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^---$/gm,'<hr/>')
-    .replace(/^\| (.+) \|$/gm,(_,row)=>{const c=row.split(' | ');return '<tr>'+c.map(x=>x.startsWith('---')?'':` <td style="border:1px solid #ccc;padding:4px 8px">${x}</td>`).filter(Boolean).join('')+'</tr>'})
-    .replace(/(<tr>[\s\S]*?<\/tr>)/g,'<table style="border-collapse:collapse;width:100%">$1</table>')
-    .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,s=>'<ul>'+s+'</ul>')
-    .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br/>')
-  const headerHtml = `<div style="background:${cor};padding:16px 24px;display:flex;align-items:center;gap:16px;margin-bottom:20px">${estilo.logo_url?`<img src="${estilo.logo_url}" alt="logo" style="height:36px;object-fit:contain"/>`:''}<div><div style="font-size:16pt;font-weight:800;color:#fff;letter-spacing:1px">${estilo.header_titulo||'PROPOSTA DE IMPLANTAÇÃO'}</div>${estilo.header_sub?`<div style="font-size:10pt;color:rgba(255,255,255,0.8);margin-top:2px">${estilo.header_sub}</div>`:''}</div></div>`
+    .replace(/\{\{empresa_nome\}\}/g, empresa)
+    .replace(/\{\{opp_titulo\}\}/g,   prop.opp_titulo || '')
+    .replace(/\{\{data\}\}/g,         hoje)
+    .replace(/\{\{ano\}\}/g,          new Date().getFullYear())
+
+  // Canvas document → rich Word body
+  const body = docRelatorio?.elementos?.length
+    ? canvasToWordHtml(docRelatorio.elementos, pd, cor, incluirHoras)
+    : (() => {
+        const md = propToWord(prop)
+        return md
+          .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          .replace(/^# (.+)$/gm,'<h1>$1</h1>').replace(/^## (.+)$/gm,'<h2>$1</h2>').replace(/^### (.+)$/gm,'<h3>$1</h3>')
+          .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>').replace(/^---$/gm,'<hr/>')
+          .replace(/^\| (.+) \|$/gm,(_,row)=>{const c=row.split(' | ');return '<tr>'+c.map(x=>x.startsWith('---')?'':` <td style="border:1px solid #ccc;padding:4px 8px">${x}</td>`).filter(Boolean).join('')+'</tr>'})
+          .replace(/(<tr>[\s\S]*?<\/tr>)/g,'<table style="border-collapse:collapse;width:100%">$1</table>')
+          .replace(/^- (.+)$/gm,'<li>$1</li>').replace(/(<li>.*<\/li>\n?)+/g,s=>'<ul>'+s+'</ul>')
+          .replace(/\n\n/g,'</p><p>').replace(/\n/g,'<br/>')
+      })()
+
+  const logoHtml  = estilo.logo_url ? `<img src="${estilo.logo_url}" alt="logo" style="height:36px;object-fit:contain;vertical-align:middle;margin-right:12px"/>` : ''
+  const headerHtml = `<table width="100%" style="background:${cor};margin-bottom:20px"><tr><td style="padding:14px 24px;color:#fff;vertical-align:middle">${logoHtml}<span style="font-size:16pt;font-weight:800;letter-spacing:1px">${estilo.header_titulo||'PROPOSTA DE IMPLANTAÇÃO'}</span>${estilo.header_sub?`<br/><span style="font-size:10pt;opacity:0.8">${estilo.header_sub}</span>`:''}</td><td style="padding:14px 24px;color:#fff;text-align:right;vertical-align:top;white-space:nowrap"><div style="font-size:11pt;font-weight:bold">${empresa}</div><div style="font-size:9pt;opacity:0.8">${hoje}</div></td></tr></table>`
   const footerHtml = footerTxt ? `<div style="border-top:1px solid #e5e7eb;margin-top:30px;padding-top:10px;font-size:9pt;color:#9ca3af;text-align:center">${footerTxt}</div>` : ''
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"/><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:0;color:#111}h1{font-size:18pt;color:${cor};border-bottom:2px solid #e5e7eb;padding-bottom:4pt}h2{font-size:14pt;color:${cor};margin-top:14pt}table{border-collapse:collapse;width:100%;margin:8pt 0}td,th{border:1px solid #d1d5db;padding:4pt 8pt;font-size:10pt}ul{padding-left:16pt}li{margin-bottom:3pt}p{margin:6pt 0;line-height:1.5}strong{font-weight:bold}hr{border:none;border-top:1px solid #e5e7eb;margin:10pt 0}.content{margin:2cm;margin-top:0}</style></head><body>${headerHtml}<div class="content"><p>${body}</p>${footerHtml}</div></body></html>`
+
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"/><style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;margin:0;color:#111}h1{font-size:18pt;color:${cor};border-bottom:2px solid #e5e7eb;padding-bottom:4pt;margin:16pt 0 8pt}h2{font-size:14pt;color:${cor};margin:14pt 0 6pt}p{margin:4pt 0;line-height:1.5}table{border-collapse:collapse;width:100%;margin:6pt 0}td,th{font-size:10pt;vertical-align:top}ul{padding-left:16pt;margin:4pt 0}li{margin-bottom:3pt}strong{font-weight:bold}hr{border:none;border-top:1px solid #e5e7eb;margin:8pt 0}.content{padding:0 2cm 2cm}</style></head><body>${headerHtml}<div class="content">${body}${footerHtml}</div></body></html>`
+
   const blob=new Blob([html],{type:'application/msword'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=`${(prop.titulo||'Proposta').replace(/[^a-zA-Z0-9À-ú\s-]/g,'').trim()}.doc`;document.body.appendChild(a);a.click();document.body.removeChild(a);URL.revokeObjectURL(url)
 }
 
@@ -3162,9 +3273,17 @@ function OppSearch({ oppOptions, value, onChange }) {
   )
 }
 
-function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
+function PropostasTab({ projetos, phases, opps = [], showKpis = true, onEditingChange }) {
   const { save: saveOpp } = useOpportunities()
   const { relatorios: docRelatorios, save: saveDocRelatorio } = useRelatorios('proposta')
+  const { produtos } = useProducts()
+  const { profile } = useProfile()
+  const { companies } = useCompanies()
+  const [downloadModal, setDownloadModal] = useState(null) // { prop, doc, pd } | null
+  const [dlHoras,       setDlHoras]       = useState(false)          // padrão: omitir horas
+  const [dlNome,        setDlNome]        = useState('cliente')      // padrão: empresa cliente
+  const [dlFormato,     setDlFormato]     = useState('word')         // padrão: word
+  const [dlErro,        setDlErro]        = useState('')
   const [propostas,    setPropostas]    = useLocalState(PROPOSTAS_KEY, [])
   const [templates,    setTemplates]    = useLocalState(PROP_TEMPLATES_KEY, DEFAULT_TEMPLATES)
   const [subView,      setSubView]      = useState('propostas') // 'propostas' | 'templates'
@@ -3174,6 +3293,15 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   const [propTab,      setPropTab]      = useState('escopo')
   const [filterOpp,    setFilterOpp]    = useState('')
   const [filterSt,     setFilterSt]     = useState('')
+  const [filterOppQ,   setFilterOppQ]   = useState('')
+  const [oppPickerOpen,setOppPickerOpen]= useState(false)
+  const oppPickerRef = useRef(null)
+  useEffect(() => {
+    if (!oppPickerOpen) return
+    function handle(e) { if (oppPickerRef.current && !oppPickerRef.current.contains(e.target)) setOppPickerOpen(false) }
+    document.addEventListener('mousedown', handle)
+    return () => document.removeEventListener('mousedown', handle)
+  }, [oppPickerOpen])
   const [estilo,       setEstilo]       = useLocalState(PROP_ESTILO_KEY, DEFAULT_ESTILO)
   const [wStep,        setWStep]        = useState(1)
   const [wOppId,       setWOppId]       = useState('')
@@ -3193,9 +3321,13 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     const p = new URLSearchParams(window.location.search)
     const o = p.get('opp_id')
     if (o) { setFilterOpp(o); setWOppId(o) }
-    // default template to first available
     setWTemplId(t => t || '')
   }, [])
+
+  // Avisa o pai se está em modo edição (oculta KPIs)
+  useEffect(() => {
+    onEditingChange?.(!!selected || !!(subView === 'templates' && selectedTmpl) || editandoDoc)
+  }, [selected, selectedTmpl, subView, editandoDoc, onEditingChange])
 
   const oppOptions = useMemo(() => {
     const seen=new Set(); const list=[]
@@ -3212,7 +3344,12 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 
   // ── Proposal CRUD ──
   function salvar(prop, showFeedback = false) {
-    const up = { ...prop, updated_at: new Date().toISOString() }
+    const nomeUsuario = profile?.nome || profile?.email || 'Usuário'
+    const logEntry = { id: Date.now(), evento: 'Proposta alterada', usuario: nomeUsuario, data: new Date().toISOString() }
+    const logAtual = prop.log || []
+    // Só registra histórico se não for a criação inicial (já tem log)
+    const novoLog = logAtual.length > 0 ? [...logAtual, logEntry] : logAtual
+    const up = { ...prop, log: novoLog, updated_at: new Date().toISOString() }
     setPropostas(prev=>{ const i=prev.findIndex(x=>x.id===up.id); if(i>=0){const n=[...prev];n[i]=up;return n}; return [...prev,up] })
     setSelected(up)
     // sincroniza valor_servico da oportunidade vinculada
@@ -3238,7 +3375,8 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     const forked = forkTemplateItens(templ?.itens||[])
     const ajustados = Object.keys(wVars).length && templ?.regras?.length
       ? evaluateRules(templ.regras, wVars, forked) : forked
-    const logEntries = [{ id:`l-${Date.now()}`, evento:'Proposta criada', usuario:'Você', data:now }]
+    const nomeUsuarioCriacao = profile?.nome || profile?.email || 'Você'
+    const logEntries = [{ id:`l-${Date.now()}`, evento:'Proposta criada', usuario:nomeUsuarioCriacao, data:now }]
     if (Object.keys(wVars).length && templ?.regras?.length) {
       const fired = evalRulesLog(templ.regras, wVars)
       fired.forEach(r => logEntries.push({ id:`l-${Date.now()}-${r.id}`, evento:`Regra aplicada: ${r.descricao}`, usuario:'Sistema', data:now }))
@@ -3254,6 +3392,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
       tarifas: (templ?.tarifas||DEFAULT_TARIFAS).map(t=>({...t})),
       blocos:  (templ?.blocos||[]).map(b=>({...b,id:`b-${Date.now()}-${Math.random().toString(36).slice(2,5)}`})),
       produto_id: templ?.produto_id||null,
+      template_id: templ?.id||null,
       variaveis_aplicadas: wVars,
       escopo:[], equipe:[], obs:'',
       log: logEntries,
@@ -3281,6 +3420,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     const [editId,  setEditId]  = useState(null)
     const [editFld, setEditFld] = useState({})
     const totals = useMemo(()=>calcPhaseTotals(itens),[itens])
+    const prevLen = useRef(itens.length)
 
     function startEdit(item) { setEditId(item.id); setEditFld({...item}) }
     function commitEdit() {
@@ -3288,6 +3428,16 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
       onChange(itens.map(i=>i.id===editId?{...i,...editFld}:i))
       setEditId(null); setEditFld({})
     }
+
+    // Quando um novo item é adicionado, inicia edição inline automaticamente
+    useEffect(() => {
+      if (itens.length > prevLen.current) {
+        const newest = itens[itens.length - 1]
+        if (newest) startEdit(newest)
+      }
+      prevLen.current = itens.length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [itens.length])
     function togglePhase(id) { setCollapsedPhases(p=>({...p,[id]:!p[id]})) }
     function addPhase() {
       const id=itemUid(); const ordem=itens.filter(i=>i.nivel===1).length+1
@@ -3322,7 +3472,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
               <th style={{...thSt,textAlign:'center'}}>Hr. Analista</th>
               <th style={{...thSt,textAlign:'center'}}>Hr. Coord.</th>
               <th style={{...thSt,textAlign:'center'}}>Obrig.</th>
-              <th style={{...thSt,textAlign:'center'}}>Mostra</th>
+              <th style={{...thSt,textAlign:'center'}}>Considera</th>
               {!readOnly&&<th style={thSt}/>}
             </tr>
           </thead>
@@ -3405,7 +3555,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
                           <input type="checkbox" checked={!!item.obrigatorio} onChange={()=>!readOnly&&toggleObrig(item.id)} disabled={readOnly} style={{cursor:readOnly?'default':'pointer',accentColor:'var(--accent)'}}/>
                         </td>
                         <td style={{...tdSt,textAlign:'center'}}>
-                          <span onClick={()=>!readOnly&&toggleMostra(item.id)} title={item.mostrar?'Visível na proposta':'Oculto na proposta'}
+                          <span onClick={()=>!readOnly&&toggleMostra(item.id)} title={item.mostrar?'Considerado na proposta':'Não contemplado'}
                             style={{cursor:readOnly?'default':'pointer',fontSize:14,color:item.mostrar?'#10B981':'var(--border)',display:'inline-block'}}>
                             {item.mostrar?'◉':'○'}
                           </span>
@@ -3636,18 +3786,35 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
 
   // ── Equipe editor ──
   function EquipeEditor({ prop }) {
+    const { usuarios } = useUsuarios()
     const [adding, setAdding] = useState(false)
-    const [draft,  setDraftE] = useState({ nome:'', papel:'', horas_semana:'' })
-    function addM() {
-      if(!draft.nome.trim()) return
-      salvar({...prop, equipe:[...(prop.equipe||[]),{id:equUid(),nome:draft.nome.trim(),papel:draft.papel.trim(),horas_semana:draft.horas_semana?Number(draft.horas_semana):''}]})
-      setDraftE({nome:'',papel:'',horas_semana:''}); setAdding(false)
+    const [draft,  setDraftE] = useState({ user_id:'', nome:'', papel:'', horas_semana:'' })
+
+    const usuariosAtivos = useMemo(() =>
+      usuarios.filter(u => u.status !== 'inativo').sort((a,b)=>(a.nome||'').localeCompare(b.nome||'','pt-BR'))
+    , [usuarios])
+
+    const jaAdicionados = new Set((prop.equipe||[]).map(m => m.user_id).filter(Boolean))
+
+    function selecionarUser(userId) {
+      const u = usuariosAtivos.find(x => String(x.id) === String(userId))
+      if (u) setDraftE(d => ({ ...d, user_id: userId, nome: u.nome || u.email || '', papel: u.papel || '' }))
+      else    setDraftE(d => ({ ...d, user_id: userId }))
     }
+
+    function addM() {
+      if (!draft.nome.trim()) return
+      salvar({...prop, equipe:[...(prop.equipe||[]),{id:equUid(),user_id:draft.user_id||null,nome:draft.nome.trim(),papel:draft.papel.trim(),horas_semana:draft.horas_semana?Number(draft.horas_semana):''}]})
+      setDraftE({user_id:'',nome:'',papel:'',horas_semana:''}); setAdding(false)
+    }
+
+    const inpSt = {padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)',width:'100%'}
+
     return (
       <div style={{display:'flex',flexDirection:'column',gap:10}}>
         {(prop.equipe||[]).map(m=>(
           <div key={m.id} style={{display:'flex',alignItems:'center',gap:10,padding:'8px 12px',background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:8}}>
-            <div style={{width:32,height:32,borderRadius:'50%',background:'var(--accent-glow)',border:'1px solid var(--accent)44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'var(--accent)',flexShrink:0}}>{m.nome.charAt(0).toUpperCase()}</div>
+            <div style={{width:32,height:32,borderRadius:'50%',background:'var(--accent-glow)',border:'1px solid var(--accent)44',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,color:'var(--accent)',flexShrink:0}}>{(m.nome||'?').charAt(0).toUpperCase()}</div>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontSize:13,fontWeight:600,color:'var(--text)'}}>{m.nome}</div>
               {m.papel&&<div style={{fontSize:11,color:'var(--text-muted)'}}>{m.papel}</div>}
@@ -3661,12 +3828,18 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
         {adding&&(
           <div style={{display:'flex',flexDirection:'column',gap:8,padding:'10px 12px',background:'var(--surface2)',border:'1px dashed var(--border)',borderRadius:8}}>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 80px',gap:8}}>
-              <input autoFocus value={draft.nome} onChange={e=>setDraftE(d=>({...d,nome:e.target.value}))} placeholder="Nome" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
-              <input value={draft.papel} onChange={e=>setDraftE(d=>({...d,papel:e.target.value}))} placeholder="Papel / cargo" style={{padding:'6px 10px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
-              <input value={draft.horas_semana} onChange={e=>setDraftE(d=>({...d,horas_semana:e.target.value}))} placeholder="h/sem" type="number" min="0" style={{padding:'6px 8px',border:'1px solid var(--border)',borderRadius:6,background:'var(--surface)',color:'var(--text)',fontSize:13,outline:'none',fontFamily:'var(--font)'}}/>
+              <select autoFocus value={draft.user_id} onChange={e=>selecionarUser(e.target.value)}
+                style={{...inpSt,appearance:'none'}}>
+                <option value="">— Selecionar usuário —</option>
+                {usuariosAtivos.filter(u=>!jaAdicionados.has(String(u.id))).map(u=>(
+                  <option key={u.id} value={u.id}>{u.nome||u.email}</option>
+                ))}
+              </select>
+              <input value={draft.papel} onChange={e=>setDraftE(d=>({...d,papel:e.target.value}))} placeholder="Papel / cargo" style={inpSt}/>
+              <input value={draft.horas_semana} onChange={e=>setDraftE(d=>({...d,horas_semana:e.target.value}))} placeholder="h/sem" type="number" min="0" style={inpSt}/>
             </div>
             <div style={{display:'flex',gap:8}}>
-              <button onClick={addM} style={{padding:'5px 14px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>Adicionar</button>
+              <button onClick={addM} disabled={!draft.user_id} style={{padding:'5px 14px',background:draft.user_id?'var(--accent)':'#d1d5db',color:'#fff',border:'none',borderRadius:6,fontSize:12,fontWeight:600,cursor:draft.user_id?'pointer':'not-allowed',fontFamily:'var(--font)'}}>Adicionar</button>
               <button onClick={()=>setAdding(false)} style={{padding:'5px 12px',background:'none',border:'1px solid var(--border)',borderRadius:6,fontSize:12,color:'var(--text-muted)',cursor:'pointer',fontFamily:'var(--font)'}}>Cancelar</button>
             </div>
           </div>
@@ -3752,8 +3925,9 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
     }
 
     return (
+      <>
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
-        <button onClick={()=>setSelected(null)} style={{display:'inline-flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',alignSelf:'flex-start'}}>
+        <button onClick={()=>{setSelected(null);setDownloadModal(null)}} style={{display:'inline-flex',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:12,padding:'4px 0',fontFamily:'var(--font)',alignSelf:'flex-start'}}>
           ← Todas as propostas
         </button>
 
@@ -3769,20 +3943,47 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
                 )}
               </div>
             </div>
-            <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flexShrink:0}}>
-              <span style={{fontSize:11,padding:'4px 10px',borderRadius:20,fontWeight:700,background:sc.bg,color:sc.color,border:`1px solid ${sc.border}`}}>{sc.label}</span>
+            <div style={{display:'flex',alignItems:'center',gap:6,flexShrink:0}}>
+              {/* Seletor de status */}
+              <select value={selected.status}
+                onChange={e=>{
+                  const next=e.target.value; if(next===selected.status) return
+                  const now=new Date().toISOString()
+                  const log={id:`l-${Date.now()}`,evento:`Status → ${PROP_STATUS_CFG[next]?.label||next}`,usuario:profile?.nome||profile?.email||'Você',data:now}
+                  salvar({...selected,status:next,
+                    enviada_em:next==='enviada'&&!selected.enviada_em?now:selected.enviada_em,
+                    aceita_em:next==='aceita'&&!selected.aceita_em?now:selected.aceita_em,
+                    version:selected.version+(next==='enviada'&&selected.status!=='enviada'?1:0),
+                    log:[...(selected.log||[]),log],
+                  })
+                }}
+                style={{padding:'5px 28px 5px 10px',borderRadius:7,border:`1.5px solid ${sc.border}`,background:sc.bg,color:sc.color,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',outline:'none',appearance:'none',backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236B7280'/%3E%3C/svg%3E")`,backgroundRepeat:'no-repeat',backgroundPosition:'right 8px center'}}>
+                {Object.entries(PROP_STATUS_CFG).map(([k,v])=>(
+                  <option key={k} value={k}>{v.label}</option>
+                ))}
+              </select>
+              <div style={{width:1,height:20,background:'var(--border)',margin:'0 4px'}}/>
               <button onClick={()=>salvar(selected,true)}
-                style={{padding:'6px 16px',background:propSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',minWidth:72}}>
+                style={{padding:'6px 16px',background:propSaved?'#10B981':'var(--accent)',color:'#fff',border:'none',borderRadius:7,fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background 0.2s',whiteSpace:'nowrap'}}>
                 {propSaved ? '✓ Salvo' : 'Salvar'}
               </button>
-              {seqNext[selected.status]&&(
-                <button onClick={avancar} style={{padding:'6px 14px',background:'none',color:'var(--accent)',border:'1px solid var(--accent)55',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
-                  {selected.status==='rascunho'?'Enviar →':'Marcar Aceita →'}
-                </button>
-              )}
-              {selected.status==='enviada'&&<button onClick={recusar} style={{padding:'6px 12px',background:'none',border:'1px solid #EF444455',color:'#EF4444',borderRadius:7,fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>Recusar</button>}
-              <button onClick={()=>downloadProposta(selected)} style={{padding:'6px 12px',border:'1px solid var(--border)',borderRadius:7,background:'none',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)'}}>↓ Word</button>
-              <button onClick={()=>excluir(selected.id)} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16,padding:'4px 6px'}}
+              <div style={{width:1,height:20,background:'var(--border)',margin:'0 2px'}}/>
+              <button onClick={()=>{
+                const tmpl = templates.find(t=>t.id===selected.template_id)
+                const doc  = tmpl?.documento_id ? docRelatorios.find(r=>r.id===tmpl.documento_id) : null
+                const fases = (selected.itens||[]).filter(i=>i.nivel===1)
+                const wbs   = fases.map(f=>({
+                  nome: f.titulo,
+                  atividades: (selected.itens||[]).filter(i=>i.nivel===2&&String(i.parent_id)===String(f.id))
+                    .map(a=>({nome:a.titulo,horas:(Number(a.hr_analista)||0)+(Number(a.hr_coord)||0),mostrar:a.mostrar!==false}))
+                }))
+                const prodNome = produtos.find(p=>String(p.id)===String(selected.produto_id))?.nome||''
+                const invest   = calcInvestimento(selected.itens||[], selected.tarifas||[])
+                const pd = { nome:selected.titulo, empresa:selected.empresa_nome, wbs, tarifas:selected.tarifas||[], itens:selected.itens||[], produto:prodNome, investimento:invest }
+                setDlHoras(false); setDlNome('cliente'); setDlFormato('word'); setDlErro('')
+                setDownloadModal({ prop: selected, doc, pd })
+              }} style={{padding:'6px 12px',border:'1px solid var(--border)',borderRadius:7,background:'none',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)',display:'flex',alignItems:'center',gap:5}}>🖨 Imprimir</button>
+              <button onClick={()=>excluir(selected.id)} title="Excluir" style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontSize:16,padding:'4px 6px'}}
                 onMouseEnter={e=>e.currentTarget.style.color='#EF4444'} onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>🗑</button>
             </div>
           </div>
@@ -3811,6 +4012,83 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
           )}
         </div>
       </div>
+
+      {/* Modal de opções de impressão (dentro do early-return de selected) */}
+      {downloadModal && (() => {
+        const { prop, doc, pd } = downloadModal
+        const empresa = companies.find(c => c.nome === prop.empresa_nome || String(c.id) === String(prop.empresa_id))
+        const canalNome = empresa?.franquia_ar_nome || ''
+        function fechar() { setDownloadModal(null); setDlErro('') }
+        function confirmar() {
+          if (dlNome === 'canal' && !canalNome) {
+            setDlErro('O campo "Unidade de Atendimento" está em branco no cadastro da empresa. Preencha antes de continuar.')
+            return
+          }
+          setDlErro('')
+          const pdFinal = { ...pd, empresa: dlNome === 'canal' ? canalNome : (prop.empresa_nome || pd.empresa) }
+          if (dlFormato === 'pdf') {
+            const estilo = (() => { try { return { ...{cor_primaria:'#1E3A5F'}, ...JSON.parse(localStorage.getItem('prop:estilo')||'{}') } } catch(e) { return {cor_primaria:'#1E3A5F'} } })()
+            const cor = estilo.cor_primaria || '#1E3A5F'
+            const body = doc?.elementos?.length ? canvasToWordHtml(doc.elementos, pdFinal, cor, dlHoras) : ''
+            const w = window.open('', '_blank')
+            w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>${pdFinal.nome||'Proposta'}</title><style>body{font-family:Arial,sans-serif;font-size:11pt;margin:40px}@media print{@page{margin:20mm}}</style></head><body>${body}</body></html>`)
+            w.document.close(); w.focus()
+            setTimeout(() => { w.print() }, 400)
+          } else {
+            downloadProposta(prop, doc, pdFinal, dlHoras)
+          }
+          fechar()
+        }
+        const bloqueado = dlNome === 'canal' && !canalNome
+        const optBtn = (ativo, onClick, label) => (
+          <button onClick={onClick} style={{flex:1,padding:'8px 12px',borderRadius:8,border:`1.5px solid ${ativo?'var(--accent)':'var(--border)'}`,background:ativo?'#EFF6FF':'var(--surface2)',color:ativo?'var(--accent)':'var(--text)',fontSize:13,fontWeight:ativo?700:400,cursor:'pointer',fontFamily:'var(--font)',transition:'all .15s',textAlign:'left',lineHeight:1.4}}>
+            {label}
+          </button>
+        )
+        return (
+          <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.45)',zIndex:600,display:'flex',alignItems:'center',justifyContent:'center'}}
+            onClick={e=>{if(e.target===e.currentTarget)fechar()}}>
+            <div style={{background:'var(--surface)',borderRadius:14,padding:'28px 32px',width:460,maxWidth:'90vw',boxShadow:'0 8px 40px rgba(0,0,0,0.18)',display:'flex',flexDirection:'column',gap:20}}>
+              <div style={{fontSize:16,fontWeight:700,color:'var(--text)'}}>Opções de impressão</div>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Detalhamento de horas no escopo</div>
+                <div style={{display:'flex',gap:8}}>
+                  {optBtn(!dlHoras, ()=>setDlHoras(false), 'Omitir horas')}
+                  {optBtn(dlHoras,  ()=>setDlHoras(true),  'Incluir horas')}
+                </div>
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Emitir em nome de</div>
+                <div style={{display:'flex',gap:8}}>
+                  {optBtn(dlNome==='cliente', ()=>{setDlNome('cliente');setDlErro('')}, `Empresa cliente — ${prop.empresa_nome||'—'}`)}
+                  {optBtn(dlNome==='canal',   ()=>{setDlNome('canal');setDlErro('')},   `Canal de Atendimento${canalNome?' — '+canalNome:''}`)}
+                </div>
+                {dlNome==='canal'&&!canalNome&&(
+                  <div style={{fontSize:11,color:'#f97316',background:'#fff7ed',border:'1px solid #fed7aa',borderRadius:6,padding:'6px 10px'}}>
+                    Nenhum Canal de Atendimento cadastrado para esta empresa.
+                  </div>
+                )}
+              </div>
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div style={{fontSize:11,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.05em'}}>Formato de saída</div>
+                <div style={{display:'flex',gap:8}}>
+                  {optBtn(dlFormato==='word', ()=>setDlFormato('word'), '📄 Word (.doc)')}
+                  {optBtn(dlFormato==='pdf',  ()=>setDlFormato('pdf'),  '🖨 PDF / Imprimir')}
+                </div>
+              </div>
+              {dlErro && <div style={{fontSize:12,color:'#DC2626',background:'#fef2f2',border:'1px solid #fecaca',borderRadius:8,padding:'8px 12px'}}>{dlErro}</div>}
+              <div style={{display:'flex',gap:8,justifyContent:'flex-end',marginTop:4}}>
+                <button onClick={fechar} style={{padding:'8px 18px',borderRadius:8,border:'1px solid var(--border)',background:'none',color:'var(--text)',fontSize:13,cursor:'pointer',fontFamily:'var(--font)'}}>Cancelar</button>
+                <button onClick={confirmar} disabled={bloqueado}
+                  style={{padding:'8px 20px',borderRadius:8,border:'none',background:bloqueado?'#d1d5db':'var(--accent)',color:'#fff',fontSize:13,fontWeight:600,cursor:bloqueado?'not-allowed':'pointer',fontFamily:'var(--font)'}}>
+                  {dlFormato==='pdf' ? '🖨 Imprimir / PDF' : '📄 Baixar Word'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+      </>
     )
   }
 
@@ -3965,8 +4243,8 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
                 </button>
               )}
               {editandoDoc && docVinculado && (
-                <div style={{position:'fixed',inset:0,zIndex:300,background:'var(--surface2)'}}>
-                  <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--text-muted)'}}>Carregando editor…</div>}>
+                <div style={{display:'flex',flexDirection:'column',flex:1,minHeight:0,overflow:'hidden',margin:'0 -28px -24px',borderTop:'1px solid var(--border2)'}}>
+                  <Suspense fallback={<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'400px',color:'var(--text-muted)'}}>Carregando editor…</div>}>
                     <CanvasEditor
                       relatorio={docVinculado}
                       onSave={async (rel)=>{
@@ -3975,7 +4253,16 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
                       }}
                       onBack={()=>setEditandoDoc(false)}
                       mode="proposta"
-                      projetoData={{ nome: st.nome, empresa: '' }}
+                      projetoData={(() => {
+                        const fases = (st.itens||[]).filter(i=>i.nivel===1)
+                        const wbs = fases.map(f=>({
+                          nome: f.titulo,
+                          atividades: (st.itens||[]).filter(i=>i.nivel===2&&String(i.parent_id)===String(f.id))
+                            .map(a=>({ nome: a.titulo, horas: (Number(a.hr_analista)||0)+(Number(a.hr_coord)||0), mostrar: a.mostrar !== false }))
+                        }))
+                        const prodNome = produtos.find(p=>String(p.id)===String(st.produto_id))?.nome || ''
+                        return { nome: st.nome, empresa: '', wbs, tarifas: st.tarifas||[], itens: st.itens||[], produto: prodNome, investimento: invest }
+                      })()}
                     />
                   </Suspense>
                 </div>
@@ -4155,7 +4442,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
           <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
             {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
               <button key={k} onClick={()=>setSubView(k)}
-                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--surface)':'none',color:subView===k?'var(--text)':'var(--text-muted)'}}>
+                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--accent)':'none',color:subView===k?'#fff':'var(--text-muted)'}}>
                 {l}
               </button>
             ))}
@@ -4201,30 +4488,6 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
   // ── List view (propostas) ──
   return (
     <div style={{display:'flex',flexDirection:'column',gap:16}}>
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
-            {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
-              <button key={k} onClick={()=>setSubView(k)}
-                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--surface)':'none',color:subView===k?'var(--text)':'var(--text-muted)'}}>
-                {l}
-              </button>
-            ))}
-          </div>
-          <select value={filterOpp} onChange={e=>setFilterOpp(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
-            <option value="">Todas as oportunidades</option>
-            {oppOptions.map(o=><option key={o.id} value={String(o.id)}>{o.empresa_nome} — {o.titulo}</option>)}
-          </select>
-          <select value={filterSt} onChange={e=>setFilterSt(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
-            <option value="">Todos os status</option>
-            {Object.entries(PROP_STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-          </select>
-        </div>
-        <button onClick={()=>setCriando(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
-          + Nova Proposta
-        </button>
-      </div>
-
       {showKpis && <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12}}>
         {[
           {label:'Total',    value:propostas.length,                                        color:'var(--border)'},
@@ -4238,6 +4501,80 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
           </div>
         ))}
       </div>}
+
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
+            {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
+              <button key={k} onClick={()=>setSubView(k)}
+                style={{padding:'5px 14px',borderRadius:7,border:'none',cursor:'pointer',fontSize:12,fontWeight:subView===k?700:500,fontFamily:'var(--font)',background:subView===k?'var(--accent)':'none',color:subView===k?'#fff':'var(--text-muted)'}}>
+                {l}
+              </button>
+            ))}
+          </div>
+          {/* Seletor de oportunidade com busca ──────────────────────────────── */}
+          {(() => {
+            const [oppQ, setOppQ] = [filterOppQ, setFilterOppQ]
+            const [open, setOpen] = [oppPickerOpen, setOppPickerOpen]
+            const selected = oppOptions.find(o => String(o.id) === filterOpp)
+            const matches  = oppOptions
+              .filter(o => !oppQ || `${o.empresa_nome} ${o.titulo}`.toLowerCase().includes(oppQ.toLowerCase()))
+              .slice(0, 10)
+            return (
+              <div style={{position:'relative'}} ref={oppPickerRef}>
+                <button onClick={()=>setOpen(v=>!v)}
+                  style={{display:'flex',alignItems:'center',gap:6,padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color: selected?'var(--text)':'var(--text-muted)',fontSize:12,outline:'none',fontFamily:'var(--font)',cursor:'pointer',minWidth:220,maxWidth:320,textAlign:'left',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>
+                  <span style={{flex:1,overflow:'hidden',textOverflow:'ellipsis'}}>
+                    {selected ? `${selected.empresa_nome} — ${selected.titulo}` : 'Todas as oportunidades'}
+                  </span>
+                  {selected && <span onClick={e=>{e.stopPropagation();setFilterOpp('');setOppQ('')}} style={{color:'var(--text-muted)',fontSize:14,lineHeight:1,padding:'0 2px'}}>×</span>}
+                  <span style={{color:'var(--text-muted)',fontSize:10}}>▾</span>
+                </button>
+                {open && (
+                  <div style={{position:'absolute',top:'calc(100% + 4px)',left:0,zIndex:400,background:'var(--surface)',border:'1px solid var(--border2)',borderRadius:10,boxShadow:'0 8px 24px rgba(0,0,0,0.14)',width:340,overflow:'hidden'}}>
+                    <div style={{padding:'8px 10px',borderBottom:'1px solid var(--border2)'}}>
+                      <input autoFocus value={oppQ} onChange={e=>setOppQ(e.target.value)}
+                        placeholder="Buscar empresa ou oportunidade…"
+                        style={{width:'100%',boxSizing:'border-box',padding:'6px 10px',border:'1px solid var(--border)',borderRadius:7,fontSize:12,background:'var(--surface2)',color:'var(--text)',fontFamily:'var(--font)',outline:'none'}} />
+                    </div>
+                    <div style={{maxHeight:280,overflowY:'auto'}}>
+                      <div onClick={()=>{setFilterOpp('');setOppQ('');setOpen(false)}}
+                        style={{padding:'9px 14px',fontSize:12,cursor:'pointer',color:'var(--text-muted)',borderBottom:'1px solid var(--border2)',background:!filterOpp?'var(--surface2)':'transparent'}}>
+                        Todas as oportunidades
+                      </div>
+                      {matches.length === 0
+                        ? <div style={{padding:'16px 14px',fontSize:12,color:'var(--text-muted)',textAlign:'center'}}>Nenhum resultado</div>
+                        : matches.map(o => (
+                          <div key={o.id} onClick={()=>{setFilterOpp(String(o.id));setOppQ('');setOpen(false)}}
+                            style={{padding:'9px 14px',fontSize:12,cursor:'pointer',borderBottom:'1px solid var(--border2)',background:filterOpp===String(o.id)?'var(--accent-lite)':'transparent',
+                              color:filterOpp===String(o.id)?'var(--accent)':'var(--text)'}}
+                            onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
+                            onMouseLeave={e=>e.currentTarget.style.background=filterOpp===String(o.id)?'var(--accent-lite)':'transparent'}>
+                            <div style={{fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.empresa_nome}</div>
+                            <div style={{fontSize:10,color:'var(--text-muted)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{o.titulo}</div>
+                          </div>
+                        ))
+                      }
+                      {oppOptions.filter(o => !oppQ || `${o.empresa_nome} ${o.titulo}`.toLowerCase().includes(oppQ.toLowerCase())).length > 10 && (
+                        <div style={{padding:'7px 14px',fontSize:11,color:'var(--text-muted)',textAlign:'center',borderTop:'1px solid var(--border2)'}}>
+                          Mostrando 10 de {oppOptions.filter(o=>!oppQ||`${o.empresa_nome} ${o.titulo}`.toLowerCase().includes(oppQ.toLowerCase())).length} — refine a busca
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+          <select value={filterSt} onChange={e=>setFilterSt(e.target.value)} style={{padding:'7px 10px',border:'1px solid var(--border)',borderRadius:7,background:'var(--surface)',color:'var(--text)',fontSize:12,outline:'none',fontFamily:'var(--font)'}}>
+            <option value="">Todos os status</option>
+            {Object.entries(PROP_STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <button onClick={()=>setCriando(true)} style={{display:'flex',alignItems:'center',gap:6,padding:'8px 16px',background:'var(--accent)',color:'#fff',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)'}}>
+          + Nova Proposta
+        </button>
+      </div>
 
       {filtered.length===0?(
         <div style={{textAlign:'center',padding:'60px 0',color:'var(--text-muted)'}}>
@@ -4401,6 +4738,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true }) {
           </div>
         </>
       )}
+
     </div>
   )
 }
@@ -4422,6 +4760,7 @@ export default function Projetos() {
   const [dragId,       setDragId]      = useState(null)
   const [tab,       setTab]       = useLocalState('projetos:tab', 'projetos')
   const [showKpis,  setShowKpis]  = useLocalState('projetos:showKpis', true)
+  const [propostasEditing, setPropostasEditing] = useState(false)
 
   // Handle ?tab=propostas URL param from Pipeline "Abrir em Projetos →" link
   useEffect(() => {
@@ -4461,10 +4800,70 @@ export default function Projetos() {
     return true
   }), [projetos, filtros, search])
 
-  // KPIs
+  // KPIs — aba Projetos
   const emAndamento = projetos.filter(p => p.status === 'em_andamento').length
   const totalHrsEst = projetos.reduce((s, p) => s + Number(p.total_hours_estimated), 0)
   const totalHrsExe = Object.values(execTotals).reduce((s, v) => s + v, 0)
+
+  // KPIs — aba Propostas
+  const [_propostas] = useLocalState(PROPOSTAS_KEY, [])
+  const kpiPropostas = useMemo(() => ({
+    total:     _propostas.length,
+    enviadas:  _propostas.filter(p => p.status === 'enviada').length,
+    aceitas:   _propostas.filter(p => p.status === 'aceita').length,
+    assinadas: _propostas.filter(p => p.assinatura_status === 'concluida').length,
+  }), [_propostas])
+
+  // KPIs — aba Recursos
+  const horasPorUserGlobal = useMemo(() => {
+    const m = {}
+    timeLogs.forEach(l => { const k = String(l.user_name || l.user_id || ''); if (k) m[k] = (m[k] || 0) + Number(l.hours_executed) })
+    return m
+  }, [timeLogs])
+  const analistasGlobal = useMemo(() => {
+    const from = new Set(timeLogs.map(l => l.user_name).filter(Boolean))
+    const base  = members.length ? members : [...from].map(n => ({ id: n, nome: n }))
+    return base
+  }, [members, timeLogs])
+  const kpiRecursos = useMemo(() => {
+    const total = analistasGlobal.length
+    const sobrecarregados = analistasGlobal.filter(u => {
+      const h = horasPorUserGlobal[String(u.id || u.nome)] || 0; return (h / 160) * 100 >= 95
+    }).length
+    const disponiveis = analistasGlobal.filter(u => {
+      const h = horasPorUserGlobal[String(u.id || u.nome)] || 0; return (h / 160) * 100 < 70
+    }).length
+    const totalH = Object.values(horasPorUserGlobal).reduce((s, v) => s + v, 0)
+    return { total, sobrecarregados, disponiveis, totalH }
+  }, [analistasGlobal, horasPorUserGlobal])
+
+  // KPIs — aba Financeiro
+  const kpiFinanceiro = useMemo(() => {
+    const [fechamentos] = [JSON.parse(localStorage.getItem(FECHAMENTOS_KEY) || '[]')]
+    const approvedIds = new Set()
+    fechamentos.filter(f => f.status === 'aprovado').forEach(f => f.log_ids?.forEach(id => approvedIds.add(id)))
+    const totalContrato = projetos.reduce((s, p) => s + Number(p.valor_contrato || 0), 0)
+    const totalFaturado = projetos.reduce((s, p) => s + Number(p.valor_faturado || 0), 0)
+    const totalCusto    = timeLogs.filter(l => approvedIds.has(l.id)).reduce((s, l) => s + Number(l.hours_executed) * 150, 0)
+    const totalMargem   = totalFaturado - totalCusto
+    const fmtBRL = v => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+    return { totalContrato: fmtBRL(totalContrato), totalCusto: fmtBRL(totalCusto), totalFaturado: fmtBRL(totalFaturado), totalMargem: fmtBRL(totalMargem), margemNeg: totalMargem < 0 }
+  }, [projetos, timeLogs])
+
+  // KPIs — aba Fechamento
+  const kpiFechamento = useMemo(() => {
+    const fechamentos = JSON.parse(localStorage.getItem(FECHAMENTOS_KEY) || '[]')
+    const now = new Date(); const mes = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`
+    const logs = timeLogs.filter(l => (l.log_date||'').startsWith(mes))
+    const analistas = new Set(logs.map(l => l.user_name).filter(Boolean)).size
+    const enviados  = fechamentos.filter(f => f.periodo === mes && f.status === 'enviado').length
+    const aprovados = fechamentos.filter(f => f.periodo === mes && f.status === 'aprovado').length
+    const approvedIds = new Set()
+    fechamentos.filter(f => f.status === 'aprovado').forEach(f => f.log_ids?.forEach(id => approvedIds.add(id)))
+    const horasAprov = timeLogs.filter(l => approvedIds.has(l.id)).reduce((s,l)=>s+Number(l.hours_executed),0)
+    const fmtH = h => `${Math.floor(h)}h${Math.round((h%1)*60).toString().padStart(2,'0')}`
+    return { analistas, enviados, aprovados, horasAprov: fmtH(horasAprov) }
+  }, [timeLogs])
 
   // Drag & drop
   function handleDragStart(e, id) { setDragId(id) }
@@ -4694,7 +5093,7 @@ export default function Projetos() {
           breadcrumb={['Indicadores']}
           title={null}
           showKpis={showKpis}
-          onToggleKpis={() => setShowKpis(v => !v)}
+          onToggleKpis={propostasEditing ? undefined : () => setShowKpis(v => !v)}
           actions={
             tab === 'projetos' ? <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
             : tab === 'recursos' ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
@@ -4721,13 +5120,50 @@ export default function Projetos() {
         </div>
 
 
-        {tab === 'projetos' && showKpis && <div style={pg.kpis}>
-          <KpiCard label="Total projetos"   value={projetos.length}               color="var(--accent)" />
-          <KpiCard label="Em andamento"     value={emAndamento}                   color="#3B82F6" />
-          <KpiCard label="Bloqueados"       value={blockedIds.size}               color="#EF4444" />
-          <KpiCard label="Horas estimadas"  value={`${totalHrsEst}h`}            color="#10B981" />
-          <KpiCard label="Executadas"       value={`${totalHrsExe.toFixed(0)}h`} color="var(--accent)" />
-        </div>}
+        {showKpis && !propostasEditing && (() => {
+          const kpiSets = {
+            projetos: [
+              { label:'Total projetos',  value: projetos.length,               color:'var(--accent)' },
+              { label:'Em andamento',    value: emAndamento,                   color:'#3B82F6' },
+              { label:'Bloqueados',      value: blockedIds.size,               color:'#EF4444' },
+              { label:'Horas estimadas', value: `${totalHrsEst}h`,            color:'#10B981' },
+              { label:'Executadas',      value: `${totalHrsExe.toFixed(0)}h`, color:'var(--accent)' },
+            ],
+            propostas: [
+              { label:'Total',     value: kpiPropostas.total,     color:'var(--border)' },
+              { label:'Enviadas',  value: kpiPropostas.enviadas,  color:'#3B82F6' },
+              { label:'Aceitas',   value: kpiPropostas.aceitas,   color:'#10B981' },
+              { label:'Assinadas', value: kpiPropostas.assinadas, color:'var(--accent)' },
+            ],
+            recursos: [
+              { label:'Analistas',       value: kpiRecursos.total,            color:'var(--accent)' },
+              { label:'Sobrecarregados', value: kpiRecursos.sobrecarregados,  color:'#EF4444' },
+              { label:'Disponíveis',     value: kpiRecursos.disponiveis,      color:'#10B981' },
+              { label:'Horas no mês',    value: `${kpiRecursos.totalH.toFixed(0)}h`, color:'#3B82F6' },
+            ],
+            financeiro: [
+              { label:'Portfólio',      value: kpiFinanceiro.totalContrato, color:'var(--accent)' },
+              { label:'Custo realizado',value: kpiFinanceiro.totalCusto,    color:'#3B82F6' },
+              { label:'Faturado',       value: kpiFinanceiro.totalFaturado, color:'#10B981' },
+              { label:'Margem',         value: kpiFinanceiro.totalMargem,   color: kpiFinanceiro.margemNeg ? '#EF4444' : '#10B981' },
+            ],
+            fechamento: [
+              { label:'Analistas no período', value: kpiFechamento.analistas,  color:'var(--accent)' },
+              { label:'Aguard. aprovação',    value: kpiFechamento.enviados,   color:'#F59E0B' },
+              { label:'Aprovados',            value: kpiFechamento.aprovados,  color:'#10B981' },
+              { label:'Horas aprovadas',      value: kpiFechamento.horasAprov, color:'#10B981' },
+            ],
+          }
+          const items = kpiSets[tab] || []
+          return (
+            <div style={{ display:'flex', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:12, overflow:'hidden', boxShadow:'var(--shadow)' }}>
+              {items.map((k, i) => (
+                <KpiCard key={k.label} label={k.label} value={k.value} color={k.color}
+                  last={i === items.length - 1} />
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Toolbar */}
         {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' && (
@@ -4811,22 +5247,22 @@ export default function Projetos() {
       {/* Abas com scroll próprio */}
       {tab === 'propostas' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <PropostasTab projetos={projetos} phases={phases} opps={opps} showKpis={showKpis} />
+          <PropostasTab projetos={projetos} phases={phases} opps={opps} showKpis={false} onEditingChange={setPropostasEditing} />
         </div>
       )}
       {tab === 'fechamento' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <FechamentoHoras embedded showKpis={showKpis} />
+          <FechamentoHoras embedded showKpis={false} />
         </div>
       )}
       {tab === 'recursos' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={showKpis} />
+          <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={false} />
         </div>
       )}
       {tab === 'financeiro' && (
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
-          <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={showKpis} />
+          <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={false} />
         </div>
       )}
 

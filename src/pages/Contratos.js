@@ -60,10 +60,23 @@ const EMPTY_FORM = {
   vendedor: '',
   tipo_venda: '',
   vigencia_inicio: '', vigencia_fim: '',
+  itens: [],
   itens_adesao: [], itens_mrr: [], itens_servico: [],
   responsavel: '', observacoes: '',
   origem: '',
   opportunity_id: null, opportunity_titulo: '',
+}
+
+// Mapeamento tipo de produto → label e cor de categoria
+const CATEGORIA_POR_TIPO = {
+  saas:        { label: 'MRR',     color: 'var(--blue)',   bg: 'var(--blue-bg)',   text: 'var(--blue-text)' },
+  licenca:     { label: 'Adesão',  color: '#0891B2',       bg: '#ECFEFF',          text: '#0E7490' },
+  hardware:    { label: 'Adesão',  color: '#0891B2',       bg: '#ECFEFF',          text: '#0E7490' },
+  servico:     { label: 'Serviço', color: 'var(--purple)', bg: 'var(--purple-bg)', text: 'var(--purple-text)' },
+  consultoria: { label: 'Serviço', color: 'var(--purple)', bg: 'var(--purple-bg)', text: 'var(--purple-text)' },
+}
+function categoriaDoProduto(tipo) {
+  return CATEGORIA_POR_TIPO[tipo] || { label: tipo || '—', color: 'var(--border)', bg: 'var(--surface2)', text: 'var(--text-muted)' }
 }
 
 const TIPO_VENDA_KEY = 'contratos:tipo_venda_opts'
@@ -162,28 +175,30 @@ function DescontoBadge({ pct, autorizado }) {
   )
 }
 
-// ─── Slot multi-produto compacto ─────────────────────────────────────────────
-function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
+// ─── Lista unificada de produtos contratados ──────────────────────────────────
+const STATUS_ITEM_OPTS = [
+  { value: 'ativo',      label: 'Ativo' },
+  { value: 'pendente',   label: 'Pendente' },
+  { value: 'suspenso',   label: 'Suspenso' },
+  { value: 'cancelado',  label: 'Cancelado' },
+]
+
+function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, contratos }) {
   const [addingQuery, setAddingQuery] = useState('')
   const [addingOpen,  setAddingOpen]  = useState(false)
-  const [showAll,     setShowAll]     = useState(false)
   const addRef = useRef(null)
 
-  const todosProdutos = (produtosReal && produtosReal.length > 0) ? produtosReal : MOCK_PRODUTOS
-  const allActive  = todosProdutos.filter(p => p.status === 'ativo')
-  const suggested  = allActive.filter(slot.filter)
-  // se não há sugeridos, expande para todos automaticamente
-  const effectiveShowAll = showAll || suggested.length === 0
-  const pool       = effectiveShowAll ? allActive : suggested
-  const jaAdded    = new Set((itens || []).map(i => i.produto_id))
+  const todosProdutos = (produtosReal?.length > 0) ? produtosReal : MOCK_PRODUTOS
+  const allActive = todosProdutos.filter(p => p.status === 'ativo')
+  const jaAdded   = new Set((itens||[]).map(i => i.produto_id))
 
   const opts = useMemo(() => {
     const q = addingQuery.toLowerCase()
-    return pool
-      .filter(p => !jaAdded.has(p.id) && (p.nome.toLowerCase().includes(q) || (p.codigo||'').toLowerCase().includes(q)))
-      .slice(0, 12)
+    return allActive
+      .filter(p => !jaAdded.has(p.id) && (!q || p.nome.toLowerCase().includes(q) || (p.codigo||'').toLowerCase().includes(q)))
+      .slice(0, 15)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [addingQuery, pool, itens])
+  }, [addingQuery, allActive, itens])
 
   useEffect(() => {
     function h(e) { if (addRef.current && !addRef.current.contains(e.target)) setAddingOpen(false) }
@@ -191,21 +206,32 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
     return () => document.removeEventListener('mousedown', h)
   }, [])
 
-  const STATUS_ITEM_OPTS = [
-    { value: 'ativo',      label: 'Ativo' },
-    { value: 'pendente',   label: 'Pendente' },
-    { value: 'suspenso',   label: 'Suspenso' },
-    { value: 'cancelado',  label: 'Cancelado' },
-  ]
+  // Verifica se a empresa já tem contrato ativo com o produto
+  function primeiraCompraDefault(produtoId) {
+    if (!empresaId || !contratos) return ''
+    const temContrato = contratos.some(c =>
+      c.status === 'ativo' &&
+      String(c.empresa_id) === String(empresaId) &&
+      [...(c.itens||[]), ...(c.itens_adesao||[]), ...(c.itens_mrr||[]), ...(c.itens_servico||[])].some(i => String(i.produto_id) === String(produtoId))
+    )
+    return temContrato ? 'nao' : ''
+  }
 
   function addItem(p) {
-    onChange([...(itens||[]), { produto_id: p.id, nome: p.nome, quantidade: 1, valor: p.preco || 0, tabela: p.preco || null, desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo', vencimento_primeiro_pagamento: '', primeira_compra: false }])
-    setAddingQuery(''); setAddingOpen(false); setShowAll(false)
+    const cat = categoriaDoProduto(p.tipo)
+    onChange([...(itens||[]), {
+      produto_id: p.id, nome: p.nome, tipo_produto: p.tipo,
+      quantidade: 1, valor: p.preco || 0, tabela: p.preco || null,
+      desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo',
+      vencimento_primeiro_pagamento: '',
+      primeira_compra: primeiraCompraDefault(p.id),
+      _cat_label: cat.label,
+    }])
+    setAddingQuery(''); setAddingOpen(false)
   }
 
   function updateItem(idx, patch) {
-    const next = (itens||[]).map((it, i) => i === idx ? { ...it, ...patch } : it)
-    onChange(next)
+    onChange((itens||[]).map((it, i) => i === idx ? { ...it, ...patch } : it))
   }
 
   function removeItem(idx) {
@@ -213,7 +239,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   }
 
   function handleQtdChange(idx, q) {
-    const qtd  = Math.max(0.001, parseFloat(q) || 1)
+    const qtd = Math.max(0.001, parseFloat(q) || 1)
     const item = (itens||[])[idx] || {}
     const tab  = parseFloat(item.tabela) || 0
     const pct  = parseFloat(item.desconto_pct) || 0
@@ -222,7 +248,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   }
 
   function handleDescontoChange(idx, pct) {
-    const p    = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
+    const p = Math.min(Math.max(parseFloat(pct) || 0, 0), 100)
     const item = (itens||[])[idx] || {}
     const tab  = parseFloat(item.tabela) || 0
     const qtd  = parseFloat(item.quantidade) || 1
@@ -230,96 +256,85 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
   }
 
   function handleValorChange(idx, v) {
-    const item = (itens||[])[idx] || {}
-    const tab  = parseFloat(item.tabela) || 0
-    const qtd  = parseFloat(item.quantidade) || 1
+    const item   = (itens||[])[idx] || {}
+    const tab    = parseFloat(item.tabela) || 0
+    const qtd    = parseFloat(item.quantidade) || 1
     const unitTab = tab > 0 ? tab * qtd : 0
-    const pct  = unitTab > 0 && parseFloat(v) >= 0 ? Math.round((1 - parseFloat(v) / unitTab) * 10000) / 100 : item.desconto_pct
+    const pct    = unitTab > 0 && parseFloat(v) >= 0 ? Math.round((1 - parseFloat(v) / unitTab) * 10000) / 100 : item.desconto_pct
     updateItem(idx, { valor: v, desconto_pct: Math.max(0, pct) })
   }
 
+  const total = (itens||[]).reduce((s, i) => s + (parseFloat(i.valor)||0), 0)
+
   return (
     <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'visible' }}>
-      {/* cabeçalho do slot */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface2)', borderBottom: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none', borderRadius: (itens||[]).length === 0 ? 9 : '9px 9px 0 0' }}>
-        <span style={{ width: 20, height: 20, borderRadius: 5, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, border: `1px solid ${slot.color}33`, flexShrink: 0 }}>{slot.icon}</span>
-        <div style={{ flex: 1 }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{slot.label}</span>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>{slot.hint}</span>
-        </div>
-        {(itens||[]).length > 0 && (
-          <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
-            {fmtMoeda((itens||[]).reduce((s, i) => s + (parseFloat(i.valor)||0), 0))}
-          </span>
-        )}
+      {/* cabeçalho */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px',
+        background: 'var(--surface2)', borderBottom: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none',
+        borderRadius: (itens||[]).length === 0 ? 9 : '9px 9px 0 0' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', flex: 1 }}>Produtos Contratados</span>
+        {total > 0 && <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>{fmtMoeda(total)}</span>}
       </div>
 
-      {/* lista de itens */}
+      {/* itens */}
       {(itens||[]).map((item, idx) => {
-        const prodObj     = todosProdutos.find(p => p.id === item.produto_id)
+        const prodObj = todosProdutos.find(p => String(p.id) === String(item.produto_id))
+        const cat     = categoriaDoProduto(item.tipo_produto || prodObj?.tipo || item._slot)
         const descontoMax = prodObj?.desconto_max ?? 100
-        const desc        = parseFloat(item.desconto_pct) || 0
-        const acima       = desc > descontoMax && descontoMax > 0
+        const desc    = parseFloat(item.desconto_pct) || 0
+        const acima   = desc > descontoMax && descontoMax > 0
         const precisaAuth = desc > 0 && !item.desconto_autorizado
         return (
           <div key={idx} style={{ borderBottom: idx < (itens||[]).length - 1 ? '1px solid var(--border)' : 'none' }}>
             {/* linha principal */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 90px 80px 90px 28px', gap: 6, alignItems: 'center', padding: '7px 12px', background: precisaAuth ? 'var(--red-bg)' : 'var(--surface)' }}>
-              <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</div>
-              {/* quantidade */}
+              <div style={{ overflow: 'hidden' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {/* badge de categoria */}
+                  <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
+                    background: cat.bg, color: cat.text, border: `1px solid ${cat.color}33` }}>
+                    {cat.label}
+                  </span>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.nome}</span>
+                </div>
+              </div>
               <input type="number" min="0.001" step="1"
                 style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none', textAlign: 'center' }}
-                value={item.quantidade ?? 1}
-                onChange={e => handleQtdChange(idx, e.target.value)}
-                title="Quantidade"
-                placeholder="1"
-              />
+                value={item.quantidade ?? 1} onChange={e => handleQtdChange(idx, e.target.value)} title="Quantidade" />
               <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textAlign: 'right' }}>
                 {item.tabela ? fmtMoeda(item.tabela) : '—'}
               </div>
-              {/* desconto */}
               <div style={{ position: 'relative' }}>
                 <input type="number" min="0" max="100" step="0.5"
                   style={{ width: '100%', padding: '4px 20px 4px 6px', borderRadius: 5, border: `1px solid ${acima ? 'var(--red)' : 'var(--border)'}`, fontSize: 11, fontFamily: 'var(--mono)', color: acima ? 'var(--red)' : 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none' }}
-                  value={item.desconto_pct}
-                  onChange={e => handleDescontoChange(idx, e.target.value)}
-                  placeholder="0"
-                />
+                  value={item.desconto_pct} onChange={e => handleDescontoChange(idx, e.target.value)} placeholder="0" />
                 <span style={{ position: 'absolute', right: 5, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: 'var(--text-muted)', pointerEvents: 'none' }}>%</span>
               </div>
-              {/* valor contratado */}
               <input type="number" min="0" step="0.01"
                 style={{ width: '100%', padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', fontSize: 11, fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--text)', background: 'var(--surface)', boxSizing: 'border-box', outline: 'none' }}
-                value={item.valor}
-                onChange={e => handleValorChange(idx, e.target.value)}
-                placeholder="0"
-              />
+                value={item.valor} onChange={e => handleValorChange(idx, e.target.value)} placeholder="0" />
               <button type="button" onClick={() => removeItem(idx)}
                 style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13, padding: 0, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
             </div>
-            {/* status + vencimento + primeira compra por produto */}
+
+            {/* status + vencimento + 1ª compra */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', flexWrap: 'wrap' }}>
-              <select
-                value={item.status_item || 'ativo'}
-                onChange={e => updateItem(idx, { status_item: e.target.value })}
-                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
-                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+              <select value={item.status_item || 'ativo'} onChange={e => updateItem(idx, { status_item: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
                 {STATUS_ITEM_OPTS.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
               </select>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>1º pagamento:</label>
-              <input
-                type="date"
-                value={item.vencimento_primeiro_pagamento || ''}
-                onChange={e => updateItem(idx, { vencimento_primeiro_pagamento: e.target.value })}
-                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)',
-                  background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }}
-              />
-              <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>
-                <input type="checkbox" checked={!!item.primeira_compra} onChange={e => updateItem(idx, { primeira_compra: e.target.checked })}
-                  style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
-                1ª compra
-              </label>
+              <input type="date" value={item.vencimento_primeiro_pagamento || ''} onChange={e => updateItem(idx, { vencimento_primeiro_pagamento: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }} />
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>1ª venda:</label>
+              <select value={item.primeira_compra || ''} onChange={e => updateItem(idx, { primeira_compra: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                <option value="">— Selecionar —</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+              </select>
             </div>
+
             {/* autorização de desconto */}
             {desc > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', background: item.desconto_autorizado ? 'var(--green-bg)' : 'var(--red-bg)' }}>
@@ -342,7 +357,7 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
       })}
 
       {/* campo de busca para adicionar */}
-      <div ref={addRef} style={{ position: 'relative', padding: '6px 10px', background: 'var(--surface2)', borderTop: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none' }}>
+      <div ref={addRef} style={{ position: 'relative', padding: '6px 10px', background: 'var(--surface2)', borderTop: (itens||[]).length > 0 ? '1px solid var(--border)' : 'none', borderRadius: (itens||[]).length === 0 ? '0 0 9px 9px' : undefined }}>
         <input
           style={{ width: '100%', padding: '5px 10px', borderRadius: 6, border: '1px dashed var(--border)', fontSize: 12, color: 'var(--text-muted)', background: 'transparent', outline: 'none', boxSizing: 'border-box', fontFamily: 'var(--font)' }}
           placeholder="+ Adicionar produto…"
@@ -350,25 +365,16 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
           onChange={e => { setAddingQuery(e.target.value); setAddingOpen(true) }}
           onFocus={() => setAddingOpen(true)}
         />
-        {addingOpen && (
-          <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', maxHeight: 240, overflowY: 'auto' }}>
-            <div style={{ padding: '5px 10px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6 }}>
-              {[{ label: `Sugeridos (${suggested.length})`, val: false }, { label: 'Todos', val: true }].map(({ label, val }) => (
-                <button key={label} type="button"
-                  style={{ fontSize: 10, fontFamily: 'var(--mono)', padding: '2px 7px', borderRadius: 4, border: '1px solid', cursor: 'pointer',
-                    background: showAll === val ? (val ? 'var(--accent-glow)' : slot.bg) : 'none',
-                    color: showAll === val ? (val ? 'var(--accent)' : slot.text) : 'var(--text-muted)',
-                    borderColor: showAll === val ? (val ? 'rgba(30,58,95,0.2)' : slot.color + '44') : 'var(--border)' }}
-                  onMouseDown={e => { e.preventDefault(); setShowAll(val) }}>{label}</button>
-              ))}
-            </div>
-            {opts.length === 0
-              ? <div style={{ padding: '10px 12px', color: 'var(--text-muted)', fontSize: 12 }}>Nenhum produto disponível</div>
-              : opts.map(p => (
+        {addingOpen && opts.length > 0 && (
+          <div style={{ position: 'absolute', top: 'calc(100% + 2px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: 'var(--shadow-md)', zIndex: 200, overflow: 'hidden', maxHeight: 280, overflowY: 'auto' }}>
+            {opts.map(p => {
+              const cat = categoriaDoProduto(p.tipo)
+              return (
                 <button type="button" key={p.id}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 12px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
                   onMouseDown={() => addItem(p)}>
-                  <span style={{ width: 24, height: 24, borderRadius: 5, background: slot.bg, color: slot.text, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)', flexShrink: 0 }}>{p.nome.slice(0,2).toUpperCase()}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, fontFamily: 'var(--mono)', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap', flexShrink: 0,
+                    background: cat.bg, color: cat.text, border: `1px solid ${cat.color}33` }}>{cat.label}</span>
                   <span style={{ flex: 1 }}>
                     <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{p.nome}</div>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
@@ -377,8 +383,8 @@ function SlotProdutos({ slot, itens, onChange, produtos: produtosReal }) {
                     </div>
                   </span>
                 </button>
-              ))
-            }
+              )
+            })}
           </div>
         )}
       </div>
@@ -392,11 +398,17 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   const tid = tenantId || 't1'
 
   // Uma provisão por produto ativo com data de 1º pagamento preenchida
-  const slots = [
-    ...(contrato.itens_adesao  || []).map(i => ({ ...i, tipo_item: 'adesao' })),
-    ...(contrato.itens_mrr     || []).map(i => ({ ...i, tipo_item: 'mrr' })),
-    ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_item: 'servico' })),
-  ]
+  const allItens = contrato.itens?.length > 0
+    ? contrato.itens
+    : [
+        ...(contrato.itens_adesao  || []).map(i => ({ ...i, tipo_produto: 'licenca' })),
+        ...(contrato.itens_mrr     || []).map(i => ({ ...i, tipo_produto: 'saas' })),
+        ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_produto: 'servico' })),
+      ]
+  const slots = allItens.map(i => ({
+    ...i,
+    tipo_item: i.tipo_produto === 'saas' ? 'mrr' : ['servico','consultoria'].includes(i.tipo_produto) ? 'servico' : 'adesao',
+  }))
 
   const candidatos = slots.filter(
     i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0
@@ -672,7 +684,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       ? (contratos.find(c => c.id === form.id)?.status === 'rascunho' && form.status === 'ativo')
       : form.status === 'ativo'
     if (ativando) {
-      const todosItens = [...(form.itens_adesao||[]), ...(form.itens_mrr||[]), ...(form.itens_servico||[])]
+      const todosItens = form.itens?.length > 0 ? form.itens : [...(form.itens_adesao||[]), ...(form.itens_mrr||[]), ...(form.itens_servico||[])]
       const semData = todosItens.filter(i => !i.vencimento_primeiro_pagamento)
       if (semData.length > 0) {
         e.vencimento_itens = `Preencha a data de 1º pagamento em todos os produtos (${semData.length} sem data)`
@@ -744,7 +756,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   async function executarAtivacao() {
     setSaving(true)
     try {
-      const todosItens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+      const todosItens = ativarData.itens?.length > 0 ? ativarData.itens : [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
         .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
       const steps = [{ id: 'contrato', label: `Contrato ${ativarData.numero} ativado`, sublabel: ativarData.empresa_nome }]
       await onSave(ativarData, {
@@ -914,7 +926,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar provisões de pagamento</div>
                 {(() => {
-                  const itens = [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])]
+                  const itens = (ativarData.itens?.length > 0 ? ativarData.itens : [...(ativarData.itens_adesao||[]), ...(ativarData.itens_mrr||[]), ...(ativarData.itens_servico||[])])
                     .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
                   return (
                     <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
@@ -975,9 +987,9 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       {/* Resumo financeiro */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, padding: '12px 16px', background: 'var(--surface2)', borderRadius: 10, border: '1px solid var(--border2)' }}>
         {[
-          { label: 'Adesão',  val: (form.itens_adesao||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
-          { label: 'MRR',     val: (form.itens_mrr||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0),    suffix: '/mês' },
-          { label: 'Serviço', val: (form.itens_servico||[]).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'Adesão',  val: (form.itens||[]).filter(i => ['licenca','hardware'].includes(i.tipo_produto)).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
+          { label: 'MRR',     val: (form.itens||[]).filter(i => i.tipo_produto === 'saas').reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '/mês' },
+          { label: 'Serviço', val: (form.itens||[]).filter(i => ['servico','consultoria'].includes(i.tipo_produto)).reduce((s,i)=>s+(parseFloat(i.valor)||0),0), suffix: '' },
         ].map(({ label, val, suffix, bold }) => (
           <div key={label}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
@@ -1073,17 +1085,18 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       <FormSection label="Produtos contratados">
         <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {/* cabeçalho das colunas */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 80px 90px 28px', gap: 6, padding: '0 12px 4px', marginTop: 2 }}>
-            {['Produto', 'Tabela', 'Desc.', 'Contratado', ''].map((h, i) => (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 56px 90px 80px 90px 28px', gap: 6, padding: '0 12px 4px', marginTop: 2 }}>
+            {['Produto', 'Qtd', 'Tabela', 'Desc.', 'Contratado', ''].map((h, i) => (
               <span key={i} style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: i > 0 ? 'right' : 'left' }}>{h}</span>
             ))}
           </div>
-          {SLOTS.map(slot => (
-            <SlotProdutos key={slot.key} slot={slot} produtos={produtos}
-              itens={form[`itens_${slot.key}`] || []}
-              onChange={itens => set(`itens_${slot.key}`, itens)}
-            />
-          ))}
+          <ProdutosList
+            itens={form.itens || []}
+            onChange={itens => set('itens', itens)}
+            produtos={produtos}
+            empresaId={form.empresa_id}
+            contratos={contratos}
+          />
         </div>
       </FormSection>
 
