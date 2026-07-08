@@ -1236,11 +1236,20 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
             </div>
           )}
 
-          {/* Elegibilidade por combinação */}
+          {/* Participação na venda — sempre visível por combinação */}
+          <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
+            <Toggle
+              value={comb.exige_participacao_venda || false}
+              onChange={v => setComb('exige_participacao_venda', v)}
+              label="Exige participação na venda para esta combinação"
+            />
+          </div>
+
+          {/* Elegibilidade específica por combinação (opcional) */}
           {elegibilidadePorCombinacao && (
             <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', flex:1 }}>Elegibilidade</div>
+                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', flex:1 }}>Elegibilidade avançada</div>
                 <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--text-soft)', cursor:'pointer' }}>
                   <input type="checkbox" checked={comb.elegibilidade_propria||false} onChange={e=>setComb('elegibilidade_propria',e.target.checked)} />
                   Específica

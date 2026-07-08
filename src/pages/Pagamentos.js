@@ -1106,74 +1106,132 @@ export default function Pagamentos() {
       )
       if (!regrasAtivas.length) return
 
-      // Contrato vinculado ao pagamento
       const contrato = contratos.find(c =>
         String(c.id) === String(pag.contract_id) ||
         c.numero === pag.contract_numero
       )
 
-      // Monta set de beneficiários: { userId, nome, regraId, fonte }
-      // fonte = 'regra_filial' | 'time_interno'
-      const beneficiarios = []
+      // produto do pagamento — usado para filtros de produto/categoria
+      const prodPag = produtosNovo.find(p => String(p.id) === String(pag.produto_id))
+      const catPag  = prodPag?.categoria || ''
 
-      regrasAtivas.forEach(rule => {
-        // ── Filtro de produto ──────────────────────────────────────────────
-        if (rule.produto_filtro_tipo === 'produto' && rule.produto_ids?.length > 0) {
-          if (!rule.produto_ids.map(String).includes(String(pag.produto_id))) return
-        }
-        if (rule.produto_filtro_tipo === 'categoria' && rule.produto_categorias?.length > 0) {
-          const prodCat = produtosNovo.find(p => String(p.id) === String(pag.produto_id))?.categoria || ''
-          if (!rule.produto_categorias.includes(prodCat)) return
-        }
-
-        // ── Personas da regra com percentuais ─────────────────────────────
-        const percs = rule.persona_percentuais || []
-
-        // CASO 1: Regra sem vínculo de oportunidade → aplica a todos os
-        // usuários vinculados às personas da regra (nível filial)
-        percs.forEach(pp => {
-          if (!pp.persona_id && !pp.persona_slug) return
-          const pct = (Number(pp.cdu_pct) || 0) + (Number(pp.sms_pct) || 0) + (Number(pp.servicos_pct) || 0)
-          if (pct <= 0) return
-
-          const persona = (commissionPersonas || []).find(p =>
-            String(p.id) === String(pp.persona_id) || p.slug === pp.persona_slug
-          )
-
-          if (persona?.usuario_id) {
-            // Persona ligada a um usuário específico
-            const usuario = (usuarios || []).find(u => String(u.id) === String(persona.usuario_id))
-            beneficiarios.push({
-              regraId:    rule.id,
-              personaId:  persona.id,
-              personaSlug:persona.slug || '',
-              userId:     persona.usuario_id,
-              nome:       usuario?.nome || usuario?.email || persona.label || '',
-              pp,
-              fonte:      'regra_filial',
-            })
-          } else {
-            // Persona sem usuário específico (genérica) — gera repasse pelo label da persona
-            beneficiarios.push({
-              regraId:    rule.id,
-              personaId:  persona?.id || pp.persona_id,
-              personaSlug:persona?.slug || pp.persona_slug || '',
-              userId:     null,
-              nome:       persona?.label || pp.persona_nome || pp.persona_slug || '',
-              pp,
-              fonte:      'regra_filial',
-            })
-          }
-        })
-
-        // CASO 2: Contrato tem oportunidade → busca Time Interno da oportunidade
-        if (contrato?.opportunity_id) {
-          const membrosOpp = (oppMembros || []).filter(m =>
+      // membros do time interno da oportunidade (se houver)
+      const membrosTimeInterno = contrato?.opportunity_id
+        ? (oppMembros || []).filter(m =>
             String(m.oportunidade_id) === String(contrato.opportunity_id) &&
             m.tipo_membro === 'interno'
           )
-          membrosOpp.forEach(membro => {
-            // Verifica se este usuário tem uma persona com esta regra
+        : []
+
+      // helper: calcula valor de comissão conforme tipo de cálculo da combinação
+      function calcValor(comb) {
+        const tipo = comb.tipo_calculo || 'percentual_fixo'
+
+        if (tipo === 'cadeia_repasse') {
+          // valorBase × repasse_origem_pct × base_calculo_pct × percentual_comissao
+          const repasse = Number(comb.repasse_origem_pct)  || 0
+          const base    = Number(comb.base_calculo_pct)    || 0
+          const pct     = Number(comb.percentual_comissao) || 0
+          return valorBase * (repasse / 100) * (base / 100) * (pct / 100)
+        }
+
+        if (tipo === 'percentual_fixo') {
+          // delega ao chamador (calcula por persona)
+          return null
+        }
+
+        // escalonado / outros: não implementado ainda → 0
+        return 0
+      }
+
+      // helper: filtra se a combinação se aplica ao produto/categoria do pagamento
+      function combPassaFiltro(comb) {
+        const tipo = comb.produto_filtro_tipo
+        if (tipo === 'produto') {
+          return (comb.produto_ids || []).map(String).includes(String(pag.produto_id))
+        }
+        if (tipo === 'categoria') {
+          return (comb.produto_categorias || []).includes(catPag)
+        }
+        // null / '' = Todos — verifica se o produto tem categoria cadastrada para evitar
+        // aplicar em produtos sem categoria quando a regra tem categorias definidas
+        if (comb.produto_categorias?.length > 0) {
+          return !catPag || comb.produto_categorias.includes(catPag)
+        }
+        return true
+      }
+
+      regrasAtivas.forEach(rule => {
+        const combinacoes = rule.combinacoes?.length > 0 ? rule.combinacoes : [rule]
+
+        combinacoes.forEach(comb => {
+          if (!combPassaFiltro(comb)) return
+
+          // exige_participacao_venda: usa nível combinação (sempre disponível agora)
+          const exigeParticipacao = comb.exige_participacao_venda ?? rule.exige_participacao_venda ?? false
+          if (exigeParticipacao && !contrato?.opportunity_id) return
+
+          const tipo = comb.tipo_calculo || 'percentual_fixo'
+
+          if (tipo === 'cadeia_repasse') {
+            // Cadeia de repasse: um único repasse para a regra (sem persona individual)
+            const valorComissao = calcValor(comb)
+            if (!valorComissao || valorComissao <= 0) return
+
+            saveCommissionPayment({
+              rule_id:           rule.id,
+              company_id:        pag.company_id  || null,
+              contract_id:       pag.contract_id || null,
+              beneficiario_id:   null,
+              beneficiario_nome: rule.nome || 'Cadeia de Repasse',
+              persona_slug:      '',
+              periodo_mes,
+              periodo_ano,
+              valor_bruto:       valorBase,
+              valor_comissao:    valorComissao,
+              status:            'pendente',
+              observacoes:       `Cadeia de Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`,
+              custom_fields: {
+                tipo_calculo:        'cadeia_repasse',
+                repasse_origem_pct:  comb.repasse_origem_pct,
+                base_calculo_pct:    comb.base_calculo_pct,
+                percentual_comissao: comb.percentual_comissao,
+                contract_numero:     pag.contract_numero || '',
+                company_nome:        pag.company_nome    || '',
+                produto_nome:        pag.produto_nome    || '',
+                origem_pagamento_id: pag.id,
+                fonte_repasse:       'cadeia_repasse',
+                opportunity_id:      contrato?.opportunity_id || null,
+              },
+            })
+            return
+          }
+
+          // percentual_fixo: um repasse por persona com percentual > 0
+          const percs = comb.persona_percentuais || rule.persona_percentuais || []
+
+          // coleta beneficiários desta combinação
+          const beneficiarios = []
+
+          // CASO 1: personas da regra (nível filial)
+          percs.forEach(pp => {
+            if (!pp.persona_id && !pp.persona_slug) return
+            const pct = (Number(pp.cdu_pct) || 0) + (Number(pp.sms_pct) || 0) + (Number(pp.servicos_pct) || 0)
+            if (pct <= 0) return
+
+            const persona = (commissionPersonas || []).find(p =>
+              String(p.id) === String(pp.persona_id) || p.slug === pp.persona_slug
+            )
+            if (persona?.usuario_id) {
+              const usuario = (usuarios || []).find(u => String(u.id) === String(persona.usuario_id))
+              beneficiarios.push({ personaId: persona.id, personaSlug: persona.slug || '', userId: persona.usuario_id, nome: usuario?.nome || usuario?.email || persona.label || '', pp, fonte: 'regra_filial' })
+            } else {
+              beneficiarios.push({ personaId: persona?.id || pp.persona_id, personaSlug: persona?.slug || pp.persona_slug || '', userId: null, nome: persona?.label || pp.persona_nome || pp.persona_slug || '', pp, fonte: 'regra_filial' })
+            }
+          })
+
+          // CASO 2: time interno da oportunidade
+          membrosTimeInterno.forEach(membro => {
             const personaDoUser = (commissionPersonas || []).find(p => String(p.usuario_id) === String(membro.user_id))
             const ppDoUser = personaDoUser
               ? percs.find(pp => String(pp.persona_id) === String(personaDoUser.id) || pp.persona_slug === personaDoUser.slug)
@@ -1181,77 +1239,63 @@ export default function Pagamentos() {
             if (!ppDoUser) return
             const pct = (Number(ppDoUser.cdu_pct) || 0) + (Number(ppDoUser.sms_pct) || 0) + (Number(ppDoUser.servicos_pct) || 0)
             if (pct <= 0) return
-
-            const usuario = (usuarios || []).find(u => String(u.id) === String(membro.user_id))
-            // evita duplicata com CASO 1
-            const jaTem = beneficiarios.some(b => b.regraId === rule.id && String(b.userId) === String(membro.user_id))
+            const jaTem = beneficiarios.some(b => String(b.userId) === String(membro.user_id))
             if (jaTem) return
+            const usuario = (usuarios || []).find(u => String(u.id) === String(membro.user_id))
+            beneficiarios.push({ personaId: personaDoUser?.id || null, personaSlug: personaDoUser?.slug || '', userId: membro.user_id, nome: usuario?.nome || usuario?.email || `Usuário ${membro.user_id}`, pp: ppDoUser, fonte: 'time_interno', papel: membro.papel || 'vendedor' })
+          })
 
-            beneficiarios.push({
-              regraId:     rule.id,
-              personaId:   personaDoUser?.id || null,
-              personaSlug: personaDoUser?.slug || '',
-              userId:      membro.user_id,
-              nome:        usuario?.nome || usuario?.email || `Usuário ${membro.user_id}`,
-              pp:          ppDoUser,
-              fonte:       'time_interno',
-              papel:       membro.papel || 'vendedor',
+          beneficiarios.forEach(b => {
+            const pp = b.pp
+            const cduPct      = Number(pp.cdu_pct)      || 0
+            const smsPct      = Number(pp.sms_pct)      || 0
+            const servicosPct = Number(pp.servicos_pct) || 0
+            const temBuckets  = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
+            let cdu_val = 0, sms_val = 0, servicos_val = 0, valorComissao = 0
+            if (temBuckets) {
+              cdu_val      = (pag.amount_cdu      || 0) * cduPct      / 100
+              sms_val      = (pag.amount_sms      || 0) * smsPct      / 100
+              servicos_val = (pag.amount_services || 0) * servicosPct / 100
+              valorComissao = cdu_val + sms_val + servicos_val
+            }
+            if (valorComissao <= 0 && valorBase > 0) {
+              const pctTotal = cduPct + smsPct + servicosPct
+              valorComissao  = valorBase * pctTotal / 100
+              servicos_val   = valorComissao
+            }
+            if (valorComissao <= 0) return
+
+            const origemDesc = b.fonte === 'time_interno'
+              ? `Time interno (${b.papel || 'membro'}) — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
+              : `Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
+
+            saveCommissionPayment({
+              rule_id:           rule.id,
+              company_id:        pag.company_id  || null,
+              contract_id:       pag.contract_id || null,
+              beneficiario_id:   b.userId        || b.personaId || null,
+              beneficiario_nome: b.nome,
+              persona_slug:      b.personaSlug,
+              periodo_mes,
+              periodo_ano,
+              valor_bruto:       valorBase,
+              valor_comissao:    valorComissao,
+              status:            'pendente',
+              observacoes:       origemDesc,
+              custom_fields: {
+                tipo_calculo:        'percentual_fixo',
+                base_cdu:            cdu_val,
+                base_sms:            sms_val,
+                base_servicos:       servicos_val,
+                contract_numero:     pag.contract_numero || '',
+                company_nome:        pag.company_nome    || '',
+                produto_nome:        pag.produto_nome    || '',
+                origem_pagamento_id: pag.id,
+                fonte_repasse:       b.fonte,
+                opportunity_id:      contrato?.opportunity_id || null,
+              },
             })
           })
-        }
-      })
-
-      // Gera um repasse por beneficiário individual
-      beneficiarios.forEach(b => {
-        const pp = b.pp
-        const cduPct      = Number(pp.cdu_pct)      || 0
-        const smsPct      = Number(pp.sms_pct)      || 0
-        const servicosPct = Number(pp.servicos_pct) || 0
-        const temBuckets  = (pag.amount_cdu || 0) + (pag.amount_sms || 0) + (pag.amount_services || 0) > 0
-        let cdu_val = 0, sms_val = 0, servicos_val = 0, valorComissao = 0
-        if (temBuckets) {
-          // Aplica percentual sobre cada bucket discriminado
-          cdu_val      = (pag.amount_cdu      || 0) * cduPct      / 100
-          sms_val      = (pag.amount_sms      || 0) * smsPct      / 100
-          servicos_val = (pag.amount_services || 0) * servicosPct / 100
-          valorComissao = cdu_val + sms_val + servicos_val
-        }
-        if (valorComissao <= 0 && valorBase > 0) {
-          // Sem buckets: usa soma dos percentuais sobre o total líquido
-          const pctTotal = cduPct + smsPct + servicosPct
-          valorComissao  = valorBase * pctTotal / 100
-          servicos_val   = valorComissao // registra tudo em serviços para rastreabilidade
-        }
-        if (valorComissao <= 0) return
-
-        const origemDesc = b.fonte === 'time_interno'
-          ? `Time interno (${b.papel || 'membro'}) — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
-          : `Repasse — ${pag.contract_numero || ''} (${pag.company_nome || ''})`
-
-        saveCommissionPayment({
-          rule_id:           b.regraId,
-          company_id:        pag.company_id  || null,
-          contract_id:       pag.contract_id || null,
-          beneficiario_id:   b.userId        || b.personaId || null,
-          beneficiario_nome: b.nome,
-          persona_slug:      b.personaSlug,
-          periodo_mes,
-          periodo_ano,
-          valor_bruto:       valorBase,
-          valor_comissao:    valorComissao,
-          status:            'pendente',
-          observacoes:       origemDesc,
-          custom_fields: {
-            base_cdu:            cdu_val,
-            base_sms:            sms_val,
-            base_servicos:       servicos_val,
-            contract_numero:     pag.contract_numero || '',
-            company_nome:        pag.company_nome    || '',
-            produto_nome:        pag.produto_nome    || '',
-            origem_pagamento_id: pag.id,
-            fonte_repasse:       b.fonte,
-            opportunity_id:      contrato?.opportunity_id || null,
-          },
         })
       })
     } catch (e) {
