@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -121,7 +122,7 @@ export function useCompanies() {
       .order('razao_social')
 
     if (fetchErr) {
-      console.error('[useCompanies]', fetchErr.message)
+      captureError('useCompanies', fetchErr)
       isMockMode.current = false
       setLoading(false)
       return

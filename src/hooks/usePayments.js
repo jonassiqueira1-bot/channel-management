@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -124,7 +125,7 @@ export function usePayments() {
     let _q = supabase.from('payments').select('*, companies(nome_fantasia, razao_social)')
     const { data, error } = await _q.order('due_date', { ascending: false })
 
-    if (error) { console.error('[usePayments]', error.message); isMockMode.current = false; setLoading(false); return }
+    if (error) { captureError('usePayments', error); isMockMode.current = false; setLoading(false); return }
 
     isMockMode.current = false
     const fromDB = (data || []).map(rowToPayment)
@@ -158,11 +159,11 @@ export function usePayments() {
     if (isUuid(p.id)) {
       // UPDATE — registro existente no banco
       const { error } = await supabase.from('payments').update(row).eq('id', p.id)
-      if (error) { console.error('[usePayments.save update]', error.message); return { ok: false, message: error.message } }
+      if (error) { captureError('usePayments.save.update', error); return { ok: false, message: error.message } }
     } else {
       // INSERT — registro novo (id local como 'man_...' ou 'prov_...')
       const { data, error } = await supabase.from('payments').insert(row).select().single()
-      if (error) { console.error('[usePayments.save insert]', error.message); return { ok: false, message: error.message } }
+      if (error) { captureError('usePayments.save.insert', error); return { ok: false, message: error.message } }
       if (data) {
         // Substitui o id local pelo UUID do banco
         const novo = rowToPayment(data)
