@@ -496,6 +496,40 @@ export default function Produtos() {
           { label: 'Editar',  onClick: abrirEdicao },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
+        storageKey="settings_produtos"
+        filterDefs={[
+          { key: 'tipo', label: 'Tipo', options: [
+            { value: 'saas',        label: 'SaaS' },
+            { value: 'licenca',     label: 'Licença' },
+            { value: 'servico',     label: 'Serviço' },
+            { value: 'consultoria', label: 'Consultoria' },
+          ]},
+          { key: 'status', label: 'Status', options: [
+            { value: 'ativo',         label: 'Ativo' },
+            { value: 'rascunho',      label: 'Rascunho' },
+            { value: 'descontinuado', label: 'Descontinuado' },
+          ]},
+          { key: 'cobranca', label: 'Cobrança', options: [
+            { value: 'mensal',   label: 'Mensal' },
+            { value: 'anual',    label: 'Anual' },
+            { value: 'unico',    label: 'Único' },
+            { value: 'hora',     label: 'Por hora' },
+          ]},
+        ]}
+        bulkEditFields={[
+          { key: 'status', label: 'Status', type: 'select', options: [
+            { value: 'ativo',         label: 'Ativo' },
+            { value: 'rascunho',      label: 'Rascunho' },
+            { value: 'descontinuado', label: 'Descontinuado' },
+          ]},
+          { key: 'tipo', label: 'Tipo', type: 'select', options: [
+            { value: 'saas',        label: 'SaaS' },
+            { value: 'licenca',     label: 'Licença' },
+            { value: 'servico',     label: 'Serviço' },
+            { value: 'consultoria', label: 'Consultoria' },
+          ]},
+        ]}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const p = produtos.find(x => x.id === id); if (p) saveProduto({ ...p, ...changes }) })}
         search={search}
         onSearchChange={setSearch}
         onImport={() => setImportModal(true)}

@@ -998,6 +998,33 @@ export default function SettingsUsuarios() {
           { label: 'Editar',           visible: row => !row._invite, onClick: row => setEditando(row) },
           { label: 'Cancelar convite', visible: row => !!row._invite, danger: true, onClick: row => cancelarConvite(row.id) },
         ]}
+        storageKey="settings_usuarios"
+        filterDefs={[
+          { key: 'papel', label: 'Papel / Role', options: [
+            { value: 'admin_isv',  label: 'Admin ISV' },
+            { value: 'vendedor',   label: 'Vendedor' },
+            { value: 'financeiro', label: 'Financeiro' },
+            { value: 'cs',         label: 'Customer Success' },
+            { value: 'projetos',   label: 'Projetos' },
+            { value: 'parceiro',   label: 'Parceiro' },
+          ]},
+          { key: 'status', label: 'Status', options: [
+            { value: 'ativo',      label: 'Ativo' },
+            { value: 'inativo',    label: 'Inativo' },
+            { value: 'convidado',  label: 'Convidado' },
+          ]},
+        ]}
+        bulkEditFields={[
+          { key: 'papel', label: 'Papel', type: 'select', options: [
+            { value: 'admin_isv',  label: 'Admin ISV' },
+            { value: 'vendedor',   label: 'Vendedor' },
+            { value: 'financeiro', label: 'Financeiro' },
+            { value: 'cs',         label: 'Customer Success' },
+            { value: 'projetos',   label: 'Projetos' },
+            { value: 'parceiro',   label: 'Parceiro' },
+          ]},
+        ]}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const u = lista.find(x => x.id === id); if (u) saveUsuario({ ...u, ...changes }) })}
         emptyLabel="Nenhum usuário encontrado"
         search={busca}
         onSearchChange={setBusca}

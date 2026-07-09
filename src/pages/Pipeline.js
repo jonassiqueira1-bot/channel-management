@@ -4558,7 +4558,11 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook }) 
         // stage definido: mostra sem etapa + com etapa correspondente
         const objecoesFiltradas = !stage
           ? todasObjecoes
-          : todasObjecoes.filter(o => !o.etapa || o.etapa === stage)
+          : todasObjecoes.filter(o =>
+              !o.etapa ||
+              o.etapa === stage ||
+              (etapaId != null && String(o.etapa) === String(etapaId))
+            )
         if (!objecoesFiltradas.length) return null
         return (
           <div style={S.section}>

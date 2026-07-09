@@ -321,6 +321,24 @@ export default function Habilitacoes() {
         { label: 'Editar',  onClick: abrirEdicao },
         { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
       ]}
+      storageKey="settings_habilitacoes"
+      filterDefs={[
+        { key: 'situacao', label: 'Situação', options: [
+          { value: 'pendente',  label: 'Pendente' },
+          { value: 'aprovado',  label: 'Aprovado' },
+          { value: 'reprovado', label: 'Reprovado' },
+          { value: 'vencido',   label: 'Vencido' },
+        ]},
+      ]}
+      bulkEditFields={[
+        { key: 'situacao', label: 'Situação', type: 'select', options: [
+          { value: 'pendente',  label: 'Pendente' },
+          { value: 'aprovado',  label: 'Aprovado' },
+          { value: 'reprovado', label: 'Reprovado' },
+          { value: 'vencido',   label: 'Vencido' },
+        ]},
+      ]}
+      onBulkEdit={(ids, changes) => ids.forEach(id => { const h = habilitacoes.find(x => x.id === id); if (h) saveHab({ ...h, ...changes }) })}
       search={search}
       onSearchChange={setSearch}
     />

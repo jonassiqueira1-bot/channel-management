@@ -4,7 +4,7 @@ import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } fro
 import { useProfile } from '../hooks/useProfile'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -169,7 +169,7 @@ export default function Settings() {
             onMouseEnter={e => e.currentTarget.style.color = 'var(--text)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
           >
-            {collapsed ? '›› ' : '‹‹'}
+            <Menu size={16} strokeWidth={2} />
           </button>
         </div>
 

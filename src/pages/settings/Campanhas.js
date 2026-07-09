@@ -659,6 +659,30 @@ export default function Campanhas() {
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
         emptyLabel="Nenhuma campanha cadastrada ainda."
+        storageKey="settings_campanhas"
+        filterDefs={[
+          { key: 'status', label: 'Status', options: [
+            { value: 'active',  label: 'Ativa' },
+            { value: 'paused',  label: 'Encerrada' },
+            { value: 'draft',   label: 'Rascunho' },
+          ]},
+          { key: 'objective', label: 'Tipo / Objetivo', options: [
+            { value: 'Atração de Leads',       label: 'Atração de Leads' },
+            { value: 'Upgrade de Módulo',      label: 'Upgrade de Módulo' },
+            { value: 'Sazonal',                label: 'Sazonal' },
+            { value: 'Fidelização',            label: 'Fidelização' },
+            { value: 'Lançamento de Produto',  label: 'Lançamento de Produto' },
+            { value: 'Reativação',             label: 'Reativação' },
+          ]},
+        ]}
+        bulkEditFields={[
+          { key: 'status', label: 'Status', type: 'select', options: [
+            { value: 'active',  label: 'Ativa' },
+            { value: 'paused',  label: 'Encerrada' },
+            { value: 'draft',   label: 'Rascunho' },
+          ]},
+        ]}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const c = campanhas.find(x => x.id === id); if (c) saveCampanha({ ...c, ...changes }) })}
         search={search}
         onSearchChange={setSearch}
         onImport={() => setImportModal(true)}

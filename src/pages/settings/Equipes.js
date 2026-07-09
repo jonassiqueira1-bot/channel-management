@@ -485,6 +485,14 @@ export default function Equipes() {
           { label: 'Editar',  onClick: abrirEdicao },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
+        storageKey="settings_equipes"
+        filterDefs={[
+          { key: 'status', label: 'Status', options: [{ value: 'ativa', label: 'Ativa' }, { value: 'inativa', label: 'Inativa' }] },
+        ]}
+        bulkEditFields={[
+          { key: 'status', label: 'Status', type: 'select', options: [{ value: 'ativa', label: 'Ativa' }, { value: 'inativa', label: 'Inativa' }, { value: 'pausada', label: 'Pausada' }] },
+        ]}
+        onBulkEdit={(ids, changes) => setEquipes(prev => prev.map(e => ids.includes(e.id) ? { ...e, ...changes } : e))}
         search={busca}
         onSearchChange={setBusca}
         onImport={() => setImportModal(true)}

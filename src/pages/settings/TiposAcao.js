@@ -442,6 +442,25 @@ export default function SettingsTiposAcao() {
           { label: row => row.ativo !== false ? 'Desativar' : 'Ativar', onClick: handleToggleAtivo },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
+        storageKey="settings_tipos_acao"
+        filterDefs={[
+          { key: 'uso', label: 'Usado em', options: [
+            { value: 'tarefa', label: 'Tarefas' },
+            { value: 'acao',   label: 'Ações' },
+            { value: 'ambos',  label: 'Ambos' },
+          ]},
+          { key: 'ativo', label: 'Ativo', options: [
+            { value: 'sim', label: 'Sim' },
+            { value: 'nao', label: 'Não' },
+          ]},
+        ]}
+        bulkEditFields={[
+          { key: 'ativo', label: 'Ativo', type: 'select', options: [
+            { value: true,  label: 'Ativo' },
+            { value: false, label: 'Inativo' },
+          ]},
+        ]}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const t = tipos.find(x => x.id === id); if (t) saveTipo({ ...t, ...changes }) })}
         search={busca}
         onSearchChange={setBusca}
         headerExtra={
