@@ -532,6 +532,11 @@ export default function Parceiros() {
         onImport={() => setImportModal(true)}
         onExportCsv={exportCSV}
         onExportExcel={exportExcel}
+        bulkEditFields={[
+          { key: 'situacao', label: 'Status', type: 'select', options: [{ value: 'ativo', label: 'Ativo' }, { value: 'inativo', label: 'Inativo' }] },
+          { key: 'classificacao', label: 'Tipo', type: 'select', options: [{ value: 'distribuidor', label: 'Distribuidor' }, { value: 'revendedor', label: 'Revendedor' }, { value: 'agente', label: 'Agente' }, { value: 'parceiro', label: 'Parceiro' }] },
+        ]}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const f = franquias.find(x => x.id === id); if (f) saveParceiro({ ...f, ...changes }) })}
         bulkActions={[
           { label: 'Reclassificar', onClick: handleBulkReclassify },
         ]}

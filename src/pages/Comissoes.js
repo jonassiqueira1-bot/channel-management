@@ -1946,7 +1946,7 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 // ─── Aprovação de Lotes ───────────────────────────────────────────────────────
-function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) {
+function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bulkSetPaymentStatus }) {
   const [periodo, setPeriodo]       = useState(() => new Date().toISOString().slice(0, 7))
   const [busca, setBusca]           = useState('')
   const [filtrosPanelOpen, setFiltrosPanelOpen] = useState(false)
@@ -2104,6 +2104,16 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
   const countSelecionados = selected.size
   const valorSelecionados = lancamentos.filter(p => selected.has(p.id)).reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
   const filtrosAtivos     = filtros.statusAprov.length + filtros.statusPag.length
+  const [pgtoDropdown, setPgtoDropdown] = useState(false)
+
+  async function marcarStatusPgto(status) {
+    setPgtoDropdown(false)
+    const ids = [...selected]
+    if (!ids.length) return
+    if (bulkSetPaymentStatus) await bulkSetPaymentStatus(ids, status)
+    else setPayments(prev => prev.map(p => ids.includes(p.id) ? { ...p, status } : p))
+    setSelected(new Set())
+  }
 
   function toggleFiltro(key, value) {
     setFiltros(f => {
@@ -2195,6 +2205,22 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
               <CheckCircle2 size={12} strokeWidth={2.5} /> Aprovar selecionados
             </button>
           )}
+          <div style={{ position:'relative' }}>
+            <button onClick={() => setPgtoDropdown(v => !v)}
+              style={{ padding:'5px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
+              Status pgto <ChevronRight size={12} style={{ transform: pgtoDropdown ? 'rotate(90deg)' : 'rotate(0deg)', transition:'transform 0.15s' }} />
+            </button>
+            {pgtoDropdown && (
+              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:300, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow)', minWidth:160, overflow:'hidden' }}>
+                {[{v:'pendente',l:'Pendente',c:'#F59E0B'},{v:'pago',l:'Pago',c:'#10B981'},{v:'cancelado',l:'Cancelado',c:'#6B7280'}].map(o => (
+                  <button key={o.v} onClick={() => marcarStatusPgto(o.v)}
+                    style={{ display:'block', width:'100%', textAlign:'left', padding:'8px 14px', border:'none', background:'transparent', cursor:'pointer', fontFamily:'var(--font)', fontSize:12, color: o.c, fontWeight:600 }}>
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <button onClick={() => setSelected(new Set())}
             style={{ padding:'5px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
             Limpar
@@ -2225,6 +2251,7 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
             <span style={{ ...TH, textAlign:'right' }}>%</span>
             <span style={{ ...TH, textAlign:'right' }}>Comissão</span>
             <span style={{ ...TH, textAlign:'center' }}>Aprovação</span>
+            <span style={{ ...TH, textAlign:'center' }}>Pgto</span>
             <span style={{ ...TH, textAlign:'right' }}>Ações</span>
           </div>
 
@@ -2331,6 +2358,17 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
                       </div>
                       <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)', textAlign:'right' }}>
                         {fmt(p.valor_comissao || 0)}
+                      </div>
+                      <div style={{ textAlign:'center' }}>
+                        {/* status de aprovação do lote (herdado do grupo) */}
+                        <span style={{
+                          display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700,
+                          padding:'2px 8px', borderRadius:99,
+                          background: status === 'aprovado' ? 'rgba(16,185,129,0.1)' : status === 'rejeitado' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+                          color: status === 'aprovado' ? '#10B981' : status === 'rejeitado' ? '#EF4444' : '#F59E0B',
+                        }}>
+                          {status === 'aprovado' ? 'Aprovado' : status === 'rejeitado' ? 'Rejeitado' : 'Pendente'}
+                        </span>
                       </div>
                       <div style={{ textAlign:'center' }}>
                         <StatusTag status={p.status} />
@@ -2460,7 +2498,7 @@ export default function Comissoes() {
   const [period, setPeriod] = useState('this_month')
   const { rules, payments, personas, setRules, setPayments, setPersonas,
           saveRule: persistRule, removeRule: deleteRule, savePersonas: persistPersonas,
-          savePayment: persistPayment } = useCommissions()
+          savePayment: persistPayment, bulkSetPaymentStatus } = useCommissions()
   const [editandoPayment, setEditandoPayment] = useState(null)
   const [editandoRule, setEditandoRule]       = useState(null)
   const paymentSaveRef = useRef(null)
@@ -2555,7 +2593,7 @@ export default function Comissoes() {
         <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} onEdit={openPayment} period={period} isAdmin={isAdmin} profile={profile} />
       )}
       {tab === 'aprovacao' && (
-        <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} onOpenRepasse={openPayment} />
+        <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} onOpenRepasse={openPayment} bulkSetPaymentStatus={bulkSetPaymentStatus} />
       )}
       {tab === 'regras' && isAdmin && (
         <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} parceiros={parceiros} onSavePersonas={persistPersonas} />

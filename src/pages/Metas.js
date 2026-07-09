@@ -1286,8 +1286,13 @@ export default function Metas() {
       return d >= deDate && d <= ateDate
     })
 
-    const somaValor = (arr) => arr.reduce((s, c) =>
-      s + (Number(c.valor_adesao)||0) + (Number(c.valor_mrr)||0) + (Number(c.valor_servico)||0), 0)
+    const somaItens = (itens) => (itens || []).reduce((s, i) => s + (Number(i.valor) || 0), 0)
+    const somaValor = (arr) => arr.reduce((s, c) => {
+      const itens = c.itens?.length > 0
+        ? c.itens
+        : [...(c.itens_adesao||[]), ...(c.itens_mrr||[]), ...(c.itens_servico||[])]
+      return s + somaItens(itens)
+    }, 0)
 
     const realizado   = somaValor(contratosAtivos)
     const realizadoYY = somaValor(contratosYoY)

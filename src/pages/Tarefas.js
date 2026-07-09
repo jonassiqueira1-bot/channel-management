@@ -619,7 +619,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
   const [meusFiltro, setMeusFiltro] = useState(true) // padrão: só as do usuário logado
 
   const tarefasFiltradas = useMemo(() => {
-    if (!meusFiltro) return tarefas
+    if (!meusFiltro || !sessao) return tarefas
     return tarefas.filter(t =>
       t.responsavel_id === sessao.id ||
       String(t.responsavel_nome || t.responsavel || '').toLowerCase().includes((sessao.nome||'').toLowerCase())

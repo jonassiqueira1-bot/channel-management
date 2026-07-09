@@ -2264,12 +2264,13 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
   const { profile } = useProfile()
   const { usuarios } = useUsuarios()
 
-  // Pool de usuários: apenas usuários do sistema (profiles), nunca sellers/contatos
+  // Pool de usuários: apenas usuários com papel "projetos" (ou admin_isv que têm acesso total)
   const usuariosCad = useMemo(() => {
-    const ativos = usuarios.filter(u => u.status !== 'inativo')
-    if (ativos.length > 0) return ativos.map(u => ({ id: u.id, nome: u.nome || u.email || u.id, cargo: u.papel || '' }))
-    // fallback: pelo menos o usuário logado
-    if (profile?.id) return [{ id: profile.id, nome: profile.nome || profile.email || 'Usuário', cargo: profile.papel || '' }]
+    const PAPEIS_PROJETO = ['projetos', 'admin_isv']
+    const ativos = usuarios.filter(u => u.status !== 'inativo' && PAPEIS_PROJETO.includes(u.papel))
+    if (ativos.length > 0) return ativos.map(u => ({ id: u.id, nome: u.nome || u.email || u.id, cargo: u.papel || '', horas_semana: u.horas_semana || 40 }))
+    // fallback: pelo menos o usuário logado se ele tiver o papel certo
+    if (profile?.id && PAPEIS_PROJETO.includes(profile.papel)) return [{ id: profile.id, nome: profile.nome || profile.email || 'Usuário', cargo: profile.papel || '', horas_semana: profile.horas_semana || 40 }]
     return []
   }, [usuarios, profile])
 
@@ -2292,18 +2293,12 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
     return map
   }, [timeLogs, mesRef, projetos])
 
-  // Pool de analistas: usuários cadastrados + quem lançou horas mas não está cadastrado
-  const analistas = useMemo(() => {
-    const lista = usuariosCad.map(u => ({ id: u.id, name: u.nome, cargo: u.cargo || '', senioridade: u.senioridade || '', horas_semana: u.horas_semana || 40, habilidades: u.habilidades || [] }))
-    const ids = new Set(lista.map(u => String(u.id)))
-    timeLogs.forEach(l => {
-      const key = String(l.user_id || '')
-      if (!key || ids.has(key)) return
-      ids.add(key)
-      lista.push({ id: key, name: l.user_name || key, cargo: '', senioridade: '', horas_semana: 40, habilidades: [] })
-    })
-    return lista.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
-  }, [usuariosCad, timeLogs])
+  // Pool de analistas: apenas usuários cadastrados com papel "projetos" ou "admin_isv"
+  const analistas = useMemo(() =>
+    usuariosCad
+      .map(u => ({ id: u.id, name: u.nome, cargo: u.cargo || '', senioridade: u.senioridade || '', horas_semana: u.horas_semana || 40, habilidades: u.habilidades || [] }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')),
+  [usuariosCad])
 
   // Projetos ativos por analista (via members.user_id)
   const projetosPorAnalista = useMemo(() => {

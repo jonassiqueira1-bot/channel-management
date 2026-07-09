@@ -16,6 +16,7 @@ function rowToPlaybook(row) {
       segmentText = _seg || ''
     } catch { /* segment é texto simples */ }
   }
+  console.log('[rowToPlaybook] id:', row.id, 'cf.objecoes:', cf.objecoes, 'cf keys:', Object.keys(cf))
 
   const tit = row.titulo || row.title || ''
   const desc = row.descricao || row.description || ''

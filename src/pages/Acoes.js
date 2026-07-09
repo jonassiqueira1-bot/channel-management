@@ -436,7 +436,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       title={isNew ? 'Nova Ação' : form.titulo || 'Editar Ação'}
       subtitle={isNew ? 'Atividade operacional com unidade de franquia' : form.empresa_nome}
       saveLabel={isNew ? 'Criar Ação' : 'Salvar alterações'}
-      columns={2}
+      columns={1}
     >
       {/* ── Tab bar ── */}
       <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:20, paddingBottom:0 }}>
@@ -794,6 +794,7 @@ export default function Acoes() {
         </div>
       )}
 
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(480px, 1fr))', gap:16 }}>
       {porFranquia.map(grupo => {
         const agendadas  = grupo.acoes.filter(a => a.status === 'agendado').length
         const realizadas = grupo.acoes.filter(a => a.status === 'realizado').length
@@ -859,6 +860,7 @@ export default function Acoes() {
           </div>
         )
       })}
+      </div>
     </div>
   )
 

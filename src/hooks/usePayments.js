@@ -129,20 +129,13 @@ export function usePayments() {
     isMockMode.current = false
     const fromDB = (data || []).map(rowToPayment)
 
-    // Mescla registros locais (provisões offline ou novos não sincronizados)
-    const seenIds = new Set()
-    const localAll = [...loadLS(), ...loadProvisoes()].filter(p => {
-      if (!p.id || seenIds.has(p.id)) return false
-      seenIds.add(p.id)
-      return true
-    })
-    const lsOnly = localAll.filter(ls =>
-      !fromDB.some(db => db.id === ls.id) &&
-      ls.id && !isUuid(ls.id) // apenas registros locais (id não-UUID)
-    )
+    // Quando há sessão ativa, usa apenas dados do banco (payments).
+    // Provisões são tabela separada (provisoes) — não misturar aqui.
+    const lsPayments = loadLS().filter(ls => !isUuid(ls.id))
+    const lsOnly = lsPayments.filter(ls => !fromDB.some(db => db.id === ls.id))
     const merged = [...fromDB, ...lsOnly]
     setPagamentos(merged)
-    saveLS(merged.filter(p => !isUuid(p.id))) // salva só locais no LS (DB items recarregados no próximo load)
+    saveLS(lsOnly)
     setLoading(false)
   }, [session, activeBranchId])
 

@@ -22,12 +22,18 @@
 //   bulkEditFields [{key, label, type:'text'|'select'|'number'|'date', options?:[{value,label}]}]
 //   onBulkEdit     (ids:string[], changes:object) => void
 //   bulkActions    [{label, icon?, danger?, onClick:(ids:string[])=>void}]
+//   storageKey     string  — namespaces localStorage under "sl:<storageKey>_"
+//   filterDefs     [{key, label, options:[{value,label}]}]
+//   activeFilters  object|null  — controlled; if null, managed internally
+//   onFilterChange (filters:object) => void
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Search, Plus, ChevronsUpDown, ArrowUp, ArrowDown,
          MoreHorizontal, ChevronDown, Loader2,
-         Download, Upload, FileSpreadsheet, Edit2, X, Check } from 'lucide-react'
+         Download, Upload, FileSpreadsheet, Edit2, X, Check,
+         Filter, Columns } from 'lucide-react'
 
 const Z = {
   white:   '#FFFFFF',
@@ -46,6 +52,7 @@ const Z = {
 }
 
 const PRIORITY_BREAK = { 2: 540, 3: 720 }
+const STORAGE_NS = 'sl:'
 
 function useDebounce(value, delay = 250) {
   const [debounced, setDebounced] = useState(value)
@@ -55,6 +62,11 @@ function useDebounce(value, delay = 250) {
   }, [value, delay])
   return debounced
 }
+
+function lsGet(key, fallback) {
+  try { const v = localStorage.getItem(key); return v !== null ? JSON.parse(v) : fallback } catch { return fallback }
+}
+function lsSet(key, val) { try { localStorage.setItem(key, JSON.stringify(val)) } catch {} }
 
 // ── Dropdown de ações da linha ────────────────────────────────────────────────
 function RowMenu({ actions, row }) {
@@ -270,6 +282,49 @@ function BulkEditModal({ fields, count, onApply, onClose }) {
   )
 }
 
+// ── Dropdown visibilidade de colunas ──────────────────────────────────────────
+function ColsDropdown({ columns, hiddenCols, onToggle }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [open])
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)}
+        style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 10px', border:`1px solid ${Z[200]}`, borderRadius:6, background:Z.white, fontFamily:'var(--font)', fontSize:12, color:Z[500], cursor:'pointer' }}
+        onMouseEnter={e => e.currentTarget.style.background = Z[100]}
+        onMouseLeave={e => e.currentTarget.style.background = Z.white}
+      >
+        <Columns size={13} />
+        Colunas
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', right:0, zIndex:50, background:Z.white, border:`1px solid ${Z[200]}`, borderRadius:6, boxShadow:'0 4px 16px rgba(0,0,0,0.08)', padding:'6px 0', minWidth:180 }}>
+          <div style={{ padding:'3px 12px 5px', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:Z[400] }}>Visibilidade</div>
+          {columns.map(col => {
+            const hidden = hiddenCols.has(col.key)
+            return (
+              <label key={col.key}
+                style={{ display:'flex', alignItems:'center', gap:9, padding:'6px 12px', cursor:'pointer', userSelect:'none' }}
+                onMouseEnter={e => e.currentTarget.style.background = Z[50]}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+              >
+                <input type="checkbox" checked={!hidden} onChange={() => onToggle(col.key)}
+                  style={{ width:13, height:13, accentColor:Z.blue, cursor:'pointer' }} />
+                <span style={{ fontSize:12, color:Z[700], fontFamily:'var(--font)' }}>{col.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SettingsLayout — componente principal
 // ══════════════════════════════════════════════════════════════════════════════
@@ -296,12 +351,67 @@ export default function SettingsLayout({
   onBulkEdit,
   bulkActions   = [],
   headerExtra,
+  storageKey,
+  filterDefs    = [],
+  activeFilters = null,
+  onFilterChange,
 }) {
-  const [localSearch, setLocalSearch] = useState(search)
+  // ── Search (persistent) ───────────────────────────────────────────────────
+  const searchLsKey = storageKey ? STORAGE_NS + storageKey + '_s' : null
+  const [localSearch, setLocalSearch] = useState(() =>
+    searchLsKey ? (lsGet(searchLsKey, null) ?? search) : search
+  )
   const debounced = useDebounce(localSearch, 250)
   useEffect(() => { onSearchChange?.(debounced) }, [debounced]) // eslint-disable-line
   useEffect(() => { if (search !== localSearch) setLocalSearch(search) }, [search]) // eslint-disable-line
+  useEffect(() => { if (searchLsKey) lsSet(searchLsKey, localSearch) }, [searchLsKey, localSearch]) // eslint-disable-line
 
+  // ── Sort (persistent) ─────────────────────────────────────────────────────
+  const sortLsKey = storageKey ? STORAGE_NS + storageKey + '_sort' : null
+  const [localSort, setLocalSort] = useState(() =>
+    sortLsKey ? (lsGet(sortLsKey, null) ?? sort ?? null) : (sort ?? null)
+  )
+  const effectiveSort   = sort ?? localSort
+  function handleSortChange(val) {
+    if (onSortChange) { onSortChange(val) } else { setLocalSort(val) }
+    if (sortLsKey) lsSet(sortLsKey, val)
+  }
+  const effectiveChange = onSortChange ?? handleSortChange
+
+  // ── Filters (persistent) ──────────────────────────────────────────────────
+  const filterLsKey = storageKey ? STORAGE_NS + storageKey + '_filters' : null
+  const [internalFilters, setInternalFilters] = useState(() =>
+    filterLsKey ? (lsGet(filterLsKey, {}) ?? {}) : {}
+  )
+  const effectiveFilters = activeFilters ?? internalFilters
+  function setFilters(f) {
+    if (activeFilters !== null) { onFilterChange?.(f) } else {
+      setInternalFilters(f)
+      if (filterLsKey) lsSet(filterLsKey, f)
+    }
+  }
+  const activeFilterCount = Object.values(effectiveFilters).filter(v => v && (Array.isArray(v) ? v.length > 0 : true)).length
+
+  // ── Column visibility (persistent) ────────────────────────────────────────
+  const hcLsKey = storageKey ? STORAGE_NS + storageKey + '_hc' : null
+  const [hiddenCols, setHiddenCols] = useState(() => {
+    if (!hcLsKey) return new Set()
+    const arr = lsGet(hcLsKey, [])
+    return new Set(Array.isArray(arr) ? arr : [])
+  })
+  function toggleCol(key) {
+    setHiddenCols(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      if (hcLsKey) lsSet(hcLsKey, [...next])
+      return next
+    })
+  }
+
+  // ── Filter panel ──────────────────────────────────────────────────────────
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+
+  // ── Layout / column visibility ────────────────────────────────────────────
   const wrapRef    = useRef(null)
   const [cw, setCw] = useState(9999)
   useEffect(() => {
@@ -311,12 +421,13 @@ export default function SettingsLayout({
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
-  const visibleCols = columns.filter(c => cw >= (PRIORITY_BREAK[c.priority ?? 1] ?? 0))
+  const visibleCols = columns
+    .filter(c => cw >= (PRIORITY_BREAK[c.priority ?? 1] ?? 0))
+    .filter(c => !hiddenCols.has(c.key))
 
   const resolvedSortOptions = sortOptions ?? columns.filter(c => c.priority !== 3).map(c => ({ key: c.key, label: c.label }))
-  const [localSort, setLocalSort] = useState(sort ?? null)
-  const effectiveSort   = sort ?? localSort
-  const effectiveChange = onSortChange ?? setLocalSort
+
+  // ── Sort data ─────────────────────────────────────────────────────────────
   const sorted = [...data].sort((a, b) => {
     if (!effectiveSort) return 0
     const av = a[effectiveSort.key] ?? '', bv = b[effectiveSort.key] ?? ''
@@ -324,7 +435,7 @@ export default function SettingsLayout({
     return effectiveSort.dir === 'asc' ? cmp : -cmp
   })
 
-  // seleção em lote
+  // ── Bulk selection ────────────────────────────────────────────────────────
   const [selected, setSelected]     = useState(new Set())
   const [bulkEditOpen, setBulkEditOpen] = useState(false)
   const allSelected  = sorted.length > 0 && sorted.every(r => selected.has(r[keyField]))
@@ -403,6 +514,17 @@ export default function SettingsLayout({
             </div>
             {resolvedSortOptions.length > 0 && (
               <SortDropdown options={resolvedSortOptions} sort={effectiveSort} onChange={effectiveChange} />
+            )}
+            {filterDefs.length > 0 && (
+              <button type="button" onClick={() => setFilterPanelOpen(true)}
+                style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 12px', border:`1px solid ${activeFilterCount > 0 ? Z.blue : Z[200]}`, borderRadius:6, background: activeFilterCount > 0 ? 'rgba(37,99,235,0.06)' : Z.white, color: activeFilterCount > 0 ? Z.blue : Z[500], cursor:'pointer', fontSize:12, fontFamily:'var(--font)', fontWeight: activeFilterCount > 0 ? 600 : 400 }}>
+                <Filter size={13} />
+                Filtros
+                {activeFilterCount > 0 && <span style={{ background:Z.blue, color:'#fff', borderRadius:99, fontSize:10, fontWeight:700, padding:'1px 6px', marginLeft:2 }}>{activeFilterCount}</span>}
+              </button>
+            )}
+            {columns.length > 0 && storageKey && (
+              <ColsDropdown columns={columns} hiddenCols={hiddenCols} onToggle={toggleCol} />
             )}
             <div style={{ flex:1 }} />
             {headerExtra}
@@ -514,6 +636,65 @@ export default function SettingsLayout({
           onApply={handleBulkEdit}
           onClose={() => setBulkEditOpen(false)}
         />
+      )}
+
+      {/* Filter panel portal */}
+      {filterPanelOpen && filterDefs.length > 0 && createPortal(
+        <>
+          <div onClick={() => setFilterPanelOpen(false)} style={{ position:'fixed', inset:0, zIndex:800, background:'rgba(0,0,0,0.18)' }} />
+          <div style={{ position:'fixed', top:0, right:0, bottom:0, width:300, zIndex:801, background:Z.white, borderLeft:`1px solid ${Z[200]}`, boxShadow:'-8px 0 32px rgba(0,0,0,0.10)', display:'flex', flexDirection:'column', fontFamily:'var(--font)' }}>
+            {/* header */}
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 18px', borderBottom:`1px solid ${Z[200]}`, flexShrink:0 }}>
+              <div>
+                <div style={{ fontSize:14, fontWeight:700, color:Z[900] }}>Filtros</div>
+                {activeFilterCount > 0 && <div style={{ fontSize:11, color:Z[500], marginTop:2 }}>{activeFilterCount} filtro{activeFilterCount !== 1 ? 's' : ''} ativo{activeFilterCount !== 1 ? 's' : ''}</div>}
+              </div>
+              <button type="button" onClick={() => setFilterPanelOpen(false)} style={{ background:'none', border:'none', cursor:'pointer', color:Z[400], display:'flex', padding:4, borderRadius:4 }}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* filter groups */}
+            <div style={{ flex:1, overflowY:'auto', padding:'12px 18px', display:'flex', flexDirection:'column', gap:18 }}>
+              {filterDefs.map(fd => {
+                const current = effectiveFilters[fd.key] || ''
+                return (
+                  <div key={fd.key}>
+                    <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:Z[500], marginBottom:8 }}>{fd.label}</div>
+                    <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+                      <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'4px 0' }}>
+                        <input type="radio" name={`filter_${fd.key}`} checked={!current}
+                          onChange={() => setFilters({ ...effectiveFilters, [fd.key]: '' })}
+                          style={{ accentColor:Z.blue, cursor:'pointer' }} />
+                        <span style={{ fontSize:12, color:Z[700] }}>Todos</span>
+                      </label>
+                      {fd.options.map(opt => (
+                        <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'4px 0' }}>
+                          <input type="radio" name={`filter_${fd.key}`} checked={current === opt.value}
+                            onChange={() => setFilters({ ...effectiveFilters, [fd.key]: opt.value })}
+                            style={{ accentColor:Z.blue, cursor:'pointer' }} />
+                          <span style={{ fontSize:12, color:Z[700] }}>{opt.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* clear all */}
+            {activeFilterCount > 0 && (
+              <div style={{ padding:'12px 18px', borderTop:`1px solid ${Z[200]}`, flexShrink:0 }}>
+                <button type="button"
+                  onClick={() => { setFilters({}); setFilterPanelOpen(false) }}
+                  style={{ width:'100%', height:34, border:`1px solid ${Z[200]}`, borderRadius:6, background:Z.white, fontFamily:'var(--font)', fontSize:12, color:Z[700], cursor:'pointer', fontWeight:500 }}>
+                  Limpar todos os filtros
+                </button>
+              </div>
+            )}
+          </div>
+        </>,
+        document.body
       )}
 
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
