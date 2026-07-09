@@ -52,6 +52,15 @@ export function useCommissionApprovals() {
       })
       return { ok: true }
     }
+    if (!tid.current) {
+      setAprovacoes(prev => {
+        const idx = prev.findIndex(a => a.periodo === record.periodo && a.beneficiario_nome === record.beneficiario_nome)
+        const next = idx >= 0 ? prev.map((a, i) => i === idx ? { ...a, ...record } : a) : [...prev, record]
+        persist(next)
+        return next
+      })
+      return { ok: true }
+    }
     const row = { ...record, tenant_id: tid.current, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('commission_approvals').upsert(row, { onConflict: 'tenant_id,periodo,beneficiario_nome' })
     if (error) return { ok: false, message: error.message }

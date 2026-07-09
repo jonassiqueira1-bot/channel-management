@@ -652,7 +652,9 @@ export default function PipelineLayout({
 }) {
   const storagePrefix = STORAGE_NS + storageKey
 
-  const [kpisOpen, setKpisOpen]   = useState(true)
+  const [kpisOpen, setKpisOpen]   = useState(() => {
+    try { const v = localStorage.getItem(storagePrefix + '_kpis'); return v === null ? true : v === 'true' } catch { return true }
+  })
   const [view,     setView]       = useState('list')
   const [selected, setSelected]   = useState(new Set())
   const [page,     setPage]       = useState(1)
@@ -661,6 +663,9 @@ export default function PipelineLayout({
   })
   const [openId, setOpenId] = useState(null)
   const [localSearch, setLocalSearch] = useState(search)
+
+  // persiste kpisOpen
+  useEffect(() => { try { localStorage.setItem(storagePrefix + '_kpis', String(kpisOpen)) } catch {} }, [storagePrefix, kpisOpen])
 
   // propagate local search
   useEffect(() => { onSearchChange?.(localSearch) }, [localSearch]) // eslint-disable-line

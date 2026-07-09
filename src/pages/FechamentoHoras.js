@@ -309,14 +309,13 @@ export default function FechamentoHoras({ embedded = false, showKpis = true }) {
       </div>}
 
       {/* Seletor de período */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div>
-          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase',
-            letterSpacing: '.05em', display: 'block', marginBottom: 4 }}>Período</label>
+      <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', minHeight: 52, marginBottom: 20 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Período:</span>
           <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
             style={{ ...inp, width: 160 }} />
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'flex-end', paddingBottom: 2 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 4 }}>
           {mesLabel(periodo)} · {logsNoPeriodo.length} apontamento(s) · {fmtH(totalHoras)} no total
         </div>
       </div>

@@ -41,7 +41,7 @@ import { X, Maximize2, Minimize2, Trash2 }  from 'lucide-react'
 import Button                               from '../Button'
 
 // ── tamanhos ──────────────────────────────────────────────────────────────────
-const BASE_SIZES  = { compact: 480, default: 680, fullscreen: '100%' }
+const BASE_SIZES  = { compact: 480, default: 680, fullscreen: 'calc(100% - 56px)' }
 const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────

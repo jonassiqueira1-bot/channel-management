@@ -65,7 +65,15 @@ const EMPTY_FORM = {
   responsavel: '', observacoes: '',
   origem: '',
   opportunity_id: null, opportunity_titulo: '',
+  inconsistencia_status: 'sem_inconsistencia',
 }
+
+const INCONSISTENCIA_OPTS = [
+  { value: 'sem_inconsistencia',      label: 'Sem inconsistência' },
+  { value: 'inconsistencia_pendente', label: 'Inconsistência pendente' },
+  { value: 'inconsistencia_analise',  label: 'Inconsistência em análise' },
+  { value: 'inconsistencia_fechada',  label: 'Inconsistência fechada' },
+]
 
 // Mapeamento tipo de produto → label e cor de categoria
 const CATEGORIA_POR_TIPO = {
@@ -419,11 +427,11 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   // Tenta inserir via Supabase
   let qtd = 0
   try {
-    // Checa duplicatas já no banco
+    // Checa duplicatas já no banco (filtra por company_id; contract_id fica em custom_fields)
     const { data: existentes } = await supabase
-      .from('payments')
+      .from('provisoes')
       .select('id, custom_fields')
-      .eq('contract_id', String(contrato.id))
+      .eq('company_id', String(contrato.empresa_id))
 
     const jaExiste = (produtoId, vencimento) =>
       (existentes || []).some(p =>
@@ -434,9 +442,9 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
     const base = {
       tenant_id:   tid,
       branch_id:   branchId || null,
-      contract_id: contrato.id,
       company_id:  contrato.empresa_id || null,
       status:      'pendente',
+      notes:       `Provisão automática — contrato ${contrato.numero}`,
       descricao:   `Provisão automática — contrato ${contrato.numero}`,
     }
 
@@ -444,23 +452,26 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
       .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
       .map(i => ({
         ...base,
-        vencimento:     i.vencimento_primeiro_pagamento,
-        data_pagamento: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        reference_month: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        due_date:        i.vencimento_primeiro_pagamento,
+        amount_cdu:      i.tipo_item === 'adesao'  ? parseFloat(i.valor) || 0 : 0,
+        amount_sms:      i.tipo_item === 'mrr'     ? parseFloat(i.valor) || 0 : 0,
+        amount_services: i.tipo_item === 'servico' ? parseFloat(i.valor) || 0 : 0,
+        amount_discount: 0,
         custom_fields: {
+          contract_id:                   contrato.id,
           contract_numero:               contrato.numero,
           company_nome:                  contrato.empresa_nome,
           produto_id:                    i.produto_id || null,
           produto_nome:                  i.nome || '',
           tipo_item:                     i.tipo_item,
-          amount_total_net:              parseFloat(i.valor) || 0,
           primeira_compra:               i.primeira_compra || false,
           vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
-          processed:                     false,
         },
       }))
 
     if (inserir.length) {
-      const { error } = await supabase.from('payments').insert(inserir)
+      const { error } = await supabase.from('provisoes').insert(inserir)
       if (error) throw new Error(error.message)
       qtd = inserir.length
     }
@@ -841,7 +852,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
               </div>
               <div>
                 <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>Gerar provisão de pagamento</div>
-                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro pendente criado em Pagamentos (D+0 da vigência)</div>
+                <div style={{ fontSize:11.5, color:'var(--text-muted)' }}>Registro pendente criado em Provisões (D+0 da vigência)</div>
               </div>
             </div>
             {/* Metas — opcional */}
@@ -930,7 +941,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
                     .filter(i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento)
                   return (
                     <div style={{ fontSize:11.5, color:'var(--text-muted)', marginTop:2 }}>
-                      {itens.length} produto(s) com data de 1º pagamento · uma provisão por produto em Pagamentos
+                      {itens.length} produto(s) com data de 1º pagamento · uma provisão por produto em Provisões
                     </div>
                   )
                 })()}
@@ -1059,6 +1070,11 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
           </FormField>
           <FormField label="Tipo de venda">
             <TipoVendaField value={form.tipo_venda || ''} onChange={v => set('tipo_venda', v)} />
+          </FormField>
+          <FormField label="Inconsistência" span={2}>
+            <select className="so-field" value={form.inconsistencia_status || 'sem_inconsistencia'} onChange={e => set('inconsistencia_status', e.target.value)}>
+              {INCONSISTENCIA_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
           </FormField>
         </FormGrid>
       </FormSection>

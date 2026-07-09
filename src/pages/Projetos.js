@@ -2177,6 +2177,18 @@ function PainelFinanceiro({ projetos, timeLogs, showKpis = true }) {
         ))}
       </div>}
 
+      {/* Toolbar */}
+      <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 8, minHeight: 52 }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ordenar por:</span>
+        {[['contrato','Contrato'],['custo','Custo real.'],['faturado','Faturado'],['margem','Margem']].map(([col, label]) => (
+          <button key={col} onClick={() => setSortCol(col)}
+            style={{ padding: '5px 12px', borderRadius: 7, border: `1px solid ${sortCol === col ? 'var(--accent)' : 'var(--border)'}`, cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font)', fontWeight: sortCol === col ? 700 : 500,
+              background: sortCol === col ? 'var(--accent-lite)' : 'var(--surface2)', color: sortCol === col ? 'var(--accent)' : 'var(--text-muted)' }}>
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/* Tabela */}
       <div style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -2359,7 +2371,7 @@ function MapaRecursos({ projetos, members, timeLogs, showKpis = true }) {
       </div>}
 
       {/* Filtros */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', minHeight: 52 }}>
         <div style={{ display: 'flex', gap: 2, background: 'var(--surface2)', borderRadius: 8, padding: 3, border: '1px solid var(--border)' }}>
           {[{ id: 'todos', label: 'Todos' }, { id: 'sobrecarregado', label: 'Sobrecarregados' },
             { id: 'ocupado', label: 'Ocupados' }, { id: 'disponivel', label: 'Disponíveis' }].map(f => (
@@ -4438,7 +4450,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true, onEditingC
   if (subView === 'templates') {
     return (
       <div style={{display:'flex',flexDirection:'column',gap:16}}>
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+        <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, minHeight: 52 }}>
           <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
             {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
               <button key={k} onClick={()=>setSubView(k)}
@@ -4502,7 +4514,7 @@ function PropostasTab({ projetos, phases, opps = [], showKpis = true, onEditingC
         ))}
       </div>}
 
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap'}}>
+      <div style={{ background: 'var(--surface)', borderRadius: 10, padding: '8px 12px', border: '1px solid var(--border2)', boxShadow: 'var(--shadow)', display:'flex',alignItems:'center',justifyContent:'space-between',gap:12,flexWrap:'wrap', minHeight: 52 }}>
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:9,padding:3,border:'1px solid var(--border)'}}>
             {[['propostas','Propostas'],['templates','Templates']].map(([k,l])=>(
@@ -5102,10 +5114,10 @@ export default function Projetos() {
         />
 
         {/* Tab switcher — fixo centralizado */}
-        <div style={{ position: 'fixed', top: 16, left: '50%', transform: 'translateX(-50%)',
+        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
           zIndex: 200, display: 'flex', gap: 2,
-          background: 'var(--surface)', borderRadius: 10, padding: 3,
-          border: '1px solid var(--border)', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
+          background: 'var(--surface)', borderRadius: '0 0 10px 10px', padding: '3px 3px 3px 3px',
+          border: '1px solid var(--border)', borderTop: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
           {[{ id: 'projetos', label: 'Projetos' }, { id: 'propostas', label: 'Propostas' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
@@ -5246,22 +5258,22 @@ export default function Projetos() {
 
       {/* Abas com scroll próprio */}
       {tab === 'propostas' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 28px 24px' }}>
           <PropostasTab projetos={projetos} phases={phases} opps={opps} showKpis={false} onEditingChange={setPropostasEditing} />
         </div>
       )}
       {tab === 'fechamento' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 28px 24px' }}>
           <FechamentoHoras embedded showKpis={false} />
         </div>
       )}
       {tab === 'recursos' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 28px 24px' }}>
           <MapaRecursos projetos={projetos} members={members} timeLogs={timeLogs} showKpis={false} />
         </div>
       )}
       {tab === 'financeiro' && (
-        <div style={{ flex: 1, overflowY: 'auto', padding: '0 28px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 28px 24px' }}>
           <PainelFinanceiro projetos={projetos} timeLogs={timeLogs} showKpis={false} />
         </div>
       )}

@@ -419,15 +419,6 @@ export default function Produtos() {
                 <CategoriaSelect value={form.categoria} onChange={v => set('categoria', v)} categorias={categorias} setCategorias={setCategorias} />
               </FPEField>
             </FPEGrid>
-            <FPEField label="Descrição">
-              <textarea className="fpe-field" style={{ minHeight: 64, resize: 'vertical' }}
-                value={form.descricao}
-                onChange={e => set('descricao', e.target.value)}
-                placeholder="Descreva o produto brevemente…" />
-            </FPEField>
-          </FPESection>
-
-          <FPESection title="Comercial">
             <FPEGrid>
               <FPEField label="Status">
                 <select className="fpe-field" value={form.status} onChange={e => set('status', e.target.value)}>
@@ -454,31 +445,6 @@ export default function Produtos() {
                   value={form.desconto_max} onChange={e => set('desconto_max', e.target.value)} placeholder="0" />
               </FPEField>
             </FPEGrid>
-          </FPESection>
-
-          <FPESection title="Funcionalidades">
-            <FPEField label="Uma funcionalidade por linha">
-              <textarea className="fpe-field" style={{ minHeight: 90, resize: 'vertical', fontFamily:'var(--mono)', fontSize: 12 }}
-                value={form.features}
-                onChange={e => set('features', e.target.value)}
-                placeholder={'Pipeline Kanban\nGestão de metas\nRelatórios avançados'} />
-            </FPEField>
-            <FPEField label="Visibilidade no canal">
-              <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer', padding:'9px 12px', borderRadius:8, border:'1px solid var(--border)', background:'var(--surface2)' }}>
-                <input type="checkbox" checked={form.visivel_canal} onChange={e => set('visivel_canal', e.target.checked)}
-                  style={{ width:15, height:15, accentColor:'var(--accent)', cursor:'pointer' }} />
-                <span style={{ fontSize:13, color:'var(--text)', fontWeight:500 }}>Visível no catálogo</span>
-              </label>
-            </FPEField>
-          </FPESection>
-
-          <FPESection title="Observações">
-            <FPEField label="Notas e restrições">
-              <textarea className="fpe-field" style={{ minHeight: 64, resize: 'vertical', fontSize: 12 }}
-                value={form.observacoes}
-                onChange={e => set('observacoes', e.target.value)}
-                placeholder="Notas, restrições…" />
-            </FPEField>
           </FPESection>
           <DynamicFormLayout
             sections={pdSections}
