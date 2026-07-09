@@ -792,6 +792,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
     try {
       const steps = [{ id: 'contrato', label: `Contrato ${confirmData.numero} criado`, sublabel: confirmData.empresa_nome }]
       await onSave(confirmData, {
+        gerarProvisao,
         onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
       })
       if (!gerarProvisao) steps.push({ id: 'provisao', label: 'Provisão de pagamento ignorada', skip: true })
