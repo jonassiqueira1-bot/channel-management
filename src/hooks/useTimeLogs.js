@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -59,7 +60,7 @@ export function useTimeLogs() {
       .select('*')
       .order('logged_at', { ascending: false })
     if (error) {
-      console.error('[useTimeLogs]', error.message)
+      captureError('useTimeLogs', error)
       isMock.current = true
       // Filtra mock data: mantém só logs com project_id UUID (reais) ou sem project_id
       setLogs(prev => {

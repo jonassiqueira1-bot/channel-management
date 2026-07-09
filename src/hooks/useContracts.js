@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -107,7 +108,7 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
     let _q = supabase.from('contracts').select('*, companies(nome_fantasia, razao_social)')
     const { data, error } = await _q.order('created_at', { ascending: false })
 
-    if (error) { console.error('[useContracts]', error.message); isMockMode.current = true; setLoading(false); return }
+    if (error) { captureError('useContracts', error); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setContratos((data || []).map(rowToContrato))

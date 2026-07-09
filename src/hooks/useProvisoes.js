@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -97,7 +98,7 @@ export function useProvisoes() {
     if (branchId) q = q.eq('branch_id', branchId)
     const { data, error } = await q.order('due_date', { ascending: false })
 
-    if (error) { console.error('[useProvisoes]', error.message); setLoading(false); return }
+    if (error) { captureError('useProvisoes', error); setLoading(false); return }
     setProvisoes((data || []).map(rowToProvisao))
     setLoading(false)
   }, [session, branchId])

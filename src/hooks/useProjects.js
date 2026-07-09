@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -87,7 +88,7 @@ export function useProjects() {
     let _q = supabase.from('projects').select('*, companies(nome_fantasia, razao_social)')
     const { data, error } = await _q.order('created_at', { ascending: false })
 
-    if (error) { console.error('[useProjects]', error.message); isMockMode.current = true; setLoading(false); return }
+    if (error) { captureError('useProjects', error); isMockMode.current = true; setLoading(false); return }
 
     isMockMode.current = false
     setProjetos((data || []).map(rowToProject))

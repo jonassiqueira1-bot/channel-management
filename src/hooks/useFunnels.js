@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -50,7 +51,7 @@ export function useFunnels() {
     q = q.limit(1)
     const { data, error } = await q
     if (error) {
-      console.error('[useFunnels]', error.message)
+      captureError('useFunnels', error)
       isMockMode.current = false
       setFunis([])
     } else {

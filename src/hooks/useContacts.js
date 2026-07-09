@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -78,7 +79,7 @@ export function useContacts() {
     const { data, error } = await _q.order('nome')
 
     if (error) {
-      console.error('[useContacts]', error.message)
+      captureError('useContacts', error)
       isMockMode.current = false
       setLoading(false)
       return

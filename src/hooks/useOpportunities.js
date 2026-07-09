@@ -1,3 +1,4 @@
+import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
@@ -136,7 +137,7 @@ export function useOpportunities() {
     const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[useOpportunities] load error:', error.message)
+      captureError('useOpportunities', error)
       isMockMode.current = false
       setLoading(false)
       return
