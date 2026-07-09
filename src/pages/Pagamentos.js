@@ -24,6 +24,13 @@ import ActionFeedback from '../components/ActionFeedback'
 import BatchProgress from '../components/BatchProgress'
 import { useAuth } from '../contexts/AuthContext'
 import { useCompanies } from '../hooks/useCompanies'
+import TabProvisoes from './TabProvisoes'
+import { useProvisoes } from '../hooks/useProvisoes'
+
+const TABS_PAG = [
+  { id: 'pagamentos', label: 'Pagamentos' },
+  { id: 'provisoes',  label: 'Provisões'  },
+]
 
 const ACCENT = 'var(--accent)'
 const MESES  = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
@@ -139,6 +146,14 @@ const navBtn = {
   alignItems:'center', justifyContent:'center', padding:0, fontFamily:'var(--mono)',
 }
 
+// ─── Inconsistência ───────────────────────────────────────────────────────────
+const INCONSISTENCIA_OPTS = [
+  { value: 'sem_inconsistencia', label: 'Sem inconsistência',        color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  { value: 'pendente',           label: 'Inconsistência pendente',   color: '#F59E0B', bg: '#FEF3C7', text: '#B45309' },
+  { value: 'em_analise',         label: 'Inconsistência em análise', color: '#3B82F6', bg: '#DBEAFE', text: '#1E40AF' },
+  { value: 'fechada',            label: 'Inconsistência fechada',    color: '#94A3B8', bg: '#F1F5F9', text: '#475569' },
+]
+
 // ─── Badges ────────────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
   const cfg = STATUS_PAGAMENTO[status] || STATUS_PAGAMENTO.pendente
@@ -201,7 +216,14 @@ function validateImportRowPag(row, cfFields=[]) {
   return errors
 }
 
-function ImportModal({ onClose, onImport, companies, addCompany, contratos, saveContrato }) {
+function dupKeyPag(row) {
+  const periodo = (row.reference_month || '').slice(0, 7)
+  const doc     = (row.num_documento || '').trim().toLowerCase()
+  const fallback = (row.company_nome || '').trim().toLowerCase()
+  return `${(row.contract_numero||'').toLowerCase()}|${periodo}|${doc || fallback}`
+}
+
+function ImportModal({ onClose, onImport, companies, addCompany, contratos, saveContrato, pagamentos, provisoes, saveProvisao }) {
   const { fieldById } = useFormLayout('payments')
   const customFormFields = useMemo(() => (
     Object.values(fieldById||{})
@@ -214,10 +236,24 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     ...customFormFields.map(f=>f.key),
   ], [customFormFields])
 
-  const [step, setStep]         = useState('upload')   // upload | preview | importing | done
-  const [parsed, setParsed]     = useState(null)
-  const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, label:'' })
+  // Índice de duplicatas existentes no banco
+  const existingKeys = useMemo(() => {
+    const s = new Set()
+    ;(pagamentos||[]).forEach(p => {
+      const periodo = (p.reference_month||'').slice(0,7)
+      const doc     = (p.num_documento||'').trim().toLowerCase()
+      const fallback = (p.company_nome||'').trim().toLowerCase()
+      s.add(`${(p.contract_numero||'').toLowerCase()}|${periodo}|${doc || fallback}`)
+    })
+    return s
+  }, [pagamentos])
+
+  const [step, setStep]           = useState('upload')  // upload|preview|importing|reconciliation|done
+  const [parsed, setParsed]       = useState(null)
+  const [dragging, setDragging]   = useState(false)
+  const [progress, setProgress]   = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, label:'' })
+  const [reconcData, setReconcData] = useState(null)    // { matched, unmatched, months }
+  const [reconciling, setReconciling] = useState(false)
   const fileRef = useRef(null)
 
   function handleDownloadTemplate() {
@@ -235,9 +271,15 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     const reader = new FileReader()
     reader.onload = e => {
       const { rows } = parseCSVPag(e.target.result)
-      const rowResults = rows.map((row,i) => {
-        const errors = validateImportRowPag(row, customFormFields)
-        return { row, errors, ok:errors.length===0, line:i+2 }
+      const seenInFile = new Set()
+      const rowResults = rows.map((row, i) => {
+        const errors    = validateImportRowPag(row, customFormFields)
+        const key       = dupKeyPag(row)
+        const dupInFile = seenInFile.has(key)
+        const dupInDB   = existingKeys.has(key)
+        if (!dupInFile) seenInFile.add(key)
+        const isDup = dupInFile || dupInDB
+        return { row, errors, ok: errors.length===0 && !isDup, line:i+2, isDup, dupInFile, dupInDB }
       })
       setParsed({ fileName:file.name, rowResults })
       setStep('preview')
@@ -251,7 +293,6 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     setProgress({ current:0, total, empresasCriadas:0, contratosCriados:0, label:'Preparando…' })
     setStep('importing')
 
-    // índices para lookup rápido
     const compByName = {}; const compByCnpj = {}
     ;(companies||[]).forEach(c => {
       const n=(c.fantasia||c.razao||'').toLowerCase(); if(n) compByName[n]=c
@@ -291,6 +332,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       return null
     }
 
+    const hoje = new Date().toISOString().slice(0, 10)
     const importRows = []
     for (let i=0; i<okRows.length; i++) {
       const { row } = okRows[i]
@@ -301,6 +343,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       customFormFields.forEach(f => { if(row[f.key]!==undefined) custom_fields[f.key]=row[f.key] })
       const cdu=parseFloat(row.amount_cdu)||0, sms=parseFloat(row.amount_sms)||0
       const services=parseFloat(row.amount_services)||0, discount=parseFloat(row.amount_discount)||0
+      // Pagamentos importados são sempre recebidos (já foram pagos pelo cliente)
       importRows.push({
         id: 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2),
         contract_id, contract_numero:row.contract_numero,
@@ -309,29 +352,67 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
         parcela:row.parcela||'1/1',
         amount_cdu:cdu, amount_sms:sms, amount_services:services, amount_discount:discount,
         amount_total_net:cdu+sms+services-discount,
-        valor_recebido:null, data_baixa:null,
+        valor_recebido:cdu+sms+services-discount, data_baixa:row.data_emissao||hoje,
         reference_month:row.reference_month, due_date:row.due_date||null,
-        status:STATUS_PAGAMENTO[row.status]?row.status:'pendente',
-        processed:false, notes:row.notes||'', custom_fields,
-        criado:new Date().toISOString().slice(0,10),
+        status: 'pago',
+        processed:true, notes:row.notes||'', custom_fields,
+        criado:hoje,
       })
     }
 
-    setProgress(p=>({...p, current:total, empresasCriadas, contratosCriados, label:'Salvando…'}))
+    setProgress(p=>({...p, current:total, empresasCriadas, contratosCriados, label:'Conciliando provisões…'}))
+
+    // ── Reconciliação de Provisões ──────────────────────────────────────────
+    // Identifica meses cobertos pelo arquivo importado
+    const mesesImportados = new Set(importRows.map(r => (r.reference_month||'').slice(0,7)).filter(Boolean))
+    // Índice rápido: contract_numero + reference_month dos pagamentos importados
+    const pagIndex = new Set(importRows.map(r => `${(r.contract_numero||'').toLowerCase()}|${(r.reference_month||'').slice(0,7)}`))
+    // Provisões no mesmo período
+    const provisoesDoPeriodo = (provisoes||[]).filter(p =>
+      mesesImportados.has((p.reference_month||'').slice(0,7)) && p.status !== 'cancelado'
+    )
+    const matched   = provisoesDoPeriodo.filter(p => pagIndex.has(`${(p.contract_numero||'').toLowerCase()}|${(p.reference_month||'').slice(0,7)}`))
+    const unmatched = provisoesDoPeriodo.filter(p => !pagIndex.has(`${(p.contract_numero||'').toLowerCase()}|${(p.reference_month||'').slice(0,7)}`))
+
     const log = {
-      id:Date.now(), fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
+      id:Date.now(), tipo:'importacao', fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
       total:parsed.rowResults.length, imported:importRows.length,
-      errors:parsed.rowResults.filter(r=>!r.ok).length,
-      rowResults:parsed.rowResults, scope:'importados',
+      errors:parsed.rowResults.filter(r=>!r.ok && !r.isDup).length,
+      duplicados:parsed.rowResults.filter(r=>r.isDup).length,
+      rowResults:parsed.rowResults,
       empresasCriadas, contratosCriados,
+      provisoesReconciliadas: matched.length,
+      provisoesSemPagamento:  unmatched.length,
+      meses: Array.from(mesesImportados).sort(),
+      inconsistentes: unmatched.map(p => ({
+        id:p.id, company_nome:p.company_nome, contract_numero:p.contract_numero,
+        reference_month:p.reference_month, amount_total_net:p.amount_total_net,
+      })),
     }
     await onImport(importRows, log)
+    setReconcData({ matched, unmatched, months: Array.from(mesesImportados).sort() })
+    setStep('reconciliation')
+  }
+
+  async function handleConfirmReconciliation() {
+    if (!reconcData || !saveProvisao) return
+    setReconciling(true)
+    const hoje = new Date().toISOString().slice(0, 10)
+    // Provisões com pagamento → status pago
+    for (const p of reconcData.matched) {
+      await saveProvisao({ ...p, status: 'pago', data_baixa: p.data_baixa || hoje })
+    }
+    // Provisões sem pagamento → inconsistência pendente
+    for (const p of reconcData.unmatched) {
+      await saveProvisao({ ...p, inconsistencia_status: 'inconsistencia_pendente', inconsistencia: true })
+    }
+    setReconciling(false)
     setStep('done')
-    setProgress(p=>({...p, label:'Concluído!'}))
   }
 
   const okCount  = parsed?.rowResults.filter(r=>r.ok).length??0
-  const errCount = parsed?.rowResults.filter(r=>!r.ok).length??0
+  const errCount = parsed?.rowResults.filter(r=>!r.ok && !r.isDup).length??0
+  const dupCount = parsed?.rowResults.filter(r=>r.isDup).length??0
 
   const impBox = {
     border:'2px dashed var(--border)', borderRadius:12, padding:32,
@@ -347,10 +428,10 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
           <div>
             <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Importar Pagamentos</div>
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
-              {step==='upload' && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
-              {step==='preview' && `${parsed?.fileName} — ${okCount} válidos${errCount>0?`, ${errCount} com erro`:''}` }
+              {step==='upload'    && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
+              {step==='preview'   && `${parsed?.fileName} — ${okCount} válidos${dupCount>0?`, ${dupCount} duplicados`:''}${errCount>0?`, ${errCount} com erro`:''}`}
               {step==='importing' && `Processando ${progress.current} de ${progress.total}…`}
-              {step==='done' && 'Importação concluída'}
+              {step==='done'      && 'Importação concluída'}
             </div>
           </div>
           <button style={ov.xBtn} onClick={onClose}>✕</button>
@@ -358,7 +439,6 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
 
         {step==='upload' && (
           <div style={{ padding:24 }}>
-            {/* Template */}
             <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:14, marginBottom:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
                 <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>Template CSV</span>
@@ -378,7 +458,6 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
                 </div>
               )}
             </div>
-            {/* Drop zone */}
             <div
               style={impBox}
               onClick={() => fileRef.current?.click()}
@@ -387,9 +466,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
               onDrop={e => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]) }}
             >
               <div style={{ fontSize:28, marginBottom:8 }}>📂</div>
-              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>
-                Arraste o arquivo CSV aqui
-              </div>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', marginBottom:4 }}>Arraste o arquivo CSV aqui</div>
               <div style={{ fontSize:12, color:'var(--text-muted)' }}>ou clique para selecionar</div>
               <input ref={fileRef} type="file" accept=".csv" style={{ display:'none' }}
                 onChange={e => processFile(e.target.files[0])} />
@@ -400,29 +477,39 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
         {step==='preview' && parsed && (
           <div style={{ padding:'0 0 4px' }}>
             <div style={{ maxHeight:360, overflowY:'auto' }}>
-              {parsed.rowResults.map((r,i) => (
-                <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 24px',
-                  borderBottom:'1px solid var(--border2)',
-                  background:r.ok?'transparent':'rgba(239,68,68,0.03)' }}>
-                  <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)',
-                    color:r.ok?'#10B981':'#EF4444', flexShrink:0, marginTop:2, minWidth:36 }}>
-                    {r.ok?'✓':'✗'} L{r.line}
-                  </span>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)',
-                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {r.row.contract_numero} · {r.row.company_nome}
-                      {r.row.reference_month && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:8 }}>{r.row.reference_month}</span>}
+              {parsed.rowResults.map((r,i) => {
+                const color = r.ok ? '#10B981' : r.isDup ? '#F59E0B' : '#EF4444'
+                const icon  = r.ok ? '✓' : r.isDup ? '⊘' : '✗'
+                return (
+                  <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:10, padding:'10px 24px',
+                    borderBottom:'1px solid var(--border2)',
+                    background:r.ok?'transparent':r.isDup?'rgba(245,158,11,0.04)':'rgba(239,68,68,0.03)' }}>
+                    <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)',
+                      color, flexShrink:0, marginTop:2, minWidth:36 }}>
+                      {icon} L{r.line}
+                    </span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12, fontWeight:600, color:'var(--text)',
+                        overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                        {r.row.contract_numero} · {r.row.company_nome}
+                        {r.row.reference_month && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:8 }}>{r.row.reference_month.slice(0,7)}</span>}
+                        {r.row.num_documento && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:8 }}>{r.row.num_documento}</span>}
+                      </div>
+                      {r.isDup && (
+                        <div style={{ fontSize:11, color:'#F59E0B', marginTop:2 }}>
+                          {r.dupInDB ? 'Duplicado — já existe em Pagamentos' : 'Duplicado — repetido no próprio arquivo'}
+                        </div>
+                      )}
+                      {!r.ok && !r.isDup && <div style={{ fontSize:11, color:'#EF4444', marginTop:2 }}>{r.errors.join(' · ')}</div>}
                     </div>
-                    {!r.ok && <div style={{ fontSize:11, color:'#EF4444', marginTop:2 }}>{r.errors.join(' · ')}</div>}
+                    {r.ok && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                      {parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0) > 0
+                        ? `R$ ${(parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+                        : ''}
+                    </span>}
                   </div>
-                  {r.ok && <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', flexShrink:0 }}>
-                    {parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0) > 0
-                      ? `R$ ${(parseFloat(r.row.amount_cdu||0)+parseFloat(r.row.amount_sms||0)+parseFloat(r.row.amount_services||0)-parseFloat(r.row.amount_discount||0)).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-                      : ''}
-                  </span>}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}
@@ -449,6 +536,46 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
           </div>
         )}
 
+        {step==='reconciliation' && reconcData && (
+          <div style={{ padding:24 }}>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', marginBottom:16 }}>
+              Conciliação de Provisões — {reconcData.months.join(', ')}
+            </div>
+            <div style={{ display:'flex', gap:10, marginBottom:20 }}>
+              <div style={{ flex:1, background:'#D1FAE520', border:'1px solid #10B98140', borderRadius:10, padding:'14px 16px' }}>
+                <div style={{ fontSize:22, fontWeight:800, color:'#10B981' }}>{reconcData.matched.length}</div>
+                <div style={{ fontSize:11, color:'#059669', marginTop:2, fontWeight:600 }}>Provisões conciliadas</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>Status → Recebido</div>
+              </div>
+              <div style={{ flex:1, background:'rgba(245,158,11,0.08)', border:'1px solid rgba(245,158,11,0.3)', borderRadius:10, padding:'14px 16px' }}>
+                <div style={{ fontSize:22, fontWeight:800, color:'#F59E0B' }}>{reconcData.unmatched.length}</div>
+                <div style={{ fontSize:11, color:'#D97706', marginTop:2, fontWeight:600 }}>Sem pagamento</div>
+                <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>Inconsistência Pendente</div>
+              </div>
+            </div>
+            {reconcData.unmatched.length > 0 && (
+              <div style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden', maxHeight:220, overflowY:'auto' }}>
+                <div style={{ padding:'8px 12px', background:'var(--surface2)', fontSize:11, fontWeight:700, color:'var(--text-muted)', borderBottom:'1px solid var(--border)' }}>
+                  Provisões sem pagamento correspondente
+                </div>
+                {reconcData.unmatched.map((p, i) => (
+                  <div key={p.id||i} style={{ padding:'8px 12px', borderBottom: i < reconcData.unmatched.length-1 ? '1px solid var(--border2)' : 'none', background:'rgba(245,158,11,0.03)' }}>
+                    <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{p.company_nome} · {p.contract_numero}</div>
+                    <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
+                      {(p.reference_month||'').slice(0,7)} · {p.amount_total_net != null ? `R$ ${Number(p.amount_total_net).toLocaleString('pt-BR',{minimumFractionDigits:2})}` : '—'}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {reconcData.matched.length === 0 && reconcData.unmatched.length === 0 && (
+              <div style={{ fontSize:12, color:'var(--text-muted)', textAlign:'center', padding:20 }}>
+                Nenhuma provisão encontrada nos meses importados.
+              </div>
+            )}
+          </div>
+        )}
+
         {step==='done' && (
           <div style={{ padding:32, textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
@@ -460,6 +587,13 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
                 {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa${progress.empresasCriadas>1?'s':''} criada${progress.empresasCriadas>1?'s':''}`}
                 {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
                 {progress.contratosCriados>0 && `${progress.contratosCriados} contrato${progress.contratosCriados>1?'s':''} criado${progress.contratosCriados>1?'s':''}`}
+              </div>
+            )}
+            {reconcData && (reconcData.matched.length > 0 || reconcData.unmatched.length > 0) && (
+              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:8 }}>
+                {reconcData.matched.length > 0 && `${reconcData.matched.length} provisão(ões) marcada(s) como Recebido`}
+                {reconcData.matched.length > 0 && reconcData.unmatched.length > 0 && ' · '}
+                {reconcData.unmatched.length > 0 && `${reconcData.unmatched.length} com Inconsistência Pendente`}
               </div>
             )}
           </div>
@@ -474,6 +608,14 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
             </Button>
           </>}
           {step==='importing' && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Aguarde…</span>}
+          {step==='reconciliation' && <>
+            {(reconcData?.matched.length > 0 || reconcData?.unmatched.length > 0)
+              ? <Button onClick={handleConfirmReconciliation} disabled={reconciling}>
+                  {reconciling ? 'Aplicando…' : `Aplicar conciliação (${(reconcData?.matched.length||0)+(reconcData?.unmatched.length||0)} provisões)`}
+                </Button>
+              : <Button onClick={() => setStep('done')}>Concluir</Button>
+            }
+          </>}
           {step==='done' && <Button onClick={onClose}>Fechar</Button>}
         </div>
       </div>
@@ -497,7 +639,8 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
     parcela:         pagamento.parcela||'',
     produto_id:      pagamento.produto_id||'',
     produto_nome:    pagamento.produto_nome||'',
-    notes:           pagamento.notes||'',
+    notes:                 pagamento.notes||'',
+    inconsistencia_status: pagamento.inconsistencia_status || 'sem_inconsistencia',
   })
   const [dirty, setDirty] = useState(false)
   const [statusBloqueado, setStatusBloqueado] = useState(false)
@@ -584,6 +727,12 @@ function PagamentoDetail({ pagamento, onSave, onClose, pagamentosExistentes = []
               setDirty(true); setSavedOk(false)
             }}
           />
+        </FormField>
+        <FormField label="Inconsistência" span={2}>
+          <select className="so-field" value={form.inconsistencia_status}
+            onChange={e => { set('inconsistencia_status', e.target.value) }}>
+            {INCONSISTENCIA_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </FormField>
         <FormField label="Nº Documento">
           <input className="so-field" value={form.num_documento} placeholder="NF000000"
@@ -1236,21 +1385,33 @@ function saveFechamentos(list) { try { localStorage.setItem(FECHAMENTO_LS_KEY, J
 function exportFechamentoExcel(fechamento) {
   const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
   const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
-  const incRows = (fechamento.inconsistentes||[]).map(i =>
-    `<tr><td>${esc(i.company_nome)}</td><td>${esc(i.contract_numero)}</td><td>${esc(i.reference_month)}</td><td>${esc(fmtR(i.amount_total_net))}</td><td>${esc((i.notes||'').split('\n').find(l=>l.startsWith('[Inconsistência]'))||'')}</td></tr>`
-  ).join('')
-  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="UTF-8"/></head><body>
-<table border="1">
-<thead><tr><th colspan="2"><b>Relatório de Fechamento — ${esc(fechamento.data)}</b></th></tr></thead>
-<tbody>
+  const isImport = fechamento.tipo === 'importacao'
+  const incRows = (fechamento.inconsistentes||[]).map(i => {
+    const motivo = isImport
+      ? 'Provisão sem pagamento correspondente'
+      : ((i.notes||'').split('\n').find(l=>l.startsWith('[Inconsistência]'))||'')
+    return `<tr><td>${esc(i.company_nome)}</td><td>${esc(i.contract_numero)}</td><td>${esc(i.reference_month)}</td><td>${esc(fmtR(i.amount_total_net))}</td><td>${esc(motivo)}</td></tr>`
+  }).join('')
+  const statsRows = isImport ? `
+<tr><td><b>Arquivo</b></td><td>${esc(fechamento.fileName)}</td></tr>
+<tr><td><b>Data/Hora</b></td><td>${esc(fechamento.date)}</td></tr>
+<tr><td><b>Meses importados</b></td><td>${esc((fechamento.meses||[]).join(', '))}</td></tr>
+<tr><td><b>Pagamentos Importados</b></td><td>${fechamento.imported||0}</td></tr>
+<tr><td><b>Duplicados ignorados</b></td><td>${fechamento.duplicados||0}</td></tr>
+<tr><td><b>Provisões conciliadas (Recebido)</b></td><td>${fechamento.provisoesReconciliadas||0}</td></tr>
+<tr><td><b>Provisões sem pagamento (Inconsistência)</b></td><td>${fechamento.provisoesSemPagamento||0}</td></tr>` : `
 <tr><td><b>Operador</b></td><td>${esc(fechamento.usuario)}</td></tr>
 <tr><td><b>Data/Hora</b></td><td>${esc(fechamento.data)}</td></tr>
 <tr><td><b>Registros Processados</b></td><td>${fechamento.totalProcessados}</td></tr>
-<tr><td><b>Provisões Geradas</b></td><td>${fechamento.totalProvisoes}</td></tr>
+<tr><td><b>Provisões Geradas</b></td><td>${fechamento.totalProvisoes||0}</td></tr>
 <tr><td><b>Valor Liberado (sem problemas)</b></td><td>${esc(fmtR(fechamento.valorLiberado))}</td></tr>
-<tr><td><b>Valor com Inconsistências</b></td><td>${esc(fmtR(fechamento.valorInconsistente))}</td></tr>
-</tbody>
+<tr><td><b>Valor com Inconsistências</b></td><td>${esc(fmtR(fechamento.valorInconsistente))}</td></tr>`
+  const titulo = isImport ? `Importação de Pagamentos — ${esc(fechamento.date)}` : `Relatório de Fechamento — ${esc(fechamento.data)}`
+  const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="UTF-8"/></head><body>
+<table border="1">
+<thead><tr><th colspan="2"><b>${titulo}</b></th></tr></thead>
+<tbody>${statsRows}</tbody>
 </table>
 ${incRows.length>0?`<br/><table border="1">
 <thead><tr><th><b>Empresa</b></th><th><b>Contrato</b></th><th><b>Competência</b></th><th><b>Valor</b></th><th><b>Motivo</b></th></tr></thead>
@@ -1266,6 +1427,25 @@ function FechamentoModal({ fechamentos, onClose }) {
   const [selected, setSelected] = useState(fechamentos[0]?.id||null)
   const fch = fechamentos.find(f=>f.id===selected)
   const fmtR = v => `R$ ${Number(v||0).toLocaleString('pt-BR',{minimumFractionDigits:2})}`
+  const isImport = fch?.tipo === 'importacao'
+
+  const statsCards = fch ? (isImport ? [
+    ['Arquivo',                    fch.fileName||'—'],
+    ['Data/Hora',                  fch.date||'—'],
+    ['Meses importados',           (fch.meses||[]).join(', ')||'—'],
+    ['Pagamentos importados',      fch.imported||0],
+    ['Duplicados ignorados',       fch.duplicados||0],
+    ['Provisões → Recebido',       fch.provisoesReconciliadas||0],
+    ['Provisões → Inconsistência', fch.provisoesSemPagamento||0],
+  ] : [
+    ['Operador',                   fch.usuario||'—'],
+    ['Data/Hora',                  fch.data||'—'],
+    ['Registros Processados',      fch.totalProcessados||0],
+    ['Provisões Geradas',          fch.totalProvisoes||0],
+    ['Valor Liberado',             fmtR(fch.valorLiberado)],
+    ['Valor com Inconsistências',  fmtR(fch.valorInconsistente)],
+  ]) : []
+
   return (
     <div style={ov.wrap} onMouseDown={e=>{if(e.target===e.currentTarget)onClose()}}>
       <div style={{...ov.modal, maxWidth:720, maxHeight:'90vh', display:'flex', flexDirection:'column'}}>
@@ -1286,8 +1466,15 @@ function FechamentoModal({ fechamentos, onClose }) {
                 fontFamily:'var(--font)',background:selected===f.id?'var(--accent-glow)':'none',
                 borderLeft:`3px solid ${selected===f.id?'var(--accent)':'transparent'}`,
               }}>
-                <div style={{fontSize:12,fontWeight:700,color:'var(--text)',lineHeight:1.3}}>{f.data}</div>
-                <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>{f.totalProcessados} registros</div>
+                <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:2}}>
+                  {f.tipo==='importacao' ? '📥 Importação' : '📋 Fechamento'}
+                </div>
+                <div style={{fontSize:12,fontWeight:700,color:'var(--text)',lineHeight:1.3}}>
+                  {f.tipo==='importacao' ? (f.date||'—') : (f.data||'—')}
+                </div>
+                <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
+                  {f.tipo==='importacao' ? `${f.imported||0} pagamentos` : `${f.totalProcessados||0} registros`}
+                </div>
               </button>
             ))}
           </div>
@@ -1295,15 +1482,11 @@ function FechamentoModal({ fechamentos, onClose }) {
           <div style={{flex:1,overflowY:'auto',padding:20}}>
             {!fch && <div style={{fontSize:13,color:'var(--text-muted)',textAlign:'center',paddingTop:40}}>Selecione um fechamento</div>}
             {fch && (<>
-              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:20}}>
-                {[
-                  ['Operador',fch.usuario],
-                  ['Data/Hora',fch.data],
-                  ['Registros Processados',fch.totalProcessados],
-                  ['Provisões Geradas',fch.totalProvisoes||0],
-                  ['Valor Liberado',fmtR(fch.valorLiberado)],
-                  ['Valor com Inconsistências',fmtR(fch.valorInconsistente)],
-                ].map(([label,val])=>(
+              <div style={{fontSize:12,fontWeight:700,color:'var(--text-muted)',marginBottom:12,textTransform:'uppercase',letterSpacing:'0.05em'}}>
+                {isImport ? '📥 Importação de Pagamentos' : '📋 Fechamento Mensal'}
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:20}}>
+                {statsCards.map(([label,val])=>(
                   <div key={label} style={{background:'var(--surface2)',borderRadius:8,padding:'10px 14px',border:'1px solid var(--border)'}}>
                     <div style={{fontSize:11,color:'var(--text-muted)',marginBottom:3}}>{label}</div>
                     <div style={{fontSize:14,fontWeight:700,color:'var(--text)'}}>{val}</div>
@@ -1312,15 +1495,16 @@ function FechamentoModal({ fechamentos, onClose }) {
               </div>
               {fch.inconsistentes?.length>0 && (<>
                 <div style={{fontSize:12,fontWeight:700,color:'#92400E',marginBottom:8}}>
-                  ⚠ {fch.inconsistentes.length} pagamento{fch.inconsistentes.length>1?'s':''} com inconsistência
+                  ⚠ {fch.inconsistentes.length} {isImport ? 'provisão(ões) sem pagamento' : `pagamento${fch.inconsistentes.length>1?'s':''} com inconsistência`}
                 </div>
                 <div style={{border:'1px solid var(--border)',borderRadius:8,overflow:'hidden'}}>
                   {fch.inconsistentes.map((inc,i)=>(
                     <div key={i} style={{padding:'8px 12px',borderBottom:i<fch.inconsistentes.length-1?'1px solid var(--border2)':'none',background:'rgba(239,68,68,0.03)'}}>
                       <div style={{fontSize:12,fontWeight:600,color:'var(--text)'}}>{inc.company_nome} · {inc.contract_numero}</div>
                       <div style={{fontSize:11,color:'var(--text-muted)',marginTop:2}}>
-                        {inc.reference_month} · {fmtR(inc.amount_total_net)}
-                        {inc.notes && <span style={{marginLeft:8,color:'#EF4444'}}>{inc.notes.split('\n').find(l=>l.startsWith('[Inconsistência]'))||''}</span>}
+                        {(inc.reference_month||'').slice(0,7)} · {fmtR(inc.amount_total_net)}
+                        {!isImport && inc.notes && <span style={{marginLeft:8,color:'#EF4444'}}>{inc.notes.split('\n').find(l=>l.startsWith('[Inconsistência]'))||''}</span>}
+                        {isImport && <span style={{marginLeft:8,color:'#F59E0B'}}>Inconsistência Pendente</span>}
                       </div>
                     </div>
                   ))}
@@ -1346,6 +1530,7 @@ function FechamentoModal({ fechamentos, onClose }) {
 export default function Pagamentos() {
   const { session } = useAuth()
   const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
+  const { provisoes, save: saveProvisao } = useProvisoes()
   const { registrar: log } = useAuditLog()
   const { contratos, save: saveContrato } = useContracts()
   const { companies, add: addCompany } = useCompanies()
@@ -1353,6 +1538,8 @@ export default function Pagamentos() {
   const { projetos } = useProjects()
   const { membros: oppMembros } = useOppMembros()
   const { usuarios } = useUsuarios()
+
+  const [tab, setTab] = useLocalState('pagamentos:tab', 'pagamentos')
 
   // ── estado persistido ─────────────────────────────────────────────────────
   const [search, setSearch]                     = useLocalState('pagamentos:search', '')
@@ -1716,9 +1903,8 @@ export default function Pagamentos() {
     const nextRefKey    = `${nextYear}-${nextMonthStr}-01`   // competência: sempre dia 01
     const nextDueDate   = `${nextYear}-${nextMonthStr}-${String(ultimoDia).padStart(2, '0')}`  // vencimento: último dia
 
-    // Evita duplicata: mesmo produto + empresa + competência já existente (não cancelado)
-    const jaExiste = (pag.produto_id && pag.company_id) && pagamentos.some(p =>
-      p.id !== pag.id &&
+    // Evita duplicata: mesmo produto + empresa + competência já existente em provisões (não cancelado)
+    const jaExiste = (pag.produto_id && pag.company_id) && provisoes.some(p =>
       String(p.produto_id) === String(pag.produto_id) &&
       String(p.company_id) === String(pag.company_id) &&
       (p.reference_month || '').slice(0, 7) === `${nextYear}-${nextMonthStr}` &&
@@ -1744,19 +1930,30 @@ export default function Pagamentos() {
     const nextParcela = `${nextNum}/${nextDen}`
 
     const provisao = {
-      ...pag,
-      id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      company_id:      pag.company_id,
+      company_nome:    pag.company_nome,
+      contract_id:     pag.contract_id,
+      contract_numero: pag.contract_numero,
+      produto_id:      pag.produto_id,
+      produto_nome:    pag.produto_nome,
+      amount_cdu:      pag.amount_cdu      || 0,
+      amount_sms:      pag.amount_sms      || 0,
+      amount_services: pag.amount_services || 0,
+      amount_discount: pag.amount_discount || 0,
       status:          'pendente',
       processed:       false,
       inconsistencia:  false,
+      inconsistencia_status: 'sem_inconsistencia',
       reference_month: nextRefKey,
       due_date:        nextDueDate,
-      data_pagamento:  null,
+      data_fechamento: null,
       data_baixa:      null,
       parcela:         nextParcela,
       notes:           obsProvisao,
+      branch_id:       pag.branch_id || null,
+      tenant_id:       pag.tenant_id  || null,
     }
-    savePagamento(provisao)
+    saveProvisao(provisao)
     return provisao
   }
 
@@ -1897,8 +2094,11 @@ export default function Pagamentos() {
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
   }
 
-  function handleImport(rows) {
+  function handleImport(rows, log) {
     setPagamentos(prev => [...prev, ...rows])
+    if (log) {
+      setFechamentos(prev => { const next = [log, ...prev].slice(0, 60); saveFechamentos(next); return next })
+    }
   }
 
   function gerarTodos() {
@@ -2015,7 +2215,25 @@ export default function Pagamentos() {
 
   return (
     <>
-      <BrowseLayout
+      {/* ── Navbar fixa no topo ── */}
+      <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', zIndex:200,
+        display:'flex', gap:2, background:'var(--surface)', borderRadius:'0 0 10px 10px', padding:3,
+        border:'1px solid var(--border)', borderTop:'none', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
+        {TABS_PAG.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{
+            padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer',
+            fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)',
+            background:tab===t.id?'var(--accent)':'none',
+            color:tab===t.id?'#fff':'var(--text-muted)',
+            boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none',
+            transition:'all 0.15s', whiteSpace:'nowrap',
+          }}>{t.label}</button>
+        ))}
+      </div>
+
+      {tab === 'provisoes' && <TabProvisoes />}
+
+      {tab === 'pagamentos' && <BrowseLayout
         data={lista}
         columns={columns}
         keyField="id"
@@ -2106,7 +2324,7 @@ export default function Pagamentos() {
             <span style={{ fontSize:13 }}>Nenhum faturamento encontrado para este período</span>
           </div>
         }
-      />
+      />}
 
       {/* ── Detalhe (SlideOver) ── */}
       <SlideOver
@@ -2258,6 +2476,9 @@ export default function Pagamentos() {
           addCompany={addCompany}
           contratos={contratos}
           saveContrato={saveContrato}
+          pagamentos={pagamentos}
+          provisoes={provisoes}
+          saveProvisao={saveProvisao}
         />
       )}
 

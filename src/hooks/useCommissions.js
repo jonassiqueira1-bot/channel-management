@@ -74,7 +74,7 @@ function paymentToRow(p, tenantId, branchId) {
     : (compMes || String(new Date().getMonth() + 1).padStart(2, '0'))
   const ano = p.periodo_ano
     ? String(p.periodo_ano)
-    : (compAno || String(new Date().getFullYear()))
+    : (compAno && compAno !== 'undefined' ? compAno : String(new Date().getFullYear()))
   return {
     tenant_id:        tenantId,
     branch_id:        branchId || null,

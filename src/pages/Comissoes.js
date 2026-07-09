@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocalState } from '../hooks/useLocalState'
 import {
   DollarSign, Percent, Calendar, Plus, ChevronDown, FileText,
   CheckCircle2, Clock, XCircle, Pencil, Trash2, X,
-  TrendingUp, AlertCircle, Loader2,
+  TrendingUp, AlertCircle, Loader2, Search,
   Zap, BarChart2, Link2, RotateCcw, Info, ChevronRight,
   User, Users, Settings, Filter, GitMerge, Crown, CreditCard, Rocket,
 } from 'lucide-react'
@@ -702,7 +703,7 @@ function InfoPill({ icon, label, color }) {
 }
 
 // ─── PaymentForm (SlideOver content) ─────────────────────────────────────────
-function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios = [], saveRef }) {
+function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios = [], saveRef, upsertAprovacao, nomeUsuario }) {
   const [saving, setSaving] = useState(false)
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -754,7 +755,6 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
     const personaObj = personas.find(p => p.slug === form.persona || p.id === form.persona)
     const nomeEfetivo = (form.beneficiario_nome || '').trim() || personaObj?.label || form.persona || ''
     if (!nomeEfetivo) { setErr('Informe o beneficiário ou selecione uma persona.'); return }
-    // valor_base pode ser 0 em lançamentos manuais de acompanhamento
     setSaving(true); setErr(null)
     try {
       await new Promise(r => setTimeout(r, 300))
@@ -767,6 +767,18 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
         percentual:       parseFloat(form.percentual),
         valor_comissao:   parseFloat(comissaoCalculada),
       })
+      // Se o status de aprovação foi alterado, persiste na tabela commission_approvals
+      if (upsertAprovacao && form._status_aprovacao !== undefined) {
+        const periodo = (form.data_competencia || '').slice(0, 7)
+        if (periodo && nomeEfetivo) {
+          upsertAprovacao({
+            periodo,
+            beneficiario_nome: nomeEfetivo,
+            status: form._status_aprovacao || 'aberto',
+            ...(form._status_aprovacao === 'aprovado' ? { aprovado_em: new Date().toISOString().slice(0, 10), aprovado_por: nomeUsuario } : {}),
+          })
+        }
+      }
       onClose()
     } catch(e) { setErr(e.message||'Erro ao salvar.') }
     finally { setSaving(false) }
@@ -779,6 +791,10 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
   const origemEmpresa  = form.company_nome    || form.custom_fields?.company_nome    || ''
   const origemProduto  = form.produto_nome    || form.custom_fields?.produto_nome    || ''
   const temOrigem      = origemContrato || origemEmpresa
+  // Auto-preenche descricao com dados de origem se ainda vazio
+  const origemLabel = temOrigem
+    ? [origemContrato && `CTR ${origemContrato}`, origemEmpresa].filter(Boolean).join(' — ')
+    : ''
 
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
@@ -789,11 +805,33 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
             <FileText size={13} strokeWidth={2} style={{ color:'var(--accent)' }} />
           </div>
           <div style={{ flex:1, minWidth:0 }}>
-            <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:1 }}>Origem</div>
-            <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-              {origemContrato && <span>Contrato {origemContrato}</span>}
-              {origemEmpresa  && <span style={{ color:'var(--text-muted)' }}> · {origemEmpresa}</span>}
-              {origemProduto  && <span style={{ color:'var(--text-muted)', fontSize:11 }}> · {origemProduto}</span>}
+            <div style={{ fontSize:10, color:'var(--accent)', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:2 }}>Contrato de origem</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {origemContrato && <span>CTR {origemContrato}</span>}
+              {origemEmpresa  && <span style={{ fontWeight:400, color:'var(--text-muted)' }}> — {origemEmpresa}</span>}
+            </div>
+            {origemProduto && (
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{origemProduto}</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Status de aprovação — banner read-only quando vier de TabAprovacao */}
+      {form._status_aprovacao && (
+        <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 14px',
+          background: form._status_aprovacao === 'aprovado' ? 'rgba(16,185,129,0.06)' : form._status_aprovacao === 'rejeitado' ? 'rgba(239,68,68,0.06)' : 'rgba(0,0,0,0.03)',
+          border: `1px solid ${form._status_aprovacao === 'aprovado' ? 'rgba(16,185,129,0.25)' : form._status_aprovacao === 'rejeitado' ? 'rgba(239,68,68,0.2)' : 'var(--border)'}`,
+          borderRadius:9 }}>
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:2,
+              color: form._status_aprovacao === 'aprovado' ? '#10B981' : form._status_aprovacao === 'rejeitado' ? '#EF4444' : 'var(--text-muted)' }}>
+              Status de aprovação
+            </div>
+            <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>
+              {form._status_aprovacao === 'aprovado' ? 'Aprovado' : form._status_aprovacao === 'rejeitado' ? 'Rejeitado' : 'Aguardando aprovação'}
+              {form._aprovado_por && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:6 }}>por {form._aprovado_por}</span>}
+              {form._aprovado_em  && <span style={{ fontWeight:400, color:'var(--text-muted)', marginLeft:4 }}>em {fmtDate(form._aprovado_em)}</span>}
             </div>
           </div>
         </div>
@@ -835,9 +873,19 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
 
       <FormSection label="Cálculo">
         <FormGrid cols={2}>
-          <FormField label="Status">
+          <FormField label="Status de pagamento">
             <select className="so-field" value={form.status} onChange={e=>set('status',e.target.value)}>
               {Object.entries(STATUS_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FormField>
+          <FormField label="Status de aprovação">
+            <select className="so-field"
+              value={form._status_aprovacao || 'aberto'}
+              onChange={e => set('_status_aprovacao', e.target.value)}
+              style={{ color: form._status_aprovacao === 'aprovado' ? '#10B981' : form._status_aprovacao === 'rejeitado' ? '#EF4444' : 'var(--text)' }}>
+              <option value="aberto">Aguardando aprovação</option>
+              <option value="aprovado">Aprovado</option>
+              <option value="rejeitado">Rejeitado</option>
             </select>
           </FormField>
           <FormField label="Valor base (R$)" required>
@@ -905,7 +953,13 @@ function PaymentForm({ form, setForm, rules, personas, onSave, onClose, usuarios
       <FormSection label="Observações">
         <FormGrid cols={1}>
           <FormField label="Descrição / Origem">
-            <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Ex: Quírons QRS — MedGroup" />
+            {temOrigem ? (
+              <div className="so-field" style={{ color:'var(--text-muted)', cursor:'default', userSelect:'text', background:'var(--surface2)' }}>
+                {origemLabel || form.descricao || '—'}
+              </div>
+            ) : (
+              <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Ex: Quírons QRS — MedGroup" />
+            )}
           </FormField>
           <FormField label="Notas">
             <textarea className="so-field" value={form.notas||''} onChange={e=>set('notas',e.target.value)} style={{ minHeight:60, resize:'vertical' }} />
@@ -1893,17 +1947,39 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
 // ─── Página principal ─────────────────────────────────────────────────────────
 // ─── Aprovação de Lotes ───────────────────────────────────────────────────────
 function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) {
-  const [periodo, setPeriodo]   = useState(() => new Date().toISOString().slice(0, 7))
+  const [periodo, setPeriodo]       = useState(() => new Date().toISOString().slice(0, 7))
+  const [busca, setBusca]           = useState('')
+  const [filtrosPanelOpen, setFiltrosPanelOpen] = useState(false)
+  const [filtros, setFiltros]       = useState({ statusAprov: [], statusPag: [] })
+  const [expandidos, setExpandidos] = useState(() => {
+    try { const v = localStorage.getItem('comissoes:aprov_expandidos'); return v ? new Set(JSON.parse(v)) : null } catch { return null }
+    // null = todos expandidos por padrão
+  })
+
   const { aprovacoes, upsert: upsertAprovacao } = useCommissionApprovals()
+  const { profile } = useProfile()
   const [selected, setSelected] = useState(new Set())
   const [obsModal, setObsModal] = useState(null)
 
   const fmtMes = p => { if (!p) return ''; const [y, m] = p.split('-'); const ns = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${ns[parseInt(m,10)-1]}/${y}` }
   const hoje = () => new Date().toISOString().slice(0, 10)
+  const nomeUsuario = profile?.nome || profile?.full_name || profile?.email || 'Usuário'
+
+  // Persiste expandidos
+  useEffect(() => {
+    try {
+      if (expandidos === null) localStorage.removeItem('comissoes:aprov_expandidos')
+      else localStorage.setItem('comissoes:aprov_expandidos', JSON.stringify([...expandidos]))
+    } catch {}
+  }, [expandidos])
 
   const lancamentos = useMemo(() =>
     payments.filter(p => (p.data_competencia || p.data_vencimento || '').slice(0, 7) === periodo),
   [payments, periodo])
+
+  function getAprov(nome) {
+    return aprovacoes.find(a => a.periodo === periodo && a.beneficiario_nome === nome) || null
+  }
 
   const porBenef = useMemo(() => {
     const map = {}
@@ -1912,31 +1988,79 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
       if (!map[k]) map[k] = { nome: k, items: [] }
       map[k].items.push(p)
     })
-    return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-  }, [lancamentos])
+    let todos = Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-  function getAprov(nome) {
-    return aprovacoes.find(a => a.periodo === periodo && a.beneficiario_nome === nome) || null
-  }
+    // Filtro de busca
+    if (busca.trim()) {
+      const q = busca.toLowerCase()
+      todos = todos.filter(g =>
+        g.nome.toLowerCase().includes(q) ||
+        g.items.some(p =>
+          (p.contract_numero || p.custom_fields?.contract_numero || '').toLowerCase().includes(q) ||
+          (p.company_nome    || p.custom_fields?.company_nome    || '').toLowerCase().includes(q) ||
+          (p.observacoes     || '').toLowerCase().includes(q)
+        )
+      )
+    }
+
+    // Filtro de status de aprovação
+    if (filtros.statusAprov.length > 0) {
+      todos = todos.filter(g => {
+        const s = getAprov(g.nome)?.status || 'aberto'
+        return filtros.statusAprov.includes(s)
+      })
+    }
+
+    // Filtro de status do pagamento
+    if (filtros.statusPag.length > 0) {
+      todos = todos.map(g => ({
+        ...g,
+        items: g.items.filter(p => filtros.statusPag.includes(p.status || 'pendente')),
+      })).filter(g => g.items.length > 0)
+    }
+
+    return todos
+  }, [lancamentos, busca, filtros, aprovacoes, periodo])
+
+  const isExpanded = useCallback((nome) => {
+    if (expandidos === null) return true  // todos expandidos por padrão
+    return expandidos.has(nome)
+  }, [expandidos])
+
+  const toggleExpanded = useCallback((nome) => {
+    setExpandidos(prev => {
+      // null = todos abertos; ao colapsar o primeiro, materializa o Set com todos menos esse
+      if (prev === null) {
+        const todos = porBenef.map(g => g.nome)
+        const n = new Set(todos)
+        n.delete(nome)
+        return n
+      }
+      const n = new Set(prev)
+      n.has(nome) ? n.delete(nome) : n.add(nome)
+      return n
+    })
+  }, [porBenef])
 
   function upsert(nome, patch) {
     const existing = aprovacoes.find(a => a.periodo === periodo && a.beneficiario_nome === nome)
-    const grupo = porBenef.find(g => g.nome === nome)
-    const total = grupo?.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0) || 0
+    const allGrupo = porBenef.find(g => g.nome === nome)
+    const total = allGrupo?.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0) || 0
     const record = existing
       ? { ...existing, ...patch }
-      : { id: `aprov_${periodo}_${nome}_${Date.now()}`, periodo, beneficiario_nome: nome,
-          status: 'aberto', total_valor: total, payment_ids: grupo?.items.map(p => p.id) || [],
-          enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null, ...patch }
+      : { periodo, beneficiario_nome: nome,
+          status: 'aberto', total_valor: total, payment_ids: allGrupo?.items.map(p => p.id) || [],
+          enviado_em: null, aprovado_em: null, rejeitado_em: null, aprovado_por: null, obs: null, ...patch }
     upsertAprovacao(record)
   }
 
+  // Aprova TODOS os itens do grupo
   function handleAprovar(nome) {
-    upsert(nome, { status: 'aprovado', aprovado_em: hoje() })
+    upsert(nome, { status: 'aprovado', aprovado_em: hoje(), aprovado_por: nomeUsuario })
     const grupo = porBenef.find(g => g.nome === nome)
     const ids = new Set(grupo?.items.map(p => p.id) || [])
     setPayments(prev => prev.map(p => ids.has(p.id) ? { ...p, status: 'pago', data_pagamento: hoje() } : p))
-    onLog?.('aprovar', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote aprovado: ${nome} — ${fmtMes(periodo)}` })
+    onLog?.('aprovar', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote aprovado: ${nome} — ${fmtMes(periodo)} por ${nomeUsuario}` })
   }
 
   function handleRejeitar(nome, obs) {
@@ -1946,64 +2070,120 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
   }
 
   function handleReabrir(nome) {
-    upsert(nome, { status: 'aberto', enviado_em: null, aprovado_em: null, rejeitado_em: null, obs: null })
+    upsert(nome, { status: 'aberto', enviado_em: null, aprovado_em: null, rejeitado_em: null, aprovado_por: null, obs: null })
     onLog?.('reabrir', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote reaberto: ${nome} — ${fmtMes(periodo)}` })
   }
 
-  // Seleção via checkbox — opera sobre lancamentos individuais
+  // Seleção
   const allIds = lancamentos.map(p => p.id)
   const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
   const someSelected = allIds.some(id => selected.has(id))
+  function toggleAll() { setSelected(allSelected ? new Set() : new Set(allIds)) }
+  function toggleOne(id) { setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n }) }
 
-  function toggleAll() {
-    setSelected(allSelected ? new Set() : new Set(allIds))
-  }
-  function toggleOne(id) {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
-  }
-
+  // FIX: aprova apenas os IDs selecionados, não o grupo inteiro
   function aprovarSelecionados() {
-    // Agrupa selecionados por beneficiário e aprova cada grupo
+    const selectedIds = new Set([...selected])
     const nomesAfetados = new Set()
-    lancamentos.filter(p => selected.has(p.id)).forEach(p => nomesAfetados.add(p.beneficiario_nome || 'Sem nome'))
-    nomesAfetados.forEach(nome => handleAprovar(nome))
+    lancamentos.filter(p => selectedIds.has(p.id)).forEach(p => nomesAfetados.add(p.beneficiario_nome || 'Sem nome'))
+    nomesAfetados.forEach(nome => {
+      upsert(nome, { status: 'aprovado', aprovado_em: hoje(), aprovado_por: nomeUsuario })
+      onLog?.('aprovar', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote aprovado (parcial): ${nome} — ${fmtMes(periodo)} por ${nomeUsuario}` })
+    })
+    // Apenas marca como pago os IDs selecionados
+    const hj = hoje()
+    setPayments(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, status: 'pago', data_pagamento: hj } : p))
     setSelected(new Set())
   }
 
-  const totalPeriodo    = lancamentos.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-  const totalAprovado   = lancamentos.filter(p => getAprov(p.beneficiario_nome || 'Sem nome')?.status === 'aprovado').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  // KPIs
+  const totalPeriodo      = lancamentos.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const totalAprovado     = lancamentos.filter(p => getAprov(p.beneficiario_nome || 'Sem nome')?.status === 'aprovado').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const totalPendente     = totalPeriodo - totalAprovado
+  const benefAprovados    = porBenef.filter(g => getAprov(g.nome)?.status === 'aprovado').length
   const countSelecionados = selected.size
   const valorSelecionados = lancamentos.filter(p => selected.has(p.id)).reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const filtrosAtivos     = filtros.statusAprov.length + filtros.statusPag.length
 
-  // Estilo zebra / linha compacta
-  const ROW = { display:'grid', gridTemplateColumns:'32px 1fr 140px 100px 100px 110px 90px', alignItems:'center', gap:8, padding:'7px 12px', borderBottom:'1px solid var(--border)', fontSize:12 }
+  function toggleFiltro(key, value) {
+    setFiltros(f => {
+      const arr = f[key] || []
+      return { ...f, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] }
+    })
+  }
+
+  // Grid das linhas: checkbox | descrição/contrato | empresa | competência | base | % | comissão | aprovação | ações
+  const COLS = '32px 1fr 130px 100px 90px 54px 110px 130px 80px'
+  const ROW = { display:'grid', gridTemplateColumns: COLS, alignItems:'center', gap:8, padding:'7px 12px', borderBottom:'1px solid var(--border)', fontSize:12 }
   const TH  = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-      {/* Período + KPIs */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <Calendar size={13} strokeWidth={1.75} style={{ color:'var(--text-muted)' }} />
-          <input type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setSelected(new Set()) }}
-            style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
-          <span style={{ fontSize:12, color:'var(--text-muted)', fontWeight:600 }}>{fmtMes(periodo)}</span>
-        </div>
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-          {[
-            { label:'Total', value: fmt(totalPeriodo), color:'var(--text)' },
-            { label:'Aprovado', value: fmt(totalAprovado), color:'#10B981' },
-            { label:'Lançamentos', value: lancamentos.length, color:'var(--text-muted)' },
-          ].map(k => (
-            <div key={k.label} style={{ padding:'4px 12px', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:7, display:'flex', flexDirection:'column' }}>
-              <span style={{ fontSize:9, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</span>
-              <span style={{ fontSize:13, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.value}</span>
-            </div>
-          ))}
-        </div>
+    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+
+      {/* ── KPIs ──────────────────────────────────────────────────────────── */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
+        {[
+          { label:'Beneficiários',    value: porBenef.length,        color:'var(--accent)' },
+          { label:'Pendentes',        value: porBenef.filter(g => (getAprov(g.nome)?.status || 'aberto') !== 'aprovado').length, color:'#F59E0B' },
+          { label:'Aprovados',        value: benefAprovados,         color:'#10B981' },
+          { label:'Valor aprovado',   value: fmt(totalAprovado),     color:'#10B981' },
+        ].map(k => (
+          <div key={k.label} style={{ padding:'12px 16px', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, borderTop:`3px solid ${k.color}` }}>
+            <div style={{ fontSize:20, fontWeight:800, fontFamily:'var(--mono)', color:k.color }}>{k.value}</div>
+            <div style={{ fontSize:10, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em', marginTop:3 }}>{k.label}</div>
+          </div>
+        ))}
       </div>
 
-      {/* Barra de ação em lote — aparece quando há seleção */}
+      {/* ── Barra de filtros ──────────────────────────────────────────────── */}
+      <div style={{ background:'var(--surface)', borderRadius:10, padding:'10px 14px', border:'1px solid var(--border2)', boxShadow:'var(--shadow)', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+          <Calendar size={13} strokeWidth={1.75} style={{ color:'var(--text-muted)', flexShrink:0 }} />
+          <input type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setSelected(new Set()) }}
+            style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
+        </div>
+        <div style={{ flex:1, minWidth:160, position:'relative' }}>
+          <Search size={12} strokeWidth={2} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
+          <input
+            value={busca} onChange={e => setBusca(e.target.value)}
+            placeholder="Buscar por beneficiário, contrato ou empresa…"
+            style={{ width:'100%', boxSizing:'border-box', padding:'6px 10px 6px 28px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
+        </div>
+        <div style={{ fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap' }}>
+          {fmtMes(periodo)} · {lancamentos.length} lanç. · {fmt(totalPeriodo)} total · {fmt(totalPendente)} pendente
+        </div>
+        {/* Botão Filtros */}
+        <button
+          type="button"
+          onClick={() => setFiltrosPanelOpen(o => !o)}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7,
+            border: filtrosAtivos > 0 ? '1px solid var(--accent)' : '1px solid var(--border)',
+            background: filtrosAtivos > 0 ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
+            color: filtrosAtivos > 0 ? 'var(--accent)' : 'var(--text-muted)',
+            fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', flexShrink:0 }}>
+          <Filter size={12} strokeWidth={2} />
+          Filtros
+          {filtrosAtivos > 0 && (
+            <span style={{ fontSize:10, fontWeight:700, background:'var(--accent)', color:'#fff', borderRadius:10, padding:'0 5px', marginLeft:2 }}>
+              {filtrosAtivos}
+            </span>
+          )}
+        </button>
+        {/* Recolher/Expandir todos */}
+        <button
+          type="button"
+          onClick={() => setExpandidos(expandidos === null ? new Set() : null)}
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7,
+            border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)',
+            fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', flexShrink:0 }}>
+          {expandidos !== null && [...expandidos].length === 0
+            ? <><ChevronRight size={12} strokeWidth={2} style={{ transform:'rotate(90deg)' }} /> Expandir todos</>
+            : <><ChevronDown size={12} strokeWidth={2} /> Recolher todos</>
+          }
+        </button>
+      </div>
+
+      {/* ── Barra de ação em lote ─────────────────────────────────────────── */}
       {countSelecionados > 0 && (
         <div style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 14px', background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.25)', borderRadius:9 }}>
           <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)', flex:1 }}>
@@ -2022,34 +2202,43 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
         </div>
       )}
 
+      {/* ── Tabela ────────────────────────────────────────────────────────── */}
       {lancamentos.length === 0 ? (
         <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:13 }}>
           <DollarSign size={32} strokeWidth={1} style={{ opacity:0.2, display:'block', margin:'0 auto 12px' }} />
           Nenhum lançamento em {fmtMes(periodo)}.
         </div>
+      ) : porBenef.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:13 }}>
+          Nenhum resultado para "{busca}".
+        </div>
       ) : (
         <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-          {/* Cabeçalho da tabela */}
-          <div style={{ ...ROW, background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+          {/* Cabeçalho */}
+          <div style={{ ...ROW, background:'var(--surface2)', borderBottom:'2px solid var(--border)' }}>
             <input type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
               onChange={toggleAll} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
-            <span style={TH}>Beneficiário / Descrição</span>
+            <span style={TH}>Descrição / Contrato</span>
+            <span style={TH}>Empresa</span>
             <span style={{ ...TH, textAlign:'center' }}>Competência</span>
-            <span style={{ ...TH, textAlign:'center' }}>Vencimento</span>
-            <span style={{ ...TH, textAlign:'right' }}>Valor</span>
-            <span style={{ ...TH, textAlign:'center' }}>Status</span>
+            <span style={{ ...TH, textAlign:'right' }}>Base (R$)</span>
+            <span style={{ ...TH, textAlign:'right' }}>%</span>
+            <span style={{ ...TH, textAlign:'right' }}>Comissão</span>
+            <span style={{ ...TH, textAlign:'center' }}>Aprovação</span>
             <span style={{ ...TH, textAlign:'right' }}>Ações</span>
           </div>
 
-          {/* Linhas agrupadas por beneficiário */}
+          {/* Grupos por beneficiário */}
           {porBenef.map(grupo => {
             const aprov   = getAprov(grupo.nome)
             const status  = aprov?.status || 'aberto'
             const isLocked = status === 'aprovado'
-            const grupoTotal = grupo.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+            const expanded  = isExpanded(grupo.nome)
+            const grupoTotal      = grupo.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
             const grupoSelecionados = grupo.items.filter(p => selected.has(p.id)).length
             const grupoAllSelected  = grupoSelecionados === grupo.items.length
-            const toggleGrupo = () => {
+            const toggleGrupoSel = (e) => {
+              e.stopPropagation()
               setSelected(prev => {
                 const n = new Set(prev)
                 grupoAllSelected ? grupo.items.forEach(p => n.delete(p.id)) : grupo.items.forEach(p => n.add(p.id))
@@ -2059,49 +2248,66 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
 
             return (
               <div key={grupo.nome}>
-                {/* Linha de cabeçalho do grupo */}
-                <div style={{ display:'grid', gridTemplateColumns:'32px 1fr auto', alignItems:'center', gap:8, padding:'6px 12px', background: isLocked ? 'rgba(16,185,129,0.06)' : 'rgba(0,0,0,0.02)', borderBottom:'1px solid var(--border)' }}>
+                {/* Cabeçalho do grupo — clique no nome recolhe/expande */}
+                <div style={{ display:'grid', gridTemplateColumns:'32px 1fr auto', alignItems:'center', gap:8, padding:'8px 12px',
+                  background: isLocked ? 'rgba(16,185,129,0.05)' : status === 'rejeitado' ? 'rgba(239,68,68,0.03)' : 'var(--surface2)',
+                  borderBottom:'1px solid var(--border)', borderTop:'1px solid var(--border)', cursor:'pointer' }}
+                  onClick={() => toggleExpanded(grupo.nome)}>
                   <input type="checkbox" checked={grupoAllSelected}
                     ref={el => { if (el) el.indeterminate = grupoSelecionados > 0 && !grupoAllSelected }}
-                    onChange={toggleGrupo} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <div style={{ width:22, height:22, borderRadius:99, background:'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color:'var(--accent)', flexShrink:0 }}>
+                    onChange={toggleGrupoSel} onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
+                  <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+                    {/* Chevron de expand/collapse */}
+                    <ChevronRight size={14} strokeWidth={2} style={{ color:'var(--text-muted)', flexShrink:0, transition:'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }} />
+                    <div style={{ width:26, height:26, borderRadius:99, background: isLocked ? 'rgba(16,185,129,0.15)' : 'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color: isLocked ? '#10B981' : 'var(--accent)', flexShrink:0 }}>
                       {grupo.nome.slice(0,2).toUpperCase()}
                     </div>
-                    <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>{grupo.nome}</span>
-                    <span style={{ fontSize:10, color:'var(--text-muted)' }}>{grupo.items.length} lanç.</span>
-                    <AprovStatusBadge status={status} />
-                    {status === 'rejeitado' && aprov?.obs && (
-                      <span style={{ fontSize:10, color:'#EF4444' }}>— {aprov.obs}</span>
-                    )}
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                        <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{grupo.nome}</span>
+                        <span style={{ fontSize:10, color:'var(--text-muted)' }}>{grupo.items.length} lanç.</span>
+                        <AprovStatusBadge status={status} />
+                      </div>
+                      {isLocked && aprov?.aprovado_por && (
+                        <div style={{ fontSize:10, color:'#10B981', marginTop:1 }}>
+                          Aprovado por {aprov.aprovado_por} em {fmtDate(aprov.aprovado_em)}
+                        </div>
+                      )}
+                      {status === 'rejeitado' && aprov?.obs && (
+                        <div style={{ fontSize:10, color:'#EF4444', marginTop:1 }}>Motivo: {aprov.obs}</div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                    <span style={{ fontSize:12, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(grupoTotal)}</span>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }} onClick={e => e.stopPropagation()}>
+                    <span style={{ fontSize:13, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(grupoTotal)}</span>
                     {isAdmin && !isLocked && (
                       <button onClick={() => handleAprovar(grupo.nome)}
-                        style={{ padding:'3px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
+                        style={{ padding:'4px 12px', borderRadius:7, border:'none', background:'#10B981', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
                         <CheckCircle2 size={11} strokeWidth={2.5} /> Aprovar lote
                       </button>
                     )}
                     {isAdmin && status === 'aberto' && (
                       <button onClick={() => setObsModal({ nome: grupo.nome, obs: '' })}
-                        style={{ padding:'3px 10px', borderRadius:6, border:'1px solid #FCA5A5', background:'rgba(239,68,68,0.06)', color:'#EF4444', fontSize:11, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4 }}>
+                        style={{ padding:'4px 10px', borderRadius:7, border:'1px solid #FCA5A5', background:'rgba(239,68,68,0.06)', color:'#EF4444', fontSize:11, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4 }}>
                         <XCircle size={11} strokeWidth={2.5} /> Rejeitar
                       </button>
                     )}
-                    {status === 'rejeitado' && (
+                    {(status === 'rejeitado' || isLocked) && (
                       <button onClick={() => handleReabrir(grupo.nome)}
-                        style={{ padding:'3px 10px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                        style={{ padding:'4px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
                         Reabrir
                       </button>
                     )}
-                    {aprov?.aprovado_em && <span style={{ fontSize:10, color:'#10B981' }}>✓ {fmtDate(aprov.aprovado_em)}</span>}
                   </div>
                 </div>
 
-                {/* Linhas dos lançamentos */}
-                {grupo.items.map((p, i) => {
+                {/* Linhas dos lançamentos — recolhíveis */}
+                {expanded && grupo.items.map((p, i) => {
                   const isSel = selected.has(p.id)
+                  const contratoNum = p.contract_numero || p.custom_fields?.contract_numero || ''
+                  const empresaNome = p.company_nome    || p.custom_fields?.company_nome    || ''
+                  const valorBase   = Number(p.valor_base || p.valor_bruto || 0)
+                  const pct         = Number(p.percentual || 0)
                   return (
                     <div key={p.id} onClick={() => toggleOne(p.id)}
                       style={{ ...ROW, cursor:'pointer', background: isSel ? 'rgba(99,102,241,0.06)' : i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)', transition:'background 0.1s' }}>
@@ -2109,17 +2315,29 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
                         onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
                       <div style={{ minWidth:0 }}>
                         <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {p.descricao || p.observacoes || p.receita_tipo || '—'}
+                          {p.observacoes || p.receita_tipo || p.custom_fields?.receita_tipo || '—'}
                         </div>
-                        <div style={{ fontSize:10, color:'var(--text-muted)' }}>{p.beneficiario_nome}</div>
+                        {contratoNum && <div style={{ fontSize:10, color:'var(--accent)', fontWeight:600, marginTop:1 }}>CTR {contratoNum}</div>}
                       </div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>{p.data_competencia ? fmtDate(p.data_competencia) : '—'}</div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>{p.data_vencimento ? fmtDate(p.data_vencimento) : '—'}</div>
-                      <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color:'var(--text)', textAlign:'right' }}>{fmt(p.valor_comissao || 0)}</div>
-                      <div style={{ textAlign:'center' }}><StatusTag status={p.status} /></div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{empresaNome || '—'}</div>
+                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>
+                        {p.data_competencia ? fmtMes(p.data_competencia.slice(0,7)) : '—'}
+                      </div>
+                      <div style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textAlign:'right' }}>
+                        {valorBase > 0 ? fmt(valorBase) : '—'}
+                      </div>
+                      <div style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textAlign:'right' }}>
+                        {pct > 0 ? `${pct}%` : '—'}
+                      </div>
+                      <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)', textAlign:'right' }}>
+                        {fmt(p.valor_comissao || 0)}
+                      </div>
+                      <div style={{ textAlign:'center' }}>
+                        <StatusTag status={p.status} />
+                      </div>
                       <div style={{ textAlign:'right' }}>
                         {onOpenRepasse && (
-                          <button onClick={e => { e.stopPropagation(); onOpenRepasse({ type:'edit', data:p }) }}
+                          <button onClick={e => { e.stopPropagation(); onOpenRepasse({ type:'edit', data:{ ...p, valor_base: p.valor_base || p.valor_bruto || 0, _status_aprovacao: status, _aprovado_por: aprov?.aprovado_por || '', _aprovado_em: aprov?.aprovado_em || '' } }) }}
                             style={{ padding:'3px 9px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
                             Abrir
                           </button>
@@ -2152,6 +2370,87 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse }) 
           </div>
         </div>
       )}
+
+      {/* ── Painel de Filtros lateral ─────────────────────────────────────── */}
+      {filtrosPanelOpen && createPortal(
+        <>
+          <div onClick={() => setFiltrosPanelOpen(false)}
+            style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(0,0,0,0.18)' }} />
+          <div style={{ position:'fixed', top:0, right:0, bottom:0, width:320, zIndex:81,
+            background:'var(--surface)', borderLeft:'1px solid var(--border)',
+            boxShadow:'-8px 0 32px rgba(0,0,0,0.10)', display:'flex', flexDirection:'column', fontFamily:'var(--font)' }}>
+            {/* Header */}
+            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid var(--border)', borderTop:'3px solid var(--accent)', flexShrink:0 }}>
+              <Filter size={15} color="var(--accent)" />
+              <span style={{ flex:1, fontSize:14, fontWeight:700, color:'var(--text)' }}>Filtros</span>
+              {filtrosAtivos > 0 && (
+                <button type="button" onClick={() => setFiltros({ statusAprov:[], statusPag:[] })}
+                  style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline', padding:0 }}>
+                  Limpar todos
+                </button>
+              )}
+              <button type="button" onClick={() => setFiltrosPanelOpen(false)}
+                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:4 }}>
+                <X size={15} />
+              </button>
+            </div>
+            {/* Conteúdo */}
+            <div style={{ flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:20 }}>
+              {/* Status de aprovação */}
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span>Status de aprovação</span>
+                  {filtros.statusAprov.length > 0 && (
+                    <button type="button" onClick={() => setFiltros(f => ({ ...f, statusAprov:[] }))}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}><X size={11} /></button>
+                  )}
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                  {[
+                    { value:'aberto',    label:'Aberto',    color:'var(--text-muted)' },
+                    { value:'aprovado',  label:'Aprovado',  color:'#10B981' },
+                    { value:'rejeitado', label:'Rejeitado', color:'#EF4444' },
+                  ].map(opt => (
+                    <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7, cursor:'pointer',
+                      background: filtros.statusAprov.includes(opt.value) ? 'rgba(99,102,241,0.08)' : 'transparent',
+                      border: filtros.statusAprov.includes(opt.value) ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent' }}>
+                      <input type="checkbox" checked={filtros.statusAprov.includes(opt.value)} onChange={() => toggleFiltro('statusAprov', opt.value)}
+                        style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+                      <span style={{ fontSize:13, color:opt.color, fontWeight:600 }}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              {/* Status do pagamento */}
+              <div>
+                <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+                  <span>Status do pagamento</span>
+                  {filtros.statusPag.length > 0 && (
+                    <button type="button" onClick={() => setFiltros(f => ({ ...f, statusPag:[] }))}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}><X size={11} /></button>
+                  )}
+                </div>
+                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                  {[
+                    { value:'pendente',   label:'Pendente' },
+                    { value:'pago',       label:'Pago' },
+                    { value:'cancelado',  label:'Cancelado' },
+                  ].map(opt => (
+                    <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7, cursor:'pointer',
+                      background: filtros.statusPag.includes(opt.value) ? 'rgba(99,102,241,0.08)' : 'transparent',
+                      border: filtros.statusPag.includes(opt.value) ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent' }}>
+                      <input type="checkbox" checked={filtros.statusPag.includes(opt.value)} onChange={() => toggleFiltro('statusPag', opt.value)}
+                        style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+                      <span style={{ fontSize:13, color:'var(--text)' }}>{opt.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
     </div>
   )
 }
@@ -2173,6 +2472,8 @@ export default function Comissoes() {
   const { parceiros } = useParceiros()
   const { profile } = useProfile()
   const { registrar } = useAuditLog()
+  const { upsert: upsertAprovacao } = useCommissionApprovals()
+  const nomeUsuarioGlobal = profile?.nome || profile?.full_name || profile?.email || 'Usuário'
   const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
   const totalPendente = useMemo(() =>
@@ -2232,14 +2533,7 @@ export default function Comissoes() {
       <div style={{ marginBottom:20 }}>
         {/* Linha 1: título + ações */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:16, flexWrap:'wrap' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-            <div style={{ width:36, height:36, borderRadius:10, background:'rgba(99,102,241,0.12)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <DollarSign size={17} strokeWidth={1.75} style={{ color:'var(--accent)' }} />
-            </div>
-            <div>
-              {totalPendente > 0 && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{fmt(totalPendente)} pendente de pagamento</div>}
-            </div>
-          </div>
+          <div />
           <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           {tab !== 'aprovacao' && <PeriodPopover value={period} onChange={setPeriod} />}
           {tab !== 'aprovacao' && (isAdmin || tab !== 'repasses') && (
@@ -2249,13 +2543,11 @@ export default function Comissoes() {
           )}
           </div>
         </div>
-        {/* Linha 2: abas centralizadas */}
-        <div style={{ display:'flex', justifyContent:'center' }}>
-          <div style={{ display:'flex', gap:2, background:'var(--surface)', borderRadius:10, padding:3, border:'1px solid var(--border)', boxShadow:'0 2px 12px rgba(0,0,0,0.10)' }}>
-            {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
-              <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s', whiteSpace:'nowrap' }}>{t.label}</button>
-            ))}
-          </div>
+        {/* Linha 2: abas fixas no topo */}
+        <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', zIndex:200, display:'flex', gap:2, background:'var(--surface)', borderRadius:'0 0 10px 10px', padding:3, border:'1px solid var(--border)', borderTop:'none', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
+          {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s', whiteSpace:'nowrap' }}>{t.label}</button>
+          ))}
         </div>
       </div>
 
@@ -2289,6 +2581,8 @@ export default function Comissoes() {
             onSave={savePayment}
             onClose={() => setEditandoPayment(null)}
             saveRef={paymentSaveRef}
+            upsertAprovacao={upsertAprovacao}
+            nomeUsuario={nomeUsuarioGlobal}
           />
         )}
       </SlideOver>

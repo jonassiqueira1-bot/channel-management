@@ -720,21 +720,21 @@ function PartnerDetail({ item, onSave, onDelete, onClose, profiles = [], contrat
   }, [contratos, form.contract_id])
 
   function patch(k, v) {
-    const next = { ...form, [k]: v }
-    setForm(next)
-    if (!isNew) onSave({ ...next, id: item.id })
+    setForm(prev => ({ ...prev, [k]: v }))
   }
 
   function handleCreate() {
     if (!form.company_name.trim()) return
-    onSave({
-      ...form,
-      criado_em: new Date().toISOString().slice(0, 10),
-    })
+    onSave({ ...form, criado_em: new Date().toISOString().slice(0, 10) })
     onClose()
   }
 
-  if (saveRef) saveRef.current = isNew ? handleCreate : null
+  function handleUpdate() {
+    onSave({ ...form, id: item.id })
+    onClose()
+  }
+
+  if (saveRef) saveRef.current = isNew ? handleCreate : handleUpdate
 
   const days = daysUntil(form.renewal_date)
 
@@ -1260,8 +1260,8 @@ export default function CustomerSuccess() {
         title={drawerTitle}
         subtitle="Customer Success"
         defaultWidth={600}
-        onSave={!isEditing ? () => saveRef.current?.() : undefined}
-        saveLabel="Criar Check-in"
+        onSave={() => saveRef.current?.()}
+        saveLabel={isEditing ? 'Salvar alterações' : 'Criar Check-in'}
         onDelete={isEditing ? () => { remove(modal.id); setModal(null) } : undefined}
         deleteConfirm="Remover este cliente do CS? Esta ação não pode ser desfeita."
       >

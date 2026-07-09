@@ -63,9 +63,6 @@ export const FIELDS_SEED = [
   { id:'sf_pd_categoria',entity:'products', field_key:'categoria',   label:'Categoria',        field_type:'text',     options:[], is_required:false, is_system:false },
   { id:'sf_pd_status',   entity:'products', field_key:'status',      label:'Status',           field_type:'select',   options:['ativo','rascunho','descontinuado'], is_required:false, is_system:true  },
   { id:'sf_pd_cobranca', entity:'products', field_key:'cobranca',    label:'Cobrança',         field_type:'select',   options:['mensal','anual','unico','uso','usuario'], is_required:false, is_system:true  },
-  { id:'sf_pd_preco',    entity:'products', field_key:'preco',       label:'Preço',            field_type:'number',   options:[], is_required:false, is_system:false },
-  { id:'sf_pd_setup',    entity:'products', field_key:'setup',       label:'Setup',            field_type:'number',   options:[], is_required:false, is_system:false },
-  { id:'sf_pd_desc_max', entity:'products', field_key:'desconto_max',label:'Desconto Máx. (%)',field_type:'number',   options:[], is_required:false, is_system:false },
   { id:'sf_pd_obs',      entity:'products', field_key:'observacoes', label:'Observações',      field_type:'textarea', options:[], is_required:false, is_system:false },
 
   // ── Contratos ──────────────────────────────────────────────────────────────
@@ -189,32 +186,7 @@ export const LAYOUT_SEED = {
       },
     ],
   },
-  products: {
-    sections: [
-      {
-        id: 'sec_pd_1', label: 'Identificação',
-        rows: [
-          ['sf_pd_nome',     'sf_pd_codigo'],
-          ['sf_pd_tipo',     'sf_pd_categoria'],
-          ['sf_pd_status',   'sf_pd_cobranca'],
-        ],
-      },
-      {
-        id: 'sec_pd_2', label: 'Preços',
-        rows: [
-          ['sf_pd_preco',    'sf_pd_setup'],
-          ['sf_pd_desc_max', null],
-        ],
-      },
-      {
-        id: 'sec_pd_3', label: 'Detalhes',
-        rows: [
-          ['sf_pd_descricao', null],
-          ['sf_pd_obs',       null],
-        ],
-      },
-    ],
-  },
+  products: { sections: [] },
   contracts: {
     sections: [
       {

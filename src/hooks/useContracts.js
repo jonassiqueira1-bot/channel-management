@@ -53,7 +53,8 @@ function rowToContrato(row) {
     origem:          cf.origem || '',
     data_pag_cdu:    cf.data_pag_cdu || '',
     data_pag_sms:    cf.data_pag_sms || '',
-    playbook_id:     cf.playbook_id  || null,
+    playbook_id:          cf.playbook_id  || null,
+    inconsistencia_status: cf.inconsistencia_status || 'sem_inconsistencia',
   }
 }
 
@@ -79,9 +80,10 @@ function contratoToRow(c, tenantId, branchId) {
       opportunity_id:     c.opportunity_id || null,
       opportunity_titulo: c.opportunity_titulo || '',
       origem:             c.origem || '',
-      data_pag_cdu:       c.data_pag_cdu || '',
-      data_pag_sms:       c.data_pag_sms || '',
-      playbook_id:        c.playbook_id  || null,
+      data_pag_cdu:          c.data_pag_cdu || '',
+      data_pag_sms:          c.data_pag_sms || '',
+      playbook_id:           c.playbook_id  || null,
+      inconsistencia_status: c.inconsistencia_status || 'sem_inconsistencia',
     },
   }
 }

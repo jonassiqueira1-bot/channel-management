@@ -51,8 +51,9 @@ function rowToPayment(row) {
     status:           row.status || 'pendente',
     processed:        row.processed ?? cf.processed ?? false,
     notes:            row.notes || cf.notes || '',
-    inconsistencia:   row.inconsistencia || false,
-    tenant_id:        row.tenant_id || null,
+    inconsistencia:        row.inconsistencia || false,
+    inconsistencia_status: row.inconsistencia_status || cf.inconsistencia_status || 'sem_inconsistencia',
+    tenant_id:             row.tenant_id || null,
     branch_id:        row.branch_id || null,
   }
 }
@@ -71,7 +72,8 @@ function paymentToRow(p, tenantId, branchId) {
     data_fechamento: p.data_fechamento || null,
     notes:           p.notes || '',
     processed:       p.processed ?? false,
-    inconsistencia:  p.inconsistencia || false,
+    inconsistencia:        p.inconsistencia || false,
+    inconsistencia_status: p.inconsistencia_status || 'sem_inconsistencia',
     // Valores numéricos (amount_total_net é GENERATED — não enviar)
     amount_cdu:      Number(p.amount_cdu)      || 0,
     amount_sms:      Number(p.amount_sms)      || 0,
