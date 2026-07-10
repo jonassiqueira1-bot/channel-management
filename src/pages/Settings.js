@@ -11,8 +11,9 @@ const SECTIONS = [
   {
     label: 'Geral',
     items: [
-      { path: '/settings/empresa',   label: 'Empresa / ISV',      Icon: Building2   },
-      { path: '/settings/conta',     label: 'Minha Conta',        Icon: UserCircle  },
+      { path: '/settings/empresa',     label: 'Empresa / ISV',    Icon: Building2   },
+      { path: '/settings/conta',       label: 'Minha Conta',      Icon: UserCircle  },
+      { path: '/settings/assinatura',  label: 'Assinatura',       Icon: DollarSign, adminOnly: true },
       { path: '/settings/franquias',             label: 'Parceiros',            Icon: Store    },
       { path: '/settings/maturidade-parceiros', label: 'Maturidade Parceiros', Icon: Network  },
     ],

@@ -50,6 +50,8 @@ import Relatorios from './pages/Relatorios'
 import FechamentoHoras from './pages/FechamentoHoras'
 import ParceirosPage from './pages/Parceiros'
 import SettingsMaturidade from './pages/settings/MaturidadeParceiros'
+import SettingsAssinatura from './pages/settings/Assinatura'
+import ConfirmarAssinatura from './pages/ConfirmarAssinatura'
 
 function CrispWidget() {
   useEffect(() => {
@@ -71,6 +73,7 @@ export default function App() {
         <CrispWidget />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/confirmar-assinatura" element={<ConfirmarAssinatura />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/aceitar-convite" element={<AceitarConvite />} />
           <Route
@@ -129,6 +132,7 @@ export default function App() {
               <Route path="metas"        element={<SettingsMetas />} />
               <Route path="compartilhamento" element={<BranchSharing />} />
               <Route path="equipes"          element={<SettingsEquipes />} />
+              <Route path="assinatura"       element={<SettingsAssinatura />} />
             </Route>
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
