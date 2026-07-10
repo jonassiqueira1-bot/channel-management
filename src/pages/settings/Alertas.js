@@ -629,77 +629,122 @@ export default function SettingsAlertas() {
   // ── Tela de edição ──────────────────────────────────────────────────────────
   if (editing) {
     const isNew = !editing.id
+    const card = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '20px 22px' }
+    const secTitle = { fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 14 }
+
+    function doSave() {
+      if (!editing.origem)               return alert('Selecione a origem.')
+      if (!editing.gatilho_nome?.trim()) return alert('Informe um nome para a regra.')
+      if (!editing.acoes?.length)        return alert('Adicione pelo menos uma ação.')
+      handleSave(editing)
+    }
+
     return (
-      <FullPageEdit
-        breadcrumb={[{ label: 'Configurações' }, { label: 'Alertas', onClick: () => setEditing(null) }, { label: isNew ? 'Nova regra' : editing.gatilho_nome }]}
-        title={isNew ? 'Nova regra de alerta' : editing.gatilho_nome}
-        subtitle={isNew ? 'Defina condições e ações automáticas' : `Editando regra · ${origemMap[editing.origem] || editing.origem}`}
-        onSave={() => {
-          if (!editing.origem)               return alert('Selecione a origem.')
-          if (!editing.gatilho_nome?.trim()) return alert('Informe um nome para a regra.')
-          if (!editing.acoes?.length)        return alert('Adicione pelo menos uma ação.')
-          handleSave(editing)
-        }}
-        onCancel={() => setEditing(null)}
-        onDelete={editing.id ? () => { handleRemove(editing.id); setEditing(null) } : undefined}
-        saving={saving}
-        saveLabel="Salvar regra"
-        columns={1}
-      >
-        <FPESection title="Identidade">
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
-            <div>
-              <div style={lbl}>Nome da regra</div>
-              <input value={editing.gatilho_nome} onChange={e => setEditing(f => ({ ...f, gatilho_nome: e.target.value }))}
-                style={inp} placeholder="Ex: Contrato vencendo em 30 dias" />
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', paddingTop: 20 }}>
-              <input type="checkbox" checked={editing.ativo} onChange={e => setEditing(f => ({ ...f, ativo: e.target.checked }))} />
-              Regra ativa
-            </label>
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--bg)' }}>
+        {/* Header */}
+        <div style={{ flexShrink: 0, background: 'var(--surface)', borderBottom: '1px solid var(--border)', padding: '14px 28px', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ flex: 1 }}>
+            <nav style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+              {[
+                { label: 'Configurações' },
+                { label: 'Alertas', onClick: () => setEditing(null) },
+                { label: isNew ? 'Nova regra' : editing.gatilho_nome },
+              ].map((crumb, i, arr) => (
+                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {i > 0 && <span style={{ color: 'var(--border2)', fontSize: 12 }}>›</span>}
+                  {crumb.onClick
+                    ? <button onClick={crumb.onClick} style={{ fontSize: 12, color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font)' }}>{crumb.label}</button>
+                    : <span style={{ fontSize: 12, color: i === arr.length - 1 ? 'var(--text)' : 'var(--text-muted)', fontWeight: i === arr.length - 1 ? 500 : 400 }}>{crumb.label}</span>
+                  }
+                </span>
+              ))}
+            </nav>
+            <h1 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: 'var(--text)', letterSpacing: '-0.2px' }}>
+              {isNew ? 'Nova regra de alerta' : editing.gatilho_nome}
+            </h1>
           </div>
-        </FPESection>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {editing.id && (
+              <button onClick={() => { handleRemove(editing.id); setEditing(null) }}
+                style={{ ...btnSm(false), color: 'var(--red, #ef4444)', borderColor: 'var(--red, #ef4444)' }}>
+                <Trash2 size={12} strokeWidth={2}/> Excluir
+              </button>
+            )}
+            <button onClick={() => setEditing(null)} style={btnSm(false)}>Cancelar</button>
+            <button onClick={doSave} disabled={saving}
+              style={{ ...btnSm(true), opacity: saving ? 0.7 : 1, minWidth: 110 }}>
+              {saving ? 'Salvando…' : 'Salvar regra'}
+            </button>
+          </div>
+        </div>
 
-        <FPESection title="Origem">
-          <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()] }))}>
-            <option value="">Selecione…</option>
-            {ORIGENS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-          </Sel>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
-            A engine avalia todos os registros desta entidade e dispara o alerta quando as condições forem atendidas.
-          </p>
-        </FPESection>
+        {/* Body — largura total, empilhado */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-        <FPESection title="Condições">
-          <CondicoesEditor
-            origem={editing.origem}
-            condicoes={editing.condicoes}
-            onChangeCondicoes={v => setEditing(f => ({ ...f, condicoes: v }))}
-          />
-        </FPESection>
+          {/* Identidade */}
+          <div style={card}>
+            <div style={secTitle}>Identidade</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 12, alignItems: 'center' }}>
+              <div>
+                <div style={lbl}>Nome da regra</div>
+                <input value={editing.gatilho_nome}
+                  onChange={e => setEditing(f => ({ ...f, gatilho_nome: e.target.value }))}
+                  style={inp} placeholder="Ex: Contrato vencendo em 30 dias" />
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', paddingTop: 18 }}>
+                <input type="checkbox" checked={editing.ativo}
+                  onChange={e => setEditing(f => ({ ...f, ativo: e.target.checked }))} />
+                Regra ativa
+              </label>
+            </div>
+          </div>
 
-        <FPESection title="Ações — SE condições atendidas">
-          <AcoesEditor
-            acoes={editing.acoes}
-            onChange={v => setEditing(f => ({ ...f, acoes: v }))}
-            tenantId={tenantId}
-          />
-        </FPESection>
+          {/* Origem */}
+          <div style={card}>
+            <div style={secTitle}>Origem dos dados</div>
+            <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()] }))}>
+              <option value="">Selecione a entidade…</option>
+              {ORIGENS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            </Sel>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
+              A engine avalia todos os registros desta entidade e dispara o alerta quando as condições forem atendidas.
+            </p>
+          </div>
 
-        {/* Ramificação SENÃO */}
-        <FPESection title="Ramificação condicional (SENÃO)">
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {/* Condições */}
+          <div style={card}>
+            <div style={secTitle}>Condições</div>
+            <CondicoesEditor
+              origem={editing.origem}
+              condicoes={editing.condicoes}
+              onChangeCondicoes={v => setEditing(f => ({ ...f, condicoes: v }))}
+            />
+          </div>
+
+          {/* Ações SE */}
+          <div style={card}>
+            <div style={secTitle}>Ações — SE condições atendidas</div>
+            <AcoesEditor
+              acoes={editing.acoes}
+              onChange={v => setEditing(f => ({ ...f, acoes: v }))}
+              tenantId={tenantId}
+            />
+          </div>
+
+          {/* Ramificação SENÃO */}
+          <div style={{ ...card, borderStyle: 'dashed', borderColor: editing.com_else ? 'color-mix(in srgb, #f59e0b 60%, var(--border))' : 'var(--border)' }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
               <input type="checkbox" checked={editing.com_else || false}
-                onChange={e => setEditing(f => ({ ...f, com_else: e.target.checked, acoes_else: e.target.checked && !f.acoes_else?.length ? [newAcao()] : f.acoes_else || [] }))} />
+                onChange={e => setEditing(f => ({
+                  ...f,
+                  com_else:   e.target.checked,
+                  acoes_else: e.target.checked && !f.acoes_else?.length ? [newAcao()] : f.acoes_else || [],
+                }))} />
               <GitBranch size={13} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
-              Adicionar ações alternativas quando as condições <strong style={{ marginLeft: 2 }}>NÃO</strong> forem atendidas
+              <span>Ramificação <strong>SENÃO</strong> — ações quando as condições <strong>não</strong> forem atendidas</span>
             </label>
             {editing.com_else && (
-              <div style={{ padding: '12px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'color-mix(in srgb, #f59e0b 5%, var(--surface))' }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-                  Ações SENÃO (condições não atendidas)
-                </div>
+              <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid color-mix(in srgb, #f59e0b 30%, var(--border))' }}>
                 <AcoesEditor
                   acoes={editing.acoes_else || []}
                   onChange={v => setEditing(f => ({ ...f, acoes_else: v }))}
@@ -709,8 +754,9 @@ export default function SettingsAlertas() {
               </div>
             )}
           </div>
-        </FPESection>
-      </FullPageEdit>
+
+        </div>
+      </div>
     )
   }
 
