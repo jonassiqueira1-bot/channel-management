@@ -1226,6 +1226,152 @@ function CanvasPage({ config, elementos, selecionadoId, onSelect, onDragStart, r
   )
 }
 
+// ── Painel de Filtros lateral ─────────────────────────────────────────────────
+function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet, onClearSource, onClearAll, totalAtivos }) {
+  const [collapsed, setCollapsed] = useState({})
+
+  const inp  = { width:'100%', padding:'5px 8px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:11, fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }
+  const lbl  = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', display:'block', marginBottom:3 }
+  const sec  = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }
+
+  const usedSources = usedSourceIds
+    .map(id => sources.find(s => s.id === id))
+    .filter(Boolean)
+
+  return (
+    <div style={{ width:260, flexShrink:0, borderLeft:'1px solid var(--border)', background:'var(--surface)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+      {/* Header */}
+      <div style={{ padding:'12px 14px', borderBottom:'1px solid var(--border)', display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+        <div>
+          <div style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>Filtros</div>
+          {totalAtivos > 0 && (
+            <div style={{ fontSize:10, color:'var(--accent)', marginTop:1 }}>{totalAtivos} filtro{totalAtivos!==1?'s':''} ativo{totalAtivos!==1?'s':''}</div>
+          )}
+        </div>
+        {totalAtivos > 0 && (
+          <button onClick={onClearAll}
+            style={{ fontSize:10, fontWeight:600, color:'#DC2626', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:5, padding:'3px 8px', cursor:'pointer', fontFamily:'var(--font)' }}>
+            Limpar tudo
+          </button>
+        )}
+      </div>
+
+      {/* Sem fontes em uso */}
+      {usedSources.length === 0 && (
+        <div style={{ padding:20, fontSize:11, color:'var(--text-muted)', textAlign:'center', lineHeight:1.6 }}>
+          Adicione elementos com fonte de dados ao relatório para habilitar filtros.
+        </div>
+      )}
+
+      {/* Grupos por entidade */}
+      <div style={{ flex:1, overflowY:'auto', padding:'8px 0' }}>
+        {usedSources.map(src => {
+          const sf        = filtros[src.id] || {}
+          const isOpen    = !collapsed[src.id]
+          const ativos    = Object.values(sf).filter(v => v !== '').length
+          const fSrc      = filteredSources.find(s => s.id === src.id)
+          const totalFilt = fSrc?.registros.length ?? src.registros.length
+
+          return (
+            <div key={src.id} style={{ borderBottom:'1px solid var(--border2)' }}>
+              {/* Group header */}
+              <button
+                onClick={() => setCollapsed(p => ({ ...p, [src.id]: !p[src.id] }))}
+                style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 14px', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textAlign:'left' }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:13 }}>{src.icon}</span>
+                  <span style={sec}>{src.label}</span>
+                  {ativos > 0 && (
+                    <span style={{ fontSize:9, fontWeight:700, background:'var(--accent)', color:'#fff', borderRadius:99, padding:'1px 5px' }}>{ativos}</span>
+                  )}
+                </div>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>{totalFilt}/{src.registros.length}</span>
+                  {isOpen ? <ChevronUp size={12} color="var(--text-muted)"/> : <ChevronDown size={12} color="var(--text-muted)"/>}
+                </div>
+              </button>
+
+              {isOpen && (
+                <div style={{ padding:'0 14px 12px', display:'flex', flexDirection:'column', gap:10 }}>
+                  {/* Limpar este grupo */}
+                  {ativos > 0 && (
+                    <button onClick={() => onClearSource(src.id)}
+                      style={{ fontSize:10, color:'#DC2626', background:'none', border:'none', cursor:'pointer', textAlign:'left', padding:0, fontFamily:'var(--font)' }}>
+                      ✕ Limpar filtros de {src.label}
+                    </button>
+                  )}
+
+                  {src.fields.map(field => {
+                    // Valores únicos para campos de texto
+                    const uniqueVals = field.type === 'text'
+                      ? [...new Set(src.registros.map(r => r[field.key]).filter(v => v && v !== '—'))].sort()
+                      : []
+
+                    if (field.type === 'date') {
+                      return (
+                        <div key={field.key}>
+                          <label style={lbl}>{field.label}</label>
+                          <div style={{ display:'flex', gap:4 }}>
+                            <input type="date" value={sf[`${field.key}_from`]||''} placeholder="De"
+                              onChange={e => onSet(src.id, `${field.key}_from`, e.target.value)}
+                              style={{ ...inp, flex:1 }}/>
+                            <input type="date" value={sf[`${field.key}_to`]||''} placeholder="Até"
+                              onChange={e => onSet(src.id, `${field.key}_to`, e.target.value)}
+                              style={{ ...inp, flex:1 }}/>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    if (field.type === 'number') {
+                      return (
+                        <div key={field.key}>
+                          <label style={lbl}>{field.label}</label>
+                          <div style={{ display:'flex', gap:4 }}>
+                            <input type="number" value={sf[`${field.key}_min`]||''} placeholder="Mín"
+                              onChange={e => onSet(src.id, `${field.key}_min`, e.target.value)}
+                              style={{ ...inp, flex:1 }}/>
+                            <input type="number" value={sf[`${field.key}_max`]||''} placeholder="Máx"
+                              onChange={e => onSet(src.id, `${field.key}_max`, e.target.value)}
+                              style={{ ...inp, flex:1 }}/>
+                          </div>
+                        </div>
+                      )
+                    }
+
+                    // Texto: select se poucos valores únicos, input se muitos
+                    if (uniqueVals.length > 0 && uniqueVals.length <= 40) {
+                      return (
+                        <div key={field.key}>
+                          <label style={lbl}>{field.label}</label>
+                          <select value={sf[field.key]||''} onChange={e => onSet(src.id, field.key, e.target.value)}
+                            style={{ ...inp, cursor:'pointer' }}>
+                            <option value="">Todos</option>
+                            {uniqueVals.map(v => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                        </div>
+                      )
+                    }
+
+                    return (
+                      <div key={field.key}>
+                        <label style={lbl}>{field.label}</label>
+                        <input value={sf[field.key]||''} placeholder={`Buscar por ${field.label.toLowerCase()}…`}
+                          onChange={e => onSet(src.id, field.key, e.target.value)}
+                          style={inp}/>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ── CanvasEditor principal ────────────────────────────────────────────────────
 export default function CanvasEditor({
   relatorio,       // { id, titulo, tipo, config, elementos, acesso, papeis_permitidos, owner_id }
@@ -1251,9 +1397,8 @@ export default function CanvasEditor({
   const [subPaleta,   setSubPaleta]   = useState(null)
   const [fullScreen,  setFullScreen]  = useState(false)
   const [showFiltros, setShowFiltros] = useState(false)
-  const [filtros, setFiltros] = useState({
-    dateFrom: '', dateTo: '', responsavel: '', origem: '', campanha: '', situacao: '',
-  })
+  // filtros: { [sourceId]: { [fieldKey|fieldKey_from|fieldKey_to|fieldKey_min|fieldKey_max]: string } }
+  const [filtros, setFiltros] = useState({})
 
   const dragging = useRef(null)
   const canvasRef = useRef()
@@ -1261,31 +1406,57 @@ export default function CanvasEditor({
   const selecionado = elementos.find(e => e.id === selecionadoId) || null
   const elSource = selecionado ? sources.find(s => s.id === (selecionado.dados?.sourceId)) : null
 
-  // Fontes com filtros aplicados nos registros
+  // Fontes com filtros aplicados — genérico para qualquer entidade
   const filteredSources = useMemo(() => {
-    const hasFilter = Object.values(filtros).some(v => v !== '')
-    if (!hasFilter) return sources
+    if (!Object.keys(filtros).length) return sources
     return sources.map(src => {
-      if (src.id !== 'pipeline') return src
+      const sf = filtros[src.id]
+      if (!sf || !Object.values(sf).some(v => v !== '')) return src
       const regs = src.registros.filter(r => {
-        if (filtros.dateFrom && r.created_at < filtros.dateFrom) return false
-        if (filtros.dateTo   && r.created_at > filtros.dateTo)   return false
-        if (filtros.responsavel && !r.responsavel?.toLowerCase().includes(filtros.responsavel.toLowerCase())) return false
-        if (filtros.origem    && r.origem    !== filtros.origem)    return false
-        if (filtros.campanha  && r.campanha  !== filtros.campanha)  return false
-        if (filtros.situacao  && r.situacao  !== filtros.situacao)  return false
+        for (const field of src.fields) {
+          if (field.type === 'date') {
+            const from = sf[`${field.key}_from`]
+            const to   = sf[`${field.key}_to`]
+            if (from && (r[field.key]||'') < from) return false
+            if (to   && (r[field.key]||'') > to)   return false
+          } else if (field.type === 'number') {
+            const min = sf[`${field.key}_min`]
+            const max = sf[`${field.key}_max`]
+            if (min !== '' && min !== undefined && Number(r[field.key]||0) < Number(min)) return false
+            if (max !== '' && max !== undefined && Number(r[field.key]||0) > Number(max)) return false
+          } else {
+            const val = sf[field.key]
+            if (val && r[field.key] !== val) return false
+          }
+        }
         return true
       })
       return { ...src, registros: regs }
     })
   }, [sources, filtros])
 
-  // Valores únicos para os selects dos filtros (extraídos do pipeline)
-  const pipelineSource = useMemo(() => sources.find(s => s.id === 'pipeline'), [sources])
-  const optsOrigem    = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.origem).filter(Boolean))].sort(), [pipelineSource])
-  const optsCampanha  = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.campanha).filter(Boolean))].sort(), [pipelineSource])
-  const optsSituacao  = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.situacao).filter(Boolean))].sort(), [pipelineSource])
-  const optsResp      = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.responsavel).filter(Boolean))].sort(), [pipelineSource])
+  // Fontes usadas no relatório atual (para o painel de filtros)
+  const usedSourceIds = useMemo(() =>
+    [...new Set(elementos.map(e => e.dados?.sourceId).filter(Boolean))],
+    [elementos]
+  )
+
+  function setSourceFiltro(sourceId, key, value) {
+    setFiltros(prev => ({
+      ...prev,
+      [sourceId]: { ...(prev[sourceId]||{}), [key]: value }
+    }))
+  }
+
+  function clearSourceFiltro(sourceId) {
+    setFiltros(prev => { const n = {...prev}; delete n[sourceId]; return n })
+  }
+
+  const totalFiltrosAtivos = useMemo(() =>
+    Object.values(filtros).reduce((sum, sf) =>
+      sum + Object.values(sf||{}).filter(v => v !== '').length, 0),
+    [filtros]
+  )
 
   // Drag to move / resize
   useEffect(() => {
@@ -1624,7 +1795,7 @@ export default function CanvasEditor({
             </button>
             <button onClick={()=>setShowFiltros(f=>!f)}
               style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',border:`1px solid ${showFiltros?'var(--accent)':'var(--border)'}`,borderRadius:6,background:showFiltros?'color-mix(in srgb, var(--accent) 8%, transparent)':'none',color:showFiltros?'var(--accent)':'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)',flexShrink:0}}>
-              <Filter size={12}/> Filtros {Object.values(filtros).some(v=>v!=='') ? `(${Object.values(filtros).filter(v=>v!=='').length})` : ''}
+              <Filter size={12}/> Filtros{totalFiltrosAtivos > 0 ? ` (${totalFiltrosAtivos})` : ''}
             </button>
             <button onClick={handleSave} disabled={saving}
               style={{display:'flex',alignItems:'center',gap:5,padding:'6px 16px',border:'none',borderRadius:7,background:saved?'#10B981':'var(--accent)',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background .3s',flexShrink:0}}>
@@ -1636,46 +1807,6 @@ export default function CanvasEditor({
             {fullScreen ? <Minimize2 size={13}/> : <Maximize2 size={13}/>}
           </button>
         </div>
-
-        {/* Painel de filtros */}
-        {showFiltros && (
-          <div style={{flexShrink:0,background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'10px 20px',display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
-            {[
-              { label:'De', key:'dateFrom', type:'date' },
-              { label:'Até', key:'dateTo',  type:'date' },
-            ].map(f => (
-              <div key={f.key} style={{display:'flex',flexDirection:'column',gap:3}}>
-                <label style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{f.label}</label>
-                <input type={f.type} value={filtros[f.key]} onChange={e=>setFiltros(p=>({...p,[f.key]:e.target.value}))}
-                  style={{padding:'5px 8px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:12,fontFamily:'var(--font)',outline:'none'}}/>
-              </div>
-            ))}
-            {[
-              { label:'Responsável', key:'responsavel', opts:optsResp },
-              { label:'Origem',      key:'origem',      opts:optsOrigem },
-              { label:'Campanha',    key:'campanha',    opts:optsCampanha },
-              { label:'Situação',    key:'situacao',    opts:optsSituacao },
-            ].map(f => (
-              <div key={f.key} style={{display:'flex',flexDirection:'column',gap:3}}>
-                <label style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{f.label}</label>
-                <select value={filtros[f.key]} onChange={e=>setFiltros(p=>({...p,[f.key]:e.target.value}))}
-                  style={{padding:'5px 8px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:12,fontFamily:'var(--font)',outline:'none',minWidth:130,cursor:'pointer'}}>
-                  <option value="">Todos</option>
-                  {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
-                </select>
-              </div>
-            ))}
-            {Object.values(filtros).some(v=>v!=='') && (
-              <button onClick={()=>setFiltros({dateFrom:'',dateTo:'',responsavel:'',origem:'',campanha:'',situacao:''})}
-                style={{padding:'5px 12px',borderRadius:6,border:'1px solid #FECACA',background:'#FEF2F2',color:'#DC2626',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)',alignSelf:'flex-end'}}>
-                Limpar filtros
-              </button>
-            )}
-            <span style={{fontSize:11,color:'var(--text-muted)',alignSelf:'flex-end',marginLeft:'auto'}}>
-              {filteredSources.find(s=>s.id==='pipeline')?.registros.length ?? '—'} oportunidades filtradas
-            </span>
-          </div>
-        )}
 
         {/* Canvas com scroll */}
         <div ref={canvasRef} style={{flex:1,overflowY:'auto',overflowX:'auto',background:'#e8e8e8',display:'flex',justifyContent:'center',padding:'24px'}}
@@ -1847,8 +1978,19 @@ export default function CanvasEditor({
         </div>
       </div>
 
-      {/* Painel direito — propriedades */}
-      {!readOnly && (
+      {/* Painel direito — filtros ou propriedades */}
+      {showFiltros ? (
+        <FiltersPanel
+          sources={sources}
+          filteredSources={filteredSources}
+          usedSourceIds={usedSourceIds}
+          filtros={filtros}
+          onSet={setSourceFiltro}
+          onClearSource={clearSourceFiltro}
+          onClearAll={() => setFiltros({})}
+          totalAtivos={totalFiltrosAtivos}
+        />
+      ) : !readOnly && (
         <PropPanel
           el={selecionado}
           sources={sources}
