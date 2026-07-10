@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronLeft, Save, Printer, Settings, Layers, Plus, Trash2, Lock, Users, Globe, Maximize2, Minimize2, X } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { ChevronLeft, Save, Printer, Settings, Layers, Plus, Trash2, Lock, Users, Globe, Maximize2, Minimize2, X, Filter, FileText, ChevronDown, ChevronUp } from 'lucide-react'
 import { useDocumentDataSources } from '../../hooks/useDocumentDataSources'
 import { useProfile } from '../../hooks/useProfile'
 
@@ -1250,12 +1250,42 @@ export default function CanvasEditor({
   const [zoom,        setZoom]        = useState(0.75)
   const [subPaleta,   setSubPaleta]   = useState(null)
   const [fullScreen,  setFullScreen]  = useState(false)
+  const [showFiltros, setShowFiltros] = useState(false)
+  const [filtros, setFiltros] = useState({
+    dateFrom: '', dateTo: '', responsavel: '', origem: '', campanha: '', situacao: '',
+  })
 
   const dragging = useRef(null)
   const canvasRef = useRef()
 
   const selecionado = elementos.find(e => e.id === selecionadoId) || null
   const elSource = selecionado ? sources.find(s => s.id === (selecionado.dados?.sourceId)) : null
+
+  // Fontes com filtros aplicados nos registros
+  const filteredSources = useMemo(() => {
+    const hasFilter = Object.values(filtros).some(v => v !== '')
+    if (!hasFilter) return sources
+    return sources.map(src => {
+      if (src.id !== 'pipeline') return src
+      const regs = src.registros.filter(r => {
+        if (filtros.dateFrom && r.created_at < filtros.dateFrom) return false
+        if (filtros.dateTo   && r.created_at > filtros.dateTo)   return false
+        if (filtros.responsavel && !r.responsavel?.toLowerCase().includes(filtros.responsavel.toLowerCase())) return false
+        if (filtros.origem    && r.origem    !== filtros.origem)    return false
+        if (filtros.campanha  && r.campanha  !== filtros.campanha)  return false
+        if (filtros.situacao  && r.situacao  !== filtros.situacao)  return false
+        return true
+      })
+      return { ...src, registros: regs }
+    })
+  }, [sources, filtros])
+
+  // Valores únicos para os selects dos filtros (extraídos do pipeline)
+  const pipelineSource = useMemo(() => sources.find(s => s.id === 'pipeline'), [sources])
+  const optsOrigem    = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.origem).filter(Boolean))].sort(), [pipelineSource])
+  const optsCampanha  = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.campanha).filter(Boolean))].sort(), [pipelineSource])
+  const optsSituacao  = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.situacao).filter(Boolean))].sort(), [pipelineSource])
+  const optsResp      = useMemo(() => [...new Set((pipelineSource?.registros||[]).map(r=>r.responsavel).filter(Boolean))].sort(), [pipelineSource])
 
   // Drag to move / resize
   useEffect(() => {
@@ -1376,6 +1406,89 @@ export default function CanvasEditor({
     w.focus()
     setTimeout(() => { w.print(); w.close() }, 500)
   }, [titulo, elementos, config])
+
+  const handleExportWord = useCallback(() => {
+    const pipeline = filteredSources.find(s => s.id === 'pipeline')
+    const regs = pipeline?.registros || []
+
+    // KPI summary rows
+    const total    = regs.length
+    const valorSum = regs.reduce((s,r) => s + (r.valor||0), 0)
+    const ticket   = total ? (valorSum / total) : 0
+    const fmt = (v) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    // Group helpers
+    const group = (field) => {
+      const map = {}
+      regs.forEach(r => { const k = r[field] || '—'; map[k] = (map[k]||0) + 1 })
+      return Object.entries(map).sort((a,b) => b[1]-a[1])
+    }
+
+    const tableRows = regs.slice(0,200).map(r =>
+      `<tr><td>${r.semana||'—'}</td><td>${r.origem||'—'}</td><td>${r.campanha||'—'}</td><td>${r.responsavel||'—'}</td><td>${r.etapa_nome||'—'}</td><td>${r.situacao||'—'}</td><td style="text-align:right">${fmt(r.valor||0)}</td></tr>`
+    ).join('')
+
+    const origemRows = group('origem').map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')
+    const campRows   = group('campanha').map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')
+    const respRows   = group('responsavel').map(([k,v]) => `<tr><td>${k}</td><td>${v}</td></tr>`).join('')
+
+    const html = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>${titulo}</title>
+<style>
+  body { font-family: Calibri, Arial, sans-serif; font-size: 11pt; margin: 2cm; }
+  h1   { font-size: 18pt; color: #1e3a5f; border-bottom: 2px solid #2563eb; padding-bottom: 6pt; }
+  h2   { font-size: 13pt; color: #374151; margin-top: 18pt; }
+  table{ border-collapse: collapse; width: 100%; margin-top: 8pt; font-size: 10pt; }
+  th   { background: #1e3a5f; color: #fff; padding: 6pt 8pt; text-align: left; }
+  td   { border: 1px solid #d1d5db; padding: 5pt 8pt; }
+  tr:nth-child(even) td { background: #f9fafb; }
+  .kpi-grid { display: flex; gap: 16pt; margin: 12pt 0; }
+  .kpi      { flex: 1; border: 1px solid #e5e7eb; border-radius: 6pt; padding: 10pt; text-align: center; }
+  .kpi-val  { font-size: 22pt; font-weight: bold; color: #2563eb; }
+  .kpi-lbl  { font-size: 9pt; color: #6b7280; }
+</style>
+</head><body>
+<h1>${titulo}</h1>
+<p style="color:#6b7280;font-size:9pt">Gerado em ${new Date().toLocaleString('pt-BR')}${filtros.dateFrom||filtros.dateTo ? ` · Período: ${filtros.dateFrom||'início'} até ${filtros.dateTo||'hoje'}` : ''}</p>
+
+<h2>📊 Visão Geral</h2>
+<table>
+  <tr><th>Métrica</th><th>Valor</th></tr>
+  <tr><td>Total de oportunidades</td><td>${total}</td></tr>
+  <tr><td>Valor total em aberto</td><td>${fmt(valorSum)}</td></tr>
+  <tr><td>Ticket médio</td><td>${fmt(ticket)}</td></tr>
+</table>
+
+<h2>🎯 Distribuição por Origem</h2>
+<table>
+  <tr><th>Origem</th><th>Qtd.</th></tr>${origemRows}
+</table>
+
+<h2>📣 Distribuição por Campanha</h2>
+<table>
+  <tr><th>Campanha</th><th>Qtd.</th></tr>${campRows}
+</table>
+
+<h2>👤 Performance por Responsável</h2>
+<table>
+  <tr><th>Responsável</th><th>Qtd.</th></tr>${respRows}
+</table>
+
+<h2>📋 Detalhamento das Oportunidades</h2>
+<table>
+  <tr><th>Semana</th><th>Origem</th><th>Campanha</th><th>Responsável</th><th>Etapa</th><th>Situação</th><th>Valor</th></tr>
+  ${tableRows}
+</table>
+</body></html>`
+
+    const blob = new Blob([html], { type: 'application/msword' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `${titulo.replace(/\s+/g,'-')}.doc`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }, [titulo, filteredSources, filtros])
 
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
@@ -1505,6 +1618,14 @@ export default function CanvasEditor({
               style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,background:'none',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)',flexShrink:0}}>
               <Printer size={12}/> PDF
             </button>
+            <button onClick={handleExportWord}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',border:'1px solid var(--border)',borderRadius:6,background:'none',color:'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)',flexShrink:0}}>
+              <FileText size={12}/> Word
+            </button>
+            <button onClick={()=>setShowFiltros(f=>!f)}
+              style={{display:'flex',alignItems:'center',gap:5,padding:'5px 10px',border:`1px solid ${showFiltros?'var(--accent)':'var(--border)'}`,borderRadius:6,background:showFiltros?'color-mix(in srgb, var(--accent) 8%, transparent)':'none',color:showFiltros?'var(--accent)':'var(--text-soft)',fontSize:12,cursor:'pointer',fontFamily:'var(--font)',flexShrink:0}}>
+              <Filter size={12}/> Filtros {Object.values(filtros).some(v=>v!=='') ? `(${Object.values(filtros).filter(v=>v!=='').length})` : ''}
+            </button>
             <button onClick={handleSave} disabled={saving}
               style={{display:'flex',alignItems:'center',gap:5,padding:'6px 16px',border:'none',borderRadius:7,background:saved?'#10B981':'var(--accent)',color:'#fff',fontSize:12,fontWeight:700,cursor:'pointer',fontFamily:'var(--font)',transition:'background .3s',flexShrink:0}}>
               <Save size={12}/> {saving?'Salvando…':saved?'Salvo!':'Salvar'}
@@ -1515,6 +1636,46 @@ export default function CanvasEditor({
             {fullScreen ? <Minimize2 size={13}/> : <Maximize2 size={13}/>}
           </button>
         </div>
+
+        {/* Painel de filtros */}
+        {showFiltros && (
+          <div style={{flexShrink:0,background:'var(--surface)',borderBottom:'1px solid var(--border)',padding:'10px 20px',display:'flex',flexWrap:'wrap',gap:10,alignItems:'flex-end'}}>
+            {[
+              { label:'De', key:'dateFrom', type:'date' },
+              { label:'Até', key:'dateTo',  type:'date' },
+            ].map(f => (
+              <div key={f.key} style={{display:'flex',flexDirection:'column',gap:3}}>
+                <label style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{f.label}</label>
+                <input type={f.type} value={filtros[f.key]} onChange={e=>setFiltros(p=>({...p,[f.key]:e.target.value}))}
+                  style={{padding:'5px 8px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:12,fontFamily:'var(--font)',outline:'none'}}/>
+              </div>
+            ))}
+            {[
+              { label:'Responsável', key:'responsavel', opts:optsResp },
+              { label:'Origem',      key:'origem',      opts:optsOrigem },
+              { label:'Campanha',    key:'campanha',    opts:optsCampanha },
+              { label:'Situação',    key:'situacao',    opts:optsSituacao },
+            ].map(f => (
+              <div key={f.key} style={{display:'flex',flexDirection:'column',gap:3}}>
+                <label style={{fontSize:10,fontWeight:600,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'0.06em'}}>{f.label}</label>
+                <select value={filtros[f.key]} onChange={e=>setFiltros(p=>({...p,[f.key]:e.target.value}))}
+                  style={{padding:'5px 8px',borderRadius:6,border:'1px solid var(--border)',background:'var(--surface)',color:'var(--text)',fontSize:12,fontFamily:'var(--font)',outline:'none',minWidth:130,cursor:'pointer'}}>
+                  <option value="">Todos</option>
+                  {f.opts.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </div>
+            ))}
+            {Object.values(filtros).some(v=>v!=='') && (
+              <button onClick={()=>setFiltros({dateFrom:'',dateTo:'',responsavel:'',origem:'',campanha:'',situacao:''})}
+                style={{padding:'5px 12px',borderRadius:6,border:'1px solid #FECACA',background:'#FEF2F2',color:'#DC2626',fontSize:11,fontWeight:600,cursor:'pointer',fontFamily:'var(--font)',alignSelf:'flex-end'}}>
+                Limpar filtros
+              </button>
+            )}
+            <span style={{fontSize:11,color:'var(--text-muted)',alignSelf:'flex-end',marginLeft:'auto'}}>
+              {filteredSources.find(s=>s.id==='pipeline')?.registros.length ?? '—'} oportunidades filtradas
+            </span>
+          </div>
+        )}
 
         {/* Canvas com scroll */}
         <div ref={canvasRef} style={{flex:1,overflowY:'auto',overflowX:'auto',background:'#e8e8e8',display:'flex',justifyContent:'center',padding:'24px'}}
@@ -1640,7 +1801,7 @@ export default function CanvasEditor({
                       {/* Elementos desta página */}
                       {pageEls.map(el => {
                         const isSel  = el.id === selecionadoId
-                        const src    = sources.find(s => s.id === (el.dados?.sourceId))
+                        const src    = filteredSources.find(s => s.id === (el.dados?.sourceId))
                         const localY = el.y - pageStartY
                         return (
                           <div key={el.id}

@@ -9,6 +9,8 @@ export function useDocumentDataSources() {
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
+    const tenantId = profile?.tenant_id
+    if (!tenantId) { setSources([]); setLoading(false); return }
     setLoading(true)
     try {
       const [
@@ -34,96 +36,114 @@ export function useDocumentDataSources() {
         // Pipeline (oportunidades)
         supabase.from('oportunidades')
           .select('id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, origem, campanha_id, motivo_perda, created_at')
+          .eq('tenant_id', tenantId)
           .is('deleted_at', null)
           .limit(2000),
 
         // Etapas do pipeline (para nome da etapa)
         supabase.from('pipeline_stages')
           .select('id, name')
+          .eq('tenant_id', tenantId)
           .limit(200),
 
         // Campanhas (para nome da campanha)
         supabase.from('campanhas')
           .select('id, nome')
+          .eq('tenant_id', tenantId)
           .limit(500),
 
         // Projetos
         supabase.from('projects')
           .select('id, nome, status, custom_fields, data_inicio, created_at')
+          .eq('tenant_id', tenantId)
           .is('deleted_at', null)
           .limit(2000),
 
         // Empresas / Clientes
         supabase.from('companies')
           .select('id, nome_fantasia, razao_social, tipo, status, created_at')
+          .eq('tenant_id', tenantId)
           .is('deleted_at', null)
           .limit(2000),
 
         // Parceiros
         supabase.from('parceiros')
           .select('id, nome, status, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Metas
         supabase.from('goals')
           .select('id, tipo_alvo, alvo_nome, tipo_meta, valor_planejado, valor_atual, status, periodo_mes, periodo_ano, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Ações / Tarefas
         supabase.from('actions')
           .select('id, titulo, tipo, status, prioridade, data_prevista, data_conclusao, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Contatos
         supabase.from('contacts')
           .select('id, name, email, job_title, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Vendedores (Contatos Canais)
         supabase.from('sellers')
           .select('id, nome, status, cargo, equipe, regiao, meta_mensal, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Contratos
         supabase.from('contracts')
           .select('id, numero, status, data_inicio, data_fim, created_at')
+          .eq('tenant_id', tenantId)
           .is('deleted_at', null)
           .limit(2000),
 
         // Pagamentos
         supabase.from('payments')
           .select('id, amount_cdu, amount_sms, amount_services, amount_discount, amount_total_net, status, reference_month, due_date, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Comissões
         supabase.from('commission_payments')
           .select('id, beneficiario_nome, persona, receita_tipo, valor_base, valor_comissao, percentual, status, periodo_mes, periodo_ano, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Sucesso do Cliente (Customer Health)
         supabase.from('customer_health')
           .select('id, laer_stage, touch_model, health_score, renewal_date, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Questionários — templates
         supabase.from('questionnaire_templates')
           .select('id, title, type, is_active, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Questionários — respostas
         supabase.from('questionnaire_submissions')
           .select('id, template_id, status, score, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
 
         // Documentos
         supabase.from('documents')
           .select('id, title, categoria, status, prazo_validade, created_at')
+          .eq('tenant_id', tenantId)
           .is('deleted_at', null)
           .limit(2000),
 
         // Playbooks
         supabase.from('playbooks')
           .select('id, nome, status, tipo, created_at')
+          .eq('tenant_id', tenantId)
           .limit(2000),
       ])
 
