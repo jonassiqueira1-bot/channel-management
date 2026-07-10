@@ -41,9 +41,9 @@ export default function Login() {
   }
 
   return (
-    <div style={s.page}>
+    <div style={s.page} className="login-page">
       {/* Painel esquerdo */}
-      <div style={s.left}>
+      <div style={s.left} className="login-left">
         <div style={s.leftInner}>
           <img src={logoBoostly} alt="Boostly" style={{ height: 44, width: 'auto' }} />
 
