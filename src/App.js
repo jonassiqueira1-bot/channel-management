@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import { BranchProvider } from './contexts/BranchContext'
 import ProtectedRoute from './components/ProtectedRoute'
@@ -51,10 +52,23 @@ import FechamentoHoras from './pages/FechamentoHoras'
 import ParceirosPage from './pages/Parceiros'
 import SettingsMaturidade from './pages/settings/MaturidadeParceiros'
 
+function CrispWidget() {
+  useEffect(() => {
+    window.$crisp = []
+    window.CRISP_WEBSITE_ID = '5c56d2db-e204-4cb5-a19b-465e8d3cd17c'
+    const s = document.createElement('script')
+    s.src = 'https://client.crisp.chat/l.js'
+    s.async = true
+    document.head.appendChild(s)
+  }, [])
+  return null
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <CrispWidget />
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

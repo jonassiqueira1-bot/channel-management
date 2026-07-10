@@ -32,18 +32,37 @@ function buildEmail(template: TemplateName, data: Record<string, unknown>): { su
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
-    <body style="margin:0;padding:0;background:#f5f5f5;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
-      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 0;">
+    <body style="margin:0;padding:0;background:#f0f2f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f0f2f8;padding:40px 0;">
         <tr><td align="center">
-          <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
-            <tr><td style="background:#1a1a2e;padding:24px 32px;">
-              <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.5px;">Boostly</span>
+          <table width="560" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(79,127,232,0.10);">
+            <!-- Header com gradiente da marca -->
+            <tr><td style="background:linear-gradient(135deg,#4F7FE8 0%,#2B52C8 100%);padding:28px 36px;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="vertical-align:middle;">
+                    <table cellpadding="0" cellspacing="0">
+                      <tr>
+                        <td style="background:rgba(255,255,255,0.2);border-radius:10px;width:40px;height:40px;text-align:center;vertical-align:middle;">
+                          <span style="color:#ffffff;font-size:22px;font-weight:800;line-height:40px;display:block;">B</span>
+                        </td>
+                        <td style="padding-left:12px;vertical-align:middle;">
+                          <span style="color:#ffffff;font-size:22px;font-weight:700;letter-spacing:-0.5px;">Boostly</span>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
             </td></tr>
-            <tr><td style="padding:32px;">
+            <!-- Conteúdo -->
+            <tr><td style="padding:36px;">
               ${content}
             </td></tr>
-            <tr><td style="background:#f9f9f9;padding:16px 32px;border-top:1px solid #eee;">
-              <p style="margin:0;font-size:12px;color:#999;">Boostly · Canal de Parceiros · <a href="https://boostly.com.br" style="color:#6366f1;">boostly.com.br</a></p>
+            <!-- Rodapé -->
+            <tr><td style="background:#f8f9ff;padding:20px 36px;border-top:1px solid #e8ecf8;">
+              <p style="margin:0;font-size:12px;color:#9aa3bf;">Boostly · Canal de Parceiros · <a href="https://boostly.com.br" style="color:#4F7FE8;text-decoration:none;">boostly.com.br</a></p>
+              <p style="margin:6px 0 0;font-size:11px;color:#b8bfd4;">Você está recebendo este email pois tem uma conta no Boostly.</p>
             </td></tr>
           </table>
         </td></tr>
@@ -53,16 +72,16 @@ function buildEmail(template: TemplateName, data: Record<string, unknown>): { su
   `
 
   const btn = (label: string, url: string) =>
-    `<a href="${url}" style="display:inline-block;background:#6366f1;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-top:24px;">${label}</a>`
+    `<a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#4F7FE8 0%,#2B52C8 100%);color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-top:24px;letter-spacing:0.2px;">${label}</a>`
 
   const h1 = (text: string) =>
-    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a1a2e;">${text}</h1>`
+    `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a2a5e;">${text}</h1>`
 
   const p = (text: string) =>
-    `<p style="margin:8px 0;font-size:15px;color:#444;line-height:1.6;">${text}</p>`
+    `<p style="margin:8px 0;font-size:15px;color:#4a5578;line-height:1.7;">${text}</p>`
 
   const badge = (text: string, color: string) =>
-    `<span style="display:inline-block;background:${color}22;color:${color};padding:4px 10px;border-radius:99px;font-size:12px;font-weight:700;">${text}</span>`
+    `<span style="display:inline-block;background:${color}18;color:${color};padding:4px 12px;border-radius:99px;font-size:12px;font-weight:700;letter-spacing:0.5px;margin-bottom:16px;">${text}</span>`
 
   switch (template) {
     case 'boas_vindas':
