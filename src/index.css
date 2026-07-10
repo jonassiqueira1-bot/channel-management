@@ -156,3 +156,9 @@ input, select, textarea {
     height: 36px !important;
   }
 }
+
+/* ── Crisp — afasta do botão do SlideOver ──────────────────────── */
+body:has(aside[role="dialog"]) .crisp-client {
+  bottom: 80px !important;
+  transition: bottom 0.2s ease !important;
+}
