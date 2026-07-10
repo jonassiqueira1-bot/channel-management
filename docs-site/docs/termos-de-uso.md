@@ -4,213 +4,112 @@ title: Termos de Uso
 sidebar_position: 99
 ---
 
-# Termos de Uso
+# Termos de Uso e Política de Segurança — Plataforma Boostly
 
-**Versão:** 1.0  
-**Última atualização:** julho de 2026  
-**Vigência:** a partir da data de aceite pelo contratante
-
----
-
-## 1. Das partes e do aceite
-
-O presente instrumento regula o uso da plataforma **Boostly**, solução de software como serviço (SaaS) para gestão de canais de vendas, operada pela **NGI Tecnologia** ("Boostly", "nós").
-
-Ao criar uma conta, convidar usuários ou utilizar qualquer funcionalidade da plataforma, o contratante ("Cliente") declara ter lido, compreendido e aceito integralmente estes Termos.
-
-Caso o Cliente não concorde com qualquer disposição, deverá encerrar o uso imediatamente.
+**Versão:** 1.1
+**Última atualização:** Julho de 2026
+**Vigência:** A partir do aceite eletrônico pelo contratante.
 
 ---
 
-## 2. Descrição do serviço
+## 1. Das Partes e do Escopo do Serviço
 
-O Boostly oferece uma plataforma multi-tenant de gestão de canais de vendas, incluindo:
-
-- Pipeline de oportunidades e funis de venda configuráveis
-- Gestão de parceiros, contatos de canal e Portal do Parceiro
-- Customer Success com framework LAER e health score
-- Gestão de projetos de implantação pós-venda
-- Controle de contratos, pagamentos e comissões
-- Tarefas, alertas automáticos e relatórios
-- Integrações com sistemas externos via webhook e APIs
-
-O serviço é prestado no modelo SaaS, acessível via navegador web, sem necessidade de instalação local.
+O presente instrumento regula o uso da plataforma Boostly, uma solução de Software como Serviço (SaaS) focada na gestão de canais de vendas, regras de comissionamento dinâmico e automação de fluxos comerciais, operada pela **Boostly** ("Boostly"). Ao manifestar o aceite eletrônico, o contratante ("Cliente") vincula-se integralmente a estes Termos.
 
 ---
 
-## 3. Cadastro e responsabilidades do Cliente
+## 2. Da Infraestrutura, Disponibilidade (SLA) e Segurança da Informação
 
-### 3.1 Informações cadastrais
+O Boostly adota conceitos de arquitetura em nuvem serverless moderna para garantir a máxima performance, segurança e integridade dos dados operacionais e financeiros.
 
-O Cliente é responsável pela veracidade, precisão e atualização dos dados cadastrais fornecidos, incluindo CNPJ, razão social e e-mail do administrador.
+### 2.1 Responsabilidade Compartilhada de Infraestrutura
 
-### 3.2 Credenciais de acesso
+A plataforma é hospedada em infraestrutura global de alta disponibilidade, utilizando como suboperadores a **Vercel** (camada de aplicação e distribuição em borda - Edge Network) e o **Supabase** (camada de banco de dados estruturada em PostgreSQL, hospedada nos servidores da Amazon Web Services - AWS). O Cliente declara estar ciente de que o Boostly herda e se beneficia das certificações internacionais de segurança desses provedores, incluindo SOC 2 Type II e ISO 27001.
 
-O Cliente é responsável por:
+### 2.2 Perímetro de Segurança Geográfico (Geoblocking)
 
-- Manter a confidencialidade das senhas de acesso
-- Gerenciar os convites e perfis de usuários dentro da sua conta
-- Notificar imediatamente o Boostly em caso de acesso não autorizado suspeito
+Como medida ativa de mitigação de riscos, ataques de negação de serviço (DDoS) e varreduras maliciosas, o Boostly utiliza proteção de borda via Cloudflare com bloqueio rigoroso de tráfego originado fora do território da República Federativa do Brasil.
 
-O Boostly não se responsabiliza por danos decorrentes do uso indevido de credenciais pelo próprio Cliente ou por terceiros autorizados por ele.
+**Parágrafo Único:** O Cliente está ciente de que acessos à plataforma a partir de conexões internacionais (incluindo viagens ao exterior ou uso de redes VPN sem terminação no Brasil) serão bloqueados por padrão por razões de segurança de rede, não configurando falha de prestação de serviço.
 
-### 3.3 Usuários convidados
+### 2.3 Backups e Retenção
 
-O Cliente poderá convidar colaboradores e parceiros como usuários da plataforma. O Cliente é integralmente responsável pelas ações realizadas por todos os usuários vinculados à sua conta.
+O banco de dados do Supabase executa backups diários automáticos com janela de retenção de 7 (sete) dias. Modificações estruturais na base de dados geram trilha de auditoria registrada para integridade de contratos e tabelas de preços.
 
----
+### 2.4 Monitoramento de Aplicação
 
-## 4. Uso aceitável
-
-É **vedado** ao Cliente e a seus usuários:
-
-- Utilizar a plataforma para fins ilícitos, fraudulentos ou que violem direitos de terceiros
-- Tentar acessar dados de outras contas ou comprometer a segurança da infraestrutura
-- Realizar engenharia reversa, descompilar ou reproduzir qualquer componente do software
-- Revender ou sublicenciar o acesso à plataforma sem autorização prévia e por escrito
-- Utilizar automações, bots ou scripts que sobrecarreguem os servidores de forma abusiva
-- Inserir na plataforma dados pessoais sensíveis além dos necessários para a operação comercial
-
-O descumprimento destas regras pode resultar na suspensão ou encerramento imediato da conta, sem direito a reembolso.
+A plataforma utiliza o ecossistema Sentry para detecção em tempo real de exceções de código e monitoramento de performance (APM). O Sentry atua em estrita conformidade com a LGPD através de mascaramento automatizado (data scrubbing) de quaisquer dados sensíveis ou informações de identificação pessoal (PII) antes da geração de logs técnicos.
 
 ---
 
-## 5. Modelo white-label e multi-filial
+## 3. Da Responsabilidade pelas Regras Comerciais, Tabelas de Preço e Comissões
 
-O Boostly suporta operações multi-tenant, onde o Cliente pode operar múltiplas filiais com dados isolados. Clientes com licença white-label podem personalizar a identidade visual da plataforma para seus parceiros.
+O Boostly fornece o motor tecnológico para a execução das regras de negócio parametrizadas pelo Cliente, atuando como mero executor de dados.
 
-O Cliente é responsável por:
+### 3.1 Parametrização de Dados
 
-- Garantir que seus parceiros e usuários estejam cientes destes Termos
-- Não utilizar o white-label para criar produtos concorrentes ao Boostly
+É de responsabilidade única, exclusiva e indelegável do Cliente a configuração de tabelas de preços, definição de vigências mensais, alíquotas de impostos, faixas de comissionamento e atribuição de regras a vendedores ou canais parceiros.
 
----
+### 3.2 Isenção por Erros de Configuração
 
-## 6. Propriedade intelectual
+O Boostly não se responsabiliza, em hipótese alguma, por:
 
-### 6.1 Propriedade do Boostly
+- Prejuízos financeiros, pagamentos indevidos de comissões, cobranças a maior ou a menor geradas em decorrência de erros de parametrização lógica ou matemática efetuados pelo Cliente em seu painel administrador.
+- Lançamentos calculados incorretamente por força de dados históricos preenchidos em desacordo com as práticas comerciais vigentes do Cliente.
 
-Todo o código-fonte, design, interfaces, funcionalidades, marcas e documentação da plataforma são de propriedade exclusiva da NGI Tecnologia e protegidos pela legislação de propriedade intelectual vigente.
+### 3.3 Automação Cíclica (Tarefas Cron)
 
-### 6.2 Propriedade do Cliente
-
-Os dados inseridos pelo Cliente na plataforma (oportunidades, contatos, contratos, etc.) são de propriedade exclusiva do Cliente. O Boostly não reivindica qualquer direito sobre esses dados além do necessário para a prestação do serviço.
+O sistema utiliza rotinas automáticas agendadas (Cron Jobs / pg_cron) para processar a virada mensal de vigência de tabelas de preços e consolidação/fechamento de relatórios de comissão. O Cliente compromete-se a auditar suas configurações antes dos períodos de virada de ciclo.
 
 ---
 
-## 7. Dados pessoais e privacidade (LGPD)
+## 4. Das Integrações e Webhooks de Terceiros (Asaas e Resend)
 
-O Boostly atua como **operador** dos dados pessoais inseridos pelo Cliente, conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018). O Cliente é o **controlador** desses dados e é responsável pela base legal de seu tratamento.
+O Boostly opera integrado a ecossistemas terceiros para viabilizar automações financeiras e de comunicação.
 
-### 7.1 Dados que tratamos
+### 4.1 Gateway de Pagamento
 
-- Dados de identificação de usuários (nome, e-mail, cargo)
-- Dados de contatos e empresas inseridos pelo Cliente
-- Registros de acesso e atividade na plataforma (logs)
-- Dados de navegação para funcionamento e melhoria do serviço
+O processamento de faturamento, liquidação de Pix/Boletos e emissão de notas fiscais ocorrem fora dos servidores do Boostly, diretamente na conta de titularidade do Cliente junto ao gateway **Asaas**. O Boostly limita-se a receber e processar as confirmações de pagamento via Webhook.
 
-### 7.2 Finalidade
+### 4.2 E-mails Transacionais
 
-Os dados são tratados exclusivamente para:
+O envio de notificações críticas, alertas configurados pelo usuário e convites de novos parceiros utiliza a infraestrutura de entrega do **Resend**.
 
-- Prestação e operação do serviço contratado
-- Suporte técnico e atendimento ao Cliente
-- Comunicações sobre o contrato, atualizações e funcionalidades
-- Cumprimento de obrigações legais
+### 4.3 Exclusão de Responsabilidade por Instabilidade Externa
 
-O Boostly **não comercializa** dados de Clientes para terceiros.
-
-### 7.3 Compartilhamento
-
-Dados podem ser compartilhados apenas com:
-
-- Subprocessadores necessários à operação (infraestrutura de nuvem, envio de e-mail)
-- Autoridades competentes, quando exigido por lei
-
-### 7.4 Direitos do titular
-
-Os titulares de dados pessoais podem exercer seus direitos (acesso, correção, exclusão, portabilidade) via e-mail: **privacidade@boostly.com.br**
+O Boostly não será responsabilizado por atrasos na liberação de acessos, falhas no envio de notificações ou falhas na atualização de status de contratos decorrentes de indisponibilidades técnicas, atrasos na entrega de Webhooks ou instabilidades sistêmicas por parte do Asaas ou do Resend.
 
 ---
 
-## 8. Retenção de dados e logs
+## 5. Da Proteção de Dados (LGPD) e Logs de Auditoria
 
-| Tipo de dado | Período de retenção |
-|---|---|
-| Dados da conta e operacionais | Enquanto o contrato estiver ativo + 90 dias após encerramento |
-| Logs de auditoria (ações de usuários) | 12 meses |
-| Logs de integração e webhooks | 90 dias |
-| Logs de sistema e erros | 30 dias |
+### 5.1 Natureza do Tratamento
 
-Após o encerramento do contrato, o Cliente tem **90 dias** para exportar seus dados. Após esse prazo, os dados são excluídos permanentemente dos servidores.
+Nos termos da Lei Geral de Proteção de Dados (Lei nº 13.709/2018), o Cliente figura na qualidade de **Controlador** dos dados pessoais inseridos na plataforma (incluindo dados de seus parceiros, franqueados e vendedores), competindo-lhe a definição da base legal adequada. O Boostly atua estritamente como **Operador**, processando os dados conforme as instruções e parametrizações técnicas do Controlador.
 
-> **Dica:** Exporte periodicamente os logs de auditoria em **Configurações → Logs** para arquivamento próprio, especialmente para fins de compliance.
+### 5.2 Tabela de Retenção de Dados e Logs de Segurança
 
----
+Para fins de conformidade e auditoria, as partes acordam os seguintes prazos rígidos de armazenamento de registros:
 
-## 9. Disponibilidade e SLA
+| Tipo de Dado / Registro | Período de Retenção Ativa | Finalidade do Armazenamento |
+|---|---|---|
+| Dados da Conta e Operacionais | Vigência contratual + 90 dias | Continuidade do serviço e janela de exportação pós-rescisão. |
+| Logs de Auditoria (Ações de Usuário) | 12 (doze) meses | Trilha de segurança e conformidade exigida pelo art. 15 da Lei nº 12.965/2014 (Marco Civil da Internet). |
+| Logs de Integração e Webhooks | 90 (noventa) dias | Depuração técnica de eventos financeiros (Asaas). |
+| Logs de Sistema e Erros (Sentry) | 30 (trinta) dias | Diagnóstico de bugs e estabilidade de performance da UI. |
 
-O Boostly empreende esforços razoáveis para manter a plataforma disponível **99,5% do tempo** em base mensal, excluídas:
+### 5.3 Eliminação Definitiva
 
-- Janelas de manutenção programada (comunicadas com 24h de antecedência)
-- Indisponibilidades causadas por terceiros (infraestrutura de nuvem, operadoras)
-- Situações de força maior
-
-Eventuais indisponibilidades não geram direito automático a créditos ou indenizações, salvo acordo específico no contrato do plano.
+Decorrido o prazo de 90 (noventa) dias contados do encerramento definitivo do contrato, o Boostly efetuará a exclusão lógica e definitiva de todos os dados operacionais do Cliente de seus servidores de produção, sem possibilidade de recuperação. Cabe ao Cliente realizar o download de seus relatórios de auditoria e comissões antes do término desse prazo.
 
 ---
 
-## 10. Pagamento e cancelamento
+## 6. Limitação de Responsabilidade Financeira (Cláusula Penal)
 
-### 10.1 Assinatura
-
-O serviço é prestado em regime de assinatura recorrente, conforme plano contratado. Os valores, periodicidade e condições de pagamento constam no contrato ou proposta comercial firmada entre as partes.
-
-### 10.2 Inadimplência
-
-O não pagamento dentro do prazo acordado pode resultar na suspensão do acesso. O acesso é restabelecido automaticamente após a regularização do pagamento.
-
-### 10.3 Cancelamento pelo Cliente
-
-O Cliente pode cancelar a assinatura a qualquer momento. O cancelamento entra em vigor no final do período já pago, sem reembolso proporcional, salvo disposição em contrário no contrato.
-
-### 10.4 Cancelamento pelo Boostly
-
-O Boostly pode encerrar o contrato mediante aviso de **30 dias**, sem penalidades, em caso de descontinuidade do produto ou mudanças relevantes no modelo de negócio.
+Em nenhuma circunstância o Boostly será responsável por danos indiretos, lucros cessantes, perda de receita, perda de dados ou danos comerciais decorrentes do uso ou da incapacidade de usar a plataforma. A responsabilidade total agregada do Boostly face ao Cliente, por qualquer pleito indenizatório judicial ou extrajudicial, fica estritamente limitada ao montante histórico comprovadamente pago pelo Cliente nos 3 (três) meses imediatamente anteriores ao evento gerador do dano.
 
 ---
 
-## 11. Limitação de responsabilidade
+## 7. Lei Aplicável e Foro
 
-Na extensão máxima permitida pela legislação aplicável, o Boostly não se responsabiliza por:
-
-- Lucros cessantes, perda de negócios ou danos indiretos
-- Danos causados por decisões comerciais tomadas com base nos dados da plataforma
-- Perda de dados resultante de ação ou omissão do próprio Cliente
-- Falhas em integrações com sistemas de terceiros
-
-A responsabilidade total do Boostly, em qualquer hipótese, limita-se ao valor pago pelo Cliente nos **3 meses anteriores** ao evento gerador do dano.
-
----
-
-## 12. Alterações dos termos
-
-O Boostly pode atualizar estes Termos a qualquer momento. Alterações relevantes serão comunicadas por e-mail ao administrador da conta com **15 dias de antecedência**.
-
-O uso continuado da plataforma após a entrada em vigor das alterações configura aceite dos novos Termos.
-
----
-
-## 13. Lei aplicável e foro
-
-Estes Termos são regidos pelas leis da República Federativa do Brasil. Fica eleito o foro da **Comarca de São Paulo/SP** para dirimir quaisquer controvérsias, com renúncia a qualquer outro, por mais privilegiado que seja.
-
----
-
-## 14. Contato
-
-Para dúvidas sobre estes Termos ou sobre o tratamento de dados pessoais:
-
-- **E-mail geral:** contato@boostly.com.br
-- **Privacidade/LGPD:** privacidade@boostly.com.br
-- **Suporte:** suporte@boostly.com.br
+Estes Termos são integralmente regidos e interpretados de acordo com as leis da República Federativa do Brasil. Fica eleito o foro da Comarca de São Paulo/SP como o único competente para dirimir quaisquer controvérsias decorrentes deste instrumento, com expressa renúncia a qualquer outro.
