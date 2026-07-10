@@ -1196,6 +1196,7 @@ function SortableSlot({ slotId, colSpan, isCustomizing, onOpenConfig, onRemove, 
 
 // ─── Section Row ──────────────────────────────────────────────────────────────
 function SectionRow({ section, isCustomizing, onDeleteSection, onChangeLayout, onAddToSlot, onRemoveFromSlot, onOpenConfig, onUpdateMeta, catalog, analytics, globalFilters }) {
+  const isMobile = useIsMobile()
   const layout = SECTION_LAYOUTS[section.layout] || SECTION_LAYOUTS['1-1-1-1']
   const cols   = layout.cols
   const [showLayoutPicker, setShowLayoutPicker] = useState(false)
