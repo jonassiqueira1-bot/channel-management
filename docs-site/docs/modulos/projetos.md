@@ -61,8 +61,49 @@ Clique em **Importar .xml** dentro do projeto para importar tarefas e fases de u
 
 ---
 
+## Aba: Propostas
+
+Gerencia as propostas comerciais vinculadas ao projeto, antes ou durante a implementação.
+
+- Crie propostas com itens, valores e condições
+- Vincule a proposta ao projeto e à empresa
+- Acompanhe o status: Rascunho → Enviada → Aprovada → Recusada
+
+---
+
+## Aba: Recursos
+
+Visão de alocação da equipe nos projetos ativos.
+
+- Exibe os membros com papel `projetos` ou `admin_isv` cadastrados no sistema
+- Mostra a disponibilidade semanal de cada recurso (configurada no cadastro do usuário em **Configurações → Usuários → Horas/semana**)
+- Permite visualizar sobrecargas e redistribuir tarefas entre membros
+
+---
+
+## Aba: Financeiro
+
+Acompanhamento financeiro do projeto: custos, receitas e margem.
+
+- Registre custos de implementação (horas, fornecedores, despesas)
+- Visualize o valor contratado vs. custo real
+- Margem calculada automaticamente por projeto
+
+---
+
+## Aba: Fechamento
+
+Consolida as horas trabalhadas no projeto para geração do fechamento mensal.
+
+- Exibe o total de horas lançadas por membro no período
+- Permite validar e aprovar o fechamento antes de gerar o faturamento
+- Integrado com **Fechamento de Horas** para consolidação geral
+
+---
+
 ## Regras de negócio
 
 - Projetos podem ser criados automaticamente ao marcar uma oportunidade como **Ganha** no Pipeline
 - A criticidade (Baixa, Média, Alta, Crítica) é usada para priorização na visão kanban
 - Issues e anexos ficam vinculados ao projeto permanentemente
+- A aba Recursos exibe apenas usuários com papel `projetos` ou `admin_isv`
