@@ -200,7 +200,7 @@ function EventosPanel({ integrationId, tenantId }) {
 }
 
 // ─── Formulário de edição de webhook ─────────────────────────────────────────
-function WebhookEdit({ integration, onClose, onSaved, toast }) {
+function WebhookEdit({ integration, onClose, onSaved, onDelete, onToggle, toast }) {
   const { profile } = useProfile()
   const { funis }   = useFunnels()
 
@@ -270,7 +270,22 @@ function WebhookEdit({ integration, onClose, onSaved, toast }) {
         </button>
         <span style={{ color: 'var(--border)', fontSize: 12 }}>/</span>
         <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{isNew ? 'Novo webhook' : nome}</span>
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          {!isNew && onDelete && (
+            <button onClick={() => onDelete(integration)} style={{ padding: '7px 14px', borderRadius: 7, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              Excluir
+            </button>
+          )}
+          {!isNew && onToggle && (
+            <button
+              onClick={() => onToggle(integration)}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}
+            >
+              {integration?.status === 'active'
+                ? <><ToggleRight size={16} strokeWidth={1.5} color={ACCENT}/> Desativar</>
+                : <><ToggleLeft  size={16} strokeWidth={1.5} color="var(--border2)"/> Ativar</>}
+            </button>
+          )}
           <button onClick={onClose} style={{ padding: '7px 16px', borderRadius: 7, border: '1px solid var(--border)', background: 'none', color: 'var(--text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
             Cancelar
           </button>
@@ -460,11 +475,12 @@ export default function SettingsIntegracoes() {
 
   async function handleDelete(integ) {
     const nome = integ.config?.nome_integracao || 'sem nome'
-    if (!window.confirm(`Excluir o webhook "${nome}"?\nEsta ação não pode ser desfeita.`)) return
+    if (!window.confirm(`Excluir o webhook "${nome}"?\nEsta ação não pode ser desfeita.`)) return false
     const { error } = await supabase.from('integracoes').delete().eq('id', integ.id)
-    if (error) { toast.show('Erro ao excluir.', 'error'); return }
+    if (error) { toast.show('Erro ao excluir.', 'error'); return false }
     setIntegrations(prev => prev.filter(i => i.id !== integ.id))
     toast.show('Webhook excluído.')
+    return true
   }
 
   function handleSaved(data) {
@@ -483,6 +499,8 @@ export default function SettingsIntegracoes() {
           integration={editing?.id ? editing : null}
           onClose={() => setEditing(null)}
           onSaved={handleSaved}
+          onDelete={async (integ) => { const ok = await handleDelete(integ); if (ok) setEditing(null) }}
+          onToggle={async (integ) => { await toggleStatus(integ); setEditing(prev => ({ ...prev, status: prev?.status === 'active' ? 'inactive' : 'active' })) }}
           toast={toast}
         />
         <Toasts items={toast.toasts}/>

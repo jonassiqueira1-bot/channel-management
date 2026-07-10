@@ -13,6 +13,8 @@ export function useDocumentDataSources() {
     try {
       const [
         oppsRes,
+        stagesRes,
+        campanhasRes,
         projRes,
         companiesRes,
         parceirosRes,
@@ -31,9 +33,19 @@ export function useDocumentDataSources() {
       ] = await Promise.all([
         // Pipeline (oportunidades)
         supabase.from('oportunidades')
-          .select('id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, created_at')
+          .select('id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, origem, campanha_id, motivo_perda, created_at')
           .is('deleted_at', null)
           .limit(2000),
+
+        // Etapas do pipeline (para nome da etapa)
+        supabase.from('pipeline_stages')
+          .select('id, name')
+          .limit(200),
+
+        // Campanhas (para nome da campanha)
+        supabase.from('campanhas')
+          .select('id, nome')
+          .limit(500),
 
         // Projetos
         supabase.from('projects')
@@ -117,12 +129,33 @@ export function useDocumentDataSources() {
 
       // ── Mapeamento de cada fonte ──────────────────────────────────────────
 
+      // Lookups para enriquecer oportunidades
+      const stageMap    = Object.fromEntries((stagesRes.data   || []).map(s => [s.id, s.name]))
+      const campanhaMap = Object.fromEntries((campanhasRes.data || []).map(c => [c.id, c.nome]))
+
+      function isoWeekLabel(dateStr) {
+        if (!dateStr) return '—'
+        const d = new Date(dateStr)
+        // ISO week: Thursday of the week determines the year
+        const thu = new Date(d)
+        thu.setDate(d.getDate() - ((d.getDay() + 6) % 7) + 3)
+        const yearStart = new Date(thu.getFullYear(), 0, 1)
+        const week = Math.ceil(((thu - yearStart) / 86400000 + 1) / 7)
+        return `S${String(week).padStart(2,'0')}/${thu.getFullYear()}`
+      }
+
       const oportunidades = (oppsRes.data || []).map(o => ({
-        situacao:    o.situacao || 'em_andamento',
-        titulo:      o.titulo || '',
-        responsavel: o.responsavel || '',
-        valor:       (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0),
-        created_at:  o.created_at?.slice(0,10) || '',
+        situacao:     o.situacao || 'em_andamento',
+        titulo:       o.titulo || '',
+        responsavel:  o.responsavel || '',
+        valor:        (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0),
+        origem:       o.origem || 'Não informado',
+        campanha:     o.campanha_id ? (campanhaMap[o.campanha_id] || 'Sem campanha') : 'Sem campanha',
+        etapa_nome:   o.stage_id   ? (stageMap[o.stage_id]       || 'Sem etapa')    : 'Sem etapa',
+        motivo_perda: o.motivo_perda || '',
+        mes:          o.created_at?.slice(0,7) || '',
+        semana:       isoWeekLabel(o.created_at),
+        created_at:   o.created_at?.slice(0,10) || '',
       }))
 
       const projetos = (projRes.data || []).map(p => {
@@ -264,11 +297,17 @@ export function useDocumentDataSources() {
           id: 'pipeline', label: 'Pipeline', icon: '📈',
           registros: oportunidades,
           fields: [
-            { key:'situacao',    label:'Situação',    type:'text'   },
-            { key:'titulo',      label:'Título',      type:'text'   },
-            { key:'responsavel', label:'Responsável', type:'text'   },
-            { key:'valor',       label:'Valor (R$)',  type:'number' },
-            { key:'created_at',  label:'Criado em',   type:'date'   },
+            { key:'situacao',     label:'Situação',      type:'text'   },
+            { key:'titulo',       label:'Título',        type:'text'   },
+            { key:'responsavel',  label:'Responsável',   type:'text'   },
+            { key:'valor',        label:'Valor (R$)',    type:'number' },
+            { key:'origem',       label:'Origem',        type:'text'   },
+            { key:'campanha',     label:'Campanha',      type:'text'   },
+            { key:'etapa_nome',   label:'Etapa',         type:'text'   },
+            { key:'motivo_perda', label:'Motivo perda',  type:'text'   },
+            { key:'mes',          label:'Mês (YYYY-MM)', type:'text'   },
+            { key:'semana',       label:'Semana',        type:'text'   },
+            { key:'created_at',   label:'Criado em',     type:'date'   },
           ],
         },
         {
