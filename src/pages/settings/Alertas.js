@@ -5,7 +5,7 @@ import { useBranchContext } from '../../contexts/BranchContext'
 import { useCustomFields } from '../../hooks/useCustomFields'
 import { FullPageEdit, FPESection } from '../../components/ui'
 import SettingsLayout from '../../components/ui/SettingsLayout'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, GitBranch } from 'lucide-react'
 
 // ─── Origens → tabelas reais ──────────────────────────────────────────────────
 const ORIGENS = [
@@ -16,61 +16,81 @@ const ORIGENS = [
   { key: 'commission_payments', label: 'Pagamentos',    table: 'commission_payments' },
   { key: 'companies',           label: 'Empresas',      table: 'companies'     },
   { key: 'goals',               label: 'Metas & KPIs',  table: 'goals'         },
+  { key: 'sellers',             label: 'Parceiros',     table: 'sellers'       },
 ]
 
 // ─── Campos por origem ────────────────────────────────────────────────────────
 const CAMPOS_PADRAO = {
   oportunidades: [
-    { key: 'updated_at',  label: 'Última atualização',     tipo: 'date'  },
-    { key: 'prazo',       label: 'Prazo de fechamento',    tipo: 'date'  },
-    { key: 'valor',       label: 'Valor total (R$)',        tipo: 'money' },
-    { key: 'valor_cdu',   label: 'Valor CDU (R$)',          tipo: 'money' },
-    { key: 'valor_sms',   label: 'Valor SMS (R$)',          tipo: 'money' },
-    { key: 'valor_servico',label: 'Valor Serviços (R$)',   tipo: 'money' },
-    { key: 'valor_desconto',label: 'Desconto (R$)',        tipo: 'money' },
-    { key: 'situacao',    label: 'Situação', tipo: 'enum', opts: ['em_andamento','ganha','perdida','em_negociacao'] },
-    { key: 'origem',      label: 'Origem',   tipo: 'enum', opts: ['Inbound','Outbound','Canal','Indicação'] },
-    { key: 'responsavel', label: 'Responsável',             tipo: 'text'  },
+    { key: 'updated_at',    label: 'Última atualização',      tipo: 'date'  },
+    { key: 'prazo',         label: 'Prazo de fechamento',     tipo: 'date'  },
+    { key: 'created_at',    label: 'Data de cadastro',        tipo: 'date'  },
+    { key: 'valor',         label: 'Valor total (R$)',        tipo: 'money' },
+    { key: 'valor_cdu',     label: 'Valor CDU (R$)',          tipo: 'money' },
+    { key: 'valor_sms',     label: 'Valor SMS (R$)',          tipo: 'money' },
+    { key: 'valor_servico', label: 'Valor Serviços (R$)',     tipo: 'money' },
+    { key: 'valor_desconto',label: 'Desconto (R$)',           tipo: 'money' },
+    { key: 'situacao',      label: 'Situação', tipo: 'enum', opts: ['em_andamento','ganha','perdida','em_negociacao'] },
+    { key: 'origem',        label: 'Origem',   tipo: 'enum', opts: ['Inbound','Outbound','Canal','Indicação'] },
+    { key: 'responsavel',   label: 'Responsável',             tipo: 'text'  },
+    { key: 'empresa',       label: 'Empresa',                 tipo: 'text'  },
+    { key: 'contato',       label: 'Contato',                 tipo: 'text'  },
+    { key: 'funil',         label: 'Funil',                   tipo: 'text'  },
+    { key: 'etapa',         label: 'Etapa',                   tipo: 'text'  },
   ],
   contracts: [
-    { key: 'data_inicio',     label: 'Início da vigência',  tipo: 'date'  },
-    { key: 'data_fim',        label: 'Fim da vigência',     tipo: 'date'  },
-    { key: 'data_renovacao',  label: 'Data de renovação',   tipo: 'date'  },
-    { key: 'valor',           label: 'Valor (R$)',           tipo: 'money' },
-    { key: 'status',          label: 'Status', tipo: 'enum', opts: ['ativo','encerrado','cancelado','pendente'] },
-    { key: 'responsavel',     label: 'Responsável',          tipo: 'text'  },
-    { key: 'numero',          label: 'Número do contrato',   tipo: 'text'  },
+    { key: 'data_inicio',    label: 'Início da vigência',  tipo: 'date'  },
+    { key: 'data_fim',       label: 'Fim da vigência',     tipo: 'date'  },
+    { key: 'data_renovacao', label: 'Data de renovação',   tipo: 'date'  },
+    { key: 'created_at',     label: 'Data de cadastro',    tipo: 'date'  },
+    { key: 'updated_at',     label: 'Última atualização',  tipo: 'date'  },
+    { key: 'valor',          label: 'Valor (R$)',           tipo: 'money' },
+    { key: 'status',         label: 'Status', tipo: 'enum', opts: ['ativo','encerrado','cancelado','pendente'] },
+    { key: 'responsavel',    label: 'Responsável',          tipo: 'text'  },
+    { key: 'numero',         label: 'Número do contrato',   tipo: 'text'  },
+    { key: 'tipo',           label: 'Tipo de contrato',     tipo: 'text'  },
   ],
   projects: [
-    { key: 'data_inicio',  label: 'Data de início',   tipo: 'date' },
-    { key: 'data_fim',     label: 'Data de entrega',  tipo: 'date' },
-    { key: 'updated_at',   label: 'Última atualização',tipo: 'date' },
-    { key: 'status',       label: 'Status', tipo: 'enum', opts: ['em_andamento','concluido','cancelado','pausado'] },
-    { key: 'phase',        label: 'Fase',   tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
-    { key: 'responsavel',  label: 'Responsável',       tipo: 'text' },
+    { key: 'data_inicio', label: 'Data de início',    tipo: 'date' },
+    { key: 'data_fim',    label: 'Data de entrega',   tipo: 'date' },
+    { key: 'updated_at',  label: 'Última atualização',tipo: 'date' },
+    { key: 'created_at',  label: 'Data de cadastro',  tipo: 'date' },
+    { key: 'status',      label: 'Status', tipo: 'enum', opts: ['em_andamento','concluido','cancelado','pausado'] },
+    { key: 'phase',       label: 'Fase',   tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
+    { key: 'responsavel', label: 'Responsável',        tipo: 'text' },
+    { key: 'nome',        label: 'Nome do projeto',    tipo: 'text' },
+    { key: 'cliente',     label: 'Cliente',            tipo: 'text' },
   ],
   tasks: [
-    { key: 'prazo',        label: 'Prazo',            tipo: 'date' },
-    { key: 'data_inicio',  label: 'Data de início',   tipo: 'date' },
-    { key: 'updated_at',   label: 'Última atualização',tipo: 'date' },
-    { key: 'status',       label: 'Status',   tipo: 'enum', opts: ['pendente','em_andamento','concluida','cancelada'] },
-    { key: 'prioridade',   label: 'Prioridade', tipo: 'enum', opts: ['alta','media','baixa'] },
-    { key: 'responsavel',  label: 'Responsável', tipo: 'text' },
-    { key: 'tipo',         label: 'Tipo',        tipo: 'text' },
+    { key: 'prazo',       label: 'Prazo',             tipo: 'date' },
+    { key: 'data_inicio', label: 'Data de início',    tipo: 'date' },
+    { key: 'updated_at',  label: 'Última atualização',tipo: 'date' },
+    { key: 'created_at',  label: 'Data de cadastro',  tipo: 'date' },
+    { key: 'status',      label: 'Status',    tipo: 'enum', opts: ['pendente','em_andamento','concluida','cancelada'] },
+    { key: 'prioridade',  label: 'Prioridade',tipo: 'enum', opts: ['alta','media','baixa'] },
+    { key: 'responsavel', label: 'Responsável',tipo: 'text' },
+    { key: 'tipo',        label: 'Tipo',       tipo: 'text' },
+    { key: 'titulo',      label: 'Título',     tipo: 'text' },
   ],
   commission_payments: [
-    { key: 'data_vencimento',   label: 'Data de vencimento', tipo: 'date'  },
-    { key: 'data_pagamento',    label: 'Data de pagamento',  tipo: 'date'  },
-    { key: 'valor_comissao',    label: 'Valor da comissão (R$)', tipo: 'money' },
-    { key: 'status',            label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
-    { key: 'beneficiario_nome', label: 'Beneficiário',       tipo: 'text'  },
+    { key: 'data_vencimento',    label: 'Data de vencimento',   tipo: 'date'  },
+    { key: 'data_pagamento',     label: 'Data de pagamento',    tipo: 'date'  },
+    { key: 'created_at',         label: 'Data de criação',      tipo: 'date'  },
+    { key: 'valor_comissao',     label: 'Valor da comissão (R$)', tipo: 'money' },
+    { key: 'valor_base',         label: 'Valor base (R$)',       tipo: 'money' },
+    { key: 'percentual',         label: 'Percentual (%)',        tipo: 'number'},
+    { key: 'status',             label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
+    { key: 'beneficiario_nome',  label: 'Beneficiário',          tipo: 'text'  },
   ],
   companies: [
-    { key: 'updated_at',      label: 'Última atualização', tipo: 'date' },
-    { key: 'created_at',      label: 'Data de cadastro',   tipo: 'date' },
-    { key: 'status',          label: 'Status', tipo: 'enum', opts: ['ativo','inativo','prospecto'] },
-    { key: 'segmento',        label: 'Segmento',            tipo: 'text' },
-    { key: 'responsavel',     label: 'Responsável',         tipo: 'text' },
+    { key: 'updated_at', label: 'Última atualização', tipo: 'date' },
+    { key: 'created_at', label: 'Data de cadastro',   tipo: 'date' },
+    { key: 'status',     label: 'Status', tipo: 'enum', opts: ['ativo','inativo','prospecto'] },
+    { key: 'tipo',       label: 'Tipo',   tipo: 'enum', opts: ['cliente','parceiro','fornecedor','prospect'] },
+    { key: 'segmento',   label: 'Segmento',            tipo: 'text' },
+    { key: 'responsavel',label: 'Responsável',          tipo: 'text' },
+    { key: 'cidade',     label: 'Cidade',               tipo: 'text' },
+    { key: 'estado',     label: 'Estado',               tipo: 'text' },
   ],
   goals: [
     { key: 'valor_atual',     label: 'Valor atual (R$)',    tipo: 'money'  },
@@ -78,9 +98,22 @@ const CAMPOS_PADRAO = {
     { key: 'percentual',      label: 'Percentual atingido', tipo: 'number' },
     { key: 'periodo_mes',     label: 'Mês do período',      tipo: 'number' },
     { key: 'periodo_ano',     label: 'Ano do período',      tipo: 'number' },
-    { key: 'status',          label: 'Status', tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
+    { key: 'status',          label: 'Status',   tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
     { key: 'tipo_meta',       label: 'Tipo de meta', tipo: 'enum', opts: ['valor','quantidade','percentual'] },
-    { key: 'tipo_alvo',       label: 'Alvo',         tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
+    { key: 'tipo_alvo',       label: 'Alvo',    tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
+  ],
+  sellers: [
+    { key: 'created_at',    label: 'Data de cadastro',    tipo: 'date'   },
+    { key: 'updated_at',    label: 'Última atualização',  tipo: 'date'   },
+    { key: 'data_admissao', label: 'Data de admissão',    tipo: 'date'   },
+    { key: 'meta_mensal',   label: 'Meta mensal (R$)',    tipo: 'money'  },
+    { key: 'comissao_perc', label: 'Comissão (%)',        tipo: 'number' },
+    { key: 'status',        label: 'Status', tipo: 'enum', opts: ['ativo','inativo'] },
+    { key: 'nome',          label: 'Nome',                tipo: 'text'   },
+    { key: 'email',         label: 'E-mail',              tipo: 'text'   },
+    { key: 'cargo',         label: 'Cargo',               tipo: 'text'   },
+    { key: 'regiao',        label: 'Região',              tipo: 'text'   },
+    { key: 'equipe',        label: 'Equipe',              tipo: 'text'   },
   ],
 }
 
@@ -110,6 +143,7 @@ const DEST_TIPOS = [
   { key: 'responsavel_origem', label: 'Responsável pelo registro'   },
   { key: 'lider_equipe',       label: 'Líder da equipe'             },
   { key: 'email_fixo',         label: 'Email fixo (digitar)'        },
+  { key: 'usuario_sistema',    label: 'Usuário do sistema'          },
 ]
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
@@ -130,14 +164,13 @@ function cfTipo(type) {
 }
 
 function newCond()  { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '', logico: 'E' } }
-function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', prazo_dias: 3, titulo_tarefa: '' } }
-function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, operador_logico: 'E', condicoes: [newCond()], acoes: [newAcao()] } }
+function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', prazo_dias: 3, titulo_tarefa: '' } }
+function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, condicoes: [newCond()], acoes: [newAcao()], acoes_else: [], com_else: false } }
 
 // ─── Engine de avaliação ──────────────────────────────────────────────────────
 function avaliarCondicao(registro, cond) {
-  let raw = registro
   const path = cond.campo.startsWith('cf.') ? null : cond.campo.split('.')
-  let val = path ? path.reduce((o, k) => o?.[k], raw) : registro?.custom_fields?.[cond.campo.replace('cf.', '')]
+  let val = path ? path.reduce((o, k) => o?.[k], registro) : registro?.custom_fields?.[cond.campo.replace('cf.', '')]
 
   const v = cond.valor
   const hoje = Date.now()
@@ -166,11 +199,63 @@ function avaliarCondicao(registro, cond) {
   }
 }
 
+// Avalia condições com operadores por par (cada condição carrega seu `logico` que une ela com a próxima)
 function avaliarRegra(rule, registro) {
   const conds = (rule.condicoes || []).filter(c => c.campo && c.operador)
   if (!conds.length) return false
-  const op = rule.operador_logico === 'OU' ? 'some' : 'every'
-  return conds[op](c => avaliarCondicao(registro, c))
+  if (conds.length === 1) return avaliarCondicao(registro, conds[0])
+
+  // Avalia encadeando: resultado acumula usando o `logico` de cada condição
+  let resultado = avaliarCondicao(registro, conds[0])
+  for (let i = 1; i < conds.length; i++) {
+    const prev = conds[i - 1]
+    const cur  = avaliarCondicao(registro, conds[i])
+    resultado = (prev.logico === 'OU') ? (resultado || cur) : (resultado && cur)
+  }
+  return resultado
+}
+
+async function resolverDestinatario(acao, registro, tenantId) {
+  const tipo = acao.destinatario_tipo
+  if (tipo === 'email_fixo') return acao.email_fixo || null
+
+  if (tipo === 'responsavel_origem') {
+    const responsavelId = registro.responsavel_id || registro.responsavel || null
+    if (!responsavelId) return null
+    const { data } = await supabase.from('profiles').select('email').eq('id', responsavelId).single()
+    if (data?.email) return data.email
+    // fallback: busca por nome
+    const { data: d2 } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).ilike('full_name', `%${responsavelId}%`).single()
+    return d2?.email || null
+  }
+
+  if (tipo === 'usuario_sistema') {
+    if (!acao.usuario_id) return null
+    const { data } = await supabase.from('profiles').select('email').eq('id', acao.usuario_id).single()
+    return data?.email || null
+  }
+
+  if (tipo === 'lider_equipe') {
+    const { data } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).eq('role', 'lider').limit(1)
+    return data?.[0]?.email || null
+  }
+
+  return null
+}
+
+async function executarAcoes(acoes, registro, rule, tenantId) {
+  for (const acao of acoes) {
+    if (acao.tipo === 'email') {
+      const email = await resolverDestinatario(acao, registro, tenantId)
+      if (email) {
+        const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
+        const assunto = (acao.assunto || rule.gatilho_nome || 'Alerta Boostly')
+          .replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
+        const html = `<p>${(acao.mensagem || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)}</p>`
+        await supabase.functions.invoke('send-email', { body: { to: email, subject: assunto, html } })
+      }
+    }
+  }
 }
 
 async function executarEngine(tenantId) {
@@ -194,25 +279,36 @@ async function executarEngine(tenantId) {
   for (const rule of rules) {
     const registros = dados[rule.origem] || []
     const cf = rule.custom_fields || {}
-    const fullRule = { ...rule, condicoes: cf.condicoes || [], operador_logico: cf.operador_logico || 'E', acoes: cf.acoes || [] }
+    const fullRule = { ...rule, condicoes: cf.condicoes || [], acoes: cf.acoes || [], acoes_else: cf.acoes_else || [], com_else: cf.com_else || false }
     for (const reg of registros) {
       const chave = `${rule.id}:${reg.id}`
       if (jaAlertado.has(chave)) continue
-      if (!avaliarRegra(fullRule, reg)) continue
-      const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.gatilho_nome || reg.beneficiario_nome || `#${reg.id?.slice(0,8)}`
-      novos.push({
-        tenant_id:     tenantId,
-        rule_id:       rule.id,
-        gatilho:       rule.gatilho_nome,
-        entidade_tipo: rule.origem,
-        entidade_id:   String(reg.id),
-        entidade_nome: nomeReg,
-        titulo:        rule.gatilho_nome,
-        mensagem:      `Regra "${rule.gatilho_nome}" acionada para: ${nomeReg}`,
-        prioridade:    'media',
-        resolvido:     false,
-        created_at:    new Date().toISOString(),
-      })
+      const passou = avaliarRegra(fullRule, reg)
+      if (!passou && !fullRule.com_else) continue
+
+      const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.nome || `#${reg.id?.slice(0,8)}`
+      const acoesFire = passou ? fullRule.acoes : fullRule.acoes_else
+
+      // Cria notificação no painel para ações do tipo notificar
+      const temNotificar = acoesFire.some(a => a.tipo === 'notificar')
+      if (passou && temNotificar) {
+        novos.push({
+          tenant_id:     tenantId,
+          rule_id:       rule.id,
+          gatilho:       rule.gatilho_nome,
+          entidade_tipo: rule.origem,
+          entidade_id:   String(reg.id),
+          entidade_nome: nomeReg,
+          titulo:        rule.gatilho_nome,
+          mensagem:      `Regra "${rule.gatilho_nome}" acionada para: ${nomeReg}`,
+          prioridade:    'media',
+          resolvido:     false,
+          created_at:    new Date().toISOString(),
+        })
+      }
+
+      // Executa ações de email
+      await executarAcoes(acoesFire.filter(a => a.tipo === 'email'), reg, fullRule, tenantId)
     }
   }
 
@@ -222,8 +318,24 @@ async function executarEngine(tenantId) {
   return novos.length
 }
 
+// ─── Selector de usuário do sistema ──────────────────────────────────────────
+function UsuarioSelector({ tenantId, value, onChange }) {
+  const [usuarios, setUsuarios] = useState([])
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('profiles').select('id, full_name, email').eq('tenant_id', tenantId).order('full_name')
+      .then(({ data }) => setUsuarios(data || []))
+  }, [tenantId])
+  return (
+    <Sel value={value || ''} onChange={onChange}>
+      <option value="">Selecione o usuário…</option>
+      {usuarios.map(u => <option key={u.id} value={u.id}>{u.full_name || u.email}</option>)}
+    </Sel>
+  )
+}
+
 // ─── Editor de Condições ──────────────────────────────────────────────────────
-function CondicoesEditor({ origem, condicoes, operadorLogico, onChangeCondicoes, onChangeOperador }) {
+function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
   const [cfDefs] = useCustomFields(origem || 'oportunidades')
   const padrao  = CAMPOS_PADRAO[origem] || []
   const custom  = (cfDefs || []).map(f => ({ key: `cf.${f.key}`, label: `${f.label} ✦`, tipo: cfTipo(f.type), opts: f.options || [] }))
@@ -232,62 +344,75 @@ function CondicoesEditor({ origem, condicoes, operadorLogico, onChangeCondicoes,
   function update(id, patch) {
     onChangeCondicoes(condicoes.map(c => c.id === id ? { ...c, ...patch, ...(patch.campo ? { operador: '', valor: '' } : {}) } : c))
   }
+  function toggleLogico(id) {
+    onChangeCondicoes(condicoes.map(c => c.id === id ? { ...c, logico: c.logico === 'E' ? 'OU' : 'E' } : c))
+  }
   function add()      { onChangeCondicoes([...condicoes, newCond()]) }
   function remove(id) { onChangeCondicoes(condicoes.filter(c => c.id !== id)) }
 
   if (!origem) return <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Selecione uma origem primeiro.</p>
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {condicoes.length > 1 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Operador lógico entre condições:</span>
-          <button onClick={() => onChangeOperador(operadorLogico === 'E' ? 'OU' : 'E')}
-            style={{ ...btnSm(false), padding: '2px 14px', fontSize: 11 }}>
-            {operadorLogico || 'E'}
-          </button>
-        </div>
-      )}
-      {condicoes.map((c) => {
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+      {condicoes.map((c, idx) => {
         const campo = campos.find(f => f.key === c.campo)
         const ops   = campo ? (OPS[campo.tipo] || OPS.text) : []
         return (
-          <div key={c.id} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, alignItems: 'center' }}>
-            <Sel value={c.campo} onChange={v => update(c.id, { campo: v })}>
-              <option value="">Campo…</option>
-              {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
-            </Sel>
-            <Sel value={c.operador} onChange={v => update(c.id, { operador: v })}>
-              <option value="">Operador…</option>
-              {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
-            </Sel>
-            {campo?.tipo === 'enum'
-              ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })} style={{ flex: 1 }}>
-                  <option value="">Valor…</option>
-                  {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
-                </Sel>
-              : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
-                ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
-                      style={{ ...inp, width: 70 }} placeholder="0" />
-                    <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
-                  </div>
-                : campo?.tipo === 'money'
-                  ? <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
-                      <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+          <div key={c.id}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 6, alignItems: 'center' }}>
+              <Sel value={c.campo} onChange={v => update(c.id, { campo: v })}>
+                <option value="">Campo…</option>
+                {campos.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+              </Sel>
+              <Sel value={c.operador} onChange={v => update(c.id, { operador: v })}>
+                <option value="">Operador…</option>
+                {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </Sel>
+              {campo?.tipo === 'enum'
+                ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                    <option value="">Valor…</option>
+                    {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
+                  </Sel>
+                : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
+                  ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
+                        style={{ ...inp, width: 70 }} placeholder="0" />
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
                     </div>
-                  : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
-                      onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp, flex: 1 }} placeholder="Valor…" />
-            }
-            <button onClick={() => remove(c.id)} title="Remover condição"
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '6px 4px', flexShrink: 0 }}>
-              <Trash2 size={13} strokeWidth={2} />
-            </button>
+                  : campo?.tipo === 'money'
+                    ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
+                        <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+                      </div>
+                    : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
+                        onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="Valor…" />
+              }
+              <button onClick={() => remove(c.id)} title="Remover condição"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '6px 4px', flexShrink: 0 }}>
+                <Trash2 size={13} strokeWidth={2} />
+              </button>
+            </div>
+            {/* Separador E/OU entre condições */}
+            {idx < condicoes.length - 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '6px 0' }}>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                <button
+                  onClick={() => toggleLogico(c.id)}
+                  title="Clique para alternar E / OU"
+                  style={{ padding: '2px 14px', borderRadius: 99, fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)',
+                    background: c.logico === 'OU' ? 'color-mix(in srgb, #f59e0b 15%, transparent)' : 'color-mix(in srgb, var(--accent) 12%, transparent)',
+                    color: c.logico === 'OU' ? '#d97706' : 'var(--accent)',
+                    border: c.logico === 'OU' ? '1px solid #f59e0b' : '1px solid var(--accent)',
+                  }}>
+                  {c.logico || 'E'}
+                </button>
+                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+              </div>
+            )}
           </div>
         )
       })}
-      <button onClick={add} style={{ ...btnSm(false), alignSelf: 'flex-start', marginTop: 2 }}>
+      <button onClick={add} style={{ ...btnSm(false), alignSelf: 'flex-start', marginTop: 8 }}>
         <Plus size={11} strokeWidth={2.5} /> Adicionar condição
       </button>
     </div>
@@ -295,7 +420,7 @@ function CondicoesEditor({ origem, condicoes, operadorLogico, onChangeCondicoes,
 }
 
 // ─── Editor de Ações ──────────────────────────────────────────────────────────
-function AcoesEditor({ acoes, onChange }) {
+function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
   function update(id, patch) { onChange(acoes.map(a => a.id === id ? { ...a, ...patch } : a)) }
   function add()      { onChange([...acoes, newAcao()]) }
   function remove(id) { onChange(acoes.filter(a => a.id !== id)) }
@@ -306,7 +431,7 @@ function AcoesEditor({ acoes, onChange }) {
         <div key={a.id} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 14, background: 'var(--surface2)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Ação {idx + 1}
+              {label} {idx + 1}
             </span>
             {acoes.length > 1 && (
               <button onClick={() => remove(a.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 2 }}>
@@ -314,7 +439,7 @@ function AcoesEditor({ acoes, onChange }) {
               </button>
             )}
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: a.tipo !== 'notificar' ? 10 : 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: (a.tipo !== 'notificar' || a.destinatario_tipo === 'email_fixo' || a.destinatario_tipo === 'usuario_sistema') ? 10 : 0 }}>
             <div>
               <div style={lbl}>Tipo</div>
               <Sel value={a.tipo} onChange={v => update(a.id, { tipo: v })}>
@@ -337,6 +462,12 @@ function AcoesEditor({ acoes, onChange }) {
                 placeholder="email@exemplo.com" style={inp} type="email" />
             </div>
           )}
+          {a.destinatario_tipo === 'usuario_sistema' && tenantId && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={lbl}>Usuário</div>
+              <UsuarioSelector tenantId={tenantId} value={a.usuario_id} onChange={v => update(a.id, { usuario_id: v })} />
+            </div>
+          )}
           {a.tipo === 'email' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               <div>
@@ -348,7 +479,7 @@ function AcoesEditor({ acoes, onChange }) {
                 <div style={lbl}>Mensagem</div>
                 <textarea value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
                   style={{ ...inp, minHeight: 72, resize: 'vertical' }}
-                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}, {link}." />
+                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}." />
               </div>
             </div>
           )}
@@ -379,13 +510,14 @@ function AcoesEditor({ acoes, onChange }) {
 function rowToRule(r) {
   const cf = r.custom_fields || {}
   return {
-    id:              r.id,
-    gatilho_nome:    r.gatilho_nome || r.gatilho || '',
-    origem:          r.origem || '',
-    ativo:           r.ativo,
-    operador_logico: cf.operador_logico || 'E',
-    condicoes:       cf.condicoes || [newCond()],
-    acoes:           cf.acoes    || [newAcao()],
+    id:          r.id,
+    gatilho_nome:r.gatilho_nome || r.gatilho || '',
+    origem:      r.origem || '',
+    ativo:       r.ativo,
+    condicoes:   cf.condicoes   || [newCond()],
+    acoes:       cf.acoes       || [newAcao()],
+    acoes_else:  cf.acoes_else  || [],
+    com_else:    cf.com_else    || false,
   }
 }
 
@@ -401,9 +533,10 @@ function ruleToRow(f, tenantId, branchId) {
     modo:         'notificar',
     destinatarios: [],
     custom_fields: {
-      operador_logico: f.operador_logico || 'E',
-      condicoes:       f.condicoes,
-      acoes:           f.acoes,
+      condicoes:  f.condicoes,
+      acoes:      f.acoes,
+      acoes_else: f.acoes_else || [],
+      com_else:   f.com_else   || false,
     },
     updated_at: new Date().toISOString(),
   }
@@ -436,7 +569,6 @@ export default function SettingsAlertas() {
 
   useEffect(() => { if (tenantId) load(); else setLoading(false) }, [load, tenantId])
 
-  // Engine: roda ao montar e a cada 10 min
   useEffect(() => {
     if (!tenantId || engineRef.current) return
     engineRef.current = true
@@ -542,14 +674,41 @@ export default function SettingsAlertas() {
           <CondicoesEditor
             origem={editing.origem}
             condicoes={editing.condicoes}
-            operadorLogico={editing.operador_logico}
             onChangeCondicoes={v => setEditing(f => ({ ...f, condicoes: v }))}
-            onChangeOperador={v => setEditing(f => ({ ...f, operador_logico: v }))}
           />
         </FPESection>
 
-        <FPESection title="Ações ao disparar">
-          <AcoesEditor acoes={editing.acoes} onChange={v => setEditing(f => ({ ...f, acoes: v }))} />
+        <FPESection title="Ações — SE condições atendidas">
+          <AcoesEditor
+            acoes={editing.acoes}
+            onChange={v => setEditing(f => ({ ...f, acoes: v }))}
+            tenantId={tenantId}
+          />
+        </FPESection>
+
+        {/* Ramificação SENÃO */}
+        <FPESection title="Ramificação condicional (SENÃO)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+              <input type="checkbox" checked={editing.com_else || false}
+                onChange={e => setEditing(f => ({ ...f, com_else: e.target.checked, acoes_else: e.target.checked && !f.acoes_else?.length ? [newAcao()] : f.acoes_else || [] }))} />
+              <GitBranch size={13} strokeWidth={2} style={{ color: 'var(--text-muted)' }} />
+              Adicionar ações alternativas quando as condições <strong style={{ marginLeft: 2 }}>NÃO</strong> forem atendidas
+            </label>
+            {editing.com_else && (
+              <div style={{ padding: '12px 14px', borderRadius: 8, border: '1px dashed var(--border)', background: 'color-mix(in srgb, #f59e0b 5%, var(--surface))' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#d97706', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
+                  Ações SENÃO (condições não atendidas)
+                </div>
+                <AcoesEditor
+                  acoes={editing.acoes_else || []}
+                  onChange={v => setEditing(f => ({ ...f, acoes_else: v }))}
+                  tenantId={tenantId}
+                  label="Ação SENÃO"
+                />
+              </div>
+            )}
+          </div>
         </FPESection>
       </FullPageEdit>
     )
@@ -561,11 +720,13 @@ export default function SettingsAlertas() {
     { key: 'origem',       label: 'Origem',   render: (_, r) => origemMap[r.origem] || r.origem },
     { key: 'condicoes',    label: 'Condições',render: (_, r) => {
       const n = (r.condicoes || []).filter(c => c.campo).length
-      return `${n} condição(ões) · ${r.operador_logico || 'E'}`
+      return `${n} condição(ões)`
     }},
     { key: 'acoes', label: 'Ações', render: (_, r) => {
-      const tipos = { notificar: 'Painel', tarefa: 'Tarefa' }
-      return (r.acoes || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')
+      const tipos = { notificar: 'Painel', tarefa: 'Tarefa', email: 'Email' }
+      const se    = (r.acoes || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')
+      const senao = r.com_else && r.acoes_else?.length ? ` / SE NÃO: ${(r.acoes_else || []).map(a => tipos[a.tipo] || a.tipo).join(' + ')}` : ''
+      return se + senao
     }},
     { key: 'ativo', label: 'Status', render: (_, r) => (
       <button onClick={e => { e.stopPropagation(); toggleAtivo(r) }}
@@ -579,7 +740,6 @@ export default function SettingsAlertas() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Barra de status da engine */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: running ? 'var(--accent)' : '#22c55e', flexShrink: 0, display: 'inline-block' }} />
         <span>
@@ -593,7 +753,7 @@ export default function SettingsAlertas() {
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
         <SettingsLayout
           title="Alertas"
-          description="Regras automáticas que geram notificações no painel ou criam tarefas."
+          description="Regras automáticas que geram notificações no painel, enviam e-mails ou criam tarefas."
           columns={COLS} data={filtered} keyField="id"
           loading={loading} search={search} onSearchChange={setSearch}
           newLabel="Nova regra" onNew={() => setEditing(emptyRule())}
