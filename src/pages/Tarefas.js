@@ -897,6 +897,8 @@ export default function Tarefas() {
   const [filterTipo, setFilterTipo]             = useLocalState('tarefas:filterTipo2', [])
   const [filterPrioridade, setFilterPrioridade] = useLocalState('tarefas:filterPrioridade2', [])
   const [filterEntidade, setFilterEntidade]     = useLocalState('tarefas:filterEntidade2', [])
+  const [filterDateFrom, setFilterDateFrom]     = useLocalState('tarefas:filterDateFrom', '')
+  const [filterDateTo, setFilterDateTo]         = useLocalState('tarefas:filterDateTo', '')
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
@@ -905,6 +907,8 @@ export default function Tarefas() {
       if (filterTipo.length       && !filterTipo.includes(t.tipo))              return false
       if (filterPrioridade.length && !filterPrioridade.includes(t.prioridade))  return false
       if (filterEntidade.length   && !filterEntidade.includes(t.entidade_tipo)) return false
+      if (filterDateFrom && t.data_inicio && t.data_inicio.slice(0, 10) < filterDateFrom) return false
+      if (filterDateTo   && t.data_inicio && t.data_inicio.slice(0, 10) > filterDateTo)   return false
       if (q && !(t.titulo.toLowerCase().includes(q) || (t.entidade_nome||'').toLowerCase().includes(q) || (t.responsavel||'').toLowerCase().includes(q))) return false
       return true
     })
@@ -1107,6 +1111,29 @@ export default function Tarefas() {
         filters={filterDefs}
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
+        extraFilters={
+          <div>
+            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase',
+              letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8 }}>
+              Data de Início
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+              {[
+                { label:'De',  value: filterDateFrom, set: setFilterDateFrom },
+                { label:'Até', value: filterDateTo,   set: setFilterDateTo   },
+              ].map(({ label, value, set }) => (
+                <div key={label}>
+                  <div style={{ fontSize:10, color:'var(--text-muted)', marginBottom:4 }}>{label}</div>
+                  <input type="date" value={value} onChange={e => set(e.target.value)}
+                    style={{ width:'100%', boxSizing:'border-box', padding:'7px 9px',
+                      borderRadius:7, border:'1px solid var(--border)',
+                      background:'var(--surface2)', color:'var(--text)',
+                      fontSize:12, fontFamily:'var(--mono)', outline:'none' }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        }
         search={search}
         onSearchChange={setSearch}
         bulkActions={bulkActions}

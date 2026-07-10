@@ -15,13 +15,14 @@ const PAGE_SIZES = {
 }
 
 const PALETA = [
-  { tipo:'texto',   icon:'T',  label:'Texto'   },
-  { tipo:'kpi',     icon:'#',  label:'KPI'     },
-  { tipo:'grafico', icon:'▦',  label:'Gráfico' },
-  { tipo:'tabela',  icon:'⊞',  label:'Tabela'  },
-  { tipo:'imagem',  icon:'🖼', label:'Imagem'  },
-  { tipo:'divisor', icon:'—',  label:'Divisor' },
-  { tipo:'forma',   icon:'□',  label:'Forma'   },
+  { tipo:'texto',          icon:'T',  label:'Texto'    },
+  { tipo:'kpi',            icon:'#',  label:'KPI'      },
+  { tipo:'grafico',        icon:'▦',  label:'Gráfico'  },
+  { tipo:'tabela',         icon:'⊞',  label:'Tabela'   },
+  { tipo:'tabela_dinamica',icon:'⊟',  label:'Dinâmica' },
+  { tipo:'imagem',         icon:'🖼', label:'Imagem'   },
+  { tipo:'divisor',        icon:'—',  label:'Divisor'  },
+  { tipo:'forma',          icon:'□',  label:'Forma'    },
 ]
 
 const PALETA_SUBS = {
@@ -44,6 +45,10 @@ const PALETA_SUBS = {
   tabela: [
     { label:'Tabela completa', icon:'⊞', h:200, dados:{ limite:10, campos:[] } },
     { label:'Top 5',           icon:'⊤', h:140, dados:{ limite:5,  campos:[] } },
+  ],
+  tabela_dinamica: [
+    { label:'Resumo por campo', icon:'⊟', h:240, dados:{ titulo:'Resumo', campoAgrupador:'', colunas:[{id:'c1',tipo:'count',label:'Qtd'}], ordenar:'valor_desc', limite:20 } },
+    { label:'Funil Pipeline',   icon:'🔽', h:280, dados:{ titulo:'Funil por Etapa', sourceId:'pipeline', campoAgrupador:'etapa_nome', colunas:[{id:'c1',tipo:'count',label:'Qtd'},{id:'c2',tipo:'pct_total',label:'% do Total'},{id:'c3',tipo:'pct_prev',label:'Conversão'}], ordenar:'grupo_asc', limite:20 } },
   ],
   imagem: [
     { label:'Imagem URL',   icon:'🔗', h:200, dados:{ url:'', fit:'cover',   raio:0 } },
@@ -106,7 +111,11 @@ function fmtNum(v) {
 }
 
 function calcKpi(source, dados) {
-  const regs = source?.registros || []
+  let regs = source?.registros || []
+  if (dados.filtro?.campo && dados.filtro?.valor !== undefined) {
+    const fv = String(dados.filtro.valor)
+    regs = regs.filter(r => String(r[dados.filtro.campo] ?? '') === fv)
+  }
   if (dados.formula?.trim()) {
     try {
       const expr = dados.formula
@@ -141,20 +150,58 @@ function agrupar(registros, campoX, metrica, campoY) {
 }
 
 // ── Mini Charts ───────────────────────────────────────────────────────────────
-function MiniBar({ dados, cor }) {
+function fmtRotulo(valor, fmt) {
+  if (fmt === 'pct') return `${Number(valor).toFixed(1)}%`
+  if (fmt === 'pct_inteiro') return `${Math.round(valor)}%`
+  if (fmt === 'valor') return fmtNum(valor)
+  if (fmt === 'valor_inteiro') return String(Math.round(valor))
+  return fmtNum(valor)
+}
+
+function MiniBar({ dados, cor, rotulos }) {
   if (!dados?.length) return <span style={{color:'#a1a1aa',fontSize:11}}>Sem dados</span>
   const maxV = Math.max(...dados.map(d => d.valor), 1)
+  const total = dados.reduce((s,d) => s+d.valor, 0) || 1
+  const showLabel = rotulos?.ativo
+  const labelPos  = rotulos?.posicao || 'acima'   // 'acima' | 'dentro' | 'eixo'
+  const labelFmt  = rotulos?.formato || 'valor'
+  const labelSize = rotulos?.tamanho || 9
+  const labelCor  = rotulos?.cor || '#52525b'
+  const barW = 28, gap = 36
+  const vW = Math.max(dados.length * gap, 120)
+  const vH = showLabel && labelPos === 'acima' ? 90 : 80
+  const baseY = vH - 14
   return (
-    <svg viewBox={`0 0 ${Math.max(dados.length*36,120)} 80`} style={{width:'100%',height:'100%'}}>
+    <svg viewBox={`0 0 ${vW} ${vH}`} style={{width:'100%',height:'100%'}}>
       {dados.map((d, i) => {
-        const barH = Math.max(2, (d.valor/maxV)*56)
-        const x = i*36+4, y = 60-barH
+        const barH = Math.max(2, (d.valor/maxV)*(baseY - 8))
+        const x = i*gap+4, y = baseY - barH
+        const labelVal = labelFmt.startsWith('pct') ? (d.valor/total*100) : d.valor
+        const labelTxt = fmtRotulo(labelVal, labelFmt)
+        const labelY = labelPos === 'dentro' ? y + barH/2 + 3 : y - 3
+        const labelFill = labelPos === 'dentro' ? '#fff' : labelCor
         return (
           <g key={i}>
-            <rect x={x} y={y} width={28} height={barH} fill={cor||'#2563EB'} rx="2" opacity={0.85}/>
-            <text x={x+14} y={75} textAnchor="middle" fontSize="9" fill="#71717a">
-              {String(d.label).slice(0,5)}
+            <rect x={x} y={y} width={barW} height={barH} fill={cor||'#2563EB'} rx="2" opacity={0.85}/>
+            <text x={x+barW/2} y={baseY+11} textAnchor="middle" fontSize="9" fill="#71717a">
+              {String(d.label).slice(0,7)}
             </text>
+            {showLabel && labelPos !== 'eixo' && (
+              <text x={x+barW/2} y={labelY} textAnchor="middle" fontSize={labelSize} fill={labelFill} fontWeight="600">
+                {labelTxt}
+              </text>
+            )}
+          </g>
+        )
+      })}
+      {/* Eixo Y com valores */}
+      {showLabel && labelPos === 'eixo' && [0,0.25,0.5,0.75,1].map(frac => {
+        const val = maxV * frac
+        const y = baseY - frac*(baseY-8)
+        return (
+          <g key={frac}>
+            <line x1={0} y1={y} x2={vW} y2={y} stroke="#e4e4e7" strokeWidth="0.5" strokeDasharray="3,2"/>
+            <text x={2} y={y-2} fontSize={labelSize} fill={labelCor}>{fmtRotulo(val, labelFmt)}</text>
           </g>
         )
       })}
@@ -162,36 +209,88 @@ function MiniBar({ dados, cor }) {
   )
 }
 
-function MiniPie({ dados }) {
+function MiniPie({ dados, rotulos }) {
   if (!dados?.length) return <span style={{color:'#a1a1aa',fontSize:11}}>Sem dados</span>
   const CORES = ['#2563EB','#10B981','#F59E0B','#EF4444','#8B5CF6','#EC4899']
   const total = dados.reduce((s,d) => s+d.valor, 0) || 1
-  const CX=40, CY=40, R=35
+  const showLabel = rotulos?.ativo
+  const labelFmt  = rotulos?.formato || 'pct_inteiro'
+  const labelSize = rotulos?.tamanho || 8
+  // com legenda abaixo precisamos de mais espaço
+  const showLegend = rotulos?.legenda !== false
+  const VH = showLegend ? 100 : 80
+  const CX=40, CY=38, R=32
   let ang = -Math.PI/2
   const fatias = dados.slice(0,6).map((d,i) => {
     const frac = d.valor/total, ini=ang
     ang += frac*2*Math.PI
-    return { ...d, frac, ini, fim:ang, x1:CX+R*Math.cos(ini), y1:CY+R*Math.sin(ini), x2:CX+R*Math.cos(ang), y2:CY+R*Math.sin(ang), large:frac>0.5?1:0, cor:CORES[i%CORES.length] }
+    const mid = ini + frac*Math.PI
+    return { ...d, frac, ini, fim:ang,
+      x1:CX+R*Math.cos(ini), y1:CY+R*Math.sin(ini),
+      x2:CX+R*Math.cos(ang), y2:CY+R*Math.sin(ang),
+      mx:CX+(R*0.65)*Math.cos(mid), my:CY+(R*0.65)*Math.sin(mid),
+      large:frac>0.5?1:0, cor:CORES[i%CORES.length] }
   })
   return (
-    <svg viewBox="0 0 80 80" style={{width:'100%',height:'100%'}}>
+    <svg viewBox={`0 0 80 ${VH}`} style={{width:'100%',height:'100%'}}>
       {fatias.map((f,i) => (
-        <path key={i} d={`M${CX},${CY} L${f.x1},${f.y1} A${R},${R} 0 ${f.large},1 ${f.x2},${f.y2} Z`} fill={f.cor} opacity={0.85} stroke="white" strokeWidth="0.5"/>
+        <path key={i} d={`M${CX},${CY} L${f.x1},${f.y1} A${R},${R} 0 ${f.large},1 ${f.x2},${f.y2} Z`}
+          fill={f.cor} opacity={0.85} stroke="white" strokeWidth="0.5"/>
+      ))}
+      {showLabel && fatias.filter(f=>f.frac>0.04).map((f,i) => {
+        const txt = fmtRotulo(labelFmt.startsWith('pct') ? f.frac*100 : f.valor, labelFmt)
+        return <text key={i} x={f.mx} y={f.my} textAnchor="middle" fontSize={labelSize} fill="#fff" fontWeight="700">{txt}</text>
+      })}
+      {showLegend && fatias.map((f,i) => (
+        <g key={`leg-${i}`} transform={`translate(2,${CY+R+6+i*10})`}>
+          <rect width={7} height={7} fill={f.cor} rx={1}/>
+          <text x={10} y={6.5} fontSize={7} fill="#52525b">{String(f.label).slice(0,12)}</text>
+        </g>
       ))}
     </svg>
   )
 }
 
-function MiniLine({ dados, cor }) {
+function MiniLine({ dados, cor, rotulos }) {
   if (!dados?.length) return <span style={{color:'#a1a1aa',fontSize:11}}>Sem dados</span>
   const maxV = Math.max(...dados.map(d => d.valor), 1)
-  const W=120, H=60
-  const pts = dados.map((d,i) => ({ x:4+(i/(Math.max(dados.length-1,1)))*(W-8), y:4+(1-d.valor/maxV)*(H-8) }))
+  const showLabel = rotulos?.ativo
+  const labelFmt  = rotulos?.formato || 'valor'
+  const labelSize = rotulos?.tamanho || 8
+  const labelCor  = rotulos?.cor || '#52525b'
+  const W=120, H=70
+  const padT = showLabel ? 14 : 6
+  const pts = dados.map((d,i) => ({
+    x: 4+(i/(Math.max(dados.length-1,1)))*(W-8),
+    y: padT+(1-d.valor/maxV)*(H-padT-14),
+    v: d.valor, label: d.label
+  }))
   const poly = pts.map(p => `${p.x},${p.y}`).join(' ')
+  // área abaixo da linha
+  const area = `${pts[0].x},${H-14} ` + poly + ` ${pts[pts.length-1].x},${H-14} Z`
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{width:'100%',height:'100%'}}>
+      <defs>
+        <linearGradient id="linegrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={cor||'#2563EB'} stopOpacity="0.18"/>
+          <stop offset="100%" stopColor={cor||'#2563EB'} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d={`M ${area}`} fill="url(#linegrad)"/>
       <polyline points={poly} fill="none" stroke={cor||'#2563EB'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      {pts.map((p,i) => <circle key={i} cx={p.x} cy={p.y} r="2.5" fill={cor||'#2563EB'}/>)}
+      {pts.map((p,i) => (
+        <g key={i}>
+          <circle cx={p.x} cy={p.y} r="2.5" fill={cor||'#2563EB'}/>
+          {showLabel && (
+            <text x={p.x} y={p.y-5} textAnchor="middle" fontSize={labelSize} fill={labelCor} fontWeight="600">
+              {fmtRotulo(p.v, labelFmt)}
+            </text>
+          )}
+          <text x={p.x} y={H-4} textAnchor="middle" fontSize={7} fill="#a1a1aa">
+            {String(p.label).slice(0,5)}
+          </text>
+        </g>
+      ))}
     </svg>
   )
 }
@@ -238,9 +337,9 @@ function RenderEl({ el, source, sources }) {
       <div style={{display:'flex',flexDirection:'column',height:'100%',padding:4}}>
         {d.titulo && <div style={{fontSize:10,fontWeight:700,color:'#71717a',marginBottom:4}}>{d.titulo}</div>}
         <div style={{flex:1,minHeight:0}}>
-          {(d.tipoGrafico||'bar') === 'pie'  ? <MiniPie dados={dados}/> :
-           (d.tipoGrafico||'bar') === 'line' ? <MiniLine dados={dados} cor={cor}/> :
-           <MiniBar dados={dados} cor={cor}/>}
+          {(d.tipoGrafico||'bar') === 'pie'  ? <MiniPie dados={dados} rotulos={d.rotulos}/> :
+           (d.tipoGrafico||'bar') === 'line' ? <MiniLine dados={dados} cor={cor} rotulos={d.rotulos}/> :
+           <MiniBar dados={dados} cor={cor} rotulos={d.rotulos}/>}
         </div>
       </div>
     )
@@ -265,6 +364,235 @@ function RenderEl({ el, source, sources }) {
           ))}
         </tbody>
       </table>
+    )
+  }
+
+  if (el.tipo === 'tabela_dinamica') {
+    const allRegs = source?.registros || []
+    const colunas = d.colunas || [{id:'c1',tipo:'count',label:'Qtd'}]
+
+    // Expande colunas do tipo 'dimensao' em N colunas virtuais (pivot)
+    function expandColunas(cols, allRows) {
+      const result = []
+      cols.forEach(col => {
+        if (col.tipo === 'dimensao' && col.campo) {
+          const vals = [...new Set(allRows.map(r => String(r[col.campo] ?? '—')))]
+            .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+          vals.forEach(val => {
+            result.push({
+              id: `${col.id}_${val}`,
+              tipo: col.metrica || 'count',
+              label: val,
+              campo: col.campoDado || '',
+              filtro: { campo: col.campo, valor: val },
+              _pivotGrupo: col.label || col.campo,
+              _pivotId: col.id,
+            })
+          })
+        } else {
+          result.push(col)
+        }
+      })
+      return result
+    }
+    const colunasExp = expandColunas(colunas, allRegs)
+
+    // Compat: suporta campoAgrupador (legado) e camposAgrupadores (novo)
+    const niveis = d.camposAgrupadores?.length
+      ? d.camposAgrupadores
+      : d.campoAgrupador
+        ? [{ campo: d.campoAgrupador, granularidade: d.granularidade || 'nenhuma' }]
+        : []
+
+    // Filtro de período
+    const periodo = d.periodo || {}
+    const regs = (periodo.campo && (periodo.de || periodo.ate))
+      ? allRegs.filter(r => {
+          const v = String(r[periodo.campo] || '')
+          if (periodo.de && v < periodo.de) return false
+          if (periodo.ate && v > periodo.ate) return false
+          return true
+        })
+      : allRegs
+
+    if (!niveis.length || !niveis[0].campo || !allRegs.length) {
+      return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100%',color:'#a1a1aa',fontSize:12}}>Configure a fonte e o campo de agrupamento</div>
+    }
+
+    // Helper: granularidade de data
+    const DIAS_PT = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
+    const MESES_PT = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+    function aplicarGran(val, gran) {
+      if (!gran || gran === 'nenhuma' || !val || val === '—') return String(val ?? '—')
+      const s = String(val)
+      const d0 = new Date(s.length === 7 ? s+'-01' : s)
+      if (isNaN(d0)) return s
+      switch(gran) {
+        case 'dia':        return s.slice(0,10)
+        case 'dia_semana': return DIAS_PT[d0.getDay()]
+        case 'semana': {
+          const thu = new Date(d0); thu.setDate(d0.getDate()-((d0.getDay()+6)%7)+3)
+          const yr = new Date(thu.getFullYear(),0,1)
+          return `S${String(Math.ceil(((thu-yr)/86400000+1)/7)).padStart(2,'0')}/${thu.getFullYear()}`
+        }
+        case 'mes':        return `${MESES_PT[d0.getMonth()]}/${d0.getFullYear()}`
+        case 'trimestre':  return `T${Math.ceil((d0.getMonth()+1)/3)}/${d0.getFullYear()}`
+        case 'ano':        return String(d0.getFullYear())
+        default:           return s
+      }
+    }
+
+    // Agrupamento recursivo: retorna árvore de nós { key, rows, children }
+    function agruparNiveis(rows, niveisRestantes, ord) {
+      if (!niveisRestantes.length) return []
+      const { campo, granularidade } = niveisRestantes[0]
+      const map = {}
+      rows.forEach(r => {
+        const k = aplicarGran(r[campo], granularidade)
+        if (!map[k]) map[k] = []
+        map[k].push(r)
+      })
+      let nos = Object.entries(map).map(([key, subRows]) => ({
+        key, rows: subRows,
+        children: niveisRestantes.length > 1 ? agruparNiveis(subRows, niveisRestantes.slice(1), ord) : []
+      }))
+      if (ord === 'valor_desc') nos.sort((a,b) => b.rows.length - a.rows.length)
+      else if (ord === 'valor_asc') nos.sort((a,b) => a.rows.length - b.rows.length)
+      else nos.sort((a,b) => a.key.localeCompare(b.key, 'pt-BR'))
+      return nos
+    }
+
+    const ord = d.ordenar || 'valor_desc'
+    const arvore = agruparNiveis(regs, niveis, ord)
+    const total = regs.length
+
+    // Achatar árvore em linhas planas com nível de indentação
+    function achatar(nos, nivel = 0, parentRows = null, parentPrevRows = null, limite = 9999) {
+      const resultado = []
+      nos.slice(0, nivel === 0 ? limite : 9999).forEach((no, idx) => {
+        resultado.push({ key: no.key, rows: no.rows, nivel, idx, siblings: nos, parentRows, parentPrevRows })
+        if (no.children.length) {
+          resultado.push(...achatar(no.children, nivel + 1, no.rows, no.rows))
+        }
+      })
+      return resultado
+    }
+    const linhasFlat = achatar(arvore, 0, null, null, d.limite || 20)
+
+    const calcCol = (col, rows, siblings, idx, parentRows, parentPrevRows) => {
+      // Filtro embutido na coluna: {campo, valor} — ex: situacao='ganho'
+      const filtro = col.filtro
+      const rowsFiltrados = filtro?.campo && filtro?.valor !== undefined
+        ? rows.filter(r => String(r[filtro.campo]||'') === String(filtro.valor))
+        : rows
+      const numField = col.campo
+      const nums = numField ? rowsFiltrados.map(r => Number(r[numField]||0)) : rowsFiltrados.map(()=>1)
+      const soma = nums.reduce((s,v)=>s+v,0)
+      switch(col.tipo) {
+        case 'count':     return rowsFiltrados.length
+        case 'sum':       return soma
+        case 'avg':       return rowsFiltrados.length ? soma/rowsFiltrados.length : 0
+        case 'pct_total': return total > 0 ? (rowsFiltrados.length / total * 100) : 0
+        case 'pct_group': {
+          // % do filtro dentro do próprio grupo (ex: ganhos/total do grupo)
+          return rows.length > 0 ? (rowsFiltrados.length / rows.length * 100) : 0
+        }
+        case 'pct_parent': {
+          const parentLen = parentRows?.length || total
+          return parentLen > 0 ? (rowsFiltrados.length / parentLen * 100) : 0
+        }
+        case 'pct_prev': {
+          if (idx === 0) return parentPrevRows ? (rowsFiltrados.length / parentPrevRows.length * 100) : 100
+          const prev = siblings[idx - 1]
+          return prev?.rows.length > 0 ? (rowsFiltrados.length / prev.rows.length * 100) : 0
+        }
+        default: return rowsFiltrados.length
+      }
+    }
+
+    const isPercent = (col) => ['pct_total','pct_prev','pct_parent','pct_group'].includes(col.tipo)
+    const fmt = (v, col) => {
+      if (isPercent(col)) return `${v.toFixed(1)}%`
+      if (col.tipo === 'count') return String(Math.round(v))
+      if (col.tipo === 'sum' || col.tipo === 'avg') return fmtNum(v)
+      return fmtNum(v)
+    }
+
+    const thStyle = {padding:'4px 8px',textAlign:'left',fontWeight:700,color:'#71717a',fontSize:9,textTransform:'uppercase',letterSpacing:'0.05em',borderBottom:'1px solid #e4e4e7',whiteSpace:'nowrap',background:'#f4f4f5'}
+    const tdStyle = (nivel) => ({padding:'3px 8px',color: nivel===0?'#1e293b':'#52525b',borderBottom:'1px solid #f4f4f5',whiteSpace:'nowrap',fontSize:10,fontWeight:nivel===0&&niveis.length>1?600:400})
+
+    const periodoLabel = (periodo.campo && (periodo.de || periodo.ate))
+      ? [periodo.de, periodo.ate].filter(Boolean).join(' → ')
+      : null
+
+    const headerLabel = niveis.map(n => source?.fields?.find(f=>f.key===n.campo)?.label || n.campo).join(' › ')
+
+    return (
+      <div style={{display:'flex',flexDirection:'column',height:'100%',overflow:'hidden'}}>
+        <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between',padding:'4px 8px',flexShrink:0,gap:8}}>
+          {d.titulo && <div style={{fontSize:10,fontWeight:700,color:'#71717a'}}>{d.titulo}</div>}
+          {periodoLabel && <div style={{fontSize:8,color:'#2563eb',background:'#eff6ff',borderRadius:4,padding:'1px 6px',whiteSpace:'nowrap',flexShrink:0}}>📅 {periodoLabel} · {regs.length} reg.</div>}
+        </div>
+        <div style={{flex:1,overflowY:'auto'}}>
+          <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
+            <thead style={{position:'sticky',top:0}}>
+              {/* Grupo header para colunas pivot (dimensao) */}
+              {colunasExp.some(c => c._pivotGrupo) && (() => {
+                const grupos = []
+                let i = 0
+                while (i < colunasExp.length) {
+                  const g = colunasExp[i]._pivotGrupo
+                  if (g) {
+                    let span = 0
+                    while (i + span < colunasExp.length && colunasExp[i + span]._pivotId === colunasExp[i]._pivotId) span++
+                    grupos.push({ label: g, span, isPivot: true })
+                    i += span
+                  } else {
+                    grupos.push({ label: colunasExp[i].label, span: 1, isPivot: false })
+                    i++
+                  }
+                }
+                return (
+                  <tr>
+                    <th style={thStyle}></th>
+                    {grupos.map((g, gi) => (
+                      <th key={gi} colSpan={g.span} style={{...thStyle, textAlign:'center', borderLeft: g.isPivot ? '2px solid #e4e4e7' : undefined, color: g.isPivot ? '#2563eb' : '#71717a', background: g.isPivot ? '#eff6ff' : '#f4f4f5'}}>
+                        {g.isPivot ? g.label : ''}
+                      </th>
+                    ))}
+                  </tr>
+                )
+              })()}
+              <tr>
+                <th style={thStyle}>{headerLabel}</th>
+                {colunasExp.map(col => <th key={col.id} style={{...thStyle,textAlign:'right', borderLeft: col._pivotGrupo ? '1px solid #e4e4e7' : undefined}}>{col.label}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {linhasFlat.map(({key, rows, nivel, idx, siblings, parentRows, parentPrevRows}, ri) => {
+                const vals = colunasExp.map(col => calcCol(col, rows, siblings, idx, parentRows, parentPrevRows))
+                const isParent = nivel < niveis.length - 1
+                return (
+                  <tr key={`${nivel}-${key}-${ri}`} style={{background: nivel===0&&niveis.length>1 ? '#f1f5f9' : ri%2?'#fafafa':'#fff'}}>
+                    <td style={{...tdStyle(nivel), paddingLeft: 8 + nivel * 14}}>
+                      {isParent && <span style={{marginRight:4,color:'#94a3b8',fontSize:8}}>▸</span>}
+                      {key}
+                    </td>
+                    {colunasExp.map((col, ci) => (
+                      <td key={col.id} style={{...tdStyle(nivel),textAlign:'right',
+                        borderLeft: col._pivotGrupo ? '1px solid #f0f0f0' : undefined,
+                        color: isPercent(col) && vals[ci]<50 ? '#ef4444' : isPercent(col) && vals[ci]>=80 ? '#10b981' : nivel===0&&niveis.length>1?'#1e293b':'#52525b',
+                        fontWeight: isPercent(col)||isParent?600:400}}>
+                        {fmt(vals[ci], col)}
+                      </td>
+                    ))}
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
     )
   }
 
@@ -512,10 +840,10 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
 
         {aba==='el' && el && (<>
           {/* Fonte de dados */}
-          {['kpi','grafico','tabela'].includes(el.tipo) && (
+          {['kpi','grafico','tabela','tabela_dinamica'].includes(el.tipo) && (
             <div>
               <label style={lbl}>Fonte de dados</label>
-              <select style={inp} value={d.sourceId||''} onChange={e=>upd({sourceId:e.target.value,campoX:'',campoY:'',campos:[]})}>
+              <select style={inp} value={d.sourceId||''} onChange={e=>upd({sourceId:e.target.value,campoX:'',campoY:'',campos:[],campoAgrupador:''})}>
                 <option value="">— selecionar —</option>
                 {sources.map(s=><option key={s.id} value={s.id}>{s.icon} {s.label} ({s.registros.length})</option>)}
               </select>
@@ -574,23 +902,254 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
             </div>
           )}
 
-          {/* Campos tabela */}
+          {/* Campos tabela com reordenação */}
           {el.tipo==='tabela' && source && (
             <div>
-              <label style={lbl}>Campos visíveis</label>
-              {source.fields.map(f=>{
-                const sel = (d.campos||[]).includes(f.key)
+              <label style={lbl}>Campos visíveis (arraste para reordenar)</label>
+              {/* Campos selecionados — reordenáveis */}
+              {(d.campos||[]).filter(k => source.fields.find(f=>f.key===k)).map((k, ci, arr) => {
+                const f = source.fields.find(f=>f.key===k)
                 return (
-                  <label key={f.key} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text-soft)',cursor:'pointer',marginBottom:3}}>
-                    <input type="checkbox" checked={sel} style={{accentColor:'var(--accent)'}} onChange={()=>{
-                      const cur = d.campos||[]
-                      upd({campos:sel?cur.filter(k=>k!==f.key):[...cur,f.key]})
-                    }}/> {f.label}
-                  </label>
+                  <div key={k} style={{display:'flex',alignItems:'center',gap:4,marginBottom:3}}>
+                    <input type="checkbox" checked={true} style={{accentColor:'var(--accent)',flexShrink:0}} onChange={()=>{
+                      upd({campos:(d.campos||[]).filter(c=>c!==k)})
+                    }}/>
+                    <span style={{flex:1,fontSize:11,color:'var(--text-soft)'}}>{f.label}</span>
+                    <button disabled={ci===0} onClick={()=>{const c=[...arr];[c[ci-1],c[ci]]=[c[ci],c[ci-1]];upd({campos:c})}}
+                      style={{padding:'1px 5px',fontSize:10,border:'1px solid var(--border)',borderRadius:3,background:'var(--surface2)',cursor:ci===0?'default':'pointer',color:ci===0?'var(--text-muted)':'var(--text)',fontFamily:'var(--font)',lineHeight:1.2}}>↑</button>
+                    <button disabled={ci===arr.length-1} onClick={()=>{const c=[...arr];[c[ci],c[ci+1]]=[c[ci+1],c[ci]];upd({campos:c})}}
+                      style={{padding:'1px 5px',fontSize:10,border:'1px solid var(--border)',borderRadius:3,background:'var(--surface2)',cursor:ci===arr.length-1?'default':'pointer',color:ci===arr.length-1?'var(--text-muted)':'var(--text)',fontFamily:'var(--font)',lineHeight:1.2}}>↓</button>
+                  </div>
                 )
               })}
-              <label style={lbl}>Limite de linhas</label>
-              <input type="number" style={inp} min={1} max={100} value={d.limite||10} onChange={e=>upd({limite:Number(e.target.value)})}/>
+              {/* Campos não selecionados */}
+              {source.fields.filter(f=>!(d.campos||[]).includes(f.key)).map(f=>(
+                <label key={f.key} style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text-muted)',cursor:'pointer',marginBottom:3}}>
+                  <input type="checkbox" checked={false} style={{accentColor:'var(--accent)'}} onChange={()=>{
+                    upd({campos:[...(d.campos||[]),f.key]})
+                  }}/> {f.label}
+                </label>
+              ))}
+              <label style={{...lbl,marginTop:6}}>Limite de linhas</label>
+              <input type="number" style={inp} min={1} max={500} value={d.limite||10} onChange={e=>upd({limite:Number(e.target.value)})}/>
+            </div>
+          )}
+
+          {/* Tabela dinâmica — configuração */}
+          {el.tipo==='tabela_dinamica' && source && (
+            <div style={{display:'flex',flexDirection:'column',gap:8}}>
+
+              {/* Filtro de período */}
+              <div style={{background:'var(--surface2)',borderRadius:6,padding:'8px 10px',border:'1px solid var(--border)'}}>
+                <label style={{...lbl,marginBottom:6,display:'flex',alignItems:'center',gap:5}}>
+                  📅 Filtro de Período
+                </label>
+                <label style={lbl}>Campo de data</label>
+                <select style={{...inp,marginBottom:6}} value={d.periodo?.campo||''} onChange={e=>upd({periodo:{...(d.periodo||{}),campo:e.target.value}})}>
+                  <option value="">— sem filtro —</option>
+                  {source.fields.filter(f=>f.type==='date'||f.key.includes('_at')||f.key.includes('mes')||f.key.includes('semana')).map(f=>
+                    <option key={f.key} value={f.key}>{f.label}</option>
+                  )}
+                </select>
+                {d.periodo?.campo && (<>
+                  <div style={{display:'flex',gap:6}}>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>De</label>
+                      <input type="date" style={inp} value={d.periodo?.de||''} onChange={e=>upd({periodo:{...d.periodo,de:e.target.value}})}/>
+                    </div>
+                    <div style={{flex:1}}>
+                      <label style={lbl}>Até</label>
+                      <input type="date" style={inp} value={d.periodo?.ate||''} onChange={e=>upd({periodo:{...d.periodo,ate:e.target.value}})}/>
+                    </div>
+                  </div>
+                  {/* Atalhos rápidos */}
+                  <div style={{display:'flex',flexWrap:'wrap',gap:3,marginTop:5}}>
+                    {[
+                      { l:'Este mês', calc:()=>{ const n=new Date(); const y=n.getFullYear(),m=String(n.getMonth()+1).padStart(2,'0'); return {de:`${y}-${m}-01`,ate:`${y}-${m}-31`} } },
+                      { l:'Mês passado', calc:()=>{ const n=new Date(new Date().getFullYear(),new Date().getMonth()-1,1); const y=n.getFullYear(),m=String(n.getMonth()+1).padStart(2,'0'); return {de:`${y}-${m}-01`,ate:`${y}-${m}-31`} } },
+                      { l:'Este ano', calc:()=>{ const y=new Date().getFullYear(); return {de:`${y}-01-01`,ate:`${y}-12-31`} } },
+                      { l:'Limpar', calc:()=>({de:'',ate:''}) },
+                    ].map(s=>(
+                      <button key={s.l} onClick={()=>{ const r=s.calc(); upd({periodo:{...d.periodo,...r}}) }}
+                        style={{fontSize:9,padding:'2px 6px',border:'1px solid var(--border)',borderRadius:4,background:'var(--surface)',cursor:'pointer',color:'var(--text-muted)',fontFamily:'var(--font)'}}>
+                        {s.l}
+                      </button>
+                    ))}
+                  </div>
+                </>)}
+              </div>
+
+              {/* Níveis de agrupamento (multi-nível) */}
+              {(() => {
+                const nivelAtual = d.camposAgrupadores?.length
+                  ? d.camposAgrupadores
+                  : d.campoAgrupador
+                    ? [{ campo: d.campoAgrupador, granularidade: d.granularidade || 'nenhuma' }]
+                    : []
+                const isDateField = (campo) => {
+                  const f = source.fields.find(f=>f.key===campo)
+                  return f && (f.type==='date'||campo.includes('_at')||campo.includes('mes')||campo.includes('semana')||campo.includes('created'))
+                }
+                const GRAN_OPTS = [
+                  {v:'nenhuma',l:'Bruto'},{v:'dia',l:'Dia'},{v:'dia_semana',l:'Dia sem.'},
+                  {v:'semana',l:'Semana'},{v:'mes',l:'Mês'},{v:'trimestre',l:'Trim.'},{v:'ano',l:'Ano'},
+                ]
+                const setNiveis = (novos) => upd({ camposAgrupadores: novos, campoAgrupador: novos[0]?.campo || '', granularidade: novos[0]?.granularidade || 'nenhuma' })
+                return (
+                  <div>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                      <span style={lbl}>Agrupar por (níveis)</span>
+                      <button onClick={()=>setNiveis([...nivelAtual,{campo:'',granularidade:'nenhuma'}])}
+                        style={{fontSize:10,padding:'2px 7px',border:'1px solid var(--accent)',borderRadius:4,background:'none',cursor:'pointer',color:'var(--accent)',fontFamily:'var(--font)'}}>+ Nível</button>
+                    </div>
+                    {nivelAtual.map((niv, ni) => (
+                      <div key={ni} style={{border:'1px solid var(--border)',borderRadius:6,padding:'6px 8px',marginBottom:6,background:'var(--surface2)'}}>
+                        <div style={{display:'flex',gap:4,alignItems:'center',marginBottom:isDateField(niv.campo)?4:0}}>
+                          <span style={{fontSize:9,color:'var(--text-muted)',flexShrink:0,fontWeight:700}}>N{ni+1}</span>
+                          <select style={{...inp,flex:1}} value={niv.campo||''} onChange={e=>{
+                            const novos=[...nivelAtual]; novos[ni]={campo:e.target.value,granularidade:'nenhuma'}; setNiveis(novos)
+                          }}>
+                            <option value="">— campo —</option>
+                            {source.fields.map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+                          </select>
+                          {nivelAtual.length > 1 && (
+                            <button onClick={()=>setNiveis(nivelAtual.filter((_,i)=>i!==ni))}
+                              style={{padding:'3px 6px',border:'1px solid #fca5a5',borderRadius:4,background:'none',cursor:'pointer',color:'#ef4444',fontSize:11,fontFamily:'var(--font)'}}>✕</button>
+                          )}
+                        </div>
+                        {niv.campo && isDateField(niv.campo) && (
+                          <div style={{display:'flex',flexWrap:'wrap',gap:2,marginTop:2}}>
+                            {GRAN_OPTS.map(g=>(
+                              <button key={g.v} onClick={()=>{const novos=[...nivelAtual];novos[ni]={...niv,granularidade:g.v};setNiveis(novos)}}
+                                style={{fontSize:9,padding:'2px 5px',border:`1px solid ${(niv.granularidade||'nenhuma')===g.v?'var(--accent)':'var(--border)'}`,borderRadius:4,
+                                  background:(niv.granularidade||'nenhuma')===g.v?'var(--accent)11':'none',
+                                  cursor:'pointer',color:(niv.granularidade||'nenhuma')===g.v?'var(--accent)':'var(--text-muted)',fontFamily:'var(--font)'}}>
+                                {g.l}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {!nivelAtual.length && (
+                      <div style={{fontSize:11,color:'var(--text-muted)',textAlign:'center',padding:'6px 0'}}>Clique em + Nível para começar</div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              <div>
+                <label style={lbl}>Ordenação</label>
+                <select style={inp} value={d.ordenar||'valor_desc'} onChange={e=>upd({ordenar:e.target.value})}>
+                  <option value="valor_desc">Maior primeiro</option>
+                  <option value="valor_asc">Menor primeiro</option>
+                  <option value="grupo_asc">Alfabética</option>
+                </select>
+              </div>
+              <div>
+                <label style={lbl}>Limite de linhas</label>
+                <input type="number" style={inp} min={1} max={200} value={d.limite||20} onChange={e=>upd({limite:Number(e.target.value)})}/>
+              </div>
+              <div>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:4}}>
+                  <span style={lbl}>Colunas de métricas</span>
+                  <button onClick={()=>{
+                    const cols = d.colunas||[]
+                    upd({colunas:[...cols,{id:`c${Date.now()}`,tipo:'count',label:'Qtd',campo:''}]})
+                  }} style={{fontSize:10,padding:'2px 7px',border:'1px solid var(--accent)',borderRadius:4,background:'none',cursor:'pointer',color:'var(--accent)',fontFamily:'var(--font)'}}>+ Coluna</button>
+                </div>
+                {(d.colunas||[]).map((col,ci)=>(
+                  <div key={col.id} style={{border:'1px solid var(--border)',borderRadius:6,padding:'6px 8px',marginBottom:6,background:'var(--surface2)'}}>
+                    <div style={{display:'flex',gap:4,marginBottom:4}}>
+                      <input style={{...inp,flex:1}} placeholder="Label" value={col.label||''} onChange={e=>{
+                        const cols=[...(d.colunas||[])]; cols[ci]={...col,label:e.target.value}; upd({colunas:cols})
+                      }}/>
+                      <button onClick={()=>{const cols=(d.colunas||[]).filter((_,i)=>i!==ci);upd({colunas:cols})}}
+                        style={{padding:'4px 7px',border:'1px solid #fca5a5',borderRadius:5,background:'none',cursor:'pointer',color:'#ef4444',fontSize:12,fontFamily:'var(--font)'}}>✕</button>
+                    </div>
+                    <select style={{...inp,marginBottom:4}} value={col.tipo||'count'} onChange={e=>{
+                      const cols=[...(d.colunas||[])]; cols[ci]={...col,tipo:e.target.value}; upd({colunas:cols})
+                    }}>
+                      <optgroup label="Métricas simples">
+                        <option value="count">Qtd (COUNT)</option>
+                        <option value="sum">Soma (SUM)</option>
+                        <option value="avg">Média (AVG)</option>
+                      </optgroup>
+                      <optgroup label="Percentuais">
+                        <option value="pct_total">% do Total geral</option>
+                        <option value="pct_group">% do Grupo (com filtro)</option>
+                        <option value="pct_parent">% do Grupo Pai</option>
+                        <option value="pct_prev">% Conversão (vs anterior)</option>
+                      </optgroup>
+                      <optgroup label="Pivot">
+                        <option value="dimensao">Por Dimensão (pivot automático)</option>
+                      </optgroup>
+                    </select>
+
+                    {/* Pivot por dimensão */}
+                    {col.tipo === 'dimensao' && (<>
+                      <label style={{...lbl,marginTop:2}}>Campo da dimensão</label>
+                      <select style={{...inp,marginBottom:4}} value={col.campo||''} onChange={e=>{
+                        const cols=[...(d.colunas||[])]; cols[ci]={...col,campo:e.target.value}; upd({colunas:cols})
+                      }}>
+                        <option value="">— selecione o campo —</option>
+                        {source.fields.map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+                      </select>
+                      <label style={lbl}>Métrica por valor</label>
+                      <select style={{...inp,marginBottom:4}} value={col.metrica||'count'} onChange={e=>{
+                        const cols=[...(d.colunas||[])]; cols[ci]={...col,metrica:e.target.value}; upd({colunas:cols})
+                      }}>
+                        <option value="count">Qtd (COUNT)</option>
+                        <option value="sum">Soma (SUM)</option>
+                        <option value="avg">Média (AVG)</option>
+                        <option value="pct_group">% do Grupo</option>
+                        <option value="pct_parent">% do Grupo Pai</option>
+                        <option value="pct_total">% do Total</option>
+                      </select>
+                      {['sum','avg'].includes(col.metrica) && (
+                        <select style={{...inp,marginBottom:4}} value={col.campoDado||''} onChange={e=>{
+                          const cols=[...(d.colunas||[])]; cols[ci]={...col,campoDado:e.target.value,campo_num:e.target.value}; upd({colunas:cols})
+                        }}>
+                          <option value="">— campo numérico —</option>
+                          {source.fields.filter(f=>f.type==='number').map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+                        </select>
+                      )}
+                      <div style={{fontSize:9,color:'var(--text-muted)',background:'var(--surface)',borderRadius:4,padding:'4px 6px',marginTop:2}}>
+                        Gera 1 coluna por valor único do campo selecionado
+                      </div>
+                    </>)}
+
+                    {col.tipo !== 'dimensao' && (<>
+                      {['sum','avg'].includes(col.tipo) && (
+                        <select style={{...inp,marginBottom:4}} value={col.campo||''} onChange={e=>{
+                          const cols=[...(d.colunas||[])]; cols[ci]={...col,campo:e.target.value}; upd({colunas:cols})
+                        }}>
+                          <option value="">— campo numérico —</option>
+                          {source.fields.filter(f=>f.type==='number').map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+                        </select>
+                      )}
+                      {/* Filtro embutido na coluna */}
+                      <div style={{display:'flex',gap:4,alignItems:'center',marginTop:2}}>
+                        <select style={{...inp,flex:1,fontSize:10}} value={col.filtro?.campo||''} onChange={e=>{
+                          const cols=[...(d.colunas||[])]; cols[ci]={...col,filtro:{...(col.filtro||{}),campo:e.target.value,valor:''}}; upd({colunas:cols})
+                        }}>
+                          <option value="">sem filtro</option>
+                          {source.fields.filter(f=>f.type==='text').map(f=><option key={f.key} value={f.key}>{f.label}</option>)}
+                        </select>
+                        {col.filtro?.campo && (
+                          <input style={{...inp,flex:1,fontSize:10}} placeholder="valor" value={col.filtro?.valor||''} onChange={e=>{
+                            const cols=[...(d.colunas||[])]; cols[ci]={...col,filtro:{...col.filtro,valor:e.target.value}}; upd({colunas:cols})
+                          }}/>
+                        )}
+                      </div>
+                    </>)}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <label style={lbl}>Título</label>
+                <input style={inp} value={d.titulo||''} onChange={e=>upd({titulo:e.target.value})}/>
+              </div>
             </div>
           )}
 
@@ -618,6 +1177,57 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Rótulos de dados — gráficos */}
+          {el.tipo === 'grafico' && (
+            <div style={{borderTop:'1px solid var(--border)',paddingTop:10}}>
+              <label style={{...lbl,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                Rótulos de dados
+                <label style={{display:'flex',alignItems:'center',gap:5,fontWeight:400,textTransform:'none',letterSpacing:0,cursor:'pointer'}}>
+                  <input type="checkbox" checked={!!d.rotulos?.ativo} style={{accentColor:'var(--accent)'}}
+                    onChange={e=>upd({rotulos:{...(d.rotulos||{}),ativo:e.target.checked}})}/>
+                  <span style={{fontSize:11,color:'var(--text-soft)'}}>Exibir</span>
+                </label>
+              </label>
+              {d.rotulos?.ativo && (<>
+                <label style={{...lbl,marginTop:6}}>Formato</label>
+                <select style={inp} value={d.rotulos?.formato||'valor'} onChange={e=>upd({rotulos:{...d.rotulos,formato:e.target.value}})}>
+                  <option value="valor">Valor (ex: 1.234)</option>
+                  <option value="valor_inteiro">Valor inteiro (ex: 1234)</option>
+                  <option value="pct_inteiro">% inteiro (ex: 42%)</option>
+                  <option value="pct">% decimal (ex: 42.3%)</option>
+                </select>
+                {(d.tipoGrafico||'bar') === 'bar' && (<>
+                  <label style={{...lbl,marginTop:6}}>Posição</label>
+                  <select style={inp} value={d.rotulos?.posicao||'acima'} onChange={e=>upd({rotulos:{...d.rotulos,posicao:e.target.value}})}>
+                    <option value="acima">Acima da barra</option>
+                    <option value="dentro">Dentro da barra</option>
+                    <option value="eixo">Linhas de grade + valores no eixo</option>
+                  </select>
+                </>)}
+                {(d.tipoGrafico||'bar') === 'pie' && (
+                  <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text-soft)',cursor:'pointer',marginTop:6}}>
+                    <input type="checkbox" checked={d.rotulos?.legenda !== false} style={{accentColor:'var(--accent)'}}
+                      onChange={e=>upd({rotulos:{...d.rotulos,legenda:e.target.checked}})}/>
+                    Mostrar legenda
+                  </label>
+                )}
+                <div style={{display:'flex',gap:6,marginTop:6}}>
+                  <div style={{flex:1}}>
+                    <label style={lbl}>Tamanho (px)</label>
+                    <input type="number" style={inp} min={6} max={16} value={d.rotulos?.tamanho||9}
+                      onChange={e=>upd({rotulos:{...d.rotulos,tamanho:Number(e.target.value)}})}/>
+                  </div>
+                  <div style={{flex:1}}>
+                    <label style={lbl}>Cor</label>
+                    <input type="color" value={d.rotulos?.cor||'#52525b'}
+                      onChange={e=>upd({rotulos:{...d.rotulos,cor:e.target.value}})}
+                      style={{width:'100%',height:28,border:'1px solid var(--border)',borderRadius:5,cursor:'pointer',padding:1}}/>
+                  </div>
+                </div>
+              </>)}
             </div>
           )}
 
@@ -1492,7 +2102,8 @@ export default function CanvasEditor({
       texto:   { w: usableW, h: 60,  dados: { conteudo:'', tamanhoFonte:14, alinhamento:'left', cor:'#18181b' } },
       kpi:     { w: Math.round(usableW/3), h: 100, dados: { titulo:'KPI', metrica:'COUNT', cor:'#2563EB' } },
       grafico: { w: usableW, h: 200, dados: { tipoGrafico:'bar', metrica:'COUNT', titulo:'Gráfico', cor:'#2563EB' } },
-      tabela:  { w: usableW, h: 200, dados: { limite:10, campos:[] } },
+      tabela:          { w: usableW, h: 200, dados: { limite:10, campos:[] } },
+      tabela_dinamica: { w: usableW, h: 260, dados: { titulo:'Resumo', campoAgrupador:'', colunas:[{id:'c1',tipo:'count',label:'Qtd'}], ordenar:'valor_desc', limite:20 } },
       imagem:  { w: usableW, h: 200, dados: { url:'', fit:'cover', raio:0 } },
       divisor:     { w: usableW, h: 16,  dados: { cor:'#e4e4e7', espessura:1, estilo:'solid' } },
       forma:       { w: 160, h: 80, dados: { tipoForma:'retangulo', cor:'#2563EB', corFundo:'#EFF6FF', raio:8 } },
