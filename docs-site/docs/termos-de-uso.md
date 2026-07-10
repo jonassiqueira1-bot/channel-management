@@ -6,7 +6,7 @@ sidebar_position: 99
 
 # Termos de Uso e Política de Segurança — Plataforma Boostly
 
-**Versão:** 1.1
+**Versão:** 1.2
 **Última atualização:** Julho de 2026
 **Vigência:** A partir do aceite eletrônico pelo contratante.
 
@@ -104,12 +104,38 @@ Decorrido o prazo de 90 (noventa) dias contados do encerramento definitivo do co
 
 ---
 
-## 6. Limitação de Responsabilidade Financeira (Cláusula Penal)
+## 6. Do Cancelamento, Carência e Encerramento Contratual
+
+### 6.1 Solicitação de Cancelamento
+
+O Cliente pode solicitar o cancelamento de sua assinatura a qualquer momento diretamente pelo painel de configurações da plataforma (Configurações → Assinatura → Solicitar cancelamento), sem necessidade de aviso prévio por outros canais.
+
+### 6.2 Período de Carência de 90 Dias
+
+Em observância ao artigo 49 do Código de Defesa do Consumidor e às práticas do mercado SaaS, o pedido de cancelamento ativa um **período de carência de 90 (noventa) dias corridos**, durante os quais:
+
+- O Cliente mantém acesso integral à plataforma e a todos os seus dados;
+- **3 (três) faturas mensais serão cobradas normalmente**, referentes à utilização do serviço durante a carência;
+- O valor de cada fatura é calculado com base na faixa de usuários ativos vigente no momento de geração da cobrança.
+
+**Parágrafo Único:** O período de carência é irrenunciável. Não há encerramento imediato da cobrança na data do pedido de cancelamento.
+
+### 6.3 Encerramento e Portabilidade de Dados
+
+Ao término dos 90 dias de carência, o acesso à plataforma é encerrado automaticamente. O Cliente tem até o último dia da carência para exportar seus relatórios, histórico de comissões e demais dados operacionais. Decorrido esse prazo, aplica-se o disposto na cláusula 5.3 (eliminação definitiva em 90 dias).
+
+### 6.4 Período de Trial Gratuito
+
+Novos clientes têm acesso à plataforma por 14 (quatorze) dias em período de trial gratuito, sem necessidade de cartão de crédito. Ao término do trial, caso a assinatura não seja confirmada mediante preenchimento dos dados de cobrança e realização do primeiro pagamento, o acesso é encerrado automaticamente. Os dados do trial são mantidos por 90 (noventa) dias para eventual reativação, após o qual são excluídos definitivamente.
+
+---
+
+## 8. Limitação de Responsabilidade Financeira (Cláusula Penal)
 
 Em nenhuma circunstância o Boostly será responsável por danos indiretos, lucros cessantes, perda de receita, perda de dados ou danos comerciais decorrentes do uso ou da incapacidade de usar a plataforma. A responsabilidade total agregada do Boostly face ao Cliente, por qualquer pleito indenizatório judicial ou extrajudicial, fica estritamente limitada ao montante histórico comprovadamente pago pelo Cliente nos 3 (três) meses imediatamente anteriores ao evento gerador do dano.
 
 ---
 
-## 7. Lei Aplicável e Foro
+## 9. Lei Aplicável e Foro
 
 Estes Termos são integralmente regidos e interpretados de acordo com as leis da República Federativa do Brasil. Fica eleito o foro da Comarca de São Paulo/SP como o único competente para dirimir quaisquer controvérsias decorrentes deste instrumento, com expressa renúncia a qualquer outro.
