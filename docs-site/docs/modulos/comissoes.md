@@ -52,8 +52,49 @@ No lançamento gerado após confirmação de pagamento:
 
 ---
 
+## Aba: Aprovação em Lote
+
+Permite revisar e aprovar comissões de múltiplos beneficiários de uma vez, agrupadas por período.
+
+### O que mostra
+
+Lista de lotes de comissão com: Período, Beneficiário, Total calculado, Status de aprovação e Status de pagamento.
+
+### Como usar
+
+1. Selecione o período desejado
+2. Revise os valores calculados por beneficiário
+3. Marque os lotes que deseja aprovar
+4. Clique em **Aprovar Selecionados**
+5. Para registrar o pagamento, use o menu **Status pgto** para alterar em lote para **Pago**
+
+### Colunas
+
+| Coluna | Descrição |
+|--------|-----------|
+| Aprovação | Status da aprovação do lote (Pendente / Aprovado / Reprovado) |
+| Pgto | Status do pagamento ao beneficiário (Pendente / Pago) |
+
+---
+
+## Aba: Regras de Configuração
+
+Define as regras de cálculo de comissão aplicadas aos lançamentos gerados em Pagamentos.
+
+### Como usar
+
+1. Clique em **Nova Regra**
+2. Defina o nome e o modelo de cálculo:
+   - **Escala individual** — percentual por faixa de valor recebido
+   - **Bônus de equipe** — percentual adicional ao atingir meta coletiva
+3. Configure condições de elegibilidade (produtos, funis, etapas do pipeline)
+4. Vincule a regra aos usuários em **Configurações → Usuários**
+
+---
+
 ## Regras de negócio
 
 - Regras de comissão são vinculadas a usuários em `/settings/usuarios`
 - Lançamentos são gerados automaticamente ao confirmar recebimento em Pagamentos
 - O fluxo é: Calculado → Aprovado → Pago
+- A aprovação em lote não impede ajustes individuais antes da aprovação

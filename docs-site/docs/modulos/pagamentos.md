@@ -51,8 +51,33 @@ Clique na linha para expandir: histórico de pagamentos do contrato, comissões 
 
 ---
 
+## Aba: Provisões
+
+Exibe as provisões financeiras geradas automaticamente na ativação de contratos — valores esperados de receita antes da confirmação efetiva do recebimento.
+
+### O que mostra
+
+Lista de provisões com: Empresa, Contrato, Produto, Mês de referência, Valor líquido e Status.
+
+### Como usar
+
+- Provisões são criadas automaticamente ao ativar um contrato
+- Ao confirmar o recebimento em **Pagamentos**, a provisão correspondente é liquidada
+- Provisões não liquidadas podem ser filtradas para identificar contratos sem recebimento no período
+
+### Diferença entre Pagamentos e Provisões
+
+| | Pagamentos | Provisões |
+|---|---|---|
+| Origem | Manual ou importação | Automática (ativação de contrato) |
+| Status | Pendente → Recebido | Pendente → Liquidada |
+| Comissão | Gerada ao confirmar | Não gera comissão diretamente |
+
+---
+
 ## Regras de negócio
 
 - A confirmação de recebimento é irreversível — verifique os dados antes de confirmar
 - As comissões geradas seguem as **Regras de Comissão** configuradas em `/comissoes`
 - Pagamentos em atraso disparam alertas se configurado em `/settings/alertas`
+- Provisões não aparecem na lista de Pagamentos — são gerenciadas na aba própria
