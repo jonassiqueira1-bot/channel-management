@@ -65,18 +65,21 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq('id', cobranca.id)
 
-    // Se pago, atualiza o tenant para active
+    // Se pago, atualiza o tenant para active e limpa overdue_since
     if (newStatus === 'RECEIVED') {
       await sb.from('tenants').update({
         status: 'active',
+        overdue_since: null,
+        suspended_at: null,
         updated_at: new Date().toISOString(),
       }).eq('id', cobranca.tenant_id)
     }
 
-    // Se vencido e status era active, marca como inadimplente
+    // Se vencido, marca como inadimplente e registra data de início da carência
     if (newStatus === 'OVERDUE' && cobranca.status !== 'OVERDUE') {
       await sb.from('tenants').update({
         status: 'overdue',
+        overdue_since: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }).eq('id', cobranca.tenant_id)
     }

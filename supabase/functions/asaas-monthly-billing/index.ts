@@ -35,11 +35,11 @@ serve(async (req) => {
 
   const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  // Busca todos os tenants ativos
+  // Busca tenants ativos + pending_payment (trial vencido aguardando 1ª cobrança)
   const { data: tenants, error } = await sb
     .from('tenants')
-    .select('id, name, status, asaas_customer_id, billing_cycle_day')
-    .eq('status', 'active')
+    .select('id, name, status, asaas_customer_id, billing_cycle_day, billing_name, billing_cpf_cnpj, billing_email, billing_phone')
+    .in('status', ['active', 'pending_payment'])
 
   if (error) return json({ error: error.message }, 500)
 
@@ -78,7 +78,10 @@ serve(async (req) => {
       let customerId = tenant.asaas_customer_id
       if (!customerId) {
         const customer = await asaas('/customers', 'POST', {
-          name: tenant.name,
+          name: tenant.billing_name ?? tenant.name,
+          cpfCnpj: tenant.billing_cpf_cnpj,
+          email: tenant.billing_email,
+          mobilePhone: tenant.billing_phone,
           externalReference: tenant.id,
           notificationDisabled: false,
         })
