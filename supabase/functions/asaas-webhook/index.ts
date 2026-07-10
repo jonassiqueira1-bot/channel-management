@@ -65,10 +65,11 @@ serve(async (req) => {
       updated_at: new Date().toISOString(),
     }).eq('id', cobranca.id)
 
-    // Se pago, atualiza o tenant para active e limpa overdue_since
+    // Se pago, ativa o tenant e limpa flags de pendência
     if (newStatus === 'RECEIVED') {
       await sb.from('tenants').update({
         status: 'active',
+        trial_charge_sent: true,   // confirma que assinou — ativa carência se futuramente ficar overdue
         overdue_since: null,
         suspended_at: null,
         updated_at: new Date().toISOString(),
