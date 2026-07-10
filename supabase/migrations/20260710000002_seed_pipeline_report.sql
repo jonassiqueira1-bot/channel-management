@@ -7,7 +7,17 @@ RETURNS void LANGUAGE plpgsql AS $$
 DECLARE
   v_elementos jsonb;
   v_config    jsonb;
+  v_owner_id  uuid;
 BEGIN
+  -- Usa o primeiro usuário do tenant como owner do relatório template
+  SELECT id INTO v_owner_id
+  FROM public.profiles
+  WHERE tenant_id = p_tenant_id
+  ORDER BY created_at
+  LIMIT 1;
+
+  -- Se não há usuários ainda, adia (será criado no primeiro login)
+  IF v_owner_id IS NULL THEN RETURN; END IF;
   -- Não duplica se já existe um relatório de pipeline padrão
   IF EXISTS (
     SELECT 1 FROM public.relatorios
@@ -106,13 +116,13 @@ BEGIN
     created_at, updated_at
   ) VALUES (
     p_tenant_id,
-    '00000000-0000-0000-0000-000000000001'::uuid,
+    v_owner_id,
     'Acompanhamento de Pipeline',
     'relatorio',
     v_config,
     v_elementos,
     'todos',
-    '[]'::jsonb,
+    ARRAY[]::text[],
     'publicado',
     now(), now()
   );
