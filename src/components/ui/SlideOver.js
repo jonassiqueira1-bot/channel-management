@@ -106,6 +106,20 @@ export default function SlideOver({
     return () => { document.body.style.overflow = '' }
   }, [open])
 
+  // empurra o widget do Crisp para cima quando SlideOver abre
+  useEffect(() => {
+    if (!window.$crisp) return
+    if (open) {
+      window.$crisp.push(['config', 'position:reverse', [false]])
+      window.$crisp.push(['config', 'container:index', [99]])
+      const el = document.querySelector('#crisp-chatbox')
+      if (el) el.style.setProperty('bottom', '80px', 'important')
+    } else {
+      const el = document.querySelector('#crisp-chatbox')
+      if (el) el.style.removeProperty('bottom')
+    }
+  }, [open])
+
   if (!open) return null
 
   const hasTabs = tabs && tabs.length > 0
