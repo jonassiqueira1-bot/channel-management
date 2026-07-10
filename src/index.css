@@ -142,3 +142,17 @@ input, select, textarea {
 .mono { font-family: var(--mono); }
 .text-muted { color: var(--text-muted); }
 .text-soft { color: var(--text-soft); }
+
+/* ── Login — responsivo mobile ─────────────────────────────────── */
+@media (max-width: 640px) {
+  .login-page {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr;
+  }
+  .login-left {
+    padding: 32px 24px !important;
+  }
+  .login-left img {
+    height: 36px !important;
+  }
+}

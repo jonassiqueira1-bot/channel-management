@@ -16,6 +16,7 @@ import {
 import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
 import { useDashboard } from '../hooks/useDashboard'
+import { useIsMobile } from '../hooks/useIsMobile'
 import {
   DEFAULT_SECTIONS_ISV, DEFAULT_SECTIONS_FRANCHISE,
   SECTIONS_STORAGE_KEY, GLOBAL_FILTERS_KEY,
@@ -1240,7 +1241,7 @@ function SectionRow({ section, isCustomizing, onDeleteSection, onChangeLayout, o
 
       {/* Grid de slots */}
       <SortableContext items={section.slots.map(s => s.id)} strategy={rectSortingStrategy}>
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16, alignItems:'start' }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap: isMobile ? 10 : 16, alignItems:'start' }}>
           {section.slots.map((slot, slotIdx) => {
             const colSpan = cols[slotIdx] || 1
             if (!slot.widgetId) {
@@ -1290,6 +1291,7 @@ function SkeletonCard({ span=1 }) {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
+  const isMobile = useIsMobile()
   const { profile, loading:profileLoading } = useProfile()
 
   const isISV      = !profile || profile.role==='admin_isv' || profile.papel==='admin_isv'
@@ -1479,7 +1481,7 @@ export default function Dashboard() {
 
       {/* Grid de seções */}
       {profileLoading ? (
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:16 }}>
+        <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(4,1fr)', gap:16 }}>
           {[1,1,1,1,2,1,1,2,2].map((span,i) => <SkeletonCard key={i} span={span}/>)}
         </div>
       ) : (
