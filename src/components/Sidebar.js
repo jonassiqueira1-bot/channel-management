@@ -511,6 +511,7 @@ const s = {
   drawerMobile: {
     position: 'fixed', top: 52, left: 0, bottom: 0,
     width: '78vw', maxWidth: 280, zIndex: 300,
+    height: 'auto',
     boxShadow: '4px 0 32px rgba(0,0,0,0.4)', overflowY: 'auto',
   },
 

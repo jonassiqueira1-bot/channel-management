@@ -15,6 +15,7 @@ import { DeleteZone } from '../components/NotionDrawer'
 import ActionFeedback from '../components/ActionFeedback'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
+import { useBranchContext } from '../contexts/BranchContext'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import SearchSelect from '../components/SearchSelect'
 
@@ -476,7 +477,8 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
       qtd = inserir.length
     }
   } catch (err) {
-    console.warn('[gerarProvisoesPagamento] Supabase indisponível, usando localStorage:', err.message)
+    console.error('[gerarProvisoesPagamento]', err.message)
+    return -1
   }
 
   // Fallback localStorage — chave dedicada, separada de dados mock
@@ -713,7 +715,15 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       return
     }
     setSaving(true)
-    try { onSave(form); onClose() } finally { setSaving(false) }
+    try {
+      const steps = [{ id: 'contrato', label: `Contrato ${form.numero} atualizado`, sublabel: form.empresa_nome }]
+      await onSave(form, {
+        gerarProvisao: true,
+        onFeedback: (provisaoSteps) => { steps.push(...provisaoSteps) },
+      })
+      onShowFeedback(steps)
+      onClose()
+    } finally { setSaving(false) }
   }
 
   if (saveRef) saveRef.current = handleSave
@@ -1505,6 +1515,7 @@ export default function Contratos() {
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
@@ -1562,17 +1573,19 @@ export default function Contratos() {
       descricao: `Contrato ${isNew ? 'criado' : 'editado'}: ${data.numero || ''} — ${data.empresa_nome || ''}`,
     })
 
-    // Dispara provisões ao ativar (Rascunho → Ativo) ou ao criar já como Ativo
+    // Dispara provisões ao ativar, criar ativo, ou editar contrato já ativo
     const tenantId = profile?.tenant_id || null
-    const branchId = profile?.branch_id || null
-    if ((ativando || (isNew && data.status === 'ativo')) && opts.gerarProvisao !== false) {
+    const branchId = activeBranchId || profile?.branch_id || null
+    const jaAtivoEditado = !isNew && !ativando && anterior?.status === 'ativo' && data.status === 'ativo'
+    if ((ativando || (isNew && data.status === 'ativo') || jaAtivoEditado) && opts.gerarProvisao !== false) {
       const steps = []
       const [qtdPag, qtdCom] = await Promise.all([
         gerarProvisoesPagamento(contratoFinal, tenantId, branchId),
         gerarProvisoesComissao(contratoFinal, tenantId, branchId),
       ])
-      if (qtdPag > 0) steps.push({ id: 'pag', label: `${qtdPag} provisão(ões) de pagamento gerada(s)`, sublabel: 'Status: Pendente — visível em Pagamentos' })
-      if (qtdCom > 0) steps.push({ id: 'com', label: `${qtdCom} provisão(ões) de repasse gerada(s)`, sublabel: 'Status: Pendente — visível em Comissões' })
+      if (qtdPag > 0)  steps.push({ id: 'pag', label: `${qtdPag} provisão(ões) de pagamento gerada(s)`, sublabel: 'Status: Pendente — visível em Pagamentos' })
+      if (qtdPag < 0)  steps.push({ id: 'pag_err', label: '⚠ Erro ao gerar provisão de pagamento', sublabel: 'Veja o console do navegador (F12) para o detalhe' })
+      if (qtdCom > 0)  steps.push({ id: 'com', label: `${qtdCom} provisão(ões) de repasse gerada(s)`, sublabel: 'Status: Pendente — visível em Comissões' })
       if (steps.length && opts.onFeedback) opts.onFeedback(steps)
     }
   }
