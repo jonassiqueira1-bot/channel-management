@@ -59,6 +59,17 @@ function CrispWidget() {
     s.src = 'https://client.crisp.chat/l.js'
     s.async = true
     document.head.appendChild(s)
+
+    // Empurra o widget para cima quando SlideOver estiver aberto
+    const observer = new MutationObserver(() => {
+      const slideOver = document.querySelector('aside[role="dialog"]')
+      const crisp = document.querySelector('.crisp-client')
+      if (!crisp) return
+      crisp.style.bottom = slideOver ? '80px' : '0px'
+      crisp.style.transition = 'bottom 0.2s ease'
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+    return () => observer.disconnect()
   }, [])
   return null
 }
