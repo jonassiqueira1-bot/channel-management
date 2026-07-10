@@ -635,7 +635,9 @@ const s = {
 
   bottom: {
     borderTop: '1px solid var(--sb-border)',
-    padding: '6px 0 8px', display: 'flex', flexDirection: 'column', gap: 2,
+    padding: '6px 0 8px',
+    paddingBottom: 'max(8px, env(safe-area-inset-bottom))',
+    display: 'flex', flexDirection: 'column', gap: 2,
   },
   bottomBtn: {
     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
