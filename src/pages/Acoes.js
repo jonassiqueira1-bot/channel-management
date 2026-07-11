@@ -1,4 +1,6 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import { useActions } from '../hooks/useActions'
@@ -79,6 +81,20 @@ const EMPTY_ACAO = {
   local: '', vagas: '', inscritos: 0,
   status: 'agendado',
   tenant_id: 't1',
+  custo_previsto: '', custo_realizado: '',
+  aprovacao_status: 'aguardando', aprovacao_obs: '', aprovacao_por: '', aprovacao_em: '',
+  anexos: [],
+}
+
+const APROVACAO_CFG = {
+  aguardando: { label: 'Aguardando aprovação', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
+  aprovado:   { label: 'Aprovado',             color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  rejeitado:  { label: 'Rejeitado',            color: '#EF4444', bg: '#FEE2E2', text: '#991B1B' },
+}
+
+function fmtMoeda(v) {
+  if (v === '' || v === null || v === undefined) return '—'
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -385,6 +401,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const [form, setForm]   = useState(initial ? { ...EMPTY_ACAO, ...initial } : { ...EMPTY_ACAO })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
+  const [uploadingAnexo, setUploadingAnexo] = useState(false)
+  const { profile } = useProfile()
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
@@ -420,10 +438,43 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   }
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
+  const anexosBadge = (form.anexos || []).length || undefined
+  const custosBadge = (form.aprovacao_status && form.aprovacao_status !== 'aguardando') ? '!' : undefined
+
   const tabs = [
     { key:'dados',   label:'Dados' },
+    { key:'custos',  label:'Custos', badge: custosBadge },
+    { key:'anexos',  label:'Anexos', badge: anexosBadge },
     { key:'tarefas', label:'Tarefas', badge: tarefasBadge },
   ]
+
+  async function handleUploadAnexo(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAnexo(true)
+    try {
+      const ext  = file.name.split('.').pop()
+      const path = `acoes/${initial?.id || 'novo'}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('action-attachments').upload(path, file, { upsert: true })
+      if (error) { alert('Erro no upload: ' + error.message); return }
+      const { data: { publicUrl } } = supabase.storage.from('action-attachments').getPublicUrl(path)
+      const novo = { nome: file.name, url: publicUrl, tipo: file.type, tamanho: file.size, em: new Date().toISOString() }
+      set('anexos', [...(form.anexos || []), novo])
+    } finally {
+      setUploadingAnexo(false)
+      e.target.value = ''
+    }
+  }
+
+  function removeAnexo(idx) {
+    set('anexos', (form.anexos || []).filter((_, i) => i !== idx))
+  }
+
+  function handleAprovar(novoStatus) {
+    set('aprovacao_status', novoStatus)
+    set('aprovacao_por', profile?.full_name || profile?.email || 'Usuário')
+    set('aprovacao_em', new Date().toISOString())
+  }
 
   return (
     <SlideOver
@@ -512,6 +563,93 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
             <textarea className="so-field" rows={4} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
           </FormField>
         </FormGrid>
+      )}
+
+      {/* ── Aba Custos ── */}
+      {tab === 'custos' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
+          <FormGrid cols={2}>
+            <FormField label="Custo previsto (R$)">
+              <input className="so-field" type="number" min="0" step="0.01" value={form.custo_previsto} onChange={e => set('custo_previsto', e.target.value)} placeholder="0,00" />
+            </FormField>
+            <FormField label="Custo realizado (R$)">
+              <input className="so-field" type="number" min="0" step="0.01" value={form.custo_realizado} onChange={e => set('custo_realizado', e.target.value)} placeholder="0,00" />
+            </FormField>
+          </FormGrid>
+
+          {/* Aprovação */}
+          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:16 }}>
+            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:12 }}>Aprovação de custo</div>
+
+            {/* Badge de status atual */}
+            {(() => {
+              const cfg = APROVACAO_CFG[form.aprovacao_status] || APROVACAO_CFG.aguardando
+              return (
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
+                  <span style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:12, fontWeight:700 }}>
+                    <span style={{ width:7, height:7, borderRadius:'50%', background:cfg.color }} />
+                    {cfg.label}
+                  </span>
+                  {form.aprovacao_por && (
+                    <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                      por {form.aprovacao_por} · {form.aprovacao_em ? new Date(form.aprovacao_em).toLocaleString('pt-BR') : ''}
+                    </span>
+                  )}
+                </div>
+              )
+            })()}
+
+            <FormField label="Observação" style={{ marginBottom:12 }}>
+              <textarea className="so-field" rows={2} style={{ resize:'vertical' }} value={form.aprovacao_obs} onChange={e => set('aprovacao_obs', e.target.value)} placeholder="Justificativa ou notas sobre aprovação…" />
+            </FormField>
+
+            <div style={{ display:'flex', gap:8 }}>
+              <button onClick={() => handleAprovar('aprovado')} disabled={form.aprovacao_status === 'aprovado'}
+                style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background: form.aprovacao_status === 'aprovado' ? '#D1FAE5' : '#10B981', color: form.aprovacao_status === 'aprovado' ? '#065F46' : '#fff', fontWeight:700, fontSize:12, cursor: form.aprovacao_status === 'aprovado' ? 'default' : 'pointer', fontFamily:'var(--font)' }}>
+                ✓ Aprovar
+              </button>
+              <button onClick={() => handleAprovar('rejeitado')} disabled={form.aprovacao_status === 'rejeitado'}
+                style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background: form.aprovacao_status === 'rejeitado' ? '#FEE2E2' : '#EF4444', color: form.aprovacao_status === 'rejeitado' ? '#991B1B' : '#fff', fontWeight:700, fontSize:12, cursor: form.aprovacao_status === 'rejeitado' ? 'default' : 'pointer', fontFamily:'var(--font)' }}>
+                ✗ Rejeitar
+              </button>
+              {form.aprovacao_status !== 'aguardando' && (
+                <button onClick={() => { set('aprovacao_status','aguardando'); set('aprovacao_por',''); set('aprovacao_em','') }}
+                  style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
+                  Redefinir
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Aba Anexos ── */}
+      {tab === 'anexos' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Área de upload */}
+          <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, padding:'28px 16px', border:'2px dashed var(--border)', borderRadius:10, background:'var(--surface2)', cursor: uploadingAnexo ? 'wait' : 'pointer', opacity: uploadingAnexo ? 0.6 : 1 }}>
+            <span style={{ fontSize:28 }}>📎</span>
+            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{uploadingAnexo ? 'Enviando…' : 'Clique para anexar arquivo'}</span>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>PDF, imagens, planilhas, documentos</span>
+            <input type="file" style={{ display:'none' }} disabled={uploadingAnexo || isNew} onChange={handleUploadAnexo} />
+          </label>
+          {isNew && <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center', margin:0 }}>Salve a ação primeiro para poder adicionar anexos.</p>}
+
+          {/* Lista de anexos */}
+          {(form.anexos || []).length === 0
+            ? <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'16px 0' }}>Nenhum anexo ainda.</div>
+            : (form.anexos || []).map((a, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8 }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{a.tipo?.startsWith('image') ? '🖼️' : a.tipo?.includes('pdf') ? '📄' : '📎'}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, fontWeight:600, color:'var(--accent)', textDecoration:'none', display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nome}</a>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>{a.em ? new Date(a.em).toLocaleDateString('pt-BR') : ''} · {a.tamanho ? (a.tamanho / 1024).toFixed(0) + ' KB' : ''}</span>
+                </div>
+                <button onClick={() => removeAnexo(i)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'2px 4px', flexShrink:0 }}>×</button>
+              </div>
+            ))
+          }
+        </div>
       )}
 
       {/* ── Aba Tarefas ── */}

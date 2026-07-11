@@ -23,6 +23,13 @@ function rowToAcao(row) {
     status:            row.status || 'agendado',
     tenant_id:         row.tenant_id,
     criado_em:         row.created_at || '',
+    custo_previsto:    cf.custo_previsto ?? '',
+    custo_realizado:   cf.custo_realizado ?? '',
+    aprovacao_status:  cf.aprovacao_status  || 'aguardando',
+    aprovacao_obs:     cf.aprovacao_obs     || '',
+    aprovacao_por:     cf.aprovacao_por     || '',
+    aprovacao_em:      cf.aprovacao_em      || '',
+    anexos:            cf.anexos            || [],
   }
 }
 
@@ -50,6 +57,13 @@ function acaoToRow(a, tenantId, branchId) {
       inscritos:        a.inscritos,
       data_inicio:      a.data_inicio,
       data_fim:         a.data_fim,
+      custo_previsto:   a.custo_previsto !== '' ? Number(a.custo_previsto) : null,
+      custo_realizado:  a.custo_realizado !== '' ? Number(a.custo_realizado) : null,
+      aprovacao_status: a.aprovacao_status || 'aguardando',
+      aprovacao_obs:    a.aprovacao_obs    || '',
+      aprovacao_por:    a.aprovacao_por    || '',
+      aprovacao_em:     a.aprovacao_em     || '',
+      anexos:           a.anexos           || [],
     },
   }
 }
