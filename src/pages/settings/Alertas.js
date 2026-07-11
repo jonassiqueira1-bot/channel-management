@@ -314,8 +314,12 @@ async function executarEngine(tenantId) {
 
   const novos = []
   for (const rule of rules) {
-    const registros = dados[rule.origem] || []
     const cf = rule.custom_fields || {}
+    const metasIds = cf.metas_ids || []
+    let registros = dados[rule.origem] || []
+    if (rule.origem === 'goals' && metasIds.length > 0) {
+      registros = registros.filter(g => metasIds.includes(g.id))
+    }
     const fullRule = { ...rule, condicoes: cf.condicoes || [], acoes: cf.acoes || [], acoes_else: cf.acoes_else || [], com_else: cf.com_else || false }
     for (const reg of registros) {
       const chave = `${rule.id}:${reg.id}`
@@ -601,6 +605,7 @@ function rowToRule(r) {
     acoes:       cf.acoes       || [newAcao()],
     acoes_else:  cf.acoes_else  || [],
     com_else:    cf.com_else    || false,
+    metas_ids:   cf.metas_ids   || [],
   }
 }
 
@@ -620,6 +625,7 @@ function ruleToRow(f, tenantId, branchId) {
       acoes:      f.acoes,
       acoes_else: f.acoes_else || [],
       com_else:   f.com_else   || false,
+      metas_ids:  f.metas_ids  || [],
     },
     updated_at: new Date().toISOString(),
   }
@@ -636,6 +642,8 @@ export default function SettingsAlertas() {
   const [saving, setSaving]    = useState(false)
   const [running, setRunning]  = useState(false)
   const [lastRun, setLastRun]  = useState(null)
+  const [goalsAtivas, setGoalsAtivas] = useState([])
+  const [goalSearch, setGoalSearch]   = useState('')
   const engineRef = useRef(false)
 
   const tenantId = profile?.tenant_id
@@ -651,6 +659,12 @@ export default function SettingsAlertas() {
   }, [tenantId, activeBranchId])
 
   useEffect(() => { if (tenantId) load(); else setLoading(false) }, [load, tenantId])
+
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('goals').select('id, titulo, tipo_alvo').eq('tenant_id', tenantId).eq('status', 'ativa').order('titulo')
+      .then(({ data }) => setGoalsAtivas(data || []))
+  }, [tenantId])
 
   useEffect(() => {
     if (!tenantId || engineRef.current) return
@@ -785,10 +799,60 @@ export default function SettingsAlertas() {
           {/* Origem */}
           <div style={card}>
             <div style={secTitle}>Origem dos dados</div>
-            <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()] }))}>
+            <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()], metas_ids: [] }))}>
               <option value="">Selecione a entidade…</option>
               {ORIGENS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </Sel>
+            {editing.origem === 'goals' && (() => {
+              const selecionadas = editing.metas_ids || []
+              const filtradas = goalsAtivas.filter(g => g.titulo?.toLowerCase().includes(goalSearch.toLowerCase()))
+              const toggle = id => setEditing(f => {
+                const cur = f.metas_ids || []
+                return { ...f, metas_ids: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }
+              })
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Aplicar a metas específicas
+                  </div>
+                  {selecionadas.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                      {selecionadas.map(id => {
+                        const g = goalsAtivas.find(x => x.id === id)
+                        return g ? (
+                          <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: 11 }}>
+                            {g.titulo}
+                            <button onClick={() => toggle(id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 12 }}>×</button>
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
+                  <input
+                    value={goalSearch} onChange={e => setGoalSearch(e.target.value)}
+                    placeholder={selecionadas.length === 0 ? 'Todas as metas ativas (buscar para filtrar)…' : 'Buscar meta…'}
+                    style={{ ...inp, width: '100%', boxSizing: 'border-box', marginBottom: 4 }}
+                  />
+                  {goalSearch && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
+                      {filtradas.length === 0
+                        ? <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma meta encontrada</div>
+                        : filtradas.map(g => (
+                          <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                            <input type="checkbox" checked={selecionadas.includes(g.id)} onChange={() => toggle(g.id)} style={{ accentColor: 'var(--accent)' }} />
+                            {g.titulo}
+                            {g.tipo_alvo && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>({g.tipo_alvo})</span>}
+                          </label>
+                        ))
+                      }
+                    </div>
+                  )}
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                    {selecionadas.length === 0 ? 'Sem filtro: avalia todas as metas ativas.' : `${selecionadas.length} meta(s) selecionada(s).`}
+                  </p>
+                </div>
+              )
+            })()}
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
               A engine avalia todos os registros desta entidade e dispara o alerta quando as condições forem atendidas.
             </p>
