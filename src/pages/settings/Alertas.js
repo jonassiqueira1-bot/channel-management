@@ -642,8 +642,9 @@ export default function SettingsAlertas() {
   const [saving, setSaving]    = useState(false)
   const [running, setRunning]  = useState(false)
   const [lastRun, setLastRun]  = useState(null)
-  const [goalsAtivas, setGoalsAtivas] = useState([])
-  const [goalSearch, setGoalSearch]   = useState('')
+  const [goalsAtivas, setGoalsAtivas]   = useState([])
+  const [goalSearch, setGoalSearch]     = useState('')
+  const [goalDropOpen, setGoalDropOpen] = useState(false)
   const engineRef = useRef(false)
 
   const tenantId = profile?.tenant_id
@@ -834,10 +835,12 @@ export default function SettingsAlertas() {
                   )}
                   <input
                     value={goalSearch} onChange={e => setGoalSearch(e.target.value)}
+                    onFocus={() => setGoalDropOpen(true)}
+                    onBlur={() => setTimeout(() => setGoalDropOpen(false), 150)}
                     placeholder={selecionadas.length === 0 ? 'Todas as metas ativas (buscar para filtrar)…' : 'Buscar meta…'}
                     style={{ ...inp, width: '100%', boxSizing: 'border-box', marginBottom: 4 }}
                   />
-                  {goalSearch && (
+                  {(goalDropOpen || goalSearch) && (
                     <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
                       {filtradas.length === 0
                         ? <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma meta encontrada</div>
