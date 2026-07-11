@@ -183,8 +183,11 @@ function avaliarCondicao(registro, cond) {
   const path = cond.campo.startsWith('cf.') ? null : cond.campo.split('.')
   let val = path ? path.reduce((o, k) => o?.[k], registro) : registro?.custom_fields?.[cond.campo.replace('cf.', '')]
 
-  const v = cond.valor
   const hoje = Date.now()
+  const agora = new Date()
+  let v = cond.valor
+  if (v === '__mes_atual__') v = String(agora.getMonth() + 1)
+  if (v === '__ano_atual__') v = String(agora.getFullYear())
 
   switch (cond.operador) {
     case 'em_branco': return !val || String(val).trim() === ''
@@ -415,6 +418,18 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
                           style={{ ...inp, width: 70 }} placeholder="0" />
                         <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
                       </div>
+                    : c.campo === 'periodo_mes'
+                      ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                          <option value="">Valor…</option>
+                          <option value="__mes_atual__">Mês atual</option>
+                          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={String(m)}>{m}</option>)}
+                        </Sel>
+                    : c.campo === 'periodo_ano'
+                      ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                          <option value="">Valor…</option>
+                          <option value="__ano_atual__">Ano atual</option>
+                          {[new Date().getFullYear()-1, new Date().getFullYear(), new Date().getFullYear()+1].map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        </Sel>
                     : campo?.tipo === 'money'
                       ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
