@@ -127,11 +127,13 @@ const CAMPOS_PADRAO = {
 // ─── Operadores ───────────────────────────────────────────────────────────────
 const OPS = {
   date:   [
-    { key: 'em_branco',  label: 'está em branco (sem data)' },
-    { key: 'dias_apos',  label: 'há mais de X dias sem atualização' },
-    { key: 'dias_antes', label: 'daqui a menos de X dias' },
-    { key: 'antes_de',   label: 'antes de (data fixa)' },
-    { key: 'apos_de',    label: 'após (data fixa)' },
+    { key: 'em_branco',   label: 'está em branco (sem data)' },
+    { key: 'antes_hoje',  label: 'antes de hoje (já venceu)' },
+    { key: 'apos_hoje',   label: 'após hoje (ainda no futuro)' },
+    { key: 'dias_apos',   label: 'há mais de X dias sem atualização' },
+    { key: 'dias_antes',  label: 'daqui a menos de X dias' },
+    { key: 'antes_de',    label: 'antes de (data fixa)' },
+    { key: 'apos_de',     label: 'após (data fixa)' },
   ],
   money:  [
     { key: 'em_branco', label: 'está em branco' },
@@ -190,7 +192,9 @@ function avaliarCondicao(registro, cond) {
   if (v === '__ano_atual__') v = String(agora.getFullYear())
 
   switch (cond.operador) {
-    case 'em_branco': return !val || String(val).trim() === ''
+    case 'em_branco':  return !val || String(val).trim() === ''
+    case 'antes_hoje': return val ? new Date(val) < new Date(new Date().toDateString()) : false
+    case 'apos_hoje':  return val ? new Date(val) > new Date(new Date().toDateString()) : false
     case 'dias_apos': {
       if (!val) return false
       const diff = (hoje - new Date(val).getTime()) / 86400000
@@ -420,8 +424,8 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
                 <option value="">Operador…</option>
                 {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </Sel>
-              {c.operador === 'em_branco'
-                ? <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6, border: '1px solid var(--border)' }}>— sem valor —</div>
+              {(c.operador === 'em_branco' || c.operador === 'antes_hoje' || c.operador === 'apos_hoje')
+                ? <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6, border: '1px solid var(--border)' }}>— data atual —</div>
                 : campo?.tipo === 'enum'
                   ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
                       <option value="">Valor…</option>
