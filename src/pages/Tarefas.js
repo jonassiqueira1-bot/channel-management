@@ -912,7 +912,7 @@ export default function Tarefas() {
       if (q && !(t.titulo.toLowerCase().includes(q) || (t.entidade_nome||'').toLowerCase().includes(q) || (t.responsavel||'').toLowerCase().includes(q))) return false
       return true
     })
-  }, [tarefas, search, filterStatus, filterTipo, filterPrioridade, filterEntidade])
+  }, [tarefas, search, filterStatus, filterTipo, filterPrioridade, filterEntidade, filterDateFrom, filterDateTo])
 
   const hoje = new Date().toISOString().slice(0, 10)
 
