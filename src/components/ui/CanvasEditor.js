@@ -805,7 +805,7 @@ function RenderEl({ el, source, sources }) {
 }
 
 // ── Painel de propriedades ────────────────────────────────────────────────────
-function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mode, projetoData }) {
+function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mode, projetoData, onClose }) {
   const [aba, setAba] = useState('el')
   const d = el?.dados || {}
   const source = el ? sources.find(s => s.id === d.sourceId) : null
@@ -827,6 +827,13 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
             {t.icon}
           </button>
         ))}
+        {onClose && (
+          <button onClick={onClose} title="Fechar painel"
+            style={{padding:'9px 10px',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+              background:'var(--surface2)',color:'var(--text-muted)',borderBottom:'2px solid transparent',fontFamily:'var(--font)'}}>
+            <X size={13}/>
+          </button>
+        )}
       </div>
 
       <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:12}}>
@@ -2611,6 +2618,7 @@ export default function CanvasEditor({
           onConfigChange={setConfig}
           mode={mode}
           projetoData={projetoData}
+          onClose={() => setSelecionadoId(null)}
         />
       )}
 
