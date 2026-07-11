@@ -662,8 +662,12 @@ export default function SettingsAlertas() {
 
   useEffect(() => {
     if (!tenantId) return
-    supabase.from('goals').select('id, alvo_nome, tipo_alvo, periodo_mes, periodo_ano').eq('tenant_id', tenantId).eq('status', 'ativa').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
-      .then(({ data }) => setGoalsAtivas((data || []).map(g => ({ ...g, titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.periodo_mes}/${g.periodo_ano}` }))))
+    supabase.from('goals').select('id, alvo_nome, tipo_alvo, periodo_mes, periodo_ano, status').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) { console.error('[Alertas] goals fetch:', error); return }
+        const ativas = (data || []).filter(g => g.status === 'ativa' || g.status === 'pausada' || !g.status)
+        setGoalsAtivas(ativas.map(g => ({ ...g, titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.periodo_mes}/${g.periodo_ano}` })))
+      })
   }, [tenantId])
 
   useEffect(() => {
