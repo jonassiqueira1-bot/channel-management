@@ -24,6 +24,7 @@ function rowToAcao(row) {
     tenant_id:         row.tenant_id,
     criado_em:         row.created_at || '',
     custos:            cf.custos            || [],
+    documentos:        cf.documentos        || [],
     anexos:            cf.anexos            || [],
   }
 }
@@ -53,6 +54,7 @@ function acaoToRow(a, tenantId, branchId) {
       data_inicio:      a.data_inicio,
       data_fim:         a.data_fim,
       custos:           (a.custos || []).map(({ _obsInput, ...rest }) => rest),
+      documentos:       a.documentos       || [],
       anexos:           a.anexos           || [],
     },
   }

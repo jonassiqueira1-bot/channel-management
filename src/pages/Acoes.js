@@ -401,7 +401,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [uploadingAnexo, setUploadingAnexo] = useState(false)
-  const { profile } = useProfile()
+  const { profile, isAdmin } = useProfile()
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
@@ -440,11 +440,14 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const anexosBadge = (form.anexos || []).length || undefined
   const custosBadge = (form.custos || []).length || undefined
 
+  const docsBadge = (form.documentos || []).length || undefined
+
   const tabs = [
-    { key:'dados',   label:'Dados' },
-    { key:'custos',  label:'Custos', badge: custosBadge },
-    { key:'anexos',  label:'Anexos', badge: anexosBadge },
-    { key:'tarefas', label:'Tarefas', badge: tarefasBadge },
+    { key:'dados',      label:'Dados' },
+    { key:'custos',     label:'Custos',     badge: custosBadge },
+    { key:'documentos', label:'Documentos', badge: docsBadge },
+    { key:'anexos',     label:'Anexos',     badge: anexosBadge },
+    { key:'tarefas',    label:'Tarefas',    badge: tarefasBadge },
   ]
 
   async function handleUploadAnexo(e) {
@@ -562,124 +565,143 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       {tab === 'custos' && (() => {
         const custos = form.custos || []
         const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
-
-        function addCusto() {
-          set('custos', [...custos, { id: crypto.randomUUID(), descricao: '', valor_previsto: '', valor_realizado: '', aprovacoes: [] }])
+        const addCusto    = () => set('custos', [...custos, { id: crypto.randomUUID(), descricao:'', valor_previsto:'', valor_realizado:'', aprovacoes:[] }])
+        const updCusto    = (id, p) => set('custos', custos.map(c => c.id === id ? { ...c, ...p } : c))
+        const remCusto    = (id) => { if (window.confirm('Remover?')) set('custos', custos.filter(c => c.id !== id)) }
+        const aprovar     = (id, status) => {
+          const obs = custos.find(c => c.id === id)?._obsInput || ''
+          const entrada = { id: crypto.randomUUID(), status, obs, por: nomeUsuario, em: new Date().toISOString() }
+          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes:[...(c.aprovacoes||[]), entrada], _obsInput:'' } : c))
         }
-        function updateCusto(id, patch) {
-          set('custos', custos.map(c => c.id === id ? { ...c, ...patch } : c))
-        }
-        function removeCusto(id) {
-          if (!window.confirm('Remover este item de custo?')) return
-          set('custos', custos.filter(c => c.id !== id))
-        }
-        function aprovarCusto(id, status, obs) {
-          const entrada = { id: crypto.randomUUID(), status, obs: obs || '', por: nomeUsuario, em: new Date().toISOString() }
-          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes: [...(c.aprovacoes || []), entrada] } : c))
-        }
-
-        const totalPrev = custos.reduce((s, c) => s + (Number(c.valor_previsto) || 0), 0)
-        const totalReal = custos.reduce((s, c) => s + (Number(c.valor_realizado) || 0), 0)
-
+        const totalPrev = custos.reduce((s,c) => s + (Number(c.valor_previsto)||0), 0)
+        const totalReal = custos.reduce((s,c) => s + (Number(c.valor_realizado)||0), 0)
+        const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:3 }
         return (
-          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
             {/* Totalizador */}
             {custos.length > 0 && (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                <div style={{ padding:'10px 14px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Total previsto</div>
-                  <div style={{ fontSize:16, fontWeight:700, color:'var(--text)' }}>{fmtMoeda(totalPrev)}</div>
-                </div>
-                <div style={{ padding:'10px 14px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
-                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Total realizado</div>
-                  <div style={{ fontSize:16, fontWeight:700, color: totalReal > totalPrev ? '#EF4444' : 'var(--text)' }}>{fmtMoeda(totalReal)}</div>
-                </div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:2 }}>
+                {[['Total previsto', fmtMoeda(totalPrev), false],['Total realizado', fmtMoeda(totalReal), totalReal > totalPrev]].map(([lbl2,val,red]) => (
+                  <div key={lbl2} style={{ padding:'8px 12px', background:'var(--surface2)', borderRadius:7, border:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{lbl2}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: red?'#EF4444':'var(--text)', marginTop:2 }}>{val}</div>
+                  </div>
+                ))}
               </div>
             )}
-
-            {/* Lista de itens */}
+            {/* Items */}
             {custos.map((c, idx) => {
-              const ultima = (c.aprovacoes || []).slice(-1)[0]
+              const ultima = (c.aprovacoes||[]).slice(-1)[0]
               const cfgAp  = APROVACAO_CFG[ultima?.status] || APROVACAO_CFG.aguardando
-              const [obsInput, setObsInput] = [c._obsInput || '', v => updateCusto(c.id, { _obsInput: v })]
               return (
-                <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
-                  {/* Header do item */}
-                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
-                    <span style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)' }}>ITEM {idx + 1}</span>
-                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 8px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700 }}>
-                        <span style={{ width:6, height:6, borderRadius:'50%', background:cfgAp.color }} />
-                        {cfgAp.label}
+                <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+                  {/* Header compacto */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'5px 10px', background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                    <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)' }}>#{idx+1}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'1px 7px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700 }}>
+                        <span style={{ width:5, height:5, borderRadius:'50%', background:cfgAp.color }} />{cfgAp.label}
                       </span>
-                      <button onClick={() => removeCusto(c.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 2px' }}>×</button>
+                      <button onClick={() => remCusto(c.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'0 2px', lineHeight:1 }}>×</button>
                     </div>
                   </div>
-
-                  <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
-                    {/* Campos do custo */}
+                  {/* Campos em grid compacto */}
+                  <div style={{ padding:'8px 10px', display:'grid', gridTemplateColumns:'1fr 100px 100px', gap:8, alignItems:'start' }}>
                     <div>
-                      <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Descrição / Justificativa</label>
-                      <textarea className="so-field" rows={2} style={{ resize:'vertical', width:'100%', boxSizing:'border-box' }}
-                        value={c.descricao} onChange={e => updateCusto(c.id, { descricao: e.target.value })}
-                        placeholder="Descreva o custo e sua finalidade…" />
+                      <label style={lbl}>Descrição / Justificativa</label>
+                      <input className="so-field" value={c.descricao} onChange={e => updCusto(c.id,{descricao:e.target.value})} placeholder="Finalidade do custo…" style={{ width:'100%', boxSizing:'border-box' }} />
                     </div>
-                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                      <div>
-                        <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Valor previsto (R$)</label>
-                        <input className="so-field" type="number" min="0" step="0.01" value={c.valor_previsto}
-                          onChange={e => updateCusto(c.id, { valor_previsto: e.target.value })} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Valor realizado (R$)</label>
-                        <input className="so-field" type="number" min="0" step="0.01" value={c.valor_realizado}
-                          onChange={e => updateCusto(c.id, { valor_realizado: e.target.value })} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
-                      </div>
+                    <div>
+                      <label style={lbl}>Previsto (R$)</label>
+                      <input className="so-field" type="number" min="0" step="0.01" value={c.valor_previsto} onChange={e => updCusto(c.id,{valor_previsto:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
                     </div>
-
-                    {/* Histórico de aprovações */}
-                    {(c.aprovacoes || []).length > 0 && (
-                      <div style={{ background:'var(--surface2)', borderRadius:7, padding:'8px 10px' }}>
-                        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>Histórico</div>
-                        {(c.aprovacoes || []).map(ap => {
-                          const apCfg = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
-                          return (
-                            <div key={ap.id} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:4, fontSize:11 }}>
-                              <span style={{ color:apCfg.color, fontWeight:700, flexShrink:0 }}>{ap.status === 'aprovado' ? '✓' : '✗'}</span>
-                              <div>
-                                <span style={{ fontWeight:600 }}>{apCfg.label}</span>
-                                <span style={{ color:'var(--text-muted)' }}> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}</span>
-                                {ap.obs && <div style={{ color:'var(--text-soft)', marginTop:2 }}>{ap.obs}</div>}
-                              </div>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-
-                    {/* Nova aprovação */}
-                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                      <textarea className="so-field" rows={1} style={{ resize:'none', width:'100%', boxSizing:'border-box', fontSize:11 }}
-                        value={c._obsInput || ''} onChange={e => updateCusto(c.id, { _obsInput: e.target.value })}
-                        placeholder="Observação para aprovação (opcional)…" />
-                      <div style={{ display:'flex', gap:6 }}>
-                        <button onClick={() => { aprovarCusto(c.id, 'aprovado', c._obsInput); updateCusto(c.id, { _obsInput: '' }) }}
-                          style={{ flex:1, padding:'6px 0', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                          ✓ Aprovar
-                        </button>
-                        <button onClick={() => { aprovarCusto(c.id, 'rejeitado', c._obsInput); updateCusto(c.id, { _obsInput: '' }) }}
-                          style={{ flex:1, padding:'6px 0', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                          ✗ Rejeitar
-                        </button>
-                      </div>
+                    <div>
+                      <label style={lbl}>Realizado (R$)</label>
+                      <input className="so-field" type="number" min="0" step="0.01" value={c.valor_realizado} onChange={e => updCusto(c.id,{valor_realizado:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
                     </div>
                   </div>
+                  {/* Histórico */}
+                  {(c.aprovacoes||[]).length > 0 && (
+                    <div style={{ margin:'0 10px 6px', background:'var(--surface2)', borderRadius:6, padding:'6px 8px' }}>
+                      {(c.aprovacoes||[]).map(ap => {
+                        const ac = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
+                        return (
+                          <div key={ap.id} style={{ display:'flex', gap:6, fontSize:10, marginBottom:2, color:'var(--text-muted)' }}>
+                            <span style={{ color:ac.color, fontWeight:700 }}>{ap.status==='aprovado'?'✓':'✗'}</span>
+                            <span><b style={{ color:'var(--text)' }}>{ac.label}</b> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}{ap.obs ? ` — ${ap.obs}` : ''}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {/* Aprovação — só admin */}
+                  {isAdmin ? (
+                    <div style={{ display:'flex', gap:6, padding:'0 10px 8px', alignItems:'center' }}>
+                      <input className="so-field" value={c._obsInput||''} onChange={e => updCusto(c.id,{_obsInput:e.target.value})}
+                        placeholder="Observação (opcional)…" style={{ flex:1, fontSize:11 }} />
+                      <button onClick={() => aprovar(c.id,'aprovado')}
+                        style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                        ✓ Aprovar
+                      </button>
+                      <button onClick={() => aprovar(c.id,'rejeitado')}
+                        style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                        ✗ Rejeitar
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Somente administradores podem aprovar custos.</div>
+                  )}
                 </div>
               )
             })}
-
-            <button onClick={addCusto} style={{ padding:'8px 0', borderRadius:8, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+            <button onClick={addCusto} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
               + Adicionar item de custo
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* ── Aba Documentos ── */}
+      {tab === 'documentos' && (() => {
+        const docs = form.documentos || []
+        const addDoc = () => set('documentos', [...docs, { id: crypto.randomUUID(), titulo:'', url:'', tipo:'externo', obs:'' }])
+        const updDoc = (id, p) => set('documentos', docs.map(d => d.id === id ? { ...d, ...p } : d))
+        const remDoc = (id) => set('documentos', docs.filter(d => d.id !== id))
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {docs.length === 0 && (
+              <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'28px 0' }}>
+                Nenhum documento vinculado ainda.
+              </div>
+            )}
+            {docs.map(d => (
+              <div key={d.id} style={{ border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 100px auto', gap:8, alignItems:'center' }}>
+                  <input className="so-field" value={d.titulo} onChange={e => updDoc(d.id,{titulo:e.target.value})} placeholder="Título / nome do documento…" style={{ width:'100%', boxSizing:'border-box' }} />
+                  <select className="so-field" value={d.tipo} onChange={e => updDoc(d.id,{tipo:e.target.value})}>
+                    <option value="externo">Link externo</option>
+                    <option value="contrato">Contrato</option>
+                    <option value="proposta">Proposta</option>
+                    <option value="ata">Ata</option>
+                    <option value="nf">Nota fiscal</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                  <button onClick={() => remDoc(d.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1 }}>×</button>
+                </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <input className="so-field" value={d.url} onChange={e => updDoc(d.id,{url:e.target.value})} placeholder="https://… ou caminho do documento" style={{ flex:1, boxSizing:'border-box', fontFamily:'monospace', fontSize:11 }} />
+                  {d.url && (
+                    <a href={d.url} target="_blank" rel="noopener noreferrer"
+                      style={{ padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)', fontSize:11, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)' }}>
+                      ↗ Abrir
+                    </a>
+                  )}
+                </div>
+                <input className="so-field" value={d.obs||''} onChange={e => updDoc(d.id,{obs:e.target.value})} placeholder="Observação (opcional)…" style={{ width:'100%', boxSizing:'border-box', fontSize:11 }} />
+              </div>
+            ))}
+            <button onClick={addDoc} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Adicionar documento / link
             </button>
           </div>
         )
