@@ -81,8 +81,7 @@ const EMPTY_ACAO = {
   local: '', vagas: '', inscritos: 0,
   status: 'agendado',
   tenant_id: 't1',
-  custo_previsto: '', custo_realizado: '',
-  aprovacao_status: 'aguardando', aprovacao_obs: '', aprovacao_por: '', aprovacao_em: '',
+  custos: [],
   anexos: [],
 }
 
@@ -439,7 +438,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
   const anexosBadge = (form.anexos || []).length || undefined
-  const custosBadge = (form.aprovacao_status && form.aprovacao_status !== 'aguardando') ? '!' : undefined
+  const custosBadge = (form.custos || []).length || undefined
 
   const tabs = [
     { key:'dados',   label:'Dados' },
@@ -468,12 +467,6 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
 
   function removeAnexo(idx) {
     set('anexos', (form.anexos || []).filter((_, i) => i !== idx))
-  }
-
-  function handleAprovar(novoStatus) {
-    set('aprovacao_status', novoStatus)
-    set('aprovacao_por', profile?.full_name || profile?.email || 'Usuário')
-    set('aprovacao_em', new Date().toISOString())
   }
 
   return (
@@ -566,62 +559,131 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       )}
 
       {/* ── Aba Custos ── */}
-      {tab === 'custos' && (
-        <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
-          <FormGrid cols={2}>
-            <FormField label="Custo previsto (R$)">
-              <input className="so-field" type="number" min="0" step="0.01" value={form.custo_previsto} onChange={e => set('custo_previsto', e.target.value)} placeholder="0,00" />
-            </FormField>
-            <FormField label="Custo realizado (R$)">
-              <input className="so-field" type="number" min="0" step="0.01" value={form.custo_realizado} onChange={e => set('custo_realizado', e.target.value)} placeholder="0,00" />
-            </FormField>
-          </FormGrid>
+      {tab === 'custos' && (() => {
+        const custos = form.custos || []
+        const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
 
-          {/* Aprovação */}
-          <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:16 }}>
-            <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:12 }}>Aprovação de custo</div>
+        function addCusto() {
+          set('custos', [...custos, { id: crypto.randomUUID(), descricao: '', valor_previsto: '', valor_realizado: '', aprovacoes: [] }])
+        }
+        function updateCusto(id, patch) {
+          set('custos', custos.map(c => c.id === id ? { ...c, ...patch } : c))
+        }
+        function removeCusto(id) {
+          if (!window.confirm('Remover este item de custo?')) return
+          set('custos', custos.filter(c => c.id !== id))
+        }
+        function aprovarCusto(id, status, obs) {
+          const entrada = { id: crypto.randomUUID(), status, obs: obs || '', por: nomeUsuario, em: new Date().toISOString() }
+          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes: [...(c.aprovacoes || []), entrada] } : c))
+        }
 
-            {/* Badge de status atual */}
-            {(() => {
-              const cfg = APROVACAO_CFG[form.aprovacao_status] || APROVACAO_CFG.aguardando
+        const totalPrev = custos.reduce((s, c) => s + (Number(c.valor_previsto) || 0), 0)
+        const totalReal = custos.reduce((s, c) => s + (Number(c.valor_realizado) || 0), 0)
+
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+            {/* Totalizador */}
+            {custos.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div style={{ padding:'10px 14px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Total previsto</div>
+                  <div style={{ fontSize:16, fontWeight:700, color:'var(--text)' }}>{fmtMoeda(totalPrev)}</div>
+                </div>
+                <div style={{ padding:'10px 14px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)' }}>
+                  <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Total realizado</div>
+                  <div style={{ fontSize:16, fontWeight:700, color: totalReal > totalPrev ? '#EF4444' : 'var(--text)' }}>{fmtMoeda(totalReal)}</div>
+                </div>
+              </div>
+            )}
+
+            {/* Lista de itens */}
+            {custos.map((c, idx) => {
+              const ultima = (c.aprovacoes || []).slice(-1)[0]
+              const cfgAp  = APROVACAO_CFG[ultima?.status] || APROVACAO_CFG.aguardando
+              const [obsInput, setObsInput] = [c._obsInput || '', v => updateCusto(c.id, { _obsInput: v })]
               return (
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:14 }}>
-                  <span style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'4px 12px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:12, fontWeight:700 }}>
-                    <span style={{ width:7, height:7, borderRadius:'50%', background:cfg.color }} />
-                    {cfg.label}
-                  </span>
-                  {form.aprovacao_por && (
-                    <span style={{ fontSize:11, color:'var(--text-muted)' }}>
-                      por {form.aprovacao_por} · {form.aprovacao_em ? new Date(form.aprovacao_em).toLocaleString('pt-BR') : ''}
-                    </span>
-                  )}
+                <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:10, overflow:'hidden' }}>
+                  {/* Header do item */}
+                  <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'8px 12px', background:'var(--surface2)', borderBottom:'1px solid var(--border)' }}>
+                    <span style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)' }}>ITEM {idx + 1}</span>
+                    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 8px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700 }}>
+                        <span style={{ width:6, height:6, borderRadius:'50%', background:cfgAp.color }} />
+                        {cfgAp.label}
+                      </span>
+                      <button onClick={() => removeCusto(c.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 2px' }}>×</button>
+                    </div>
+                  </div>
+
+                  <div style={{ padding:12, display:'flex', flexDirection:'column', gap:10 }}>
+                    {/* Campos do custo */}
+                    <div>
+                      <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Descrição / Justificativa</label>
+                      <textarea className="so-field" rows={2} style={{ resize:'vertical', width:'100%', boxSizing:'border-box' }}
+                        value={c.descricao} onChange={e => updateCusto(c.id, { descricao: e.target.value })}
+                        placeholder="Descreva o custo e sua finalidade…" />
+                    </div>
+                    <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                      <div>
+                        <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Valor previsto (R$)</label>
+                        <input className="so-field" type="number" min="0" step="0.01" value={c.valor_previsto}
+                          onChange={e => updateCusto(c.id, { valor_previsto: e.target.value })} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
+                      </div>
+                      <div>
+                        <label style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }}>Valor realizado (R$)</label>
+                        <input className="so-field" type="number" min="0" step="0.01" value={c.valor_realizado}
+                          onChange={e => updateCusto(c.id, { valor_realizado: e.target.value })} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
+                      </div>
+                    </div>
+
+                    {/* Histórico de aprovações */}
+                    {(c.aprovacoes || []).length > 0 && (
+                      <div style={{ background:'var(--surface2)', borderRadius:7, padding:'8px 10px' }}>
+                        <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:6 }}>Histórico</div>
+                        {(c.aprovacoes || []).map(ap => {
+                          const apCfg = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
+                          return (
+                            <div key={ap.id} style={{ display:'flex', alignItems:'flex-start', gap:8, marginBottom:4, fontSize:11 }}>
+                              <span style={{ color:apCfg.color, fontWeight:700, flexShrink:0 }}>{ap.status === 'aprovado' ? '✓' : '✗'}</span>
+                              <div>
+                                <span style={{ fontWeight:600 }}>{apCfg.label}</span>
+                                <span style={{ color:'var(--text-muted)' }}> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}</span>
+                                {ap.obs && <div style={{ color:'var(--text-soft)', marginTop:2 }}>{ap.obs}</div>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {/* Nova aprovação */}
+                    <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                      <textarea className="so-field" rows={1} style={{ resize:'none', width:'100%', boxSizing:'border-box', fontSize:11 }}
+                        value={c._obsInput || ''} onChange={e => updateCusto(c.id, { _obsInput: e.target.value })}
+                        placeholder="Observação para aprovação (opcional)…" />
+                      <div style={{ display:'flex', gap:6 }}>
+                        <button onClick={() => { aprovarCusto(c.id, 'aprovado', c._obsInput); updateCusto(c.id, { _obsInput: '' }) }}
+                          style={{ flex:1, padding:'6px 0', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                          ✓ Aprovar
+                        </button>
+                        <button onClick={() => { aprovarCusto(c.id, 'rejeitado', c._obsInput); updateCusto(c.id, { _obsInput: '' }) }}
+                          style={{ flex:1, padding:'6px 0', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                          ✗ Rejeitar
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )
-            })()}
+            })}
 
-            <FormField label="Observação" style={{ marginBottom:12 }}>
-              <textarea className="so-field" rows={2} style={{ resize:'vertical' }} value={form.aprovacao_obs} onChange={e => set('aprovacao_obs', e.target.value)} placeholder="Justificativa ou notas sobre aprovação…" />
-            </FormField>
-
-            <div style={{ display:'flex', gap:8 }}>
-              <button onClick={() => handleAprovar('aprovado')} disabled={form.aprovacao_status === 'aprovado'}
-                style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background: form.aprovacao_status === 'aprovado' ? '#D1FAE5' : '#10B981', color: form.aprovacao_status === 'aprovado' ? '#065F46' : '#fff', fontWeight:700, fontSize:12, cursor: form.aprovacao_status === 'aprovado' ? 'default' : 'pointer', fontFamily:'var(--font)' }}>
-                ✓ Aprovar
-              </button>
-              <button onClick={() => handleAprovar('rejeitado')} disabled={form.aprovacao_status === 'rejeitado'}
-                style={{ flex:1, padding:'7px 0', borderRadius:7, border:'none', background: form.aprovacao_status === 'rejeitado' ? '#FEE2E2' : '#EF4444', color: form.aprovacao_status === 'rejeitado' ? '#991B1B' : '#fff', fontWeight:700, fontSize:12, cursor: form.aprovacao_status === 'rejeitado' ? 'default' : 'pointer', fontFamily:'var(--font)' }}>
-                ✗ Rejeitar
-              </button>
-              {form.aprovacao_status !== 'aguardando' && (
-                <button onClick={() => { set('aprovacao_status','aguardando'); set('aprovacao_por',''); set('aprovacao_em','') }}
-                  style={{ padding:'7px 14px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
-                  Redefinir
-                </button>
-              )}
-            </div>
+            <button onClick={addCusto} style={{ padding:'8px 0', borderRadius:8, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Adicionar item de custo
+            </button>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* ── Aba Anexos ── */}
       {tab === 'anexos' && (
