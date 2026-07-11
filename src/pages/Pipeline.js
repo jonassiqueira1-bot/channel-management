@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import BatchProgress from '../components/BatchProgress'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useTasks } from '../hooks/useTasks'
@@ -4906,15 +4907,19 @@ function BulkTaskModal({ oppIds, opps, onClose, saveTask }) {
   const tipos = tiposAcao.length ? tiposAcao : TIPOS_TAREFA_FALLBACK
   const { usuarios } = useUsuarios()
   const [form, setForm] = useState({ titulo:'', tipo: tipos[0]?.slug||tipos[0]?.label||'', prazo:'', responsavel:'', prioridade:'media', descricao:'' })
-  const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState(null) // null = não iniciado
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   async function handleSave() {
     if (!form.titulo.trim()) return
-    setSaving(true)
     const oppList = opps.filter(o => oppIds.has(o.id))
-    for (const opp of oppList) {
-      await saveTask({
+    const total = oppList.length
+
+    setProgress({ done: 0, total, errors: 0 })
+
+    for (let i = 0; i < oppList.length; i++) {
+      const opp = oppList[i]
+      const result = await saveTask({
         titulo:        form.titulo,
         tipo:          form.tipo,
         prazo:         form.prazo || null,
@@ -4926,12 +4931,12 @@ function BulkTaskModal({ oppIds, opps, onClose, saveTask }) {
         entidade_id:   opp.id,
         entidade_nome: opp.titulo || opp.empresa_nome || '',
       })
+      setProgress(p => ({ ...p, done: i + 1, errors: p.errors + (result?.ok === false ? 1 : 0) }))
     }
-    setSaving(false)
-    onClose()
   }
 
-  return (
+  // Enquanto o progresso não iniciou, mostra o formulário normal
+  if (!progress) return (
     <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
       <div style={{ ...m.modal, maxWidth:480 }}>
         <div style={m.header}>
@@ -4982,12 +4987,31 @@ function BulkTaskModal({ oppIds, opps, onClose, saveTask }) {
         </div>
         <div style={m.footer}>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!form.titulo.trim()||saving} onClick={handleSave}>
-            {saving ? 'Criando...' : `Criar ${oppIds.size} tarefa${oppIds.size!==1?'s':''}`}
+          <Button disabled={!form.titulo.trim()} onClick={handleSave}>
+            {`Criar ${oppIds.size} tarefa${oppIds.size!==1?'s':''}`}
           </Button>
         </div>
       </div>
     </div>
+  )
+
+  // Durante e após a execução, mostra o BatchProgress
+  const done = progress.done >= progress.total
+  const errMsg = progress.errors > 0 ? `${progress.errors} erro(s)` : undefined
+  return createPortal(
+    <BatchProgress
+      title={`Criando tarefas — "${form.titulo}"`}
+      operations={[{
+        id:    'tarefas',
+        label: `${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`,
+        total: progress.total,
+        done:  progress.done,
+        error: errMsg,
+      }]}
+      autoClose={done ? 2500 : 0}
+      onClose={onClose}
+    />,
+    document.body
   )
 }
 
@@ -4995,18 +5019,32 @@ function BulkPlaybookModal({ oppIds, opps, onClose, saveOpp }) {
   const { playbooks } = usePlaybooks()
   const ativos = playbooks.filter(p => p.status !== 'inativo')
   const [selected, setSelected] = useState(null)
-  const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState(null)
 
   async function handleSave() {
     if (!selected) return
-    setSaving(true)
     const pb = ativos.find(p => p.id === selected)
     const oppList = opps.filter(o => oppIds.has(o.id))
-    for (const opp of oppList) {
-      await saveOpp({ ...opp, playbook_id: selected, playbook_nome: pb?.titulo || pb?.title || '' })
+    setProgress({ done: 0, total: oppList.length, errors: 0 })
+    for (let i = 0; i < oppList.length; i++) {
+      const result = await saveOpp({ ...oppList[i], playbook_id: selected, playbook_nome: pb?.titulo || pb?.title || '' })
+      setProgress(p => ({ ...p, done: i + 1, errors: p.errors + (result?.ok === false ? 1 : 0) }))
     }
-    setSaving(false)
-    onClose()
+  }
+
+  return (
+  if (progress) {
+    const pb = ativos.find(p => p.id === selected)
+    const done = progress.done >= progress.total
+    return createPortal(
+      <BatchProgress
+        title={`Relacionando playbook — "${pb?.titulo || pb?.title || ''}"`}
+        operations={[{ id:'playbook', label:`${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`, total:progress.total, done:progress.done, error:progress.errors>0?`${progress.errors} erro(s)`:undefined }]}
+        autoClose={done ? 2500 : 0}
+        onClose={onClose}
+      />,
+      document.body
+    )
   }
 
   return (
@@ -5037,8 +5075,8 @@ function BulkPlaybookModal({ oppIds, opps, onClose, saveOpp }) {
         </div>
         <div style={m.footer}>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!selected||saving} onClick={handleSave}>
-            {saving ? 'Salvando...' : `Relacionar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
+          <Button disabled={!selected} onClick={handleSave}>
+            {`Relacionar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
           </Button>
         </div>
       </div>
@@ -5053,7 +5091,7 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
   const [tipoMembro, setTipoMembro] = useState('interno')
   const [papel, setPapel]           = useState('vendedor')
   const [selectedIds, setSelectedIds] = useState(new Set())
-  const [saving, setSaving] = useState(false)
+  const [progress, setProgress] = useState(null)
 
   const pool = useMemo(() => {
     if (tipoMembro === 'interno') return usuarios.filter(u=>u.status!=='inativo').map(u=>({ id:`s_${u.id}`, nome:u.nome, sub:u.cargo||u.email||'' }))
@@ -5070,15 +5108,30 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
 
   async function handleSave() {
     if (!selectedIds.size) return
-    setSaving(true)
     const oppList = opps.filter(o => oppIds.has(o.id))
+    const total = oppList.length * selectedIds.size
+    setProgress({ done: 0, total, errors: 0 })
+    let count = 0
     for (const opp of oppList) {
       for (const uid of selectedIds) {
-        await addMembro({ oportunidade_id: opp.id, user_id: uid, papel, tipo_membro: tipoMembro })
+        const result = await addMembro({ oportunidade_id: opp.id, user_id: uid, papel, tipo_membro: tipoMembro })
+        count++
+        setProgress(p => ({ ...p, done: count, errors: p.errors + (result?.ok === false ? 1 : 0) }))
       }
     }
-    setSaving(false)
-    onClose()
+  }
+
+  if (progress) {
+    const done = progress.done >= progress.total
+    return createPortal(
+      <BatchProgress
+        title={`Adicionando membros à equipe`}
+        operations={[{ id:'equipe', label:`${oppIds.size} oportunidade${oppIds.size!==1?'s':''} · ${selectedIds.size} membro${selectedIds.size!==1?'s':''}`, total:progress.total, done:progress.done, error:progress.errors>0?`${progress.errors} erro(s)`:undefined }]}
+        autoClose={done ? 2500 : 0}
+        onClose={onClose}
+      />,
+      document.body
+    )
   }
 
   return (
@@ -5136,8 +5189,8 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
         </div>
         <div style={m.footer}>
           <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!selectedIds.size||saving} onClick={handleSave}>
-            {saving ? 'Adicionando...' : `Adicionar ${selectedIds.size||''} membro${selectedIds.size!==1?'s':''} em ${oppIds.size} opp${oppIds.size!==1?'s':''}`}
+          <Button disabled={!selectedIds.size} onClick={handleSave}>
+            {`Adicionar ${selectedIds.size||''} membro${selectedIds.size!==1?'s':''} em ${oppIds.size} opp${oppIds.size!==1?'s':''}`}
           </Button>
         </div>
       </div>
