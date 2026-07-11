@@ -126,23 +126,26 @@ const CAMPOS_PADRAO = {
 // ─── Operadores ───────────────────────────────────────────────────────────────
 const OPS = {
   date:   [
+    { key: 'em_branco',  label: 'está em branco (sem data)' },
     { key: 'dias_apos',  label: 'há mais de X dias sem atualização' },
     { key: 'dias_antes', label: 'daqui a menos de X dias' },
     { key: 'antes_de',   label: 'antes de (data fixa)' },
     { key: 'apos_de',    label: 'após (data fixa)' },
   ],
   money:  [
+    { key: 'em_branco', label: 'está em branco' },
     { key: 'gt', label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
     { key: 'lt', label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
     { key: 'eq', label: 'igual a' },
   ],
   number: [
+    { key: 'em_branco', label: 'está em branco' },
     { key: 'gt', label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
     { key: 'lt', label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
     { key: 'eq', label: 'igual a' },
   ],
-  enum: [{ key: 'eq', label: 'é' }, { key: 'neq', label: 'não é' }],
-  text: [{ key: 'eq', label: 'é igual a' }, { key: 'neq', label: 'não é' }, { key: 'contains', label: 'contém' }],
+  enum: [{ key: 'em_branco', label: 'está em branco' }, { key: 'eq', label: 'é' }, { key: 'neq', label: 'não é' }],
+  text: [{ key: 'em_branco', label: 'está em branco' }, { key: 'eq', label: 'é igual a' }, { key: 'neq', label: 'não é' }, { key: 'contains', label: 'contém' }],
 }
 
 const DEST_TIPOS = [
@@ -170,7 +173,8 @@ function cfTipo(type) {
 }
 
 function newCond()  { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '', logico: 'E' } }
-function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', prazo_dias: 3, titulo_tarefa: '' } }
+function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', prazo_dias: 3, titulo_tarefa: '', destinatarios_extra: [] } }
+function newDestExtra() { return { id: crypto.randomUUID(), tipo: 'responsavel_origem', email_fixo: '', usuario_id: '' } }
 function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, condicoes: [newCond()], acoes: [newAcao()], acoes_else: [], com_else: false } }
 
 // ─── Engine de avaliação ──────────────────────────────────────────────────────
@@ -182,6 +186,7 @@ function avaliarCondicao(registro, cond) {
   const hoje = Date.now()
 
   switch (cond.operador) {
+    case 'em_branco': return !val || String(val).trim() === ''
     case 'dias_apos': {
       if (!val) return false
       const diff = (hoje - new Date(val).getTime()) / 86400000
@@ -221,23 +226,21 @@ function avaliarRegra(rule, registro) {
   return resultado
 }
 
-async function resolverDestinatario(acao, registro, tenantId) {
-  const tipo = acao.destinatario_tipo
-  if (tipo === 'email_fixo') return acao.email_fixo || null
+async function resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tenantId) {
+  if (tipo === 'email_fixo') return emailFixo || null
 
   if (tipo === 'responsavel_origem') {
     const responsavelId = registro.responsavel_id || registro.responsavel || null
     if (!responsavelId) return null
     const { data } = await supabase.from('profiles').select('email').eq('id', responsavelId).single()
     if (data?.email) return data.email
-    // fallback: busca por nome
     const { data: d2 } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).ilike('full_name', `%${responsavelId}%`).single()
     return d2?.email || null
   }
 
   if (tipo === 'usuario_sistema') {
-    if (!acao.usuario_id) return null
-    const { data } = await supabase.from('profiles').select('email').eq('id', acao.usuario_id).single()
+    if (!usuarioId) return null
+    const { data } = await supabase.from('profiles').select('email').eq('id', usuarioId).single()
     return data?.email || null
   }
 
@@ -249,15 +252,26 @@ async function resolverDestinatario(acao, registro, tenantId) {
   return null
 }
 
+async function resolverTodosDestinatarios(acao, registro, tenantId) {
+  const emails = new Set()
+  const principal = await resolverUmDestinatario(acao.destinatario_tipo, acao.email_fixo, acao.usuario_id, registro, tenantId)
+  if (principal) emails.add(principal)
+  for (const de of (acao.destinatarios_extra || [])) {
+    const e = await resolverUmDestinatario(de.tipo, de.email_fixo, de.usuario_id, registro, tenantId)
+    if (e) emails.add(e)
+  }
+  return [...emails]
+}
+
 async function executarAcoes(acoes, registro, rule, tenantId) {
   for (const acao of acoes) {
     if (acao.tipo === 'email') {
-      const email = await resolverDestinatario(acao, registro, tenantId)
-      if (email) {
-        const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
-        const assunto = (acao.assunto || rule.gatilho_nome || 'Alerta Boostly')
-          .replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
-        const html = `<p>${(acao.mensagem || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)}</p>`
+      const emails = await resolverTodosDestinatarios(acao, registro, tenantId)
+      const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
+      const assunto = (acao.assunto || rule.gatilho_nome || 'Alerta Boostly')
+        .replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
+      const html = `<p>${(acao.mensagem || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)}</p>`
+      for (const email of emails) {
         await supabase.functions.invoke('send-email', { body: { to: email, subject: assunto, html } })
       }
     }
@@ -374,24 +388,26 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
                 <option value="">Operador…</option>
                 {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </Sel>
-              {campo?.tipo === 'enum'
-                ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
-                    <option value="">Valor…</option>
-                    {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
-                  </Sel>
-                : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
-                  ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
-                        style={{ ...inp, width: 70 }} placeholder="0" />
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
-                    </div>
-                  : campo?.tipo === 'money'
+              {c.operador === 'em_branco'
+                ? <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6, border: '1px solid var(--border)' }}>— sem valor —</div>
+                : campo?.tipo === 'enum'
+                  ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                      <option value="">Valor…</option>
+                      {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
+                    </Sel>
+                  : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
                     ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
-                        <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+                        <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
+                          style={{ ...inp, width: 70 }} placeholder="0" />
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
                       </div>
-                    : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
-                        onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="Valor…" />
+                    : campo?.tipo === 'money'
+                      ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
+                          <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+                        </div>
+                      : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
+                          onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="Valor…" />
               }
               <button onClick={() => remove(c.id)} title="Remover condição"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '6px 4px', flexShrink: 0 }}>
@@ -474,6 +490,38 @@ function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
               <UsuarioSelector tenantId={tenantId} value={a.usuario_id} onChange={v => update(a.id, { usuario_id: v })} />
             </div>
           )}
+
+          {/* Destinatários extras */}
+          {(a.destinatarios_extra || []).map((de, dei) => {
+            const updDe = (patch) => update(a.id, {
+              destinatarios_extra: (a.destinatarios_extra || []).map(d => d.id === de.id ? { ...d, ...patch } : d)
+            })
+            const remDe = () => update(a.id, { destinatarios_extra: (a.destinatarios_extra || []).filter(d => d.id !== de.id) })
+            return (
+              <div key={de.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'flex-start', marginBottom: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <Sel value={de.tipo} onChange={v => updDe({ tipo: v })}>
+                    {DEST_TIPOS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                  </Sel>
+                  {de.tipo === 'email_fixo' && (
+                    <input value={de.email_fixo} onChange={e => updDe({ email_fixo: e.target.value })}
+                      placeholder="email@exemplo.com" style={inp} type="email" />
+                  )}
+                  {de.tipo === 'usuario_sistema' && tenantId && (
+                    <UsuarioSelector tenantId={tenantId} value={de.usuario_id} onChange={v => updDe({ usuario_id: v })} />
+                  )}
+                </div>
+                <button onClick={remDe} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '7px 4px' }}>
+                  <Trash2 size={13} strokeWidth={2}/>
+                </button>
+              </div>
+            )
+          })}
+          <button onClick={() => update(a.id, { destinatarios_extra: [...(a.destinatarios_extra || []), newDestExtra()] })}
+            style={{ ...btnSm(false), fontSize: 11, marginBottom: 8 }}>
+            + Adicionar destinatário
+          </button>
+
           {a.tipo === 'email' && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
               <div>
