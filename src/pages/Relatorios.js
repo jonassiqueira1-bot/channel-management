@@ -6,6 +6,7 @@ import CanvasEditor from '../components/ui/CanvasEditor'
 import { useRelatorios } from '../hooks/useRelatorios'
 import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
+import { useDocumentDataSources } from '../hooks/useDocumentDataSources'
 
 function fmtDate(s) {
   if (!s) return '—'
@@ -233,7 +234,7 @@ function RelatorioForm({ form, setForm }) {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-function PrintModal({ relatorio, onConfirm, onClose }) {
+function PrintModal({ relatorio, sources = [], onConfirm, onClose }) {
   const imp = relatorio.config?.impressao || {}
   const [opts, setOpts] = useState({
     orientacao: imp.orientacao || 'retrato',
@@ -306,15 +307,28 @@ function PrintModal({ relatorio, onConfirm, onClose }) {
               <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {paramFields.map(f => {
                   const pk = `${f.srcId}__${f.key}`
+                  const src = sources.find(s => s.id === f.srcId)
+                  const uniqueVals = src
+                    ? [...new Set(src.registros.map(r => r[f.key]).filter(v => v && v !== '—'))].sort()
+                    : []
                   return (
                     <div key={pk}>
                       <label style={{ ...lbl, marginBottom: 2 }}>
                         <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 10 }}>{f.sourceLabel} · </span>
                         {f.label}
                       </label>
-                      <input style={inp} placeholder={`Filtrar por ${f.label.toLowerCase()}…`}
-                        value={paramValues[pk] || ''}
-                        onChange={e => setParamValues(p => ({ ...p, [pk]: e.target.value }))} />
+                      {uniqueVals.length > 0 ? (
+                        <select style={{ ...inp, cursor: 'pointer' }}
+                          value={paramValues[pk] || ''}
+                          onChange={e => setParamValues(p => ({ ...p, [pk]: e.target.value }))}>
+                          <option value="">Todos</option>
+                          {uniqueVals.map(v => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                      ) : (
+                        <input style={inp} placeholder={`Filtrar por ${f.label.toLowerCase()}…`}
+                          value={paramValues[pk] || ''}
+                          onChange={e => setParamValues(p => ({ ...p, [pk]: e.target.value }))} />
+                      )}
                     </div>
                   )
                 })}
@@ -379,6 +393,7 @@ function PrintModal({ relatorio, onConfirm, onClose }) {
 export default function Relatorios() {
   const { relatorios, loading, save, remove, canEdit } = useRelatorios('relatorio')
   const { profile } = useProfile()
+  const { sources } = useDocumentDataSources()
   const [search,        setSearch]        = useLocalState('browse:relatorios:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:relatorios:filters', {})
 
@@ -524,7 +539,7 @@ export default function Relatorios() {
       />
 
       {/* ── Modal de impressão ── */}
-      {printModal && <PrintModal relatorio={printModal} onConfirm={handlePrintConfirm} onClose={() => setPrintModal(null)} />}
+      {printModal && <PrintModal relatorio={printModal} sources={sources} onConfirm={handlePrintConfirm} onClose={() => setPrintModal(null)} />}
 
       {/* ── SlideOver de cadastro ── */}
       <SlideOver
