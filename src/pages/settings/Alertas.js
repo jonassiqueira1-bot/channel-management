@@ -582,10 +582,12 @@ async function executarAcoes(acoes, registro, rule, tenantId) {
         const v = registro[key]
         return v !== undefined && v !== null ? String(v) : ''
       }).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
-      const assunto = interpolar(acao.assunto) || rule.gatilho_nome || 'Alerta Boostly'
-      const html = `<p>${interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`}</p>`
+      const assunto  = interpolar(acao.assunto)  || rule.gatilho_nome || 'Alerta Boostly'
+      const mensagem = interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`
       for (const email of emails) {
-        await supabase.functions.invoke('send-email', { body: { to: email, subject: assunto, html } })
+        await supabase.functions.invoke('send-email', {
+          body: { template: 'alerta_generico', to: email, data: { titulo: assunto, mensagem } },
+        })
       }
     }
   }

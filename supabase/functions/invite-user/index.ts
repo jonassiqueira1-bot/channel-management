@@ -13,6 +13,28 @@ function json(data: unknown, status = 200) {
   })
 }
 
+async function sendViaResend(
+  apiKey: string,
+  to: string,
+  template: string,
+  data: Record<string, unknown>,
+) {
+  try {
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
+    await fetch(`${SUPABASE_URL}/functions/v1/send-email`, {
+      method: 'POST',
+      headers: {
+        'Content-Type':  'application/json',
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_ANON_KEY')}`,
+        'apikey':        Deno.env.get('SUPABASE_ANON_KEY')!,
+      },
+      body: JSON.stringify({ template, to, data }),
+    })
+  } catch (e) {
+    console.error('[invite-user] sendViaResend error:', e)
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors })
 
@@ -48,70 +70,76 @@ serve(async (req) => {
     if (!email) return json({ error: 'email é obrigatório' }, 400)
 
     // Admin client para operações privilegiadas
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+    const admin      = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
+    const RESEND_KEY = Deno.env.get('RESEND_API_KEY')!
+    const APP_URL    = Deno.env.get('APP_URL') || 'https://app.boostly.com.br'
 
-    // Envia convite via REST API do Supabase Auth (mais confiável que o SDK)
-    const APP_URL = Deno.env.get('APP_URL') || 'https://app.boostly.com.br'
-    const redirectTo = `${APP_URL}/aceitar-convite`
-    const inviteRes = await fetch(`${SUPABASE_URL}/auth/v1/invite?redirect_to=${encodeURIComponent(redirectTo)}`, {
-      method: 'POST',
-      headers: {
-        'apikey':        SERVICE_ROLE_KEY,
-        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-        'Content-Type':  'application/json',
-      },
-      body: JSON.stringify({
-        email,
+    // Busca nome do tenant para personalizar o email
+    const { data: tenantData } = await admin.from('tenants').select('nome').eq('id', callerProfile.tenant_id).single()
+    const tenantNome = tenantData?.nome || 'Boostly'
+
+    // Tenta gerar link de convite sem enviar email pelo Supabase
+    const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
+      type: 'invite',
+      email,
+      options: {
+        redirectTo: `${APP_URL}/aceitar-convite`,
         data: {
           tenant_id:  callerProfile.tenant_id,
           contact_id: contact_id || null,
           role:       papel || 'parceiro',
           nome:       nome || email,
         },
-      }),
+      },
     })
 
-    if (!inviteRes.ok) {
-      const errBody = await inviteRes.text()
-      console.error('[invite-user] auth/v1/invite error:', inviteRes.status, errBody)
-      let errMsg = errBody
-      try { errMsg = JSON.parse(errBody)?.msg || JSON.parse(errBody)?.message || errBody } catch {}
-
-      // Usuário já existe: vincula o profile e envia magic link para acesso
-      if (inviteRes.status === 422 || errMsg?.toLowerCase().includes('already been registered') || errMsg?.toLowerCase().includes('already registered')) {
+    if (linkErr) {
+      // Usuário já existe: vincula profile e gera magic link
+      if (linkErr.message?.toLowerCase().includes('already been registered') || linkErr.message?.toLowerCase().includes('already registered')) {
         const { data: existingUsers } = await admin.auth.admin.listUsers()
         const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
         if (existingUser) {
-          // Busca branch_id do seller vinculado
           let sellerBranchId: string | null = null
           if (contact_id) {
             const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
             sellerBranchId = seller?.branch_id || null
           }
-          // Vincula contact_id, role e branch_id do seller ao profile existente
           await admin.from('profiles').update({
             contact_id: contact_id || null,
             role:       papel || 'parceiro',
             branch_id:  sellerBranchId,
           }).eq('id', existingUser.id)
 
-          // Envia magic link para o usuário acessar
-          const mlRedirect = `${APP_URL}/aceitar-convite`
-          await fetch(`${SUPABASE_URL}/auth/v1/magiclink?redirect_to=${encodeURIComponent(mlRedirect)}`, {
-            method: 'POST',
-            headers: {
-              'apikey':        SERVICE_ROLE_KEY,
-              'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-              'Content-Type':  'application/json',
-            },
-            body: JSON.stringify({ email }),
+          // Gera magic link e envia via Resend
+          const { data: mlData } = await admin.auth.admin.generateLink({
+            type: 'magiclink',
+            email,
+            options: { redirectTo: `${APP_URL}/aceitar-convite` },
           })
-
+          if (mlData?.properties?.action_link) {
+            await sendViaResend(RESEND_KEY, email, 'convite_usuario', {
+              nome:          nome || email,
+              convidado_por: callerProfile.nome || 'Boostly',
+              tenant_nome:   tenantNome,
+              link:          mlData.properties.action_link,
+            })
+          }
           return json({ ok: true, linked: true })
         }
       }
+      console.error('[invite-user] generateLink error:', linkErr.message)
+      return json({ error: linkErr.message }, 400)
+    }
 
-      return json({ error: errMsg }, 400)
+    // Envia convite via Resend com template da marca
+    const actionLink = linkData?.properties?.action_link
+    if (actionLink) {
+      await sendViaResend(RESEND_KEY, email, 'convite_usuario', {
+        nome:          nome || email,
+        convidado_por: callerProfile.nome || 'Boostly',
+        tenant_nome:   tenantNome,
+        link:          actionLink,
+      })
     }
 
     // Insere em pending_invites para rastreio

@@ -16,6 +16,7 @@ function json(data: unknown, status = 200) {
 type TemplateName =
   | 'boas_vindas'
   | 'convite_usuario'
+  | 'recuperar_senha'
   | 'pagamento_vencido'
   | 'contrato_vencendo'
   | 'oportunidade_parada'
@@ -104,6 +105,18 @@ function buildEmail(template: TemplateName, data: Record<string, unknown>): { su
           ${p(`Clique no botão abaixo para aceitar o convite e definir sua senha.`)}
           ${btn('Aceitar convite', `${data.link}`)}
           ${p(`<small style="color:#999;">O link expira em 48 horas.</small>`)}
+        `),
+      }
+
+    case 'recuperar_senha':
+      return {
+        subject: `Redefinição de senha — Boostly`,
+        html: base(`
+          ${h1(`Redefinir sua senha`)}
+          ${p(`Recebemos uma solicitação para redefinir a senha da sua conta no <strong>Boostly</strong>.`)}
+          ${p(`Clique no botão abaixo para criar uma nova senha. O link é válido por <strong>1 hora</strong>.`)}
+          ${btn('Redefinir senha', `${data.link}`)}
+          ${p(`<small style="color:#999;">Se você não solicitou a redefinição de senha, ignore este e-mail — sua senha permanece a mesma.</small>`)}
         `),
       }
 
