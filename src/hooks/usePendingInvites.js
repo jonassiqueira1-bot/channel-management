@@ -38,6 +38,7 @@ export function usePendingInvites() {
       body: JSON.stringify(record),
     })
     const json = await res.json()
+    console.log('[usePendingInvites] invite response:', res.status, json)
     if (!res.ok) return { ok: false, message: json.error || 'Erro ao enviar convite' }
     await loadInvites()
     return { ok: true }

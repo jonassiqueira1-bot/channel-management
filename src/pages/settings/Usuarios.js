@@ -11,6 +11,7 @@ import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 import { useBranches } from '../../hooks/useBranches'
+import { useBranchContext } from '../../contexts/BranchContext'
 import { useParceiros } from '../../hooks/useParceiros'
 
 const ACCENT = 'var(--accent)'
@@ -80,6 +81,8 @@ function filtrarPorSessao(perfis, sessao) {
 function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
   const [form, setForm] = useState({ nome: '', email: '', papel: 'vendedor', status: 'pendente' })
   const [erros, setErros] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [erroGeral, setErroGeral] = useState('')
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErros(e => ({ ...e, [f]: null })) }
 
@@ -94,10 +97,12 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
     return Object.keys(e).length === 0
   }
 
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
     if (!validar()) return
-    onSave({
+    setSaving(true)
+    setErroGeral('')
+    const res = await onSave({
       id:           uid(),
       nome:         form.nome.trim(),
       email:        form.email.trim().toLowerCase(),
@@ -108,6 +113,8 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
       criado_em:    new Date().toISOString(),
       ultimo_acesso: null,
     })
+    setSaving(false)
+    if (res && !res.ok) { setErroGeral(res.message || 'Erro ao enviar convite'); return }
     onClose()
   }
 
@@ -152,9 +159,17 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
             </div>
           </div>
 
+          <div style={{ margin: '0 24px 12px', padding: '10px 14px', background: 'var(--surface2)', borderRadius: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+            O convidado receberá um e-mail com link de acesso válido por <strong>24 horas</strong>.
+          </div>
+          {erroGeral && (
+            <div style={{ margin: '0 24px 12px', padding: '10px 14px', background: '#FFF5F5', border: '1px solid var(--red)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+              {erroGeral}
+            </div>
+          )}
           <div style={ov.footer}>
-            <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Enviar convite</Button>
+            <Button variant="secondary" onClick={onClose} disabled={saving}>Cancelar</Button>
+            <Button type="submit" disabled={saving}>{saving ? 'Enviando...' : 'Enviar convite'}</Button>
           </div>
         </form>
       </div>
@@ -895,6 +910,7 @@ export default function SettingsUsuarios() {
   const { invites, invite: criarConvite, remove: cancelarConvite } = usePendingInvites()
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
+  const { activeBranchId } = useBranchContext()
   const sessao = profile || { papel: 'admin_isv' }
   const [modalConvite, setModalConvite] = useState(false)
   const [modalImport, setModalImport]   = useState(false)
@@ -926,9 +942,11 @@ export default function SettingsUsuarios() {
       nome: novo.nome,
       email: novo.email,
       papel: novo.papel,
-      tipo_usuario: novo.tipo_usuario,
+      tipo_usuario: novo.tipo_usuario || 'externo',
+      branch_id: activeBranchId || null,
     })
     if (res.ok) log('criar', 'usuario', novo.email, { descricao: `Convite enviado para: ${novo.email}` })
+    return res
   }
 
   function salvarPerfil(novo) {
