@@ -128,6 +128,7 @@ const CAMPOS_PADRAO = {
 const OPS = {
   date:   [
     { key: 'em_branco',   label: 'está em branco (sem data)' },
+    { key: 'igual_hoje',  label: 'é hoje' },
     { key: 'antes_hoje',  label: 'antes de hoje (já venceu)' },
     { key: 'apos_hoje',   label: 'após hoje (ainda no futuro)' },
     { key: 'dias_apos',   label: 'há mais de X dias sem atualização' },
@@ -193,6 +194,7 @@ function avaliarCondicao(registro, cond) {
 
   switch (cond.operador) {
     case 'em_branco':  return !val || String(val).trim() === ''
+    case 'igual_hoje': { const hoje = new Date().toISOString().slice(0,10); return val ? String(val).slice(0,10) === hoje : false }
     case 'antes_hoje': return val ? new Date(val) < new Date(new Date().toDateString()) : false
     case 'apos_hoje':  return val ? new Date(val) > new Date(new Date().toDateString()) : false
     case 'dias_apos': {
@@ -424,7 +426,7 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
                 <option value="">Operador…</option>
                 {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </Sel>
-              {(c.operador === 'em_branco' || c.operador === 'antes_hoje' || c.operador === 'apos_hoje')
+              {(c.operador === 'em_branco' || c.operador === 'igual_hoje' || c.operador === 'antes_hoje' || c.operador === 'apos_hoje')
                 ? <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6, border: '1px solid var(--border)' }}>— data atual —</div>
                 : campo?.tipo === 'enum'
                   ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
