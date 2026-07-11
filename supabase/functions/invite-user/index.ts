@@ -65,7 +65,7 @@ serve(async (req) => {
     }
 
     const body = await req.json()
-    const { email, nome, papel, tipo_usuario, contact_id } = body
+    const { email, nome, papel, tipo_usuario, contact_id, branch_id } = body
 
     if (!email) return json({ error: 'email é obrigatório' }, 400)
 
@@ -78,7 +78,54 @@ serve(async (req) => {
     const { data: tenantData } = await admin.from('tenants').select('nome').eq('id', callerProfile.tenant_id).single()
     const tenantNome = tenantData?.nome || 'Boostly'
 
-    // Tenta gerar link de convite sem enviar email pelo Supabase
+    // Verifica se email já existe em auth.users ANTES de gerar o link
+    // (generateLink de invite pode retornar sucesso para emails existentes
+    //  mas o link falha na verificação com "Error confirming user")
+    const { data: existingUsers } = await admin.auth.admin.listUsers({ perPage: 1000 })
+    const existingUser = existingUsers?.users?.find((u: any) => u.email?.toLowerCase() === email.toLowerCase())
+
+    const sendInviteAndSave = async (actionLink: string, isLinked = false) => {
+      await sendViaResend(RESEND_KEY, email, 'convite_usuario', {
+        nome:          nome || email,
+        convidado_por: callerProfile.nome || 'Boostly',
+        tenant_nome:   tenantNome,
+        link:          actionLink,
+      })
+      const { error: insertErr } = await admin.from('pending_invites').upsert({
+        tenant_id:    callerProfile.tenant_id,
+        nome:         nome || email,
+        email,
+        papel:        papel || 'parceiro',
+        tipo_usuario: tipo_usuario || 'externo',
+      }, { onConflict: 'tenant_id,email' })
+      if (insertErr) console.error('[invite-user] pending_invites upsert:', insertErr.message)
+    }
+
+    if (existingUser) {
+      // Usuário já existe: atualiza profile e envia magic link
+      let sellerBranchId: string | null = null
+      if (contact_id) {
+        const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
+        sellerBranchId = seller?.branch_id || null
+      }
+      await admin.from('profiles').update({
+        contact_id: contact_id || null,
+        role:       papel || 'parceiro',
+        branch_id:  sellerBranchId,
+      }).eq('id', existingUser.id)
+
+      const { data: mlData } = await admin.auth.admin.generateLink({
+        type: 'magiclink',
+        email,
+        options: { redirectTo: `${APP_URL}/aceitar-convite` },
+      })
+      if (mlData?.properties?.action_link) {
+        await sendInviteAndSave(mlData.properties.action_link, true)
+      }
+      return json({ ok: true, linked: true })
+    }
+
+    // Novo usuário: gera link de convite
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'invite',
       email,
@@ -94,66 +141,28 @@ serve(async (req) => {
     })
 
     if (linkErr) {
-      // Usuário já existe: vincula profile e gera magic link
-      if (linkErr.message?.toLowerCase().includes('already been registered') || linkErr.message?.toLowerCase().includes('already registered')) {
-        const { data: existingUsers } = await admin.auth.admin.listUsers()
-        const existingUser = existingUsers?.users?.find((u: any) => u.email === email)
-        if (existingUser) {
-          let sellerBranchId: string | null = null
-          if (contact_id) {
-            const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
-            sellerBranchId = seller?.branch_id || null
-          }
-          await admin.from('profiles').update({
-            contact_id: contact_id || null,
-            role:       papel || 'parceiro',
-            branch_id:  sellerBranchId,
-          }).eq('id', existingUser.id)
-
-          // Gera magic link e envia via Resend
-          const { data: mlData } = await admin.auth.admin.generateLink({
-            type: 'magiclink',
-            email,
-            options: { redirectTo: `${APP_URL}/aceitar-convite` },
-          })
-          if (mlData?.properties?.action_link) {
-            await sendViaResend(RESEND_KEY, email, 'convite_usuario', {
-              nome:          nome || email,
-              convidado_por: callerProfile.nome || 'Boostly',
-              tenant_nome:   tenantNome,
-              link:          mlData.properties.action_link,
-            })
-          }
-          return json({ ok: true, linked: true })
-        }
-      }
       console.error('[invite-user] generateLink error:', linkErr.message)
       return json({ error: linkErr.message }, 400)
     }
 
-    // Envia convite via Resend com template da marca
-    const actionLink = linkData?.properties?.action_link
-    if (actionLink) {
-      await sendViaResend(RESEND_KEY, email, 'convite_usuario', {
-        nome:          nome || email,
-        convidado_por: callerProfile.nome || 'Boostly',
-        tenant_nome:   tenantNome,
-        link:          actionLink,
-      })
+    // Cria o perfil imediatamente para que o usuário apareça na lista
+    const newUserId = linkData?.user?.id
+    if (newUserId) {
+      const { error: profileErr } = await admin.from('profiles').upsert({
+        id:           newUserId,
+        email,
+        nome:         nome || email,
+        tenant_id:    callerProfile.tenant_id,
+        role:         papel || 'parceiro',
+        status:       'pending',
+        tipo_usuario: tipo_usuario || 'externo',
+        branch_id:    branch_id || null,
+      }, { onConflict: 'id' })
+      if (profileErr) console.error('[invite-user] profile upsert:', profileErr.message)
     }
 
-    // Insere em pending_invites para rastreio
-    const { error: insertErr } = await admin
-      .from('pending_invites')
-      .insert({
-        tenant_id:    callerProfile.tenant_id,
-        nome:         nome || email,
-        email,
-        papel:        papel || 'parceiro',
-        tipo_usuario: tipo_usuario || 'externo',
-      })
-
-    if (insertErr) console.error('[invite-user] pending_invites:', insertErr.message)
+    const actionLink = linkData?.properties?.action_link
+    if (actionLink) await sendInviteAndSave(actionLink)
 
     return json({ ok: true })
 

@@ -12,6 +12,14 @@ export default function AceitarConvite() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    // Verifica erro no hash (Supabase implicit flow redireciona erros no hash)
+    const hash = new URLSearchParams(window.location.hash.slice(1))
+    const hashError = hash.get('error_description') || hash.get('error')
+    if (hashError) {
+      setError('Link inválido ou expirado. Peça ao administrador para reenviar o convite.')
+      return
+    }
+
     const params = new URLSearchParams(window.location.search)
     const tokenHash = params.get('token_hash')
     const type      = params.get('type') // 'invite' ou 'recovery'
