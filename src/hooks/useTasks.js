@@ -4,6 +4,49 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
 
+// Recalcula e persiste proxima_tarefa_data/hora em custom_fields da oportunidade
+async function sincronizarProximaTarefa(oportunidadeId) {
+  if (!oportunidadeId) return
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('data_inicio, prazo, status, concluida_em, custom_fields')
+    .eq('entidade_id', oportunidadeId)
+    .eq('entidade_tipo', 'oportunidade')
+    .neq('status', 'cancelada')
+    .is('deleted_at', null)
+
+  // Usa data_inicio (custom_fields) ou prazo como fallback para a data da tarefa
+  const dataEfetiva = (t) => t.custom_fields?.data_inicio || t.prazo || null
+
+  const pendentes = (tasks || [])
+    .filter(t => t.status !== 'concluida' && dataEfetiva(t))
+    .sort((a, b) => dataEfetiva(a).localeCompare(dataEfetiva(b)))
+  const proxima = pendentes[0]
+  const proximaData = proxima ? dataEfetiva(proxima) : null
+
+  const concluidas = (tasks || []).filter(t => t.status === 'concluida' && t.concluida_em)
+  concluidas.sort((a, b) => a.concluida_em.localeCompare(b.concluida_em))
+  const primeira = concluidas[0]
+
+  // Lê custom_fields atual para não sobrescrever outros campos
+  const { data: opp } = await supabase
+    .from('opportunities')
+    .select('custom_fields')
+    .eq('id', oportunidadeId)
+    .single()
+
+  const cf = opp?.custom_fields || {}
+  await supabase.from('opportunities').update({
+    custom_fields: {
+      ...cf,
+      proxima_tarefa_data:     proximaData?.slice(0, 10) || null,
+      proxima_tarefa_hora:     proximaData?.length > 10 ? proximaData.slice(11, 16) : null,
+      primeira_conclusao_data: primeira?.concluida_em?.slice(0, 10) || null,
+      primeira_conclusao_hora: primeira?.concluida_em?.slice(11, 16) || null,
+    }
+  }).eq('id', oportunidadeId)
+}
+
 function rowToTask(row) {
   const cf = row.custom_fields || {}
   return {
@@ -94,16 +137,23 @@ export function useTasks() {
       if (error) return { ok: false, message: error.message }
       setTarefas(prev => [...prev, rowToTask(data)])
     }
+    if (t.entidade_tipo === 'oportunidade' && t.entidade_id) {
+      sincronizarProximaTarefa(t.entidade_id)
+    }
     return { ok: true }
   }, [tenantId, branchId])
 
   const remove = useCallback(async (id) => {
     if (isMockMode.current) { setTarefas(prev => prev.filter(t => t.id !== id)); return { ok: true } }
+    const tarefa = tarefas.find(t => t.id === id)
     const { error } = await softDelete('tasks', id)
     if (error) return { ok: false, message: error.message }
     setTarefas(prev => prev.filter(t => t.id !== id))
+    if (tarefa?.entidade_tipo === 'oportunidade' && tarefa?.entidade_id) {
+      sincronizarProximaTarefa(tarefa.entidade_id)
+    }
     return { ok: true }
-  }, [])
+  }, [tarefas])
 
   const bulkSetStatus = useCallback(async (ids, status) => {
     const concluida_em = status === 'concluida' ? new Date().toISOString() : null
@@ -113,7 +163,13 @@ export function useTasks() {
     }
     await supabase.from('tasks').update({ status, concluida_em }).in('id', ids)
     setTarefas(prev => prev.map(t => ids.includes(t.id) ? { ...t, status, concluida_em } : t))
-  }, [])
+    // Sincroniza oportunidades afetadas
+    const oppIds = [...new Set(
+      tarefas.filter(t => ids.includes(t.id) && t.entidade_tipo === 'oportunidade' && t.entidade_id)
+              .map(t => t.entidade_id)
+    )]
+    for (const oid of oppIds) sincronizarProximaTarefa(oid)
+  }, [tarefas])
 
   return { tarefas, loading, reload: load, save, remove, bulkSetStatus, setTarefas, isMock: isMockMode }
 }

@@ -4,6 +4,7 @@ import { useProfile } from '../../hooks/useProfile'
 import { useBranchContext } from '../../contexts/BranchContext'
 import { useCustomFields } from '../../hooks/useCustomFields'
 import { FullPageEdit, FPESection } from '../../components/ui'
+import { PAPEIS_OPTIONS } from '../../data/mockPerfis'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { Plus, Trash2, GitBranch } from 'lucide-react'
 
@@ -13,10 +14,12 @@ const ORIGENS = [
   { key: 'contracts',           label: 'Contratos',     table: 'contracts'     },
   { key: 'projects',            label: 'Projetos',      table: 'projects'      },
   { key: 'tasks',               label: 'Tarefas',       table: 'tasks'         },
+  { key: 'actions',             label: 'Ações',         table: 'actions'       },
   { key: 'commission_payments', label: 'Pagamentos',    table: 'commission_payments' },
   { key: 'companies',           label: 'Empresas',      table: 'companies'     },
   { key: 'goals',               label: 'Metas & KPIs',  table: 'goals'         },
   { key: 'sellers',             label: 'Parceiros',     table: 'sellers'       },
+  { key: 'contacts',           label: 'Contatos Canais', table: 'contacts'    },
 ]
 
 // ─── Campos por origem ────────────────────────────────────────────────────────
@@ -41,8 +44,9 @@ const CAMPOS_PADRAO = {
     { key: 'proxima_tarefa_hora',    label: 'Hora próxima tarefa',      tipo: 'text' },
     { key: 'primeira_conclusao_data',label: 'Data 1ª conclusão tarefa', tipo: 'date' },
     { key: 'primeira_conclusao_hora',label: 'Hora 1ª conclusão tarefa', tipo: 'text' },
-    { key: 'proposta_produto',       label: 'Proposta produto',         tipo: 'text' },
-    { key: 'proposta_servico',       label: 'Proposta serviço',         tipo: 'text' },
+    { key: 'proposta_produto',       label: 'Proposta produto',         tipo: 'text'   },
+    { key: 'proposta_servico',       label: 'Proposta serviço',         tipo: 'text'   },
+    { key: 'n_tarefas',             label: 'Qtd. de tarefas',          tipo: 'number' },
   ],
   contracts: [
     { key: 'data_inicio',    label: 'Início da vigência',  tipo: 'date'  },
@@ -63,9 +67,19 @@ const CAMPOS_PADRAO = {
     { key: 'created_at',  label: 'Data de cadastro',  tipo: 'date' },
     { key: 'status',      label: 'Status', tipo: 'enum', opts: ['em_andamento','concluido','cancelado','pausado'] },
     { key: 'phase',       label: 'Fase',   tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
-    { key: 'responsavel', label: 'Responsável',        tipo: 'text' },
-    { key: 'nome',        label: 'Nome do projeto',    tipo: 'text' },
-    { key: 'cliente',     label: 'Cliente',            tipo: 'text' },
+    { key: 'responsavel', label: 'Responsável',        tipo: 'text'   },
+    { key: 'nome',        label: 'Nome do projeto',    tipo: 'text'   },
+    { key: 'cliente',     label: 'Cliente',            tipo: 'text'   },
+    { key: 'fin_valor_contrato',   label: 'Valor do contrato (R$)',   tipo: 'money'  },
+    { key: 'fin_custo_realizado',  label: 'Custo realizado (R$)',     tipo: 'money'  },
+    { key: 'fin_receita_faturada', label: 'Receita faturada (R$)',    tipo: 'money'  },
+    { key: 'fin_margem_bruta',     label: 'Margem bruta (R$)',        tipo: 'money'  },
+    { key: 'fin_margem_pct',       label: 'Margem (%)',               tipo: 'number' },
+    { key: 'fin_custo_forecast',   label: 'Custo estimado/forecast (R$)', tipo: 'money'  },
+    { key: 'fin_margem_forecast',  label: 'Margem forecast (R$)',     tipo: 'money'  },
+    { key: 'fin_horas_aprovadas',  label: 'Horas aprovadas',          tipo: 'number' },
+    { key: 'fin_horas_executadas', label: 'Horas executadas',         tipo: 'number' },
+    { key: 'fin_custo_hora',       label: 'Custo/hora (R$)',          tipo: 'money'  },
   ],
   tasks: [
     { key: 'prazo',       label: 'Prazo',             tipo: 'date' },
@@ -77,6 +91,31 @@ const CAMPOS_PADRAO = {
     { key: 'responsavel', label: 'Responsável',tipo: 'text' },
     { key: 'tipo',        label: 'Tipo',       tipo: 'text' },
     { key: 'titulo',      label: 'Título',     tipo: 'text' },
+  ],
+  actions: [
+    { key: 'data_prevista',       label: 'Data de início',         tipo: 'date'   },
+    { key: 'data_conclusao',      label: 'Data de fim',            tipo: 'date'   },
+    { key: 'created_at',          label: 'Data de cadastro',       tipo: 'date'   },
+    { key: 'updated_at',          label: 'Última atualização',     tipo: 'date'   },
+    { key: 'status',              label: 'Status',     tipo: 'enum', opts: ['agendado','em_andamento','realizado','cancelado'] },
+    { key: 'tipo',                label: 'Tipo',       tipo: 'enum', opts: ['treinamento','capacitacao','reuniao','evento','campanha','visita','outros'] },
+    { key: 'prioridade',          label: 'Prioridade', tipo: 'enum', opts: ['alta','media','baixa'] },
+    { key: 'titulo',              label: 'Título',                 tipo: 'text'   },
+    { key: 'descricao',           label: 'Descrição',              tipo: 'text'   },
+    { key: 'responsavel_nome',    label: 'Responsável',            tipo: 'text'   },
+    { key: 'empresa_nome',        label: 'Empresa / Parceiro',     tipo: 'text'   },
+    { key: 'local',               label: 'Local',                  tipo: 'text'   },
+    { key: 'vagas',               label: 'Vagas',                  tipo: 'number' },
+    { key: 'inscritos',           label: 'Inscritos',              tipo: 'number' },
+    { key: 'custo_previsto',      label: 'Custo previsto (R$)',    tipo: 'money'  },
+    { key: 'n_custos',            label: 'Qtd. de custos',         tipo: 'number' },
+    { key: 'custo_realizado',     label: 'Custo realizado (R$)',   tipo: 'money'  },
+    { key: 'custos_aguardando',   label: 'Custos aguard. aprovação', tipo: 'number' },
+    { key: 'custos_aprovados',    label: 'Custos aprovados',       tipo: 'number' },
+    { key: 'custos_rejeitados',   label: 'Custos rejeitados',      tipo: 'number' },
+    { key: 'custos_executados',   label: 'Custos executados',      tipo: 'number' },
+    { key: 'n_documentos',        label: 'Qtd. de documentos',     tipo: 'number' },
+    { key: 'n_anexos',            label: 'Qtd. de anexos',         tipo: 'number' },
   ],
   commission_payments: [
     { key: 'data_vencimento',    label: 'Data de vencimento',   tipo: 'date'  },
@@ -99,14 +138,15 @@ const CAMPOS_PADRAO = {
     { key: 'estado',     label: 'Estado',               tipo: 'text' },
   ],
   goals: [
-    { key: 'valor_atual',     label: 'Valor atual (R$)',    tipo: 'money'  },
-    { key: 'valor_planejado', label: 'Valor planejado (R$)',tipo: 'money'  },
-    { key: 'percentual',      label: 'Percentual atingido', tipo: 'number' },
-    { key: 'periodo_mes',     label: 'Mês do período',      tipo: 'number' },
-    { key: 'periodo_ano',     label: 'Ano do período',      tipo: 'number' },
-    { key: 'status',          label: 'Status',   tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
-    { key: 'tipo_meta',       label: 'Tipo de meta', tipo: 'enum', opts: ['valor','quantidade','percentual'] },
-    { key: 'tipo_alvo',       label: 'Alvo',    tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
+    { key: 'valor_atual',        label: 'Valor atual (R$)',          tipo: 'money'  },
+    { key: 'valor_planejado',    label: 'Valor planejado (R$)',       tipo: 'money'  },
+    { key: 'percentual',         label: 'Percentual atingido',        tipo: 'number' },
+    { key: 'periodo_percentual', label: 'Período decorrido (%)',      tipo: 'number' },
+    { key: 'periodo_mes',        label: 'Mês do período',             tipo: 'number' },
+    { key: 'periodo_ano',        label: 'Ano do período',             tipo: 'number' },
+    { key: 'status',             label: 'Status',   tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
+    { key: 'tipo_meta',          label: 'Tipo de meta', tipo: 'enum', opts: ['valor','quantidade','percentual'] },
+    { key: 'tipo_alvo',          label: 'Alvo',    tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
   ],
   sellers: [
     { key: 'created_at',    label: 'Data de cadastro',    tipo: 'date'   },
@@ -121,28 +161,42 @@ const CAMPOS_PADRAO = {
     { key: 'regiao',        label: 'Região',              tipo: 'text'   },
     { key: 'equipe',        label: 'Equipe',              tipo: 'text'   },
   ],
+  contacts: [
+    { key: 'created_at',  label: 'Data de cadastro',    tipo: 'date' },
+    { key: 'updated_at',  label: 'Última atualização',  tipo: 'date' },
+    { key: 'nome',        label: 'Nome',                tipo: 'text' },
+    { key: 'email',       label: 'E-mail',              tipo: 'text' },
+    { key: 'phone',       label: 'Telefone',            tipo: 'text' },
+    { key: 'cargo',       label: 'Cargo',               tipo: 'text' },
+  ],
 }
 
 // ─── Operadores ───────────────────────────────────────────────────────────────
 const OPS = {
   date:   [
-    { key: 'dias_apos',  label: 'há mais de X dias sem atualização' },
-    { key: 'dias_antes', label: 'daqui a menos de X dias' },
-    { key: 'antes_de',   label: 'antes de (data fixa)' },
-    { key: 'apos_de',    label: 'após (data fixa)' },
+    { key: 'em_branco',   label: 'está em branco (sem data)' },
+    { key: 'igual_hoje',  label: 'é hoje' },
+    { key: 'antes_hoje',  label: 'antes de hoje (já venceu)' },
+    { key: 'apos_hoje',   label: 'após hoje (ainda no futuro)' },
+    { key: 'dias_apos',   label: 'há mais de X dias sem atualização' },
+    { key: 'dias_antes',  label: 'daqui a menos de X dias' },
+    { key: 'antes_de',    label: 'antes de (data fixa)' },
+    { key: 'apos_de',     label: 'após (data fixa)' },
   ],
   money:  [
+    { key: 'em_branco', label: 'está em branco' },
     { key: 'gt', label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
     { key: 'lt', label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
     { key: 'eq', label: 'igual a' },
   ],
   number: [
+    { key: 'em_branco', label: 'está em branco' },
     { key: 'gt', label: 'maior que' }, { key: 'gte', label: 'maior ou igual a' },
     { key: 'lt', label: 'menor que' }, { key: 'lte', label: 'menor ou igual a' },
     { key: 'eq', label: 'igual a' },
   ],
-  enum: [{ key: 'eq', label: 'é' }, { key: 'neq', label: 'não é' }],
-  text: [{ key: 'eq', label: 'é igual a' }, { key: 'neq', label: 'não é' }, { key: 'contains', label: 'contém' }],
+  enum: [{ key: 'em_branco', label: 'está em branco' }, { key: 'eq', label: 'é' }, { key: 'neq', label: 'não é' }],
+  text: [{ key: 'em_branco', label: 'está em branco' }, { key: 'eq', label: 'é igual a' }, { key: 'neq', label: 'não é' }, { key: 'contains', label: 'contém' }],
 }
 
 const DEST_TIPOS = [
@@ -150,6 +204,7 @@ const DEST_TIPOS = [
   { key: 'lider_equipe',       label: 'Líder da equipe'             },
   { key: 'email_fixo',         label: 'Email fixo (digitar)'        },
   { key: 'usuario_sistema',    label: 'Usuário do sistema'          },
+  { key: 'papel',              label: 'Papel / Perfil'              },
 ]
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
@@ -170,7 +225,8 @@ function cfTipo(type) {
 }
 
 function newCond()  { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '', logico: 'E' } }
-function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', prazo_dias: 3, titulo_tarefa: '' } }
+function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '', prazo_dias: 3, titulo_tarefa: '', destinatarios_extra: [] } }
+function newDestExtra() { return { id: crypto.randomUUID(), tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '' } }
 function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, condicoes: [newCond()], acoes: [newAcao()], acoes_else: [], com_else: false } }
 
 // ─── Engine de avaliação ──────────────────────────────────────────────────────
@@ -178,10 +234,17 @@ function avaliarCondicao(registro, cond) {
   const path = cond.campo.startsWith('cf.') ? null : cond.campo.split('.')
   let val = path ? path.reduce((o, k) => o?.[k], registro) : registro?.custom_fields?.[cond.campo.replace('cf.', '')]
 
-  const v = cond.valor
   const hoje = Date.now()
+  const agora = new Date()
+  let v = cond.valor
+  if (v === '__mes_atual__') v = String(agora.getMonth() + 1)
+  if (v === '__ano_atual__') v = String(agora.getFullYear())
 
   switch (cond.operador) {
+    case 'em_branco':  return !val || String(val).trim() === ''
+    case 'igual_hoje': { const hoje = new Date().toISOString().slice(0,10); return val ? String(val).slice(0,10) === hoje : false }
+    case 'antes_hoje': return val ? new Date(val) < new Date(new Date().toDateString()) : false
+    case 'apos_hoje':  return val ? new Date(val) > new Date(new Date().toDateString()) : false
     case 'dias_apos': {
       if (!val) return false
       const diff = (hoje - new Date(val).getTime()) / 86400000
@@ -221,23 +284,21 @@ function avaliarRegra(rule, registro) {
   return resultado
 }
 
-async function resolverDestinatario(acao, registro, tenantId) {
-  const tipo = acao.destinatario_tipo
-  if (tipo === 'email_fixo') return acao.email_fixo || null
+async function resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tenantId) {
+  if (tipo === 'email_fixo') return emailFixo || null
 
   if (tipo === 'responsavel_origem') {
     const responsavelId = registro.responsavel_id || registro.responsavel || null
     if (!responsavelId) return null
     const { data } = await supabase.from('profiles').select('email').eq('id', responsavelId).single()
     if (data?.email) return data.email
-    // fallback: busca por nome
     const { data: d2 } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).ilike('full_name', `%${responsavelId}%`).single()
     return d2?.email || null
   }
 
   if (tipo === 'usuario_sistema') {
-    if (!acao.usuario_id) return null
-    const { data } = await supabase.from('profiles').select('email').eq('id', acao.usuario_id).single()
+    if (!usuarioId) return null
+    const { data } = await supabase.from('profiles').select('email').eq('id', usuarioId).single()
     return data?.email || null
   }
 
@@ -249,15 +310,44 @@ async function resolverDestinatario(acao, registro, tenantId) {
   return null
 }
 
+async function resolverPapel(papel, tenantId) {
+  if (!papel || !tenantId) return []
+  const { data } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).eq('papel', papel)
+  return (data || []).map(p => p.email).filter(Boolean)
+}
+
+async function resolverTodosDestinatarios(acao, registro, tenantId) {
+  const emails = new Set()
+
+  async function addDestinatario(tipo, emailFixo, usuarioId, papel) {
+    if (tipo === 'papel') {
+      const lista = await resolverPapel(papel, tenantId)
+      lista.forEach(e => emails.add(e))
+    } else {
+      const e = await resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tenantId)
+      if (e) emails.add(e)
+    }
+  }
+
+  await addDestinatario(acao.destinatario_tipo, acao.email_fixo, acao.usuario_id, acao.papel)
+  for (const de of (acao.destinatarios_extra || [])) {
+    await addDestinatario(de.tipo, de.email_fixo, de.usuario_id, de.papel)
+  }
+  return [...emails]
+}
+
 async function executarAcoes(acoes, registro, rule, tenantId) {
   for (const acao of acoes) {
     if (acao.tipo === 'email') {
-      const email = await resolverDestinatario(acao, registro, tenantId)
-      if (email) {
-        const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
-        const assunto = (acao.assunto || rule.gatilho_nome || 'Alerta Boostly')
-          .replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
-        const html = `<p>${(acao.mensagem || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)}</p>`
+      const emails = await resolverTodosDestinatarios(acao, registro, tenantId)
+      const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
+      const interpolar = (str) => (str || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+        const v = registro[key]
+        return v !== undefined && v !== null ? String(v) : ''
+      }).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
+      const assunto = interpolar(acao.assunto) || rule.gatilho_nome || 'Alerta Boostly'
+      const html = `<p>${interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`}</p>`
+      for (const email of emails) {
         await supabase.functions.invoke('send-email', { body: { to: email, subject: assunto, html } })
       }
     }
@@ -275,21 +365,149 @@ async function executarEngine(tenantId) {
     const origemDef = ORIGENS.find(o => o.key === origem)
     if (!origemDef) continue
     const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
-    dados[origem] = data || []
+    let registros = data || []
+
+    // Enriquece oportunidades com tarefas (contagem + próxima tarefa + 1ª conclusão)
+    if (origem === 'oportunidades' && registros.length > 0) {
+      const ids = registros.map(r => r.id)
+      const { data: taskRows } = await supabase
+        .from('tasks')
+        .select('entidade_id, status, data_inicio, concluida_em')
+        .in('entidade_id', ids)
+
+      const tasksByOpp = {}
+      for (const t of (taskRows || [])) {
+        const eid = t.entidade_id
+        if (!eid) continue
+        if (!tasksByOpp[eid]) tasksByOpp[eid] = { pendentes: [], concluidas: [] }
+        if (t.status === 'concluida' && t.concluida_em) tasksByOpp[eid].concluidas.push(t)
+        else if (t.status !== 'cancelada') tasksByOpp[eid].pendentes.push(t)
+      }
+
+      registros = registros.map(r => {
+        const g = tasksByOpp[r.id] || { pendentes: [], concluidas: [] }
+        const proxima = g.pendentes
+          .filter(t => t.data_inicio)
+          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+        const primeira = g.concluidas
+          .sort((a, b) => a.concluida_em.localeCompare(b.concluida_em))[0]
+        return {
+          ...r,
+          n_tarefas:              g.pendentes.length + g.concluidas.length,
+          proxima_tarefa_data:    proxima?.data_inicio?.slice(0, 10) || '',
+          proxima_tarefa_hora:    proxima?.data_inicio?.slice(11, 16) || '',
+          primeira_conclusao_data: primeira?.concluida_em?.slice(0, 10) || '',
+          primeira_conclusao_hora: primeira?.concluida_em?.slice(11, 16) || '',
+        }
+      })
+    }
+
+    // Enriquece projetos com campos financeiros de custom_fields
+    if (origem === 'projects' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        return {
+          ...r,
+          fin_valor_contrato:   cf.fin_valor_contrato   ?? null,
+          fin_custo_realizado:  cf.fin_custo_realizado  ?? null,
+          fin_receita_faturada: cf.fin_receita_faturada ?? null,
+          fin_margem_bruta:     cf.fin_margem_bruta     ?? null,
+          fin_margem_pct:       cf.fin_margem_pct       ?? null,
+          fin_custo_forecast:   cf.fin_custo_forecast   ?? null,
+          fin_margem_forecast:  cf.fin_margem_forecast  ?? null,
+          fin_horas_aprovadas:  cf.fin_horas_aprovadas  ?? null,
+          fin_horas_executadas: cf.fin_horas_executadas ?? null,
+          fin_custo_hora:       cf.fin_custo_hora       ?? null,
+        }
+      })
+    }
+
+    // Enriquece ações com campos calculados de custos/documentos/anexos
+    if (origem === 'actions' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        const custos = cf.custos || []
+        const ultimoStatus = (c) => {
+          const aprovs = c.aprovacoes || []
+          if (!aprovs.length) return 'pendente'
+          return aprovs[aprovs.length - 1].status || 'pendente'
+        }
+        const custosRealizadoTotal = custos.filter(c => c.executado).reduce((s, c) => s + (Number(c.valor_realizado) || 0), 0)
+        return {
+          ...r,
+          responsavel_nome:  cf.responsavel_nome || '',
+          empresa_nome:      cf.empresa_nome || '',
+          local:             cf.local || '',
+          vagas:             cf.vagas || 0,
+          inscritos:         cf.inscritos || 0,
+          custo_previsto:    Number(cf.custo_previsto) || 0,
+          custo_realizado:   custosRealizadoTotal,
+          n_custos:          custos.length,
+          custos_aguardando: custos.filter(c => ultimoStatus(c) === 'aguardando').length,
+          custos_aprovados:  custos.filter(c => ultimoStatus(c) === 'aprovado').length,
+          custos_rejeitados: custos.filter(c => ultimoStatus(c) === 'rejeitado').length,
+          custos_executados: custos.filter(c => c.executado).length,
+          n_documentos:      (cf.documentos || []).length,
+          n_anexos:          (cf.anexos || []).length,
+        }
+      })
+    }
+
+    if (origem === 'goals') {
+      // Agrupa meses por meta lógica (tipo_alvo + alvo_id + tipo_meta)
+      const grupos = {}
+      for (const g of registros) {
+        const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+        if (!grupos[key]) grupos[key] = []
+        grupos[key].push(g)
+      }
+      const agora = new Date()
+      const anoAtual = agora.getFullYear()
+      const mesAtual = agora.getMonth() + 1
+      registros = registros.map(g => {
+        const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+        const grupo = grupos[key]
+        const sorted = [...grupo].sort((a, b) => a.periodo_ano !== b.periodo_ano ? a.periodo_ano - b.periodo_ano : a.periodo_mes - b.periodo_mes)
+        const primeiro = sorted[0]
+        const ultimo   = sorted[sorted.length - 1]
+        const totalMeses = (ultimo.periodo_ano - primeiro.periodo_ano) * 12 + (ultimo.periodo_mes - primeiro.periodo_mes)
+        const decorridos = (anoAtual - primeiro.periodo_ano) * 12 + (mesAtual - primeiro.periodo_mes)
+        const pp = totalMeses <= 0 ? 100 : Math.max(0, Math.min(100, Math.round((decorridos / totalMeses) * 100)))
+        return { ...g, periodo_percentual: pp, _goal_key: key }
+      })
+    }
+    dados[origem] = registros
   }
 
-  const { data: existentes } = await supabase.from('alerts').select('rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
-  const jaAlertado = new Set((existentes || []).map(a => `${a.rule_id}:${a.entidade_id}`))
+  const { data: existentes } = await supabase.from('alerts').select('id, rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
+  // mapa chave → alert_id para poder auto-resolver
+  const jaAlertadoMap = {}
+  for (const a of (existentes || [])) jaAlertadoMap[`${a.rule_id}:${a.entidade_id}`] = a.id
 
   const novos = []
+  const autoResolver = [] // ids de alertas a resolver automaticamente
   for (const rule of rules) {
-    const registros = dados[rule.origem] || []
     const cf = rule.custom_fields || {}
+    const metasIds = cf.metas_ids || []
+    let registros = dados[rule.origem] || []
+    if (rule.origem === 'goals' && metasIds.length > 0) {
+      registros = registros.filter(g => metasIds.includes(g._goal_key))
+    }
     const fullRule = { ...rule, condicoes: cf.condicoes || [], acoes: cf.acoes || [], acoes_else: cf.acoes_else || [], com_else: cf.com_else || false }
     for (const reg of registros) {
       const chave = `${rule.id}:${reg.id}`
-      if (jaAlertado.has(chave)) continue
+      const alertaExistenteId = jaAlertadoMap[chave]
       const passou = avaliarRegra(fullRule, reg)
+
+      // Auto-resolver: alerta existe mas condição não é mais verdadeira
+      if (alertaExistenteId && !passou) {
+        autoResolver.push(alertaExistenteId)
+        continue
+      }
+
+      // Já alertado e condição ainda é verdadeira — não duplicar
+      if (alertaExistenteId) continue
+
       if (!passou && !fullRule.com_else) continue
 
       const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.nome || `#${reg.id?.slice(0,8)}`
@@ -318,10 +536,13 @@ async function executarEngine(tenantId) {
     }
   }
 
+  if (autoResolver.length) {
+    await supabase.from('alerts').update({ resolvido: true, resolvido_em: new Date().toISOString() }).in('id', autoResolver)
+  }
   if (novos.length) {
     await supabase.from('alerts').insert(novos)
   }
-  return novos.length
+  return { criados: novos.length, resolvidos: autoResolver.length }
 }
 
 // ─── Selector de usuário do sistema ──────────────────────────────────────────
@@ -374,24 +595,38 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
                 <option value="">Operador…</option>
                 {ops.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </Sel>
-              {campo?.tipo === 'enum'
-                ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
-                    <option value="">Valor…</option>
-                    {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
-                  </Sel>
-                : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
-                  ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
-                        style={{ ...inp, width: 70 }} placeholder="0" />
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
-                    </div>
-                  : campo?.tipo === 'money'
+              {(c.operador === 'em_branco' || c.operador === 'igual_hoje' || c.operador === 'antes_hoje' || c.operador === 'apos_hoje')
+                ? <div style={{ fontSize: 12, color: 'var(--text-muted)', padding: '6px 10px', background: 'var(--surface2)', borderRadius: 6, border: '1px solid var(--border)' }}>— data atual —</div>
+                : campo?.tipo === 'enum'
+                  ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                      <option value="">Valor…</option>
+                      {(campo.opts || []).map(o => <option key={o} value={o}>{o}</option>)}
+                    </Sel>
+                  : (c.operador === 'dias_apos' || c.operador === 'dias_antes')
                     ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
-                        <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+                        <input type="number" min={1} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })}
+                          style={{ ...inp, width: 70 }} placeholder="0" />
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>dias</span>
                       </div>
-                    : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
-                        onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="Valor…" />
+                    : c.campo === 'periodo_mes'
+                      ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                          <option value="">Valor…</option>
+                          <option value="__mes_atual__">Mês atual</option>
+                          {[1,2,3,4,5,6,7,8,9,10,11,12].map(m => <option key={m} value={String(m)}>{m}</option>)}
+                        </Sel>
+                    : c.campo === 'periodo_ano'
+                      ? <Sel value={c.valor} onChange={v => update(c.id, { valor: v })}>
+                          <option value="">Valor…</option>
+                          <option value="__ano_atual__">Ano atual</option>
+                          {[new Date().getFullYear()-1, new Date().getFullYear(), new Date().getFullYear()+1].map(y => <option key={y} value={String(y)}>{y}</option>)}
+                        </Sel>
+                    : campo?.tipo === 'money'
+                      ? <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>R$</span>
+                          <input type="number" min={0} step={0.01} value={c.valor} onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="0,00" />
+                        </div>
+                      : <input type={campo?.tipo === 'date' ? 'date' : 'text'} value={c.valor}
+                          onChange={e => update(c.id, { valor: e.target.value })} style={{ ...inp }} placeholder="Valor…" />
               }
               <button onClick={() => remove(c.id)} title="Remover condição"
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '6px 4px', flexShrink: 0 }}>
@@ -426,7 +661,34 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
 }
 
 // ─── Editor de Ações ──────────────────────────────────────────────────────────
-function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
+function VarPicker({ origem, onInsert }) {
+  const [open, setOpen] = useState(false)
+  const campos = CAMPOS_PADRAO[origem] || []
+  if (!campos.length) return null
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 13 }}>{'{ }'}</span> Inserir variável
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 200, top: '100%', left: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.12)', minWidth: 220, maxHeight: 260, overflowY: 'auto', padding: '4px 0' }}>
+          {campos.map(c => (
+            <div key={c.key} onClick={() => { onInsert(`{{${c.key}}}`); setOpen(false) }}
+              style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 8 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span style={{ color: 'var(--text)' }}>{c.label}</span>
+              <code style={{ color: 'var(--accent)', fontSize: 10 }}>{`{{${c.key}}}`}</code>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação', origem }) {
   function update(id, patch) { onChange(acoes.map(a => a.id === id ? { ...a, ...patch } : a)) }
   function add()      { onChange([...acoes, newAcao()]) }
   function remove(id) { onChange(acoes.filter(a => a.id !== id)) }
@@ -474,21 +736,90 @@ function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
               <UsuarioSelector tenantId={tenantId} value={a.usuario_id} onChange={v => update(a.id, { usuario_id: v })} />
             </div>
           )}
-          {a.tipo === 'email' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-              <div>
-                <div style={lbl}>Assunto</div>
-                <input value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
-                  style={inp} placeholder="Ex: Alerta: contrato vencendo" />
-              </div>
-              <div>
-                <div style={lbl}>Mensagem</div>
-                <textarea value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
-                  style={{ ...inp, minHeight: 72, resize: 'vertical' }}
-                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}." />
-              </div>
+          {a.destinatario_tipo === 'papel' && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={lbl}>Papel</div>
+              <Sel value={a.papel || ''} onChange={v => update(a.id, { papel: v })}>
+                <option value="">— Selecione —</option>
+                {PAPEIS_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </Sel>
             </div>
           )}
+
+          {/* Destinatários extras */}
+          {(a.destinatarios_extra || []).map((de, dei) => {
+            const updDe = (patch) => update(a.id, {
+              destinatarios_extra: (a.destinatarios_extra || []).map(d => d.id === de.id ? { ...d, ...patch } : d)
+            })
+            const remDe = () => update(a.id, { destinatarios_extra: (a.destinatarios_extra || []).filter(d => d.id !== de.id) })
+            return (
+              <div key={de.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 6, alignItems: 'flex-start', marginBottom: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <Sel value={de.tipo} onChange={v => updDe({ tipo: v })}>
+                    {DEST_TIPOS.map(d => <option key={d.key} value={d.key}>{d.label}</option>)}
+                  </Sel>
+                  {de.tipo === 'email_fixo' && (
+                    <input value={de.email_fixo} onChange={e => updDe({ email_fixo: e.target.value })}
+                      placeholder="email@exemplo.com" style={inp} type="email" />
+                  )}
+                  {de.tipo === 'usuario_sistema' && tenantId && (
+                    <UsuarioSelector tenantId={tenantId} value={de.usuario_id} onChange={v => updDe({ usuario_id: v })} />
+                  )}
+                  {de.tipo === 'papel' && (
+                    <Sel value={de.papel || ''} onChange={v => updDe({ papel: v })}>
+                      <option value="">— Selecione —</option>
+                      {PAPEIS_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </Sel>
+                  )}
+                </div>
+                <button onClick={remDe} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '7px 4px' }}>
+                  <Trash2 size={13} strokeWidth={2}/>
+                </button>
+              </div>
+            )
+          })}
+          <button onClick={() => update(a.id, { destinatarios_extra: [...(a.destinatarios_extra || []), newDestExtra()] })}
+            style={{ ...btnSm(false), fontSize: 11, marginBottom: 8 }}>
+            + Adicionar destinatário
+          </button>
+
+          {a.tipo === 'email' && (() => {
+            const assuntoRef = { current: null }
+            const mensagemRef = { current: null }
+            const insertAt = (ref, fieldKey, token) => {
+              const el = ref.current
+              if (!el) { update(a.id, { [fieldKey]: (a[fieldKey] || '') + token }); return }
+              const start = el.selectionStart ?? (a[fieldKey] || '').length
+              const end   = el.selectionEnd   ?? start
+              const val   = a[fieldKey] || ''
+              const next  = val.slice(0, start) + token + val.slice(end)
+              update(a.id, { [fieldKey]: next })
+              setTimeout(() => { el.focus(); el.setSelectionRange(start + token.length, start + token.length) }, 0)
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <div style={lbl}>Assunto</div>
+                    <VarPicker origem={origem} onInsert={t => insertAt(assuntoRef, 'assunto', t)} />
+                  </div>
+                  <input ref={el => assuntoRef.current = el}
+                    value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
+                    style={inp} placeholder="Ex: Alerta — {{titulo}}" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <div style={lbl}>Mensagem</div>
+                    <VarPicker origem={origem} onInsert={t => insertAt(mensagemRef, 'mensagem', t)} />
+                  </div>
+                  <textarea ref={el => mensagemRef.current = el}
+                    value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
+                    style={{ ...inp, minHeight: 96, resize: 'vertical' }}
+                    placeholder={`Corpo do e-mail. Use {{campo}} para inserir dados dinâmicos.\nEx: O projeto {{titulo}} está com margem em {{fin_margem_pct}}%.`} />
+                </div>
+              </div>
+            )
+          })()}
           {a.tipo === 'tarefa' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
               <div>
@@ -524,6 +855,7 @@ function rowToRule(r) {
     acoes:       cf.acoes       || [newAcao()],
     acoes_else:  cf.acoes_else  || [],
     com_else:    cf.com_else    || false,
+    metas_ids:   cf.metas_ids   || [],
   }
 }
 
@@ -543,6 +875,7 @@ function ruleToRow(f, tenantId, branchId) {
       acoes:      f.acoes,
       acoes_else: f.acoes_else || [],
       com_else:   f.com_else   || false,
+      metas_ids:  f.metas_ids  || [],
     },
     updated_at: new Date().toISOString(),
   }
@@ -559,6 +892,9 @@ export default function SettingsAlertas() {
   const [saving, setSaving]    = useState(false)
   const [running, setRunning]  = useState(false)
   const [lastRun, setLastRun]  = useState(null)
+  const [goalsAtivas, setGoalsAtivas]   = useState([])
+  const [goalSearch, setGoalSearch]     = useState('')
+  const [goalDropOpen, setGoalDropOpen] = useState(false)
   const engineRef = useRef(false)
 
   const tenantId = profile?.tenant_id
@@ -574,6 +910,35 @@ export default function SettingsAlertas() {
   }, [tenantId, activeBranchId])
 
   useEffect(() => { if (tenantId) load(); else setLoading(false) }, [load, tenantId])
+
+  useEffect(() => {
+    if (!tenantId) return
+    supabase.from('goals').select('id, alvo_nome, tipo_alvo, alvo_id, tipo_meta, periodo_mes, periodo_ano, status').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
+      .then(({ data, error }) => {
+        if (error) { console.error('[Alertas] goals fetch:', error); return }
+        const ativas = (data || []).filter(g => g.status === 'ativa' || g.status === 'pausada' || !g.status)
+        // Agrupa por meta lógica (tipo_alvo + alvo_id + tipo_meta)
+        const grupos = {}
+        for (const g of ativas) {
+          const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+          if (!grupos[key]) {
+            const sorted = ativas.filter(x => `${x.tipo_alvo}|${x.alvo_id || ''}|${x.tipo_meta}` === key)
+              .sort((a, b) => a.periodo_ano !== b.periodo_ano ? a.periodo_ano - b.periodo_ano : a.periodo_mes - b.periodo_mes)
+            const primeiro = sorted[0]
+            const ultimo   = sorted[sorted.length - 1]
+            grupos[key] = {
+              key,
+              titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.tipo_meta}`,
+              subtitulo: primeiro === ultimo
+                ? `${primeiro.periodo_mes}/${primeiro.periodo_ano}`
+                : `${primeiro.periodo_mes}/${primeiro.periodo_ano} → ${ultimo.periodo_mes}/${ultimo.periodo_ano}`,
+              tipo_alvo: g.tipo_alvo,
+            }
+          }
+        }
+        setGoalsAtivas(Object.values(grupos))
+      })
+  }, [tenantId])
 
   useEffect(() => {
     if (!tenantId || engineRef.current) return
@@ -708,10 +1073,75 @@ export default function SettingsAlertas() {
           {/* Origem */}
           <div style={card}>
             <div style={secTitle}>Origem dos dados</div>
-            <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()] }))}>
+            <Sel value={editing.origem} onChange={v => setEditing(f => ({ ...f, origem: v, condicoes: [newCond()], metas_ids: [] }))}>
               <option value="">Selecione a entidade…</option>
               {ORIGENS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
             </Sel>
+            {editing.origem === 'goals' && (() => {
+              const selecionadas = editing.metas_ids || []
+              const filtradas = goalsAtivas.filter(g => g.titulo?.toLowerCase().includes(goalSearch.toLowerCase()))
+              const toggle = key => setEditing(f => {
+                const cur = f.metas_ids || []
+                return { ...f, metas_ids: cur.includes(key) ? cur.filter(x => x !== key) : [...cur, key] }
+              })
+              return (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Aplicar a metas específicas
+                  </div>
+                  {selecionadas.length > 0 && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                      {selecionadas.map(key => {
+                        const g = goalsAtivas.find(x => x.key === key)
+                        return g ? (
+                          <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: 11 }}>
+                            {g.titulo}
+                            <button onClick={() => toggle(key)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 12 }}>×</button>
+                          </span>
+                        ) : null
+                      })}
+                    </div>
+                  )}
+                  <input
+                    value={goalSearch} onChange={e => setGoalSearch(e.target.value)}
+                    onFocus={() => setGoalDropOpen(true)}
+                    onBlur={() => setTimeout(() => setGoalDropOpen(false), 150)}
+                    placeholder={selecionadas.length === 0 ? 'Todas as metas ativas (buscar para filtrar)…' : 'Buscar meta…'}
+                    style={{ ...inp, width: '100%', boxSizing: 'border-box', marginBottom: 4 }}
+                  />
+                  {(goalDropOpen || goalSearch) && (
+                    <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
+                      {filtradas.length > 0 && (() => {
+                        const todasSel = filtradas.every(g => selecionadas.includes(g.key))
+                        return (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '2px solid var(--border)', fontSize: 12, fontWeight: 600 }}>
+                            <input type="checkbox" checked={todasSel}
+                              onChange={() => setEditing(f => ({ ...f, metas_ids: todasSel ? (f.metas_ids || []).filter(k => !filtradas.some(g => g.key === k)) : [...new Set([...(f.metas_ids || []), ...filtradas.map(g => g.key)])] }))}
+                              style={{ accentColor: 'var(--accent)' }} />
+                            {todasSel ? 'Desmarcar todas' : 'Selecionar todas'}
+                          </label>
+                        )
+                      })()}
+                      {filtradas.length === 0
+                        ? <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma meta encontrada</div>
+                        : filtradas.map(g => (
+                          <label key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                            <input type="checkbox" checked={selecionadas.includes(g.key)} onChange={() => toggle(g.key)} style={{ accentColor: 'var(--accent)' }} />
+                            <span>
+                              {g.titulo}
+                              <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)' }}>{g.subtitulo}</span>
+                            </span>
+                          </label>
+                        ))
+                      }
+                    </div>
+                  )}
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                    {selecionadas.length === 0 ? 'Sem filtro: avalia todas as metas ativas.' : `${selecionadas.length} meta(s) selecionada(s).`}
+                  </p>
+                </div>
+              )
+            })()}
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0' }}>
               A engine avalia todos os registros desta entidade e dispara o alerta quando as condições forem atendidas.
             </p>
@@ -734,6 +1164,7 @@ export default function SettingsAlertas() {
               acoes={editing.acoes}
               onChange={v => setEditing(f => ({ ...f, acoes: v }))}
               tenantId={tenantId}
+              origem={editing.origem}
             />
           </div>
 
@@ -756,6 +1187,7 @@ export default function SettingsAlertas() {
                   onChange={v => setEditing(f => ({ ...f, acoes_else: v }))}
                   tenantId={tenantId}
                   label="Ação SENÃO"
+                  origem={editing.origem}
                 />
               </div>
             )}

@@ -23,6 +23,10 @@ function rowToAcao(row) {
     status:            row.status || 'agendado',
     tenant_id:         row.tenant_id,
     criado_em:         row.created_at || '',
+    custo_previsto:    cf.custo_previsto    || '',
+    custos:            cf.custos            || [],
+    documentos:        cf.documentos        || [],
+    anexos:            cf.anexos            || [],
   }
 }
 
@@ -50,6 +54,10 @@ function acaoToRow(a, tenantId, branchId) {
       inscritos:        a.inscritos,
       data_inicio:      a.data_inicio,
       data_fim:         a.data_fim,
+      custo_previsto:   a.custo_previsto || '',
+      custos:           (a.custos || []).map(({ _obsInput, _open, ...rest }) => rest),
+      documentos:       a.documentos       || [],
+      anexos:           a.anexos           || [],
     },
   }
 }

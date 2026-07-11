@@ -3696,6 +3696,12 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
   const [tab, setTab]       = useState('dados')
   const [logOpen, setLogOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
   const [form, setForm] = useState(
     initial
       ? { titulo:initial.titulo, empresa_id:initial.empresa_id, empresa_nome:initial.empresa_nome,
@@ -5877,7 +5883,8 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
   }
 
   const n = etapas.length || 1
-  const colWidth = `max(220px, calc((100vw - 240px - ${(n - 1) * 12}px - 20px) / ${n}))`
+  const sidebarOffset = window.innerWidth < 768 ? 0 : 240
+  const colWidth = `max(220px, calc((100vw - ${sidebarOffset}px - ${(n - 1) * 12}px - 20px) / ${n}))`
 
   return (
     <div style={{ flex:1, overflowX:'auto', overflowY:'hidden', paddingBottom:16 }}>
@@ -5953,8 +5960,8 @@ const k = {
 // ─── List View ────────────────────────────────────────────────────────────────
 function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected }) {
   return (
-    <div style={p.tableWrap}>
-      <table style={p.table}>
+    <div style={{ ...p.tableWrap, overflowX:'auto' }}>
+      <table style={{ ...p.table, minWidth: 700 }}>
         <thead>
           <tr>
             <th style={{ ...p.th, width:40, textAlign:'center' }}>
@@ -6208,7 +6215,7 @@ function FiltrosPanel({
     <>
       <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(0,0,0,0.18)' }}/>
       <div style={{
-        position:'fixed', top:0, right:0, bottom:0, width:340, zIndex:81,
+        position:'fixed', top:0, right:0, bottom:0, width: window.innerWidth < 768 ? '100vw' : 340, zIndex:81,
         background:'var(--surface)', borderLeft:'1px solid var(--border)',
         boxShadow:'-8px 0 32px rgba(0,0,0,0.10)',
         display:'flex', flexDirection:'column', fontFamily:'var(--font)',
@@ -6419,6 +6426,12 @@ function FiltrosPanel({
 export default function Pipeline() {
   // ── estado persistido em localStorage ───────────────────────────────────
   const { profile } = useProfile()
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', fn)
+    return () => window.removeEventListener('resize', fn)
+  }, [])
   const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
   const [partnerFunilId, setPartnerFunilId] = useState(null)
   const [partnerNome, setPartnerNome]       = useState('')
@@ -6439,7 +6452,7 @@ export default function Pipeline() {
   const funis        = FUNIS_ATIVOS  // alias conveniente para uso no handleSave
   const funilPadrao  = FUNIS_ATIVOS.find(f => f.is_padrao) || FUNIS_ATIVOS[0]
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
-  const [view, setView]                 = useLocalState('pipeline:view', 'kanban')
+  const [view, setView]                 = useLocalState('pipeline:view', isMobile ? 'list' : 'kanban')
   const [search, setSearch]             = useLocalState('pipeline:search', '')
   const [filterOrigem, setFilterOrigem]           = useLocalState('pipeline:filterOrigem2', [])
   const [filterEtapa, setFilterEtapa]             = useLocalState('pipeline:filterEtapa2', [])
@@ -6723,7 +6736,7 @@ export default function Pipeline() {
         </button>
         {showMetrics && (
           <div style={{ padding:'0 20px 12px' }}>
-            <div style={{ ...p.kpis, paddingTop:4, paddingBottom:0 }}>
+            <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', paddingTop:4, paddingBottom:0 }}>
               <KpiCard label="Oportunidades"   value={filtered.length} />
               <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
               <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
@@ -6735,13 +6748,13 @@ export default function Pipeline() {
       </div>
 
       {/* ── Toolbar ── */}
-      <div style={p.toolbar}>
+      <div style={{ ...p.toolbar, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: isMobile ? '8px' : '8px 12px' }}>
 
         {/* ── Lado Esquerdo: funil + busca + responsável ── */}
-        <div style={p.tbLeft}>
+        <div style={{ ...p.tbLeft, flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : undefined }}>
           <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} />
 
-          <div style={p.searchWrap}>
+          <div style={{ ...p.searchWrap, width: isMobile ? '100%' : 240 }}>
             <span style={p.searchIcon}>⌕</span>
             <input style={p.searchInput} placeholder="Buscar oportunidade ou empresa…" value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
@@ -6752,7 +6765,7 @@ export default function Pipeline() {
         <div style={p.tbDivider} />
 
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
-        <div style={p.tbRight}>
+        <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
 
           {/* Botão Filtros */}
           <button
@@ -7059,8 +7072,8 @@ const p = {
 }
 
 const m = {
-  overlay:          { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:24 },
-  modal:            { background:'var(--surface)', borderRadius:14, width:'100%', maxWidth:620, boxShadow:'0 20px 60px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', maxHeight:'90vh' },
+  overlay:          { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:'env(safe-area-inset-top, 12px) 12px 12px' },
+  modal:            { background:'var(--surface)', borderRadius:14, width:'100%', maxWidth:620, boxShadow:'0 20px 60px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', maxHeight:'92dvh' },
   header:           { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'20px 24px 16px', borderBottom:'1px solid var(--border2)' },
   title:            { fontSize:16, fontWeight:700, color:'var(--text)', margin:0 },
   subtitle:         { fontSize:13, color:'var(--text-muted)', marginTop:3 },

@@ -28,6 +28,17 @@ function rowToProject(row) {
     end_date_estimated:      row.data_fim    || '',
     notes:                   row.descricao   || '',
     created_at:              row.created_at?.slice(0, 10) || '',
+    fin_custo_hora:          cf.fin_custo_hora       ?? null,
+    fin_valor_contrato:      cf.fin_valor_contrato   ?? null,
+    fin_custo_realizado:     cf.fin_custo_realizado  ?? null,
+    fin_receita_faturada:    cf.fin_receita_faturada ?? null,
+    fin_margem_bruta:        cf.fin_margem_bruta     ?? null,
+    fin_margem_pct:          cf.fin_margem_pct       ?? null,
+    fin_custo_forecast:      cf.fin_custo_forecast   ?? null,
+    fin_margem_forecast:     cf.fin_margem_forecast  ?? null,
+    fin_horas_aprovadas:     cf.fin_horas_aprovadas  ?? null,
+    fin_horas_executadas:    cf.fin_horas_executadas ?? null,
+    fin_atualizado_em:       cf.fin_atualizado_em    || null,
   }
 }
 

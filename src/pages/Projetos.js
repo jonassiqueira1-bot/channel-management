@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
+import { supabase } from '../lib/supabase'
 import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
 import { useRelatorios } from '../hooks/useRelatorios'
 import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
@@ -1789,6 +1790,31 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   // Forecast: custo estimado ao fim (horas_est × custo_hora)
   const custoForecast = Number(projeto.total_hours_estimated || 0) * custoHora
   const margemForecast = valorContrato - custoForecast
+
+  // Sincroniza campos financeiros em custom_fields do projeto no Supabase
+  useEffect(() => {
+    if (!projeto?.id) return
+    supabase.from('projects').select('custom_fields').eq('id', projeto.id).single()
+      .then(({ data }) => {
+        const cf = data?.custom_fields || {}
+        supabase.from('projects').update({
+          custom_fields: {
+            ...cf,
+            fin_custo_hora:       custoHora,
+            fin_valor_contrato:   valorContrato,
+            fin_custo_realizado:  custoRealizado,
+            fin_receita_faturada: receitaFaturada,
+            fin_margem_bruta:     margemBruta,
+            fin_margem_pct:       Math.round(margemPct * 100) / 100,
+            fin_custo_forecast:   custoForecast,
+            fin_margem_forecast:  margemForecast,
+            fin_horas_aprovadas:  Math.round(totalHorasAprov * 100) / 100,
+            fin_horas_executadas: Math.round(totalHorasExe * 100) / 100,
+            fin_atualizado_em:    new Date().toISOString(),
+          }
+        }).eq('id', projeto.id)
+      })
+  }, [projeto.id, custoHora, valorContrato, custoRealizado, receitaFaturada, margemBruta, custoForecast, margemForecast, totalHorasAprov, totalHorasExe])
 
   // Custo por analista
   const porAnalista = useMemo(() => {

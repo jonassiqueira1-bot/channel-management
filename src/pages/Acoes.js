@@ -1,4 +1,6 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useRef } from 'react'
+import { supabase } from '../lib/supabase'
+import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
 import { TIPOS_ACAO as TIPOS_ACAO_DEFAULT, STATUS_ACAO } from '../data/mockAcoes'
 import { useActions } from '../hooks/useActions'
@@ -79,6 +81,21 @@ const EMPTY_ACAO = {
   local: '', vagas: '', inscritos: 0,
   status: 'agendado',
   tenant_id: 't1',
+  custo_previsto: '',
+  custos: [],
+  documentos: [],
+  anexos: [],
+}
+
+const APROVACAO_CFG = {
+  aguardando: { label: 'Aguardando aprovação', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
+  aprovado:   { label: 'Aprovado',             color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  rejeitado:  { label: 'Rejeitado',            color: '#EF4444', bg: '#FEE2E2', text: '#991B1B' },
+}
+
+function fmtMoeda(v) {
+  if (v === '' || v === null || v === undefined) return '—'
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
@@ -385,6 +402,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const [form, setForm]   = useState(initial ? { ...EMPTY_ACAO, ...initial } : { ...EMPTY_ACAO })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
+  const [uploadingAnexo, setUploadingAnexo] = useState(false)
+  const [custosSelected, setCustosSelected] = useState([])
+  const { profile, isAdmin } = useProfile()
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
@@ -420,10 +440,40 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   }
 
   // ── Tabs ──────────────────────────────────────────────────────────────────
+  const anexosBadge = (form.anexos || []).length || undefined
+  const custosBadge = (form.custos || []).length || undefined
+
+  const docsBadge = (form.documentos || []).length || undefined
+
   const tabs = [
-    { key:'dados',   label:'Dados' },
-    { key:'tarefas', label:'Tarefas', badge: tarefasBadge },
+    { key:'dados',      label:'Dados' },
+    { key:'tarefas',    label:'Tarefas',    badge: tarefasBadge },
+    { key:'custos',     label:'Custos',     badge: custosBadge },
+    { key:'documentos', label:'Documentos', badge: docsBadge },
+    { key:'anexos',     label:'Anexos',     badge: anexosBadge },
   ]
+
+  async function handleUploadAnexo(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingAnexo(true)
+    try {
+      const ext  = file.name.split('.').pop()
+      const path = `acoes/${initial?.id || 'novo'}/${Date.now()}.${ext}`
+      const { error } = await supabase.storage.from('action-attachments').upload(path, file, { upsert: true })
+      if (error) { alert('Erro no upload: ' + error.message); return }
+      const { data: { publicUrl } } = supabase.storage.from('action-attachments').getPublicUrl(path)
+      const novo = { nome: file.name, url: publicUrl, tipo: file.type, tamanho: file.size, em: new Date().toISOString() }
+      set('anexos', [...(form.anexos || []), novo])
+    } finally {
+      setUploadingAnexo(false)
+      e.target.value = ''
+    }
+  }
+
+  function removeAnexo(idx) {
+    set('anexos', (form.anexos || []).filter((_, i) => i !== idx))
+  }
 
   return (
     <SlideOver
@@ -508,10 +558,294 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
             <input className="so-field" type="number" min="0" value={form.vagas} onChange={e => set('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
           </FormField>
 
+          <FormField label="Custo previsto (R$)">
+            <input className="so-field" type="number" min="0" step="0.01" value={form.custo_previsto || ''} onChange={e => set('custo_previsto', e.target.value)} placeholder="0,00" />
+          </FormField>
+
+          <FormField label="Custo realizado (R$)">
+            <div className="so-field" style={{ background:'var(--surface2)', color:'var(--text-muted)', cursor:'default', display:'flex', alignItems:'center' }}>
+              {fmtMoeda((form.custos || []).reduce((s, c) => s + (c.executado ? (Number(c.valor_realizado) || 0) : 0), 0))}
+            </div>
+          </FormField>
+
           <FormField label="Descrição / Objetivos" style={{ gridColumn: 'span 2' }}>
             <textarea className="so-field" rows={4} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
           </FormField>
         </FormGrid>
+      )}
+
+      {/* ── Aba Custos ── */}
+      {tab === 'custos' && (() => {
+        const custos = form.custos || []
+        const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
+        const addCusto    = () => set('custos', [...custos, { id: crypto.randomUUID(), descricao:'', valor_previsto:'', valor_realizado:'', executado: false, aprovacoes:[], _open: false }])
+        const updCusto    = (id, p) => set('custos', custos.map(c => c.id === id ? { ...c, ...p } : c))
+        const remCusto    = (id) => { if (window.confirm('Remover?')) set('custos', custos.filter(c => c.id !== id)) }
+        const aprovar     = (id, status) => {
+          const obs = custos.find(c => c.id === id)?._obsInput || ''
+          const entrada = { id: crypto.randomUUID(), status, obs, por: nomeUsuario, em: new Date().toISOString() }
+          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes:[...(c.aprovacoes||[]), entrada], _obsInput:'' } : c))
+        }
+        const solicitarAprovacao = (id) => {
+          const entrada = { id: crypto.randomUUID(), status: 'aguardando', obs: '', por: nomeUsuario, em: new Date().toISOString() }
+          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes:[entrada] } : c))
+        }
+        const totalPrev = custos.reduce((s,c) => s + (Number(c.valor_previsto)||0), 0)
+        const totalExec = custos.reduce((s,c) => s + (c.executado ? (Number(c.valor_realizado)||0) : 0), 0)
+        const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:3 }
+
+        const selected = custosSelected
+        const setSelected = setCustosSelected
+        const toggleSel = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+        const allSel = custos.length > 0 && selected.length === custos.length
+        const toggleAll = () => setSelected(allSel ? [] : custos.map(c => c.id))
+
+        const bulkAprovar = (status) => {
+          const obs = ''
+          set('custos', custos.map(c => selected.includes(c.id)
+            ? { ...c, aprovacoes:[...(c.aprovacoes||[]), { id: crypto.randomUUID(), status, obs, por: nomeUsuario, em: new Date().toISOString() }], _obsInput:'' }
+            : c
+          ))
+          setSelected([])
+        }
+        const bulkExecutar = (executado) => {
+          set('custos', custos.map(c => selected.includes(c.id) ? { ...c, executado } : c))
+          setSelected([])
+        }
+
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {/* Totalizador */}
+            {custos.length > 0 && (
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:4 }}>
+                {[['Total previsto', fmtMoeda(totalPrev), false],['Total executado', fmtMoeda(totalExec), totalExec > totalPrev]].map(([lbl2,val,red]) => (
+                  <div key={lbl2} style={{ padding:'8px 12px', background:'var(--surface2)', borderRadius:7, border:'1px solid var(--border)' }}>
+                    <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{lbl2}</div>
+                    <div style={{ fontSize:14, fontWeight:700, color: red?'#EF4444':'var(--text)', marginTop:2 }}>{val}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Barra de ações em lote */}
+            {custos.length > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0' }}>
+                <input type="checkbox" checked={allSel} onChange={toggleAll} style={{ cursor:'pointer' }} />
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>
+                  {selected.length > 0 ? `${selected.length} selecionado(s)` : 'Selecionar todos'}
+                </span>
+                {selected.length > 0 && (
+                  <>
+                    {isAdmin && (
+                      <>
+                        <button onClick={() => bulkAprovar('aprovado')}
+                          style={{ padding:'3px 10px', borderRadius:5, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                          ✓ Aprovar selecionados
+                        </button>
+                        <button onClick={() => bulkAprovar('rejeitado')}
+                          style={{ padding:'3px 10px', borderRadius:5, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                          ✗ Rejeitar selecionados
+                        </button>
+                      </>
+                    )}
+                    <button onClick={() => bulkExecutar(true)}
+                      style={{ padding:'3px 10px', borderRadius:5, border:'1px solid #6366F1', background:'none', color:'#6366F1', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                      ✔ Marcar como executado
+                    </button>
+                    <button onClick={() => bulkExecutar(false)}
+                      style={{ padding:'3px 10px', borderRadius:5, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                      Desmarcar execução
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Items */}
+            {custos.map((c, idx) => {
+              const ultima = (c.aprovacoes||[]).slice(-1)[0]
+              const cfgAp  = ultima ? (APROVACAO_CFG[ultima.status] || APROVACAO_CFG.aguardando) : null
+              const aprovado = ultima?.status === 'aprovado'
+              const isOpen = c._open !== false
+              return (
+                <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+                  {/* Linha de resumo (sempre visível) */}
+                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', background:'var(--surface2)', cursor:'pointer' }}
+                    onClick={() => updCusto(c.id, { _open: !isOpen })}>
+                    <input type="checkbox" checked={selected.includes(c.id)} onClick={e => e.stopPropagation()} onChange={() => toggleSel(c.id)} style={{ cursor:'pointer', flexShrink:0 }} />
+                    <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', flexShrink:0 }}>#{idx+1}</span>
+                    <span style={{ fontSize:12, fontWeight:600, color:'var(--text)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {c.descricao || <span style={{ color:'var(--text-muted)', fontStyle:'italic' }}>Sem descrição</span>}
+                    </span>
+                    <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{fmtMoeda(c.valor_previsto)}</span>
+                    {cfgAp && (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700, flexShrink:0 }}>
+                        <span style={{ width:4, height:4, borderRadius:'50%', background:cfgAp.color }} />{cfgAp.label}
+                      </span>
+                    )}
+                    {aprovado && (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:20,
+                        background: c.executado ? '#EDE9FE' : 'var(--surface)', color: c.executado ? '#5B21B6' : 'var(--text-muted)',
+                        fontSize:10, fontWeight:700, border:'1px solid var(--border)', flexShrink:0 }}>
+                        {c.executado ? '✔ Executado' : '— Não executado'}
+                      </span>
+                    )}
+                    <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{isOpen ? '▲' : '▼'}</span>
+                    <button onClick={e => { e.stopPropagation(); remCusto(c.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'0 2px', lineHeight:1, flexShrink:0 }}>×</button>
+                  </div>
+
+                  {/* Conteúdo expandido */}
+                  {isOpen && (
+                    <>
+                      <div style={{ padding:'8px 10px', display:'grid', gridTemplateColumns:'1fr 100px 100px', gap:8, alignItems:'start' }}>
+                        <div>
+                          <label style={lbl}>Descrição / Justificativa</label>
+                          <input className="so-field" value={c.descricao} onChange={e => updCusto(c.id,{descricao:e.target.value})} placeholder="Finalidade do custo…" style={{ width:'100%', boxSizing:'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={lbl}>Previsto (R$)</label>
+                          <input className="so-field" type="number" min="0" step="0.01" value={c.valor_previsto} onChange={e => updCusto(c.id,{valor_previsto:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
+                        </div>
+                        <div>
+                          <label style={lbl}>Realizado (R$)</label>
+                          <input className="so-field" type="number" min="0" step="0.01" value={c.valor_realizado} onChange={e => updCusto(c.id,{valor_realizado:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
+                        </div>
+                      </div>
+
+                      {/* Execução — só após aprovado */}
+                      {aprovado && (
+                        <div style={{ padding:'0 10px 8px', display:'flex', alignItems:'center', gap:8 }}>
+                          <input type="checkbox" id={`exec-${c.id}`} checked={!!c.executado} onChange={e => updCusto(c.id, { executado: e.target.checked })} style={{ cursor:'pointer' }} />
+                          <label htmlFor={`exec-${c.id}`} style={{ fontSize:12, fontWeight:600, color: c.executado ? '#5B21B6' : 'var(--text)', cursor:'pointer' }}>
+                            {c.executado ? 'Custo executado' : 'Marcar como executado'}
+                          </label>
+                        </div>
+                      )}
+
+                      {/* Histórico */}
+                      {(c.aprovacoes||[]).length > 0 && (
+                        <div style={{ margin:'0 10px 6px', background:'var(--surface2)', borderRadius:6, padding:'6px 8px' }}>
+                          {(c.aprovacoes||[]).map(ap => {
+                            const ac = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
+                            return (
+                              <div key={ap.id} style={{ display:'flex', gap:6, fontSize:10, marginBottom:2, color:'var(--text-muted)' }}>
+                                <span style={{ color:ac.color, fontWeight:700 }}>{ap.status==='aprovado'?'✓':ap.status==='rejeitado'?'✗':'⏳'}</span>
+                                <span><b style={{ color:'var(--text)' }}>{ac.label}</b> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}{ap.obs ? ` — ${ap.obs}` : ''}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Ações de aprovação */}
+                      {(c.aprovacoes||[]).length === 0 ? (
+                        <div style={{ padding:'0 10px 8px' }}>
+                          <button onClick={() => solicitarAprovacao(c.id)}
+                            style={{ padding:'5px 12px', borderRadius:6, border:'1px solid var(--accent)', background:'none', color:'var(--accent)', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                            Solicitar aprovação
+                          </button>
+                        </div>
+                      ) : isAdmin && !aprovado ? (
+                        <div style={{ display:'flex', gap:6, padding:'0 10px 8px', alignItems:'center' }}>
+                          <input className="so-field" value={c._obsInput||''} onChange={e => updCusto(c.id,{_obsInput:e.target.value})}
+                            placeholder="Observação (opcional)…" style={{ flex:1, fontSize:11 }} />
+                          <button onClick={() => aprovar(c.id,'aprovado')}
+                            style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                            ✓ Aprovar
+                          </button>
+                          <button onClick={() => aprovar(c.id,'rejeitado')}
+                            style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                            ✗ Rejeitar
+                          </button>
+                        </div>
+                      ) : !isAdmin && !aprovado ? (
+                        <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Aguardando aprovação do administrador.</div>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              )
+            })}
+            <button onClick={addCusto} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Adicionar item de custo
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* ── Aba Documentos ── */}
+      {tab === 'documentos' && (() => {
+        const docs = form.documentos || []
+        const addDoc = () => set('documentos', [...docs, { id: crypto.randomUUID(), titulo:'', url:'', tipo:'externo', obs:'' }])
+        const updDoc = (id, p) => set('documentos', docs.map(d => d.id === id ? { ...d, ...p } : d))
+        const remDoc = (id) => set('documentos', docs.filter(d => d.id !== id))
+        return (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {docs.length === 0 && (
+              <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'28px 0' }}>
+                Nenhum documento vinculado ainda.
+              </div>
+            )}
+            {docs.map(d => (
+              <div key={d.id} style={{ border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', display:'flex', flexDirection:'column', gap:8 }}>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 100px auto', gap:8, alignItems:'center' }}>
+                  <input className="so-field" value={d.titulo} onChange={e => updDoc(d.id,{titulo:e.target.value})} placeholder="Título / nome do documento…" style={{ width:'100%', boxSizing:'border-box' }} />
+                  <select className="so-field" value={d.tipo} onChange={e => updDoc(d.id,{tipo:e.target.value})}>
+                    <option value="externo">Link externo</option>
+                    <option value="contrato">Contrato</option>
+                    <option value="proposta">Proposta</option>
+                    <option value="ata">Ata</option>
+                    <option value="nf">Nota fiscal</option>
+                    <option value="outro">Outro</option>
+                  </select>
+                  <button onClick={() => remDoc(d.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1 }}>×</button>
+                </div>
+                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
+                  <input className="so-field" value={d.url} onChange={e => updDoc(d.id,{url:e.target.value})} placeholder="https://… ou caminho do documento" style={{ flex:1, boxSizing:'border-box', fontFamily:'monospace', fontSize:11 }} />
+                  {d.url && (
+                    <a href={d.url} target="_blank" rel="noopener noreferrer"
+                      style={{ padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)', fontSize:11, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)' }}>
+                      ↗ Abrir
+                    </a>
+                  )}
+                </div>
+                <input className="so-field" value={d.obs||''} onChange={e => updDoc(d.id,{obs:e.target.value})} placeholder="Observação (opcional)…" style={{ width:'100%', boxSizing:'border-box', fontSize:11 }} />
+              </div>
+            ))}
+            <button onClick={addDoc} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Adicionar documento / link
+            </button>
+          </div>
+        )
+      })()}
+
+      {/* ── Aba Anexos ── */}
+      {tab === 'anexos' && (
+        <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+          {/* Área de upload */}
+          <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, padding:'28px 16px', border:'2px dashed var(--border)', borderRadius:10, background:'var(--surface2)', cursor: uploadingAnexo ? 'wait' : 'pointer', opacity: uploadingAnexo ? 0.6 : 1 }}>
+            <span style={{ fontSize:28 }}>📎</span>
+            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{uploadingAnexo ? 'Enviando…' : 'Clique para anexar arquivo'}</span>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>PDF, imagens, planilhas, documentos</span>
+            <input type="file" style={{ display:'none' }} disabled={uploadingAnexo || isNew} onChange={handleUploadAnexo} />
+          </label>
+          {isNew && <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center', margin:0 }}>Salve a ação primeiro para poder adicionar anexos.</p>}
+
+          {/* Lista de anexos */}
+          {(form.anexos || []).length === 0
+            ? <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'16px 0' }}>Nenhum anexo ainda.</div>
+            : (form.anexos || []).map((a, i) => (
+              <div key={i} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8 }}>
+                <span style={{ fontSize:20, flexShrink:0 }}>{a.tipo?.startsWith('image') ? '🖼️' : a.tipo?.includes('pdf') ? '📄' : '📎'}</span>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, fontWeight:600, color:'var(--accent)', textDecoration:'none', display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nome}</a>
+                  <span style={{ fontSize:10, color:'var(--text-muted)' }}>{a.em ? new Date(a.em).toLocaleDateString('pt-BR') : ''} · {a.tamanho ? (a.tamanho / 1024).toFixed(0) + ' KB' : ''}</span>
+                </div>
+                <button onClick={() => removeAnexo(i)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'2px 4px', flexShrink:0 }}>×</button>
+              </div>
+            ))
+          }
+        </div>
       )}
 
       {/* ── Aba Tarefas ── */}
@@ -602,23 +936,56 @@ export default function Acoes() {
   }, [lista])
 
   // ── KPIs ─────────────────────────────────────────────────────────────────
-  const kpis = (data) => (
-    <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12 }}>
-      {[
-        { label:'Total',      value: data.length,                                        color:'var(--border)' },
-        { label:'Agendadas',  value: data.filter(a => a.status==='agendado').length,     color:'#F59E0B' },
-        { label:'Realizadas', value: data.filter(a => a.status==='realizado').length,    color:'#10B981' },
-        { label:'Canceladas', value: data.filter(a => a.status==='cancelado').length,    color:'#EF4444' },
-      ].map(k => (
-        <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border2)',
-          borderRadius:10, padding:'14px 18px', display:'flex', flexDirection:'column', gap:4,
-          boxShadow:'var(--shadow)', borderTop:`3px solid ${k.color}` }}>
-          <div style={{ fontSize:22, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)' }}>{k.value}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
+  const kpis = (data) => {
+    const totalPrev = data.reduce((s, a) => s + (a.custos || []).reduce((ss, c) => ss + (Number(c.valor_previsto) || 0), 0), 0)
+    const totalReal = data.reduce((s, a) => s + (a.custos || []).reduce((ss, c) => ss + (Number(c.valor_realizado) || 0), 0), 0)
+    const overBudget = totalReal > totalPrev && totalPrev > 0
+    return (
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr) 1.6fr', gap:12 }}>
+        {[
+          { label:'Total',      value: data.length,                                     color:'var(--border)' },
+          { label:'Agendadas',  value: data.filter(a => a.status==='agendado').length,  color:'#F59E0B' },
+          { label:'Realizadas', value: data.filter(a => a.status==='realizado').length, color:'#10B981' },
+          { label:'Canceladas', value: data.filter(a => a.status==='cancelado').length, color:'#EF4444' },
+        ].map(k => (
+          <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border2)',
+            borderRadius:10, padding:'14px 18px', display:'flex', flexDirection:'column', gap:4,
+            boxShadow:'var(--shadow)', borderTop:`3px solid ${k.color}` }}>
+            <div style={{ fontSize:22, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)' }}>{k.value}</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
+          </div>
+        ))}
+        {/* Card de custos — 5º card na mesma linha */}
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border2)',
+          borderRadius:10, padding:'14px 18px', boxShadow:'var(--shadow)', borderTop:`3px solid ${overBudget ? '#EF4444' : '#6366F1'}` }}>
+          <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:8 }}>
+            Custos {overBudget && <span style={{ color:'#EF4444', marginLeft:4 }}>▲</span>}
+          </div>
+          <div style={{ display:'flex', gap:16, alignItems:'center', flexWrap:'wrap' }}>
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)' }}>{fmtMoeda(totalPrev)}</div>
+              <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>Previsto</div>
+            </div>
+            <div style={{ width:1, height:32, background:'var(--border)' }} />
+            <div>
+              <div style={{ fontSize:16, fontWeight:800, color: overBudget ? '#EF4444' : 'var(--text)', fontFamily:'var(--mono)' }}>{fmtMoeda(totalReal)}</div>
+              <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:1 }}>Realizado</div>
+            </div>
+            {totalPrev > 0 && (
+              <div style={{ display:'flex', alignItems:'center', gap:6, flex:1, minWidth:80 }}>
+                <div style={{ flex:1, height:5, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+                  <div style={{ height:'100%', width:`${Math.min(100, (totalReal/totalPrev)*100).toFixed(1)}%`, background: overBudget ? '#EF4444' : '#6366F1', borderRadius:99 }} />
+                </div>
+                <span style={{ fontSize:11, fontWeight:700, color: overBudget ? '#EF4444' : 'var(--text-muted)', flexShrink:0 }}>
+                  {((totalReal/totalPrev)*100).toFixed(0)}%
+                </span>
+              </div>
+            )}
+          </div>
         </div>
-      ))}
-    </div>
-  )
+      </div>
+    )
+  }
 
   // ── columns ───────────────────────────────────────────────────────────────
   const columns = [
