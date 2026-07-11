@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { BarChart2, Lock, Users, Globe, FileEdit, Printer } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { BarChart2, Lock, Users, Globe, FileEdit, Printer, ChevronDown, ChevronUp } from 'lucide-react'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import CanvasEditor from '../components/ui/CanvasEditor'
@@ -233,7 +233,7 @@ function RelatorioForm({ form, setForm }) {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
-function PrintModal({ relatorio, onClose }) {
+function PrintModal({ relatorio, onConfirm, onClose }) {
   const imp = relatorio.config?.impressao || {}
   const [opts, setOpts] = useState({
     orientacao: imp.orientacao || 'retrato',
@@ -242,34 +242,41 @@ function PrintModal({ relatorio, onClose }) {
     escala:     imp.escala    || 100,
     nota:       imp.nota      || '',
   })
+  const [filtrosOpen, setFiltrosOpen] = useState(false)
+  const [paramValues, setParamValues] = useState({})
 
-  function executarImpressao() {
-    const css = `
-      @page { size: ${opts.orientacao === 'paisagem' ? 'landscape' : 'portrait'}; margin: 10mm; }
-      @media print {
-        body > *:not(#print-frame) { display: none !important; }
-        #print-frame { display: block !important; }
-        .no-print { display: none !important; }
+  // Collect all param fields from config.filtrosParametro
+  const paramFields = useMemo(() => {
+    const fp = relatorio.config?.filtrosParametro || {}
+    const fields = []
+    for (const [srcId, srcFields] of Object.entries(fp)) {
+      for (const [key, meta] of Object.entries(srcFields)) {
+        if (meta?.enabled) fields.push({ srcId, key, ...meta })
       }
-    `
-    const style = document.createElement('style')
-    style.id = '__print_style'
-    style.textContent = css
-    document.head.appendChild(style)
-    document.title = relatorio.titulo || 'Relatório'
-    window.print()
-    setTimeout(() => { document.getElementById('__print_style')?.remove() }, 500)
-    onClose()
-  }
+    }
+    return fields
+  }, [relatorio])
 
   const inp = { width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', boxSizing: 'border-box', outline: 'none' }
   const lbl = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }
   const row = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }
 
+  function buildFiltros() {
+    const filtros = {}
+    for (const f of paramFields) {
+      const val = paramValues[`${f.srcId}__${f.key}`]
+      if (val !== undefined && val !== '') {
+        if (!filtros[f.srcId]) filtros[f.srcId] = {}
+        filtros[f.srcId][f.key] = val
+      }
+    }
+    return filtros
+  }
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
       onClick={e => e.target === e.currentTarget && onClose()}>
-      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: 420, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Printer size={18} color="var(--accent)" />
           <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', flex: 1 }}>Imprimir relatório</span>
@@ -280,6 +287,43 @@ function PrintModal({ relatorio, onClose }) {
           {relatorio.titulo}
         </div>
 
+        {/* Filtros de impressão (params) — colapsável */}
+        {paramFields.length > 0 && (
+          <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
+            <button onClick={() => setFiltrosOpen(o => !o)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--surface2)', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>Filtros de impressão</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                {Object.values(paramValues).some(v => v) && (
+                  <span style={{ fontSize: 10, background: 'var(--accent)', color: '#fff', borderRadius: 99, padding: '1px 6px', fontWeight: 700 }}>
+                    {Object.values(paramValues).filter(v => v).length}
+                  </span>
+                )}
+                {filtrosOpen ? <ChevronUp size={13} color="var(--text-muted)"/> : <ChevronDown size={13} color="var(--text-muted)"/>}
+              </div>
+            </button>
+            {filtrosOpen && (
+              <div style={{ padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {paramFields.map(f => {
+                  const pk = `${f.srcId}__${f.key}`
+                  return (
+                    <div key={pk}>
+                      <label style={{ ...lbl, marginBottom: 2 }}>
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: 10 }}>{f.sourceLabel} · </span>
+                        {f.label}
+                      </label>
+                      <input style={inp} placeholder={`Filtrar por ${f.label.toLowerCase()}…`}
+                        value={paramValues[pk] || ''}
+                        onChange={e => setParamValues(p => ({ ...p, [pk]: e.target.value }))} />
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Config de página */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <div>
             <label style={lbl}>Orientação</label>
@@ -310,13 +354,11 @@ function PrintModal({ relatorio, onClose }) {
               value={opts.escala} onChange={e => setOpts(o => ({ ...o, escala: Number(e.target.value) }))} />
           </div>
 
-          {opts.nota !== undefined && (
-            <div>
-              <label style={lbl}>Nota de rodapé</label>
-              <input style={inp} placeholder="Ex: Confidencial — uso interno" value={opts.nota}
-                onChange={e => setOpts(o => ({ ...o, nota: e.target.value }))} />
-            </div>
-          )}
+          <div>
+            <label style={lbl}>Nota de rodapé</label>
+            <input style={inp} placeholder="Ex: Confidencial — uso interno" value={opts.nota}
+              onChange={e => setOpts(o => ({ ...o, nota: e.target.value }))} />
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
@@ -324,7 +366,7 @@ function PrintModal({ relatorio, onClose }) {
             style={{ padding: '9px 18px', border: '1px solid var(--border)', borderRadius: 8, background: 'none', color: 'var(--text-soft)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
             Cancelar
           </button>
-          <button onClick={executarImpressao}
+          <button onClick={() => onConfirm({ opts, filtros: buildFiltros() })}
             style={{ padding: '9px 22px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <Printer size={14} /> Imprimir
           </button>
@@ -401,6 +443,30 @@ export default function Relatorios() {
 
   const columns = makeColumns(setPrintModal)
 
+  // ── Print job: abre CanvasEditor em modo impressão ──────────────────────
+  const [printJob, setPrintJob] = useState(null)
+
+  function handlePrintConfirm({ filtros }) {
+    const rel = printModal
+    setPrintModal(null)
+    setPrintJob({ relatorio: rel, filtros })
+  }
+
+  if (printJob) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, overflow: 'hidden' }}>
+        <CanvasEditor
+          relatorio={printJob.relatorio}
+          onBack={() => setPrintJob(null)}
+          readOnly
+          mode="relatorio"
+          initialFiltros={printJob.filtros}
+          autoPrint
+        />
+      </div>
+    )
+  }
+
   // ── Canvas editor aberto ─────────────────────────────────────────────────
   if (editando) {
     return (
@@ -458,7 +524,7 @@ export default function Relatorios() {
       />
 
       {/* ── Modal de impressão ── */}
-      {printModal && <PrintModal relatorio={printModal} onClose={() => setPrintModal(null)} />}
+      {printModal && <PrintModal relatorio={printModal} onConfirm={handlePrintConfirm} onClose={() => setPrintModal(null)} />}
 
       {/* ── SlideOver de cadastro ── */}
       <SlideOver

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Save, Printer, Settings, Layers, Plus, Trash2, Lock, Users, Globe, Maximize2, Minimize2, X, Filter, FileText, ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Save, Printer, Settings, Layers, Plus, Trash2, Lock, Users, Globe, Maximize2, Minimize2, X, Filter, FileText, ChevronDown, ChevronUp, Pin, PinOff } from 'lucide-react'
 import { useDocumentDataSources } from '../../hooks/useDocumentDataSources'
 import { useProfile } from '../../hooks/useProfile'
 
@@ -805,7 +805,7 @@ function RenderEl({ el, source, sources }) {
 }
 
 // ── Painel de propriedades ────────────────────────────────────────────────────
-function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mode, projetoData, onClose }) {
+function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mode, projetoData, onToggle }) {
   const [aba, setAba] = useState('el')
   const d = el?.dados || {}
   const source = el ? sources.find(s => s.id === d.sourceId) : null
@@ -827,11 +827,11 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
             {t.icon}
           </button>
         ))}
-        {onClose && (
-          <button onClick={onClose} title="Fechar painel"
+        {onToggle && (
+          <button onClick={onToggle} title="Recolher painel"
             style={{padding:'9px 10px',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
               background:'var(--surface2)',color:'var(--text-muted)',borderBottom:'2px solid transparent',fontFamily:'var(--font)'}}>
-            <X size={13}/>
+            <ChevronRight size={13}/>
           </button>
         )}
       </div>
@@ -1883,7 +1883,7 @@ function CanvasPage({ config, elementos, selecionadoId, onSelect, onDragStart, r
 }
 
 // ── Painel de Filtros lateral ─────────────────────────────────────────────────
-function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet, onClearSource, onClearAll, totalAtivos }) {
+function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet, onClearSource, onClearAll, totalAtivos, parametros, onToggleParametro }) {
   const [collapsed, setCollapsed] = useState({})
 
   const inp  = { width:'100%', padding:'5px 8px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:11, fontFamily:'var(--font)', outline:'none', boxSizing:'border-box' }
@@ -1963,10 +1963,23 @@ function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet,
                       ? [...new Set(src.registros.map(r => r[field.key]).filter(v => v && v !== '—'))].sort()
                       : []
 
+                    const isParam = !!(parametros?.[src.id]?.[field.key]?.enabled)
+                    const PinIcon = isParam ? Pin : PinOff
+                    const fieldLabel = (
+                      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:3 }}>
+                        <span style={lbl}>{field.label}</span>
+                        <button onClick={() => onToggleParametro?.(src.id, field.key, isParam ? null : { label: field.label, type: field.type, sourceLabel: src.label })}
+                          title={isParam ? 'Remover parâmetro de impressão' : 'Marcar como parâmetro de impressão'}
+                          style={{ background:'none', border:'none', cursor:'pointer', padding:'1px 2px', color: isParam ? 'var(--accent)' : 'var(--text-muted)', display:'flex', alignItems:'center' }}>
+                          <PinIcon size={11}/>
+                        </button>
+                      </div>
+                    )
+
                     if (field.type === 'date') {
                       return (
                         <div key={field.key}>
-                          <label style={lbl}>{field.label}</label>
+                          {fieldLabel}
                           <div style={{ display:'flex', gap:4 }}>
                             <input type="date" value={sf[`${field.key}_from`]||''} placeholder="De"
                               onChange={e => onSet(src.id, `${field.key}_from`, e.target.value)}
@@ -1982,7 +1995,7 @@ function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet,
                     if (field.type === 'number') {
                       return (
                         <div key={field.key}>
-                          <label style={lbl}>{field.label}</label>
+                          {fieldLabel}
                           <div style={{ display:'flex', gap:4 }}>
                             <input type="number" value={sf[`${field.key}_min`]||''} placeholder="Mín"
                               onChange={e => onSet(src.id, `${field.key}_min`, e.target.value)}
@@ -1999,7 +2012,7 @@ function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet,
                     if (uniqueVals.length > 0 && uniqueVals.length <= 40) {
                       return (
                         <div key={field.key}>
-                          <label style={lbl}>{field.label}</label>
+                          {fieldLabel}
                           <select value={sf[field.key]||''} onChange={e => onSet(src.id, field.key, e.target.value)}
                             style={{ ...inp, cursor:'pointer' }}>
                             <option value="">Todos</option>
@@ -2011,7 +2024,7 @@ function FiltersPanel({ sources, filteredSources, usedSourceIds, filtros, onSet,
 
                     return (
                       <div key={field.key}>
-                        <label style={lbl}>{field.label}</label>
+                        {fieldLabel}
                         <input value={sf[field.key]||''} placeholder={`Buscar por ${field.label.toLowerCase()}…`}
                           onChange={e => onSet(src.id, field.key, e.target.value)}
                           style={inp}/>
@@ -2036,6 +2049,8 @@ export default function CanvasEditor({
   readOnly = false,
   mode = 'relatorio',
   projetoData = null, // { nome, empresa, investimento } — preenche cabeçalho em modo proposta
+  initialFiltros = null, // pre-set filters (used for print flow)
+  autoPrint = false,     // auto-trigger window.print() after render
 }) {
   const { profile } = useProfile()
   const { sources, loading: loadingSources } = useDocumentDataSources()
@@ -2055,10 +2070,22 @@ export default function CanvasEditor({
   const [fullScreen,  setFullScreen]  = useState(false)
   const [showFiltros, setShowFiltros] = useState(false)
   // filtros: { [sourceId]: { [fieldKey|fieldKey_from|fieldKey_to|fieldKey_min|fieldKey_max]: string } }
-  const [filtros, setFiltros] = useState({})
+  const [filtros, setFiltros] = useState(initialFiltros || {})
+
+  // filtrosParametro: { [sourceId]: { [fieldKey]: { enabled, label, type, sourceLabel } } }
+  // persisted in config so that "save" captures which filters are print params
+  const [filtrosParametro, setFiltrosParametro] = useState(relatorio?.config?.filtrosParametro || {})
 
   const dragging = useRef(null)
   const canvasRef = useRef()
+
+  // auto-print when used in print mode from browse
+  useEffect(() => {
+    if (autoPrint && !loadingSources) {
+      const t = setTimeout(() => { window.print(); if (onBack) onBack() }, 1200)
+      return () => clearTimeout(t)
+    }
+  }, [autoPrint, loadingSources]) // eslint-disable-line
 
   const selecionado = elementos.find(e => e.id === selecionadoId) || null
   const elSource = selecionado ? sources.find(s => s.id === (selecionado.dados?.sourceId)) : null
@@ -2648,6 +2675,17 @@ export default function CanvasEditor({
           onClearSource={clearSourceFiltro}
           onClearAll={() => setFiltros({})}
           totalAtivos={totalFiltrosAtivos}
+          parametros={filtrosParametro}
+          onToggleParametro={(srcId, key, meta) => {
+            setFiltrosParametro(prev => {
+              const next = { ...prev, [srcId]: { ...(prev[srcId] || {}) } }
+              if (meta) next[srcId][key] = { enabled: true, ...meta }
+              else delete next[srcId][key]
+              const fp = { ...next }
+              setConfig(c => ({ ...c, filtrosParametro: fp }))
+              return fp
+            })
+          }}
         />
       ) : !readOnly && panelVisible && (
         <PropPanel
@@ -2659,8 +2697,16 @@ export default function CanvasEditor({
           onConfigChange={setConfig}
           mode={mode}
           projetoData={projetoData}
-          onClose={() => { setSelecionadoId(null); setPanelVisible(false) }}
+          onToggle={() => setPanelVisible(false)}
         />
+      )}
+
+      {/* Handle para re-abrir PropPanel quando recolhido */}
+      {!readOnly && !panelVisible && !showFiltros && (
+        <button onClick={() => setPanelVisible(true)} title="Expandir painel"
+          style={{ width:18, flexShrink:0, borderLeft:'1px solid var(--border)', background:'var(--surface2)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)' }}>
+          <ChevronLeft size={12}/>
+        </button>
       )}
 
       {/* Modal de acesso */}
