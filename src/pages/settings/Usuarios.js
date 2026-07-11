@@ -1157,5 +1157,5 @@ const inp = {
     fontSize: 13, background: 'var(--surface)', color: 'var(--text)',
     fontFamily: 'var(--font)', outline: 'none', boxSizing: 'border-box',
   },
-  err: { borderColor: 'var(--red)', background: '#FFF5F5' },
+  err: { border: '1px solid var(--red)', background: '#FFF5F5' },
 }
