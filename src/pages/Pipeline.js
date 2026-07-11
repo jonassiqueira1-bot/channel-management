@@ -5032,7 +5032,6 @@ function BulkPlaybookModal({ oppIds, opps, onClose, saveOpp }) {
     }
   }
 
-  return (
   if (progress) {
     const pb = ativos.find(p => p.id === selected)
     const done = progress.done >= progress.total
