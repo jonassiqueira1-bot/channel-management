@@ -662,8 +662,8 @@ export default function SettingsAlertas() {
 
   useEffect(() => {
     if (!tenantId) return
-    supabase.from('goals').select('id, titulo, tipo_alvo').eq('tenant_id', tenantId).eq('status', 'ativa').order('titulo')
-      .then(({ data }) => setGoalsAtivas(data || []))
+    supabase.from('goals').select('id, alvo_nome, tipo_alvo, periodo_mes, periodo_ano').eq('tenant_id', tenantId).eq('status', 'ativa').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
+      .then(({ data }) => setGoalsAtivas((data || []).map(g => ({ ...g, titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.periodo_mes}/${g.periodo_ano}` }))))
   }, [tenantId])
 
   useEffect(() => {
