@@ -550,15 +550,32 @@ export default function Relatorios() {
         saving={saving}
         saveLabel={isNew ? 'Criar relatório' : 'Salvar configurações'}
         onSave={handleSaveForm}
-        onDelete={!isNew && canEdit(form) ? () => handleDelete(form.id) : undefined}
+        onDelete={!isNew && canEdit(form) && !form.is_system ? () => handleDelete(form.id) : undefined}
         deleteConfirm="Excluir este relatório permanentemente?"
         headerExtra={
           !isNew && (
-            <button
-              onClick={() => { setSlideOpen(false); setEditando(form) }}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
-              <FileEdit size={14} /> Editar documento
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              <button
+                onClick={() => { setSlideOpen(false); setEditando(form) }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'var(--accent)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                <FileEdit size={14} /> Editar documento
+              </button>
+              {form.is_system && form.elementos_padrao && (
+                <button
+                  onClick={async () => {
+                    await save({ ...form, elementos: form.elementos_padrao })
+                    setSlideOpen(false)
+                  }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: 'none', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  ↩ Restaurar padrão
+                </button>
+              )}
+              {form.is_system && (
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', padding: '2px 0' }}>
+                  Relatório padrão do sistema · não pode ser excluído
+                </div>
+              )}
+            </div>
           )
         }
       >
