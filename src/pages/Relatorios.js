@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BarChart2, Lock, Users, Globe, FileEdit } from 'lucide-react'
+import { BarChart2, Lock, Users, Globe, FileEdit, Printer } from 'lucide-react'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import CanvasEditor from '../components/ui/CanvasEditor'
@@ -48,7 +48,7 @@ const EMPTY_FORM = {
 }
 
 // ── Colunas da tabela ─────────────────────────────────────────────────────────
-const columns = [
+function makeColumns(onPrint) { return [
   {
     key: 'titulo',
     label: 'Título',
@@ -101,7 +101,21 @@ const columns = [
       <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(val)}</span>
     ),
   },
-]
+  {
+    key: '_print',
+    label: '',
+    width: 40,
+    render: (_, row) => (
+      <button
+        onClick={e => { e.stopPropagation(); onPrint(row) }}
+        title="Imprimir"
+        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', alignItems: 'center' }}
+      >
+        <Printer size={14} />
+      </button>
+    ),
+  },
+]}
 
 // ── Filtros ───────────────────────────────────────────────────────────────────
 const filters = [
@@ -219,6 +233,107 @@ function RelatorioForm({ form, setForm }) {
 }
 
 // ── Página principal ──────────────────────────────────────────────────────────
+function PrintModal({ relatorio, onClose }) {
+  const imp = relatorio.config?.impressao || {}
+  const [opts, setOpts] = useState({
+    orientacao: imp.orientacao || 'retrato',
+    cabecalho:  imp.cabecalho !== false,
+    rodape:     imp.rodape    !== false,
+    escala:     imp.escala    || 100,
+    nota:       imp.nota      || '',
+  })
+
+  function executarImpressao() {
+    const css = `
+      @page { size: ${opts.orientacao === 'paisagem' ? 'landscape' : 'portrait'}; margin: 10mm; }
+      @media print {
+        body > *:not(#print-frame) { display: none !important; }
+        #print-frame { display: block !important; }
+        .no-print { display: none !important; }
+      }
+    `
+    const style = document.createElement('style')
+    style.id = '__print_style'
+    style.textContent = css
+    document.head.appendChild(style)
+    document.title = relatorio.titulo || 'Relatório'
+    window.print()
+    setTimeout(() => { document.getElementById('__print_style')?.remove() }, 500)
+    onClose()
+  }
+
+  const inp = { width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', fontSize: 13, fontFamily: 'var(--font)', boxSizing: 'border-box', outline: 'none' }
+  const lbl = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }
+  const row = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text)', cursor: 'pointer' }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 300 }}
+      onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ background: 'var(--surface)', borderRadius: 14, padding: 28, width: 400, boxShadow: '0 20px 60px rgba(0,0,0,0.3)', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <Printer size={18} color="var(--accent)" />
+          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', flex: 1 }}>Imprimir relatório</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4 }}>✕</button>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--surface2)', borderRadius: 8, padding: '8px 12px' }}>
+          {relatorio.titulo}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div>
+            <label style={lbl}>Orientação</label>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[['retrato', 'Retrato'], ['paisagem', 'Paisagem']].map(([v, l]) => (
+                <button key={v} onClick={() => setOpts(o => ({ ...o, orientacao: v }))}
+                  style={{ flex: 1, padding: '8px 0', fontSize: 12, border: `1.5px solid ${opts.orientacao === v ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 7, cursor: 'pointer', fontFamily: 'var(--font)', background: opts.orientacao === v ? 'var(--accent)11' : 'none', color: opts.orientacao === v ? 'var(--accent)' : 'var(--text-soft)', fontWeight: opts.orientacao === v ? 700 : 400 }}>
+                  {l}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <label style={row}>
+            <input type="checkbox" checked={opts.cabecalho} style={{ accentColor: 'var(--accent)' }}
+              onChange={e => setOpts(o => ({ ...o, cabecalho: e.target.checked }))} />
+            Incluir cabeçalho
+          </label>
+          <label style={row}>
+            <input type="checkbox" checked={opts.rodape} style={{ accentColor: 'var(--accent)' }}
+              onChange={e => setOpts(o => ({ ...o, rodape: e.target.checked }))} />
+            Incluir rodapé
+          </label>
+
+          <div>
+            <label style={lbl}>Escala (%)</label>
+            <input type="number" min={50} max={150} step={5} style={{ ...inp, width: 100 }}
+              value={opts.escala} onChange={e => setOpts(o => ({ ...o, escala: Number(e.target.value) }))} />
+          </div>
+
+          {opts.nota !== undefined && (
+            <div>
+              <label style={lbl}>Nota de rodapé</label>
+              <input style={inp} placeholder="Ex: Confidencial — uso interno" value={opts.nota}
+                onChange={e => setOpts(o => ({ ...o, nota: e.target.value }))} />
+            </div>
+          )}
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', paddingTop: 4, borderTop: '1px solid var(--border)' }}>
+          <button onClick={onClose}
+            style={{ padding: '9px 18px', border: '1px solid var(--border)', borderRadius: 8, background: 'none', color: 'var(--text-soft)', fontSize: 13, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            Cancelar
+          </button>
+          <button onClick={executarImpressao}
+            style={{ padding: '9px 22px', border: 'none', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Printer size={14} /> Imprimir
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function Relatorios() {
   const { relatorios, loading, save, remove, canEdit } = useRelatorios('relatorio')
   const { profile } = useProfile()
@@ -231,7 +346,8 @@ export default function Relatorios() {
   const [saving,     setSaving]     = useState(false)
 
   // Canvas editor (abre sobre tudo)
-  const [editando, setEditando] = useState(null)
+  const [editando,    setEditando]    = useState(null)
+  const [printModal,  setPrintModal]  = useState(null)  // relatório a imprimir
 
   // Filtragem local
   const dados = relatorios.filter(r => {
@@ -282,6 +398,8 @@ export default function Relatorios() {
   }
 
   const isNew = !form.id || String(form.id).startsWith('local_')
+
+  const columns = makeColumns(setPrintModal)
 
   // ── Canvas editor aberto ─────────────────────────────────────────────────
   if (editando) {
@@ -338,6 +456,9 @@ export default function Relatorios() {
           </div>
         }
       />
+
+      {/* ── Modal de impressão ── */}
+      {printModal && <PrintModal relatorio={printModal} onClose={() => setPrintModal(null)} />}
 
       {/* ── SlideOver de cadastro ── */}
       <SlideOver
