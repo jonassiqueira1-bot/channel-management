@@ -872,6 +872,17 @@ export default function SettingsAlertas() {
                   />
                   {(goalDropOpen || goalSearch) && (
                     <div style={{ border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', maxHeight: 180, overflowY: 'auto' }}>
+                      {filtradas.length > 0 && (() => {
+                        const todasSel = filtradas.every(g => selecionadas.includes(g.key))
+                        return (
+                          <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '2px solid var(--border)', fontSize: 12, fontWeight: 600 }}>
+                            <input type="checkbox" checked={todasSel}
+                              onChange={() => setEditing(f => ({ ...f, metas_ids: todasSel ? (f.metas_ids || []).filter(k => !filtradas.some(g => g.key === k)) : [...new Set([...(f.metas_ids || []), ...filtradas.map(g => g.key)])] }))}
+                              style={{ accentColor: 'var(--accent)' }} />
+                            {todasSel ? 'Desmarcar todas' : 'Selecionar todas'}
+                          </label>
+                        )
+                      })()}
                       {filtradas.length === 0
                         ? <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma meta encontrada</div>
                         : filtradas.map(g => (
