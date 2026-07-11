@@ -2072,10 +2072,13 @@ export default function CanvasEditor({
   const dragging = useRef(null)
   const canvasRef = useRef()
 
-  // auto-print when used in print mode from browse
+  // auto-print when used in print mode from browse (usa handlePrint que abre nova janela)
   useEffect(() => {
     if (autoPrint && !loadingSources) {
-      const t = setTimeout(() => { window.print(); if (onBack) onBack() }, 1200)
+      const t = setTimeout(() => {
+        handlePrint()
+        if (onBack) setTimeout(onBack, 800)
+      }, 1200)
       return () => clearTimeout(t)
     }
   }, [autoPrint, loadingSources]) // eslint-disable-line
