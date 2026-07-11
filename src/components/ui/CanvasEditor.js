@@ -827,13 +827,6 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
             {t.icon}
           </button>
         ))}
-        {onToggle && (
-          <button onClick={onToggle} title="Recolher painel"
-            style={{padding:'9px 10px',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-              background:'var(--surface2)',color:'var(--text-muted)',borderBottom:'2px solid transparent',fontFamily:'var(--font)'}}>
-            <ChevronRight size={13}/>
-          </button>
-        )}
       </div>
 
       <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:12}}>
@@ -2687,26 +2680,27 @@ export default function CanvasEditor({
             })
           }}
         />
-      ) : !readOnly && panelVisible && (
-        <PropPanel
-          el={selecionado}
-          sources={sources}
-          onChange={updateEl}
-          onDelete={()=>selecionado&&deleteEl(selecionado.id)}
-          config={config}
-          onConfigChange={setConfig}
-          mode={mode}
-          projetoData={projetoData}
-          onToggle={() => setPanelVisible(false)}
-        />
-      )}
+      ) : !readOnly && (
+        <div style={{ display:'flex', flexShrink:0 }}>
+          {/* Toggle sempre visível — abre/fecha PropPanel */}
+          <button onClick={() => setPanelVisible(v => !v)} title={panelVisible ? 'Recolher painel' : 'Expandir painel'}
+            style={{ width:20, borderLeft:'1px solid var(--border)', background:'var(--surface2)', border:'none', borderRight: panelVisible ? 'none' : undefined, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)', flexShrink:0 }}>
+            {panelVisible ? <ChevronRight size={12}/> : <ChevronLeft size={12}/>}
+          </button>
 
-      {/* Handle para re-abrir PropPanel quando recolhido */}
-      {!readOnly && !panelVisible && !showFiltros && (
-        <button onClick={() => setPanelVisible(true)} title="Expandir painel"
-          style={{ width:18, flexShrink:0, borderLeft:'1px solid var(--border)', background:'var(--surface2)', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'var(--text-muted)' }}>
-          <ChevronLeft size={12}/>
-        </button>
+          {panelVisible && (
+            <PropPanel
+              el={selecionado}
+              sources={sources}
+              onChange={updateEl}
+              onDelete={()=>selecionado&&deleteEl(selecionado.id)}
+              config={config}
+              onConfigChange={setConfig}
+              mode={mode}
+              projetoData={projetoData}
+            />
+          )}
+        </div>
       )}
 
       {/* Modal de acesso */}
