@@ -99,14 +99,15 @@ const CAMPOS_PADRAO = {
     { key: 'estado',     label: 'Estado',               tipo: 'text' },
   ],
   goals: [
-    { key: 'valor_atual',     label: 'Valor atual (R$)',    tipo: 'money'  },
-    { key: 'valor_planejado', label: 'Valor planejado (R$)',tipo: 'money'  },
-    { key: 'percentual',      label: 'Percentual atingido', tipo: 'number' },
-    { key: 'periodo_mes',     label: 'Mês do período',      tipo: 'number' },
-    { key: 'periodo_ano',     label: 'Ano do período',      tipo: 'number' },
-    { key: 'status',          label: 'Status',   tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
-    { key: 'tipo_meta',       label: 'Tipo de meta', tipo: 'enum', opts: ['valor','quantidade','percentual'] },
-    { key: 'tipo_alvo',       label: 'Alvo',    tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
+    { key: 'valor_atual',        label: 'Valor atual (R$)',          tipo: 'money'  },
+    { key: 'valor_planejado',    label: 'Valor planejado (R$)',       tipo: 'money'  },
+    { key: 'percentual',         label: 'Percentual atingido',        tipo: 'number' },
+    { key: 'periodo_percentual', label: 'Período decorrido (%)',      tipo: 'number' },
+    { key: 'periodo_mes',        label: 'Mês do período',             tipo: 'number' },
+    { key: 'periodo_ano',        label: 'Ano do período',             tipo: 'number' },
+    { key: 'status',             label: 'Status',   tipo: 'enum', opts: ['ativa','pausada','encerrada'] },
+    { key: 'tipo_meta',          label: 'Tipo de meta', tipo: 'enum', opts: ['valor','quantidade','percentual'] },
+    { key: 'tipo_alvo',          label: 'Alvo',    tipo: 'enum', opts: ['vendedor','unidade','categoria','produto'] },
   ],
   sellers: [
     { key: 'created_at',    label: 'Data de cadastro',    tipo: 'date'   },
@@ -289,7 +290,20 @@ async function executarEngine(tenantId) {
     const origemDef = ORIGENS.find(o => o.key === origem)
     if (!origemDef) continue
     const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
-    dados[origem] = data || []
+    let registros = data || []
+    if (origem === 'goals') {
+      const agora = Date.now()
+      registros = registros.map(g => {
+        if (!g.data_inicio || !g.data_fim) return g
+        const ini = new Date(g.data_inicio).getTime()
+        const fim = new Date(g.data_fim).getTime()
+        const total = fim - ini
+        if (total <= 0) return g
+        const pp = Math.max(0, Math.min(100, ((agora - ini) / total) * 100))
+        return { ...g, periodo_percentual: Math.round(pp) }
+      })
+    }
+    dados[origem] = registros
   }
 
   const { data: existentes } = await supabase.from('alerts').select('rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
