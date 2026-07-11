@@ -295,15 +295,26 @@ async function executarEngine(tenantId) {
     const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
     let registros = data || []
     if (origem === 'goals') {
-      const agora = Date.now()
+      // Agrupa meses por meta lógica (tipo_alvo + alvo_id + tipo_meta)
+      const grupos = {}
+      for (const g of registros) {
+        const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+        if (!grupos[key]) grupos[key] = []
+        grupos[key].push(g)
+      }
+      const agora = new Date()
+      const anoAtual = agora.getFullYear()
+      const mesAtual = agora.getMonth() + 1
       registros = registros.map(g => {
-        if (!g.data_inicio || !g.data_fim) return g
-        const ini = new Date(g.data_inicio).getTime()
-        const fim = new Date(g.data_fim).getTime()
-        const total = fim - ini
-        if (total <= 0) return g
-        const pp = Math.max(0, Math.min(100, ((agora - ini) / total) * 100))
-        return { ...g, periodo_percentual: Math.round(pp) }
+        const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+        const grupo = grupos[key]
+        const sorted = [...grupo].sort((a, b) => a.periodo_ano !== b.periodo_ano ? a.periodo_ano - b.periodo_ano : a.periodo_mes - b.periodo_mes)
+        const primeiro = sorted[0]
+        const ultimo   = sorted[sorted.length - 1]
+        const totalMeses = (ultimo.periodo_ano - primeiro.periodo_ano) * 12 + (ultimo.periodo_mes - primeiro.periodo_mes)
+        const decorridos = (anoAtual - primeiro.periodo_ano) * 12 + (mesAtual - primeiro.periodo_mes)
+        const pp = totalMeses <= 0 ? 100 : Math.max(0, Math.min(100, Math.round((decorridos / totalMeses) * 100)))
+        return { ...g, periodo_percentual: pp, _goal_key: key }
       })
     }
     dados[origem] = registros
@@ -318,7 +329,7 @@ async function executarEngine(tenantId) {
     const metasIds = cf.metas_ids || []
     let registros = dados[rule.origem] || []
     if (rule.origem === 'goals' && metasIds.length > 0) {
-      registros = registros.filter(g => metasIds.includes(g.id))
+      registros = registros.filter(g => metasIds.includes(g._goal_key))
     }
     const fullRule = { ...rule, condicoes: cf.condicoes || [], acoes: cf.acoes || [], acoes_else: cf.acoes_else || [], com_else: cf.com_else || false }
     for (const reg of registros) {
@@ -663,11 +674,30 @@ export default function SettingsAlertas() {
 
   useEffect(() => {
     if (!tenantId) return
-    supabase.from('goals').select('id, alvo_nome, tipo_alvo, periodo_mes, periodo_ano, status').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
+    supabase.from('goals').select('id, alvo_nome, tipo_alvo, alvo_id, tipo_meta, periodo_mes, periodo_ano, status').order('periodo_ano', { ascending: false }).order('periodo_mes', { ascending: false })
       .then(({ data, error }) => {
         if (error) { console.error('[Alertas] goals fetch:', error); return }
         const ativas = (data || []).filter(g => g.status === 'ativa' || g.status === 'pausada' || !g.status)
-        setGoalsAtivas(ativas.map(g => ({ ...g, titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.periodo_mes}/${g.periodo_ano}` })))
+        // Agrupa por meta lógica (tipo_alvo + alvo_id + tipo_meta)
+        const grupos = {}
+        for (const g of ativas) {
+          const key = `${g.tipo_alvo}|${g.alvo_id || ''}|${g.tipo_meta}`
+          if (!grupos[key]) {
+            const sorted = ativas.filter(x => `${x.tipo_alvo}|${x.alvo_id || ''}|${x.tipo_meta}` === key)
+              .sort((a, b) => a.periodo_ano !== b.periodo_ano ? a.periodo_ano - b.periodo_ano : a.periodo_mes - b.periodo_mes)
+            const primeiro = sorted[0]
+            const ultimo   = sorted[sorted.length - 1]
+            grupos[key] = {
+              key,
+              titulo: `${g.alvo_nome || g.tipo_alvo} — ${g.tipo_meta}`,
+              subtitulo: primeiro === ultimo
+                ? `${primeiro.periodo_mes}/${primeiro.periodo_ano}`
+                : `${primeiro.periodo_mes}/${primeiro.periodo_ano} → ${ultimo.periodo_mes}/${ultimo.periodo_ano}`,
+              tipo_alvo: g.tipo_alvo,
+            }
+          }
+        }
+        setGoalsAtivas(Object.values(grupos))
       })
   }, [tenantId])
 
@@ -811,9 +841,9 @@ export default function SettingsAlertas() {
             {editing.origem === 'goals' && (() => {
               const selecionadas = editing.metas_ids || []
               const filtradas = goalsAtivas.filter(g => g.titulo?.toLowerCase().includes(goalSearch.toLowerCase()))
-              const toggle = id => setEditing(f => {
+              const toggle = key => setEditing(f => {
                 const cur = f.metas_ids || []
-                return { ...f, metas_ids: cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id] }
+                return { ...f, metas_ids: cur.includes(key) ? cur.filter(x => x !== key) : [...cur, key] }
               })
               return (
                 <div style={{ marginTop: 10 }}>
@@ -822,12 +852,12 @@ export default function SettingsAlertas() {
                   </div>
                   {selecionadas.length > 0 && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                      {selecionadas.map(id => {
-                        const g = goalsAtivas.find(x => x.id === id)
+                      {selecionadas.map(key => {
+                        const g = goalsAtivas.find(x => x.key === key)
                         return g ? (
-                          <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: 11 }}>
+                          <span key={key} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', color: '#fff', borderRadius: 4, padding: '2px 8px', fontSize: 11 }}>
                             {g.titulo}
-                            <button onClick={() => toggle(id)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 12 }}>×</button>
+                            <button onClick={() => toggle(key)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, lineHeight: 1, fontSize: 12 }}>×</button>
                           </span>
                         ) : null
                       })}
@@ -845,10 +875,12 @@ export default function SettingsAlertas() {
                       {filtradas.length === 0
                         ? <div style={{ padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhuma meta encontrada</div>
                         : filtradas.map(g => (
-                          <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                            <input type="checkbox" checked={selecionadas.includes(g.id)} onChange={() => toggle(g.id)} style={{ accentColor: 'var(--accent)' }} />
-                            {g.titulo}
-                            {g.tipo_alvo && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>({g.tipo_alvo})</span>}
+                          <label key={g.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                            <input type="checkbox" checked={selecionadas.includes(g.key)} onChange={() => toggle(g.key)} style={{ accentColor: 'var(--accent)' }} />
+                            <span>
+                              {g.titulo}
+                              <span style={{ display: 'block', fontSize: 10, color: 'var(--text-muted)' }}>{g.subtitulo}</span>
+                            </span>
                           </label>
                         ))
                       }
