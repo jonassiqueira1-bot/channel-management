@@ -6,7 +6,7 @@ import { useCustomFields } from '../../hooks/useCustomFields'
 import { FullPageEdit, FPESection } from '../../components/ui'
 import { PAPEIS_OPTIONS } from '../../data/mockPerfis'
 import SettingsLayout from '../../components/ui/SettingsLayout'
-import { Plus, Trash2, GitBranch } from 'lucide-react'
+import { Plus, Trash2, GitBranch, RotateCcw, Lock } from 'lucide-react'
 
 // ─── Origens → tabelas reais ──────────────────────────────────────────────────
 const ORIGENS = [
@@ -15,11 +15,14 @@ const ORIGENS = [
   { key: 'projects',            label: 'Projetos',      table: 'projects'      },
   { key: 'tasks',               label: 'Tarefas',       table: 'tasks'         },
   { key: 'actions',             label: 'Ações',         table: 'actions'       },
-  { key: 'commission_payments', label: 'Pagamentos',    table: 'commission_payments' },
+  { key: 'commission_payments', label: 'Comissões',          table: 'commission_payments' },
+  { key: 'payments',           label: 'Pagamentos (contratos)', table: 'payments'       },
   { key: 'companies',           label: 'Empresas',      table: 'companies'     },
   { key: 'goals',               label: 'Metas & KPIs',  table: 'goals'         },
   { key: 'sellers',             label: 'Parceiros',     table: 'sellers'       },
   { key: 'contacts',           label: 'Contatos Canais', table: 'contacts'    },
+  { key: 'customer_health',   label: 'Sucesso do Cliente (CS)', table: 'customer_health' },
+  { key: 'provisoes',         label: 'Provisões',               table: 'provisoes'        },
 ]
 
 // ─── Campos por origem ────────────────────────────────────────────────────────
@@ -49,16 +52,21 @@ const CAMPOS_PADRAO = {
     { key: 'n_tarefas',             label: 'Qtd. de tarefas',          tipo: 'number' },
   ],
   contracts: [
-    { key: 'data_inicio',    label: 'Início da vigência',  tipo: 'date'  },
-    { key: 'data_fim',       label: 'Fim da vigência',     tipo: 'date'  },
-    { key: 'data_renovacao', label: 'Data de renovação',   tipo: 'date'  },
-    { key: 'created_at',     label: 'Data de cadastro',    tipo: 'date'  },
-    { key: 'updated_at',     label: 'Última atualização',  tipo: 'date'  },
-    { key: 'valor',          label: 'Valor (R$)',           tipo: 'money' },
+    { key: 'data_inicio',    label: 'Início da vigência',        tipo: 'date'   },
+    { key: 'data_fim',       label: 'Fim da vigência',           tipo: 'date'   },
+    { key: 'created_at',     label: 'Data de cadastro',          tipo: 'date'   },
+    { key: 'updated_at',     label: 'Última atualização',        tipo: 'date'   },
+    { key: 'data_pag_cdu',   label: 'Data pagamento CDU',        tipo: 'date'   },
+    { key: 'data_pag_sms',   label: 'Data pagamento SMS',        tipo: 'date'   },
     { key: 'status',         label: 'Status', tipo: 'enum', opts: ['ativo','encerrado','cancelado','pendente'] },
-    { key: 'responsavel',    label: 'Responsável',          tipo: 'text'  },
-    { key: 'numero',         label: 'Número do contrato',   tipo: 'text'  },
-    { key: 'tipo',           label: 'Tipo de contrato',     tipo: 'text'  },
+    { key: 'inconsistencia_status', label: 'Status inconsistência', tipo: 'enum', opts: ['sem_inconsistencia','pendente','resolvida'] },
+    { key: 'primeira_compra',label: 'Primeira compra',           tipo: 'enum',  opts: ['true','false'] },
+    { key: 'numero',         label: 'Número do contrato',        tipo: 'text'   },
+    { key: 'empresa_nome',   label: 'Empresa',                   tipo: 'text'   },
+    { key: 'responsavel',    label: 'Responsável',               tipo: 'text'   },
+    { key: 'origem',         label: 'Origem',                    tipo: 'text'   },
+    { key: 'observacoes',    label: 'Observações',               tipo: 'text'   },
+    { key: 'opportunity_titulo', label: 'Oportunidade vinculada',tipo: 'text'   },
   ],
   projects: [
     { key: 'data_inicio', label: 'Data de início',    tipo: 'date' },
@@ -118,14 +126,45 @@ const CAMPOS_PADRAO = {
     { key: 'n_anexos',            label: 'Qtd. de anexos',         tipo: 'number' },
   ],
   commission_payments: [
-    { key: 'data_vencimento',    label: 'Data de vencimento',   tipo: 'date'  },
-    { key: 'data_pagamento',     label: 'Data de pagamento',    tipo: 'date'  },
-    { key: 'created_at',         label: 'Data de criação',      tipo: 'date'  },
-    { key: 'valor_comissao',     label: 'Valor da comissão (R$)', tipo: 'money' },
-    { key: 'valor_base',         label: 'Valor base (R$)',       tipo: 'money' },
-    { key: 'percentual',         label: 'Percentual (%)',        tipo: 'number'},
-    { key: 'status',             label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
-    { key: 'beneficiario_nome',  label: 'Beneficiário',          tipo: 'text'  },
+    { key: 'data_pagamento',   label: 'Data de pagamento',       tipo: 'date'   },
+    { key: 'data_competencia', label: 'Período de competência',  tipo: 'date'   },
+    { key: 'created_at',       label: 'Data de criação',         tipo: 'date'   },
+    { key: 'valor_comissao',   label: 'Valor da comissão (R$)',  tipo: 'money'  },
+    { key: 'valor_bruto',      label: 'Valor bruto (R$)',        tipo: 'money'  },
+    { key: 'periodo_mes',      label: 'Mês do período',          tipo: 'number' },
+    { key: 'periodo_ano',      label: 'Ano do período',          tipo: 'number' },
+    { key: 'parcela_numero',   label: 'Nº da parcela',           tipo: 'number' },
+    { key: 'total_parcelas',   label: 'Total de parcelas',       tipo: 'number' },
+    { key: 'status',           label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
+    { key: 'beneficiario_nome',label: 'Beneficiário',            tipo: 'text'   },
+    { key: 'persona_slug',     label: 'Persona/Perfil',          tipo: 'text'   },
+    { key: 'observacoes',      label: 'Observações',             tipo: 'text'   },
+  ],
+  payments: [
+    { key: 'due_date',          label: 'Data de vencimento',     tipo: 'date'   },
+    { key: 'data_emissao',      label: 'Data de emissão',        tipo: 'date'   },
+    { key: 'data_baixa',        label: 'Data de baixa',          tipo: 'date'   },
+    { key: 'data_fechamento',   label: 'Data de fechamento',     tipo: 'date'   },
+    { key: 'reference_month',   label: 'Mês de referência',      tipo: 'date'   },
+    { key: 'created_at',        label: 'Data de criação',        tipo: 'date'   },
+    { key: 'updated_at',        label: 'Última atualização',     tipo: 'date'   },
+    { key: 'amount_total_net',  label: 'Valor total líquido (R$)', tipo: 'money' },
+    { key: 'amount_cdu',        label: 'Valor CDU (R$)',         tipo: 'money'  },
+    { key: 'amount_sms',        label: 'Valor SMS (R$)',         tipo: 'money'  },
+    { key: 'amount_services',   label: 'Valor serviços (R$)',    tipo: 'money'  },
+    { key: 'amount_discount',   label: 'Desconto (R$)',          tipo: 'money'  },
+    { key: 'valor_recebido',    label: 'Valor recebido (R$)',    tipo: 'money'  },
+    { key: 'status',            label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
+    { key: 'processed',         label: 'Processado', tipo: 'enum', opts: ['true','false'] },
+    { key: 'inconsistencia',    label: 'Com inconsistência', tipo: 'enum', opts: ['true','false'] },
+    { key: 'company_nome',      label: 'Empresa',               tipo: 'text'   },
+    { key: 'produto_nome',      label: 'Produto',               tipo: 'text'   },
+    { key: 'num_documento',     label: 'Nº do documento',       tipo: 'text'   },
+    { key: 'parcela',              label: 'Parcela',               tipo: 'text'   },
+    { key: 'notes',               label: 'Observações',           tipo: 'text'   },
+    { key: 'inconsistencia_status', label: 'Status inconsistência', tipo: 'enum', opts: ['sem_inconsistencia','pendente','resolvida'] },
+    { key: 'contract_numero',    label: 'Nº do contrato',         tipo: 'text'   },
+    { key: 'origin_type',        label: 'Origem',                 tipo: 'text'   },
   ],
   companies: [
     { key: 'updated_at', label: 'Última atualização', tipo: 'date' },
@@ -168,6 +207,49 @@ const CAMPOS_PADRAO = {
     { key: 'email',       label: 'E-mail',              tipo: 'text' },
     { key: 'phone',       label: 'Telefone',            tipo: 'text' },
     { key: 'cargo',       label: 'Cargo',               tipo: 'text' },
+  ],
+  provisoes: [
+    { key: 'due_date',          label: 'Data de vencimento',     tipo: 'date'   },
+    { key: 'data_emissao',      label: 'Data de emissão',        tipo: 'date'   },
+    { key: 'data_baixa',        label: 'Data de baixa',          tipo: 'date'   },
+    { key: 'data_fechamento',   label: 'Data de fechamento',     tipo: 'date'   },
+    { key: 'reference_month',   label: 'Mês de referência',      tipo: 'date'   },
+    { key: 'created_at',        label: 'Data de criação',        tipo: 'date'   },
+    { key: 'updated_at',        label: 'Última atualização',     tipo: 'date'   },
+    { key: 'amount_total_net',  label: 'Valor total líquido (R$)', tipo: 'money' },
+    { key: 'amount_cdu',        label: 'Valor CDU (R$)',         tipo: 'money'  },
+    { key: 'amount_sms',        label: 'Valor SMS (R$)',         tipo: 'money'  },
+    { key: 'amount_services',   label: 'Valor serviços (R$)',    tipo: 'money'  },
+    { key: 'amount_discount',   label: 'Desconto (R$)',          tipo: 'money'  },
+    { key: 'valor_recebido',    label: 'Valor recebido (R$)',    tipo: 'money'  },
+    { key: 'status',            label: 'Status', tipo: 'enum', opts: ['pendente','pago','cancelado','em_atraso'] },
+    { key: 'processed',         label: 'Processado', tipo: 'enum', opts: ['true','false'] },
+    { key: 'inconsistencia',    label: 'Com inconsistência', tipo: 'enum', opts: ['true','false'] },
+    { key: 'inconsistencia_status', label: 'Status inconsistência', tipo: 'enum', opts: ['sem_inconsistencia','pendente','resolvida'] },
+    { key: 'company_nome',      label: 'Empresa',               tipo: 'text'   },
+    { key: 'produto_nome',      label: 'Produto',               tipo: 'text'   },
+    { key: 'contract_numero',   label: 'Nº do contrato',        tipo: 'text'   },
+    { key: 'num_documento',     label: 'Nº do documento',       tipo: 'text'   },
+    { key: 'parcela',           label: 'Parcela',               tipo: 'text'   },
+    { key: 'origin_type',       label: 'Tipo de origem',        tipo: 'text'   },
+    { key: 'notes',             label: 'Observações',           tipo: 'text'   },
+  ],
+  customer_health: [
+    { key: 'renewal_date',   label: 'Data de renovação',        tipo: 'date'   },
+    { key: 'criado_em',      label: 'Data de cadastro',         tipo: 'date'   },
+    { key: 'updated_at',     label: 'Última atualização',       tipo: 'date'   },
+    { key: 'ultimo_checkin', label: 'Data do último check-in',  tipo: 'date'   },
+    { key: 'health_score',   label: 'Health Score (0–100)',     tipo: 'number' },
+    { key: 'n_action_plans', label: 'Qtd. planos de ação',      tipo: 'number' },
+    { key: 'n_action_plans_pendentes', label: 'Planos de ação pendentes', tipo: 'number' },
+    { key: 'n_checkins',     label: 'Qtd. check-ins',           tipo: 'number' },
+    { key: 'laer_stage',     label: 'LAER Stage', tipo: 'enum', opts: ['Land','Adopt','Expand','Renew'] },
+    { key: 'touch_model',    label: 'Modelo de toque', tipo: 'enum', opts: ['Tech-Touch','Mid-Touch','High-Touch'] },
+    { key: 'company_name',   label: 'Empresa',                  tipo: 'text'   },
+    { key: 'company_city',   label: 'Cidade',                   tipo: 'text'   },
+    { key: 'company_uf',     label: 'Estado (UF)',              tipo: 'text'   },
+    { key: 'csm',            label: 'CSM Responsável',          tipo: 'text'   },
+    { key: 'notes',          label: 'Observações',              tipo: 'text'   },
   ],
 }
 
@@ -228,6 +310,161 @@ function newCond()  { return { id: crypto.randomUUID(), campo: '', operador: '',
 function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '', prazo_dias: 3, titulo_tarefa: '', destinatarios_extra: [] } }
 function newDestExtra() { return { id: crypto.randomUUID(), tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '' } }
 function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, condicoes: [newCond()], acoes: [newAcao()], acoes_else: [], com_else: false } }
+
+// Templates padrão dos alertas de sistema — usados para regeneração
+const SYSTEM_RULE_DEFAULTS = {
+  acoes_aprovacao_custos: {
+    gatilho_nome: 'Ações aprovação de custos',
+    origem: 'actions',
+    condicoes: [{ campo: 'custos_aguardando', valor: 'true', logico: 'E', operador: 'eq' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Ações com parceiros', mensagem: 'Uma ação está pendente de sua aprovação:\n{{descricao}}\n{{empresa_nome}}', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  contatos_desatualizados: {
+    gatilho_nome: 'Contatos canais desatualizados',
+    origem: 'contacts',
+    condicoes: [{ campo: 'updated_at', valor: '180', logico: 'E', operador: 'dias_apos' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'admin_isv', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  contratos_inconsistencia: {
+    gatilho_nome: 'Contratos com inconsistência',
+    origem: 'contracts',
+    condicoes: [
+      { campo: 'inconsistencia_status', valor: 'pendente', logico: 'E', operador: 'eq' },
+      { campo: 'updated_at', valor: '', logico: 'E', operador: 'igual_hoje' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'financeiro', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'papel', papel: 'financeiro', assunto: 'Contrato com inconsistência', mensagem: 'Abaixo dados de contrato com inconsistência:\nEmpresa: {{empresa_nome}}\nContrato: {{numero}}\nObservações: {{observacoes}}', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  cs_sucesso_cliente: {
+    gatilho_nome: 'Sucesso do cliente',
+    origem: 'customer_health',
+    condicoes: [
+      { campo: 'health_score', valor: '49', logico: 'E', operador: 'lte' },
+      { campo: 'n_action_plans_pendentes', valor: '1', logico: 'E', operador: 'lt' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'cs', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Cliente com saúde crítica', mensagem: 'O cliente abaixo está numa zona de saúde crítica:\nEmppresa: {{company_name}}\nHealth score: {{health_score}}\nPlanos de ação: {{n_action_plans}}', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  meta_em_risco: {
+    gatilho_nome: 'Meta em risco',
+    origem: 'goals',
+    condicoes: [
+      { campo: 'periodo_mes', valor: '__mes_atual__', logico: 'E', operador: 'eq' },
+      { campo: 'periodo_percentual', valor: '90%', logico: 'E', operador: 'lte' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Meta em risco', mensagem: 'Meta abaixo de 90% e período mês avançado.', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    metas_ids: ['categoria|Tradicinal-CDU|valor', 'categoria|Quírons|valor', 'categoria|MntNG|valor'],
+    acoes_else: [], com_else: false,
+  },
+  oportunidade_sem_tarefa: {
+    gatilho_nome: 'Oportunidade sem tarefa',
+    origem: 'oportunidades',
+    condicoes: [
+      { campo: 'situacao', valor: 'em_andamento', logico: 'E', operador: 'eq' },
+      { campo: 'proxima_tarefa_data', valor: '', logico: 'E', operador: 'em_branco' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  pagamentos_inconsistencias: {
+    gatilho_nome: 'Pagamentos com inconsistências',
+    origem: 'payments',
+    condicoes: [
+      { campo: 'inconsistencia_status', valor: 'pendente', logico: 'E', operador: 'eq' },
+      { campo: 'updated_at', valor: '', logico: 'E', operador: 'igual_hoje' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'financeiro', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'papel', papel: 'financeiro', assunto: 'Pagamento com inconsistência', mensagem: 'Empresa: {{company_nome}}\nMês referência: {{reference_month}}\nCriação: {{created_at}}\nObservações {{notes}}', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  parceiros_maturidade: {
+    gatilho_nome: 'Parceiros atualização de maturidade',
+    origem: 'sellers',
+    condicoes: [{ campo: 'updated_at', valor: '', logico: 'E', operador: 'igual_hoje' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Parceiros atualização de maturidade', mensagem: 'Atualização de maturidade de Parceiro realizada.', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  projetos_fora_prazo: {
+    gatilho_nome: 'Projetos fora do prazo',
+    origem: 'projects',
+    condicoes: [
+      { campo: 'status', valor: 'em_andamento', logico: 'E', operador: 'eq' },
+      { campo: 'data_fim', valor: '', logico: 'E', operador: 'antes_hoje' },
+    ],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'projetos', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'notificar', destinatario_tipo: 'responsavel_origem', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'papel', papel: 'projetos', assunto: 'Projeto com prazo estourado', mensagem: 'Projeto fora do prazo de entrega.', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  projetos_margem_ruim: {
+    gatilho_nome: 'Projetos com margem ruim',
+    origem: 'projects',
+    condicoes: [
+      { campo: 'status', valor: 'em_andamento', logico: 'E', operador: 'eq' },
+      { campo: 'data_fim', valor: '20', logico: 'E', operador: 'dias_antes' },
+      { campo: 'fin_margem_pct', valor: '10%', logico: 'E', operador: 'lt' },
+    ],
+    acoes: [
+      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Projeto com margem abaixo do esperado', mensagem: 'Projeto chegando ao fim e abaixo da margem.', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [{ tipo: 'papel', papel: 'projetos', email_fixo: '', usuario_id: '' }] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  projetos_novo_cadastrado: {
+    gatilho_nome: 'Projetos novo projeto cadastrado',
+    origem: 'projects',
+    condicoes: [{ campo: 'created_at', valor: '', logico: 'E', operador: 'igual_hoje' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  provisoes_inconsistencias: {
+    gatilho_nome: 'Provisões com inconsistências',
+    origem: 'provisoes',
+    condicoes: [{ campo: 'inconsistencia_status', valor: 'pendente', logico: 'E', operador: 'eq' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'financeiro', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'papel', papel: 'financeiro', assunto: 'Provisões com inconsistências', mensagem: 'Empresa: {{company_nome}}\nCriado: {{created_at}}\nMês referência: {{reference_month}}\nObservações: {{notes}}', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+  tarefas_atrasadas: {
+    gatilho_nome: 'Tarefas atrasadas',
+    origem: 'tasks',
+    condicoes: [{ campo: 'data_inicio', valor: '', logico: 'E', operador: 'antes_hoje' }],
+    acoes: [
+      { tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'email', destinatario_tipo: 'responsavel_origem', assunto: 'Tarefas atrasadas', mensagem: 'Constão no sistema tarefas atrasadas', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+    ],
+    acoes_else: [], com_else: false,
+  },
+}
 
 // ─── Engine de avaliação ──────────────────────────────────────────────────────
 function avaliarCondicao(registro, cond) {
@@ -364,8 +601,19 @@ async function executarEngine(tenantId) {
   for (const origem of origemSet) {
     const origemDef = ORIGENS.find(o => o.key === origem)
     if (!origemDef) continue
-    const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
-    let registros = data || []
+
+    let registros = []
+    if (origem === 'customer_health') {
+      // CS ainda usa localStorage — lê diretamente e filtra por tenant_id
+      try {
+        const raw = localStorage.getItem('cs:customer_health_v1')
+        const todos = raw ? JSON.parse(raw) : []
+        registros = todos.filter(r => !r.tenant_id || r.tenant_id === tenantId)
+      } catch { registros = [] }
+    } else {
+      const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
+      registros = data || []
+    }
 
     // Enriquece oportunidades com tarefas (contagem + próxima tarefa + 1ª conclusão)
     if (origem === 'oportunidades' && registros.length > 0) {
@@ -402,6 +650,42 @@ async function executarEngine(tenantId) {
       })
     }
 
+    // Enriquece provisões com campos de custom_fields
+    if (origem === 'provisoes' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        return {
+          ...r,
+          company_nome:     cf.company_nome     || '',
+          produto_nome:     cf.produto_nome     || '',
+          contract_numero:  cf.contract_numero  || '',
+          num_documento:    cf.num_documento    || '',
+          parcela:          cf.parcela          || '',
+          origin_type:      cf.origin_type      || '',
+          data_emissao:     cf.data_emissao     || null,
+          data_baixa:       cf.data_baixa       || null,
+          valor_recebido:   cf.valor_recebido   ?? null,
+          amount_total_net: Number(r.amount_cdu || 0) + Number(r.amount_sms || 0) + Number(r.amount_services || 0) - Number(r.amount_discount || 0),
+        }
+      })
+    }
+
+    // Enriquece CS com campos calculados de action_plans e checkins
+    if (origem === 'customer_health' && registros.length > 0) {
+      registros = registros.map(r => {
+        const plans    = r.action_plans || []
+        const checkins = r.checkins || []
+        const checkinDatas = checkins.map(c => c.date).filter(Boolean).sort()
+        return {
+          ...r,
+          n_action_plans:           plans.length,
+          n_action_plans_pendentes: plans.filter(p => !p.done).length,
+          n_checkins:               checkins.length,
+          ultimo_checkin:           checkinDatas[checkinDatas.length - 1] || null,
+        }
+      })
+    }
+
     // Enriquece projetos com campos financeiros de custom_fields
     if (origem === 'projects' && registros.length > 0) {
       registros = registros.map(r => {
@@ -418,6 +702,43 @@ async function executarEngine(tenantId) {
           fin_horas_aprovadas:  cf.fin_horas_aprovadas  ?? null,
           fin_horas_executadas: cf.fin_horas_executadas ?? null,
           fin_custo_hora:       cf.fin_custo_hora       ?? null,
+        }
+      })
+    }
+
+    // Enriquece payments com campos vindos de custom_fields
+    if (origem === 'payments' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        return {
+          ...r,
+          company_nome:          r.companies?.nome_fantasia || r.companies?.razao_social || cf.company_nome || '',
+          produto_nome:          cf.produto_nome       || '',
+          num_documento:         cf.num_documento      || '',
+          parcela:               cf.parcela            || '',
+          data_emissao:          cf.data_emissao       || '',
+          data_baixa:            cf.data_baixa         || '',
+          valor_recebido:        cf.valor_recebido     || 0,
+          contract_numero:       cf.contract_numero    || '',
+          origin_type:           cf.origin_type        || cf._origem || '',
+          inconsistencia_status: r.inconsistencia_status || cf.inconsistencia_status || 'sem_inconsistencia',
+        }
+      })
+    }
+
+    // Enriquece contracts com campos vindos de custom_fields
+    if (origem === 'contracts' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        return {
+          ...r,
+          empresa_nome:          r.companies?.nome_fantasia || r.companies?.razao_social || cf.empresa_nome || '',
+          responsavel:           cf.responsavel      || '',
+          origem:                cf.origem           || '',
+          data_pag_cdu:          cf.data_pag_cdu     || '',
+          data_pag_sms:          cf.data_pag_sms     || '',
+          inconsistencia_status: cf.inconsistencia_status || 'sem_inconsistencia',
+          opportunity_titulo:    cf.opportunity_titulo || '',
         }
       })
     }
@@ -851,6 +1172,8 @@ function rowToRule(r) {
     gatilho_nome:r.gatilho_nome || r.gatilho || '',
     origem:      r.origem || '',
     ativo:       r.ativo,
+    is_system:   r.is_system || false,
+    system_key:  r.system_key || null,
     condicoes:   cf.condicoes   || [newCond()],
     acoes:       cf.acoes       || [newAcao()],
     acoes_else:  cf.acoes_else  || [],
@@ -980,6 +1303,8 @@ export default function SettingsAlertas() {
   }
 
   async function handleRemove(id) {
+    const rule = rules.find(r => r.id === id)
+    if (rule?.is_system) return
     if (!window.confirm('Excluir esta regra?')) return
     await supabase.from('alert_rules').delete().eq('id', id)
     setRules(prev => prev.filter(r => r.id !== id))
@@ -988,6 +1313,30 @@ export default function SettingsAlertas() {
   async function toggleAtivo(rule) {
     await supabase.from('alert_rules').update({ ativo: !rule.ativo }).eq('id', rule.id)
     setRules(prev => prev.map(r => r.id === rule.id ? { ...r, ativo: !r.ativo } : r))
+  }
+
+  async function handleRegenerate(rule) {
+    if (!rule.system_key) return
+    const defaults = SYSTEM_RULE_DEFAULTS[rule.system_key]
+    if (!defaults) return alert('Template padrão não encontrado para esta regra.')
+    if (!window.confirm(`Restaurar "${rule.gatilho_nome}" para as configurações originais do sistema?\n\nSuas alterações serão perdidas.`)) return
+    const row = {
+      gatilho:      defaults.gatilho_nome,
+      gatilho_nome: defaults.gatilho_nome,
+      origem:       defaults.origem,
+      ativo:        true,
+      custom_fields: {
+        condicoes:  defaults.condicoes.map(c => ({ ...c, id: crypto.randomUUID() })),
+        acoes:      defaults.acoes.map(a => ({ ...a, id: crypto.randomUUID() })),
+        acoes_else: [],
+        com_else:   false,
+        metas_ids:  [],
+      },
+    }
+    const { error } = await supabase.from('alert_rules').update(row).eq('id', rule.id)
+    if (error) return alert('Erro ao restaurar: ' + error.message)
+    const updated = { ...rule, ...defaults, ativo: true }
+    setRules(prev => prev.map(r => r.id === rule.id ? updated : r))
   }
 
   const origemMap = Object.fromEntries(ORIGENS.map(o => [o.key, o.label]))
@@ -1200,9 +1549,18 @@ export default function SettingsAlertas() {
 
   // ── Listagem ────────────────────────────────────────────────────────────────
   const COLS = [
-    { key: 'gatilho_nome', label: 'Nome',     render: (_, r) => <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span> },
-    { key: 'origem',       label: 'Origem',   render: (_, r) => origemMap[r.origem] || r.origem },
-    { key: 'condicoes',    label: 'Condições',render: (_, r) => {
+    { key: 'gatilho_nome', label: 'Nome', render: (_, r) => (
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span style={{ fontWeight: 600, fontSize: 13 }}>{r.gatilho_nome}</span>
+        {r.is_system && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, background: 'color-mix(in srgb, #6366f1 12%, transparent)', color: '#6366f1', borderRadius: 99, padding: '1px 7px', fontSize: 10, fontWeight: 700 }}>
+            <Lock size={9} strokeWidth={2.5} /> Sistema
+          </span>
+        )}
+      </span>
+    )},
+    { key: 'origem',    label: 'Origem',    render: (_, r) => origemMap[r.origem] || r.origem },
+    { key: 'condicoes', label: 'Condições', render: (_, r) => {
       const n = (r.condicoes || []).filter(c => c.campo).length
       return `${n} condição(ões)`
     }},
@@ -1243,10 +1601,19 @@ export default function SettingsAlertas() {
           newLabel="Nova regra" onNew={() => setEditing(emptyRule())}
           emptyLabel="Nenhuma regra de alerta configurada."
           onRowClick={r => setEditing(r)}
-          rowActions={[
-            { label: 'Editar',  onClick: r => setEditing(r) },
-            { label: 'Excluir', danger: true, onClick: r => handleRemove(r.id) },
-          ]}
+          rowActions={r => r.is_system
+            ? [
+                { label: 'Editar', onClick: () => setEditing(r) },
+                { label: r.ativo ? 'Inativar' : 'Ativar', onClick: () => toggleAtivo(r) },
+                ...(r.system_key && SYSTEM_RULE_DEFAULTS[r.system_key]
+                  ? [{ label: 'Restaurar padrão', icon: <RotateCcw size={12} />, onClick: () => handleRegenerate(r) }]
+                  : []),
+              ]
+            : [
+                { label: 'Editar',  onClick: () => setEditing(r) },
+                { label: 'Excluir', danger: true, onClick: () => handleRemove(r.id) },
+              ]
+          }
         />
       </div>
     </div>

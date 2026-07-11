@@ -453,7 +453,8 @@ export default function SettingsLayout({
     setSelected(new Set())
   }
 
-  const hasActions = rowActions.length > 0
+  const resolveActions = (row) => typeof rowActions === 'function' ? rowActions(row) : rowActions
+  const hasActions = typeof rowActions === 'function' ? true : rowActions.length > 0
 
   return (
     <div ref={wrapRef} style={{ display:'flex', flexDirection:'column', background:Z.white, border:`1px solid ${Z[200]}`, borderRadius:8, overflow:'hidden', height:'100%' }}>
@@ -604,7 +605,7 @@ export default function SettingsLayout({
                     ))}
                     {hasActions && (
                       <td style={{ padding:'6px 8px 6px 4px', textAlign:'right', verticalAlign:'middle' }}>
-                        <RowMenu actions={rowActions} row={row} />
+                        <RowMenu actions={resolveActions(row)} row={row} />
                       </td>
                     )}
                   </tr>
