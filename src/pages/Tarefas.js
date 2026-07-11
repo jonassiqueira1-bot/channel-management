@@ -57,10 +57,22 @@ function tipoIcon(tipo, tiposList = TIPOS_TAREFA_DEFAULT) {
 const STATUS_CFG = {
   pendente:    { label:'Pendente',    color:'#F59E0B', bg:'#FEF3C7', text:'#92400E', dot:'#F59E0B' },
   em_andamento:{ label:'Em andamento',color:'#3B82F6', bg:'#DBEAFE', text:'#1E3A5F', dot:'#3B82F6' },
+  atrasada:    { label:'Atrasada',    color:'#EF4444', bg:'#FEE2E2', text:'#991B1B', dot:'#EF4444' },
   concluida:   { label:'Concluída',   color:'#10B981', bg:'#D1FAE5', text:'#065F46', dot:'#10B981' },
   cancelada:   { label:'Cancelada',   color:'#9CA3AF', bg:'#F3F4F6', text:'#6B7280', dot:'#9CA3AF' },
 }
-const STATUS_KANBAN = ['pendente','em_andamento','concluida','cancelada']
+
+function statusEfetivo(tarefa) {
+  if (!tarefa) return 'pendente'
+  if (tarefa.status === 'concluida' || tarefa.status === 'cancelada') return tarefa.status
+  if (tarefa.data_inicio) {
+    const limite = new Date(tarefa.data_inicio)
+    limite.setDate(limite.getDate() + 1)
+    if (limite < new Date()) return 'atrasada'
+  }
+  return tarefa.status || 'pendente'
+}
+const STATUS_KANBAN = ['pendente','em_andamento','atrasada','concluida','cancelada']
 
 const PRIORIDADE_CFG = {
   baixa:   { label:'Baixa',   color:'#6B7280', bg:'#F3F4F6', text:'#374151' },
@@ -532,12 +544,13 @@ function KpiCard({ label, value, accent, red }) {
 // ─── Kanban card ──────────────────────────────────────────────────────────────
 function TarefaCard({ tarefa, onClick }) {
   const dias     = diasRestantes(tarefa.prazo)
-  const atrasado = tarefa.status!=='concluida'&&tarefa.status!=='cancelada'&&dias!==null&&dias<0
-  const urgente  = tarefa.status!=='concluida'&&tarefa.status!=='cancelada'&&dias!==null&&dias>=0&&dias<=2
-  const cfg      = STATUS_CFG[tarefa.status]
+  const stEf     = statusEfetivo(tarefa)
+  const atrasado = stEf!=='concluida'&&stEf!=='cancelada'&&dias!==null&&dias<0
+  const urgente  = stEf!=='concluida'&&stEf!=='cancelada'&&dias!==null&&dias>=0&&dias<=2
+  const cfg      = STATUS_CFG[stEf] || STATUS_CFG.pendente
 
   return (
-    <div style={{ ...k.card, opacity:tarefa.status==='concluida'||tarefa.status==='cancelada'?0.7:1 }} onClick={onClick}>
+    <div style={{ ...k.card, opacity:stEf==='concluida'||stEf==='cancelada'?0.7:1 }} onClick={onClick}>
       <div style={{ height:3, background:cfg.color, borderRadius:'6px 6px 0 0', margin:'-12px -12px 10px' }} />
       <div style={{ display:'flex', alignItems:'flex-start', gap:7, marginBottom:6 }}>
         <span style={{ fontSize:15, flexShrink:0, marginTop:1 }}>{tipoIcon(tarefa.tipo)}</span>
@@ -578,7 +591,7 @@ function KanbanView({ tarefas, onEdit, onAddTarefa, onMoveStatus }) {
       <div style={{ display:'flex', gap:12, minWidth:'max-content', height:'calc(100vh - 360px)' }}>
         {STATUS_KANBAN.map(status=>{
           const cfg    = STATUS_CFG[status]
-          const colOpps = tarefas.filter(t=>t.status===status)
+          const colOpps = tarefas.filter(t=>statusEfetivo(t)===status)
           return (
             <div key={status} style={{ ...k.coluna, minHeight:200 }}>
               <div style={{ padding:'10px 12px 8px', borderBottom:`2px solid ${cfg.color}`, background:'var(--surface)', borderRadius:'10px 10px 0 0', flexShrink:0 }}>
@@ -591,7 +604,7 @@ function KanbanView({ tarefas, onEdit, onAddTarefa, onMoveStatus }) {
                 {colOpps.map(t=><TarefaCard key={t.id} tarefa={t} onClick={()=>onEdit(t)} />)}
                 {colOpps.length===0 && <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:12, opacity:0.5 }}>Vazio</div>}
               </div>
-              <button style={k.addBtn} onClick={()=>onAddTarefa(status)}>+ Adicionar</button>
+              {status !== 'atrasada' && <button style={k.addBtn} onClick={()=>onAddTarefa(status)}>+ Adicionar</button>}
             </div>
           )
         })}
@@ -932,11 +945,12 @@ export default function Tarefas() {
     },
     { key: 'entidade_nome', label: 'Vínculo', render: (v, row) => <EntidadeTag tipo={row.entidade_tipo} nome={v} /> },
     { key: 'prioridade', label: 'Prioridade', width: 100, render: v => <PrioridadeBadge prioridade={v} /> },
-    { key: 'status', label: 'Status', width: 140, render: v => <StatusBadge status={v} /> },
+    { key: 'status', label: 'Status', width: 140, render: (v, row) => <StatusBadge status={statusEfetivo(row)} /> },
     { key: 'prazo', label: 'Prazo', width: 110, render: (v, row) => {
       const dias = diasRestantes(v)
-      const atrasado = row.status!=='concluida'&&row.status!=='cancelada'&&dias!==null&&dias<0
-      const urgente  = row.status!=='concluida'&&row.status!=='cancelada'&&dias!==null&&dias>=0&&dias<=2
+      const stEf = statusEfetivo(row)
+      const atrasado = stEf!=='concluida'&&stEf!=='cancelada'&&dias!==null&&dias<0
+      const urgente  = stEf!=='concluida'&&stEf!=='cancelada'&&dias!==null&&dias>=0&&dias<=2
       return <span style={{ fontFamily:'var(--mono)', fontSize:12, fontWeight:(atrasado||urgente)?700:400, color:atrasado?'var(--red)':urgente?'#D97706':'var(--text-soft)' }}>
         {v ? (atrasado?'⚠ ':urgente?'⏰ ':'')+fmtData(v) : '—'}
       </span>
@@ -981,9 +995,9 @@ export default function Tarefas() {
   ]
 
   const kpisNode = (data) => {
-    const pendentes  = data.filter(t => t.status === 'pendente' || t.status === 'em_andamento').length
+    const pendentes  = data.filter(t => { const s = statusEfetivo(t); return s === 'pendente' || s === 'em_andamento' }).length
     const concluidas = data.filter(t => t.status === 'concluida').length
-    const atrasadas  = data.filter(t => t.status !== 'concluida' && t.status !== 'cancelada' && t.prazo && t.prazo < hoje).length
+    const atrasadas  = data.filter(t => statusEfetivo(t) === 'atrasada').length
     return (
       <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:12, paddingTop:4 }}>
         <KpiCard label="Total de tarefas" value={data.length} />
