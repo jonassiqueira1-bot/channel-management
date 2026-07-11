@@ -1681,6 +1681,45 @@ function PropPanel({ el, sources, onChange, onDelete, config, onConfigChange, mo
             </>)}
           </div>
 
+          {/* Impressão */}
+          <div>
+            <label style={lbl}>Impressão</label>
+            <div style={{display:'flex',flexDirection:'column',gap:6}}>
+              <div>
+                <label style={{fontSize:9,color:'var(--text-muted)',display:'block',marginBottom:3}}>Orientação</label>
+                <div style={{display:'flex',gap:4}}>
+                  {[['retrato','Retrato'],['paisagem','Paisagem']].map(([v,l])=>(
+                    <button key={v} onClick={()=>onConfigChange({...config,impressao:{...config.impressao,orientacao:v}})}
+                      style={{flex:1,padding:'5px 0',fontSize:10,border:`1.5px solid ${(config.impressao?.orientacao||'retrato')===v?'var(--accent)':'var(--border)'}`,borderRadius:5,cursor:'pointer',fontFamily:'var(--font)',background:(config.impressao?.orientacao||'retrato')===v?'var(--accent)11':'none',color:(config.impressao?.orientacao||'retrato')===v?'var(--accent)':'var(--text-muted)'}}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text-soft)',cursor:'pointer'}}>
+                <input type="checkbox" checked={config.impressao?.cabecalho!==false} style={{accentColor:'var(--accent)'}}
+                  onChange={e=>onConfigChange({...config,impressao:{...config.impressao,cabecalho:e.target.checked}})}/>
+                Imprimir cabeçalho
+              </label>
+              <label style={{display:'flex',alignItems:'center',gap:6,fontSize:11,color:'var(--text-soft)',cursor:'pointer'}}>
+                <input type="checkbox" checked={config.impressao?.rodape!==false} style={{accentColor:'var(--accent)'}}
+                  onChange={e=>onConfigChange({...config,impressao:{...config.impressao,rodape:e.target.checked}})}/>
+                Imprimir rodapé
+              </label>
+              <div>
+                <label style={{fontSize:9,color:'var(--text-muted)',display:'block',marginBottom:3}}>Escala (%)</label>
+                <input type="number" min={50} max={150} step={5} style={{...inp,width:'80px'}}
+                  value={config.impressao?.escala||100}
+                  onChange={e=>onConfigChange({...config,impressao:{...config.impressao,escala:Number(e.target.value)}})}/>
+              </div>
+              <div>
+                <label style={{fontSize:9,color:'var(--text-muted)',display:'block',marginBottom:3}}>Nota de rodapé (opcional)</label>
+                <input style={inp} placeholder="Ex: Confidencial — uso interno" value={config.impressao?.nota||''}
+                  onChange={e=>onConfigChange({...config,impressao:{...config.impressao,nota:e.target.value}})}/>
+              </div>
+            </div>
+          </div>
+
           {/* Marca d'água */}
           <div>
             <label style={{...lbl,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
@@ -2006,6 +2045,7 @@ export default function CanvasEditor({
   const [config,      setConfig]      = useState({ ...CONFIG_PADRAO, ...(relatorio?.config || {}) })
   const [acessoData,  setAcessoData]  = useState({ acesso: relatorio?.acesso||'privado', papeis_permitidos: relatorio?.papeis_permitidos||[] })
   const [selecionadoId, setSelecionadoId] = useState(null)
+  const [panelVisible,  setPanelVisible]  = useState(true)
   const [saved,       setSaved]       = useState(false)
   const [saving,      setSaving]      = useState(false)
   const [showAcesso,  setShowAcesso]  = useState(false)
@@ -2097,6 +2137,7 @@ export default function CanvasEditor({
   const handleDragStart = useCallback((e, el, dm = 'move') => {
     if (readOnly) return
     setSelecionadoId(el.id)
+    setPanelVisible(true)
     dragging.current = { id: el.id, mode: dm, startX: e.clientX, startY: e.clientY, origX: el.x, origY: el.y, origW: el.w, origH: el.h }
   }, [readOnly])
 
@@ -2558,7 +2599,7 @@ export default function CanvasEditor({
                               border:`1.5px solid ${isSel?'#2563EB':'transparent'}`,
                               boxShadow:isSel?'0 0 0 3px rgba(37,99,235,0.15)':'none',
                               cursor:readOnly?'default':'move',overflow:'hidden',boxSizing:'border-box',zIndex:3}}
-                            onClick={e=>{e.stopPropagation();!readOnly&&setSelecionadoId(el.id)}}
+                            onClick={e=>{e.stopPropagation();if(!readOnly){setSelecionadoId(el.id);setPanelVisible(true)}}}
                             onMouseDown={e=>{e.preventDefault();!readOnly&&handleDragStart(e,el)}}>
                             <RenderEl el={{...el, _projetoData: projetoData}} source={src} sources={sources}/>
                             {isSel && !readOnly && (
@@ -2608,7 +2649,7 @@ export default function CanvasEditor({
           onClearAll={() => setFiltros({})}
           totalAtivos={totalFiltrosAtivos}
         />
-      ) : !readOnly && (
+      ) : !readOnly && panelVisible && (
         <PropPanel
           el={selecionado}
           sources={sources}
@@ -2618,7 +2659,7 @@ export default function CanvasEditor({
           onConfigChange={setConfig}
           mode={mode}
           projetoData={projetoData}
-          onClose={() => setSelecionadoId(null)}
+          onClose={() => { setSelecionadoId(null); setPanelVisible(false) }}
         />
       )}
 
