@@ -103,10 +103,15 @@ export function useDocumentDataSources() {
         // Funis (form_layouts entity='funis' — fields é array de {id, nome, etapas})
         supabase.from('form_layouts')
           .select('fields').eq('entity', 'funis').eq('tenant_id', tenantId).limit(1),
+
+        // Histórico de etapas (cohort completo)
+        supabase.from('oportunidade_etapa_historico')
+          .select('oportunidade_id, stage_id, etapa_nome, situacao, entrou_em, saiu_em, dias_na_etapa')
+          .eq('tenant_id', tenantId).limit(5000),
       ])
 
       // Extrai data de cada resultado; query com erro retorna []
-      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis']
+      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis','etapa_historico']
       const safe = (i) => {
         const r = results[i]
         if (r.status === 'rejected') { console.warn('[DataSources]', QUERY_NAMES[i], 'REJECTED:', r.reason); return [] }
@@ -120,8 +125,8 @@ export function useDocumentDataSources() {
         parceirosData, goalsData, actionsData, contactsData, sellersData,
         contractsData, paymentsData, commissionsData, csData,
         questTemplatesData, questSubmissionsData, documentsData, playbooksData,
-        funisLayoutData,
-      ] = Array.from({ length: 19 }, (_, i) => safe(i))
+        funisLayoutData, etapaHistoricoData,
+      ] = Array.from({ length: 20 }, (_, i) => safe(i))
 
       // ── Mapeamento de cada fonte ──────────────────────────────────────────
 
@@ -294,6 +299,16 @@ export function useDocumentDataSources() {
         segmento:  p.segment || '',
         ativo:     p.is_active ? 'Sim' : 'Não',
         created_at: p.created_at?.slice(0,10) || '',
+      }))
+
+      const etapaHistorico = etapaHistoricoData.map(h => ({
+        etapa_nome:    h.etapa_nome || 'Sem etapa',
+        situacao:      h.situacao   || '',
+        dias_na_etapa: Number(h.dias_na_etapa ?? 0),
+        status_etapa:  h.saiu_em ? 'concluída' : 'atual',
+        entrou_em:     h.entrou_em?.slice(0,10) || '',
+        saiu_em:       h.saiu_em?.slice(0,10)   || '',
+        mes:           h.entrou_em?.slice(0,7)   || '',
       }))
 
       // ── Definição das fontes com fields ──────────────────────────────────
@@ -480,6 +495,19 @@ export function useDocumentDataSources() {
             { key:'segmento',  label:'Segmento',  type:'text' },
             { key:'ativo',     label:'Ativo',     type:'text' },
             { key:'created_at',label:'Criado em', type:'date' },
+          ],
+        },
+        {
+          id: 'etapa_historico', label: 'Histórico de Etapas', icon: '🔄',
+          registros: etapaHistorico,
+          fields: [
+            { key:'etapa_nome',    label:'Etapa',           type:'text'   },
+            { key:'situacao',      label:'Situação',        type:'text'   },
+            { key:'dias_na_etapa', label:'Dias na etapa',   type:'number' },
+            { key:'status_etapa',  label:'Status etapa',    type:'text'   },
+            { key:'mes',           label:'Mês entrada',     type:'text'   },
+            { key:'entrou_em',     label:'Entrou em',       type:'date'   },
+            { key:'saiu_em',       label:'Saiu em',         type:'date'   },
           ],
         },
       ])
