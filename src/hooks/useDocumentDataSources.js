@@ -108,10 +108,25 @@ export function useDocumentDataSources() {
         supabase.from('oportunidade_etapa_historico')
           .select('oportunidade_id, stage_id, etapa_nome, situacao, entrou_em, saiu_em, dias_na_etapa')
           .eq('tenant_id', tenantId).limit(5000),
+
+        // Tarefas vinculadas a oportunidades
+        supabase.from('tasks')
+          .select('entidade_id, status, data_inicio, prazo, concluida_em')
+          .eq('tenant_id', tenantId).eq('entidade_tipo', 'oportunidade').limit(5000),
+
+        // Propostas (relatorios tipo='proposta') para enriquecer pipeline
+        supabase.from('relatorios')
+          .select('id, titulo, tipo')
+          .eq('tenant_id', tenantId).eq('tipo', 'proposta').is('deleted_at', null).limit(500),
+
+        // oportunidades: proposta_produto_id e proposta_servico_id
+        supabase.from('oportunidades')
+          .select('id, proposta_produto_id, proposta_servico_id')
+          .eq('tenant_id', tenantId).limit(2000),
       ])
 
       // Extrai data de cada resultado; query com erro retorna []
-      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis','etapa_historico']
+      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis','etapa_historico','tasks_opps','relatorios_proposta','opps_propostas_ids']
       const safe = (i) => {
         const r = results[i]
         if (r.status === 'rejected') { console.warn('[DataSources]', QUERY_NAMES[i], 'REJECTED:', r.reason); return [] }
@@ -126,7 +141,8 @@ export function useDocumentDataSources() {
         contractsData, paymentsData, commissionsData, csData,
         questTemplatesData, questSubmissionsData, documentsData, playbooksData,
         funisLayoutData, etapaHistoricoData,
-      ] = Array.from({ length: 20 }, (_, i) => safe(i))
+        tasksOppsData, relatoriasPropostaData, oppsPropostasIdsData,
+      ] = Array.from({ length: 23 }, (_, i) => safe(i))
 
       // ── Mapeamento de cada fonte ──────────────────────────────────────────
 
@@ -136,6 +152,39 @@ export function useDocumentDataSources() {
       const funisArr = funisLayoutData[0]?.fields || []
       // funilMap: id (qualquer tipo) → nome do funil
       const funilMap = Object.fromEntries(funisArr.map(f => [String(f.id), f.nome || '']))
+
+      // taskMap: oportunidade_id → { proxima_tarefa_data, proxima_tarefa_hora, primeira_conclusao_data, primeira_conclusao_hora }
+      const tasksByOpp = {}
+      for (const t of tasksOppsData) {
+        const eid = t.entidade_id
+        if (!eid) continue
+        if (!tasksByOpp[eid]) tasksByOpp[eid] = { pendentes: [], concluidas: [] }
+        if (t.status === 'concluida' && t.concluida_em) tasksByOpp[eid].concluidas.push(t)
+        else if (t.status !== 'cancelada') tasksByOpp[eid].pendentes.push(t)
+      }
+      const taskMap = {}
+      for (const [eid, g] of Object.entries(tasksByOpp)) {
+        // proxima: pendente com data_inicio mais próxima
+        const proxima = g.pendentes
+          .filter(t => t.data_inicio)
+          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+        // primeira conclusão: concluida_em mais antigo
+        const primeira = g.concluidas
+          .sort((a, b) => a.concluida_em.localeCompare(b.concluida_em))[0]
+        taskMap[eid] = {
+          proxima_tarefa_data:     proxima?.data_inicio?.slice(0, 10) || '',
+          proxima_tarefa_hora:     proxima?.data_inicio?.slice(11, 16) || '',
+          primeira_conclusao_data: primeira?.concluida_em?.slice(0, 10) || '',
+          primeira_conclusao_hora: primeira?.concluida_em?.slice(11, 16) || '',
+        }
+      }
+
+      // propostaMap: relatorio id → titulo
+      const propostaMap = Object.fromEntries(relatoriasPropostaData.map(r => [r.id, r.titulo || '']))
+      // oppsPropostasMap: oportunidade id → { proposta_produto_id, proposta_servico_id }
+      const oppsPropostasMap = Object.fromEntries(
+        oppsPropostasIdsData.map(o => [o.id, { pp: o.proposta_produto_id, ps: o.proposta_servico_id }])
+      )
 
       function isoWeekLabel(dateStr) {
         if (!dateStr) return '—'
@@ -148,13 +197,24 @@ export function useDocumentDataSources() {
         return `S${String(week).padStart(2,'0')}/${thu.getFullYear()}`
       }
 
-      const oportunidades = oppsData.map(o => ({
+      const oportunidades = oppsData.map(o => {
+        const tm = taskMap[String(o.id)] || {}
+        const pm = oppsPropostasMap[String(o.id)] || {}
+        return {
         situacao:     o.situacao || 'em_andamento',
         titulo:       o.titulo || '',
         responsavel:  o.responsavel || '',
         valor:        (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0),
         origem:       o.origem || 'Não informado',
         campanha:     'Sem campanha',
+        // Tarefas
+        proxima_tarefa_data:     tm.proxima_tarefa_data     || '',
+        proxima_tarefa_hora:     tm.proxima_tarefa_hora     || '',
+        primeira_conclusao_data: tm.primeira_conclusao_data || '',
+        primeira_conclusao_hora: tm.primeira_conclusao_hora || '',
+        // Propostas
+        proposta_produto: pm.pp ? (propostaMap[pm.pp] || pm.pp) : '',
+        proposta_servico: pm.ps ? (propostaMap[pm.ps] || pm.ps) : '',
         etapa_nome:   (() => {
           if (o.stage_id && stageMap[o.stage_id]) return stageMap[o.stage_id]
           // funil etapas têm IDs numéricos em custom_fields.etapa_id
@@ -172,7 +232,7 @@ export function useDocumentDataSources() {
         mes:          o.created_at?.slice(0,7) || '',
         semana:       isoWeekLabel(o.created_at),
         created_at:   o.created_at?.slice(0,10) || '',
-      }))
+      }})
 
       const projetos = projData.map(p => {
         const cf = p.custom_fields || {}
@@ -326,10 +386,16 @@ export function useDocumentDataSources() {
             { key:'origem',       label:'Origem',        type:'text'   },
             { key:'campanha',     label:'Campanha',      type:'text'   },
             { key:'etapa_nome',   label:'Etapa',         type:'text'   },
-            { key:'motivo_perda', label:'Motivo perda',  type:'text'   },
-            { key:'mes',          label:'Mês (YYYY-MM)', type:'text'   },
-            { key:'semana',       label:'Semana',        type:'text'   },
-            { key:'created_at',   label:'Criado em',     type:'date'   },
+            { key:'motivo_perda',          label:'Motivo perda',             type:'text' },
+            { key:'mes',                   label:'Mês (YYYY-MM)',            type:'text' },
+            { key:'semana',                label:'Semana',                   type:'text' },
+            { key:'created_at',            label:'Criado em',                type:'date' },
+            { key:'proxima_tarefa_data',   label:'Data próxima tarefa',      type:'date' },
+            { key:'proxima_tarefa_hora',   label:'Hora próxima tarefa',      type:'text' },
+            { key:'primeira_conclusao_data', label:'Data 1ª conclusão tarefa', type:'date' },
+            { key:'primeira_conclusao_hora', label:'Hora 1ª conclusão tarefa', type:'text' },
+            { key:'proposta_produto',      label:'Proposta produto',          type:'text' },
+            { key:'proposta_servico',      label:'Proposta serviço',          type:'text' },
           ],
         },
         {

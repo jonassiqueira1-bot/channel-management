@@ -37,6 +37,12 @@ const CAMPOS_PADRAO = {
     { key: 'contato',       label: 'Contato',                 tipo: 'text'  },
     { key: 'funil',         label: 'Funil',                   tipo: 'text'  },
     { key: 'etapa',         label: 'Etapa',                   tipo: 'text'  },
+    { key: 'proxima_tarefa_data',    label: 'Data próxima tarefa',      tipo: 'date' },
+    { key: 'proxima_tarefa_hora',    label: 'Hora próxima tarefa',      tipo: 'text' },
+    { key: 'primeira_conclusao_data',label: 'Data 1ª conclusão tarefa', tipo: 'date' },
+    { key: 'primeira_conclusao_hora',label: 'Hora 1ª conclusão tarefa', tipo: 'text' },
+    { key: 'proposta_produto',       label: 'Proposta produto',         tipo: 'text' },
+    { key: 'proposta_servico',       label: 'Proposta serviço',         tipo: 'text' },
   ],
   contracts: [
     { key: 'data_inicio',    label: 'Início da vigência',  tipo: 'date'  },
