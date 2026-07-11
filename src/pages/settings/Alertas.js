@@ -4,6 +4,7 @@ import { useProfile } from '../../hooks/useProfile'
 import { useBranchContext } from '../../contexts/BranchContext'
 import { useCustomFields } from '../../hooks/useCustomFields'
 import { FullPageEdit, FPESection } from '../../components/ui'
+import { PAPEIS_OPTIONS } from '../../data/mockPerfis'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { Plus, Trash2, GitBranch } from 'lucide-react'
 
@@ -13,10 +14,12 @@ const ORIGENS = [
   { key: 'contracts',           label: 'Contratos',     table: 'contracts'     },
   { key: 'projects',            label: 'Projetos',      table: 'projects'      },
   { key: 'tasks',               label: 'Tarefas',       table: 'tasks'         },
+  { key: 'actions',             label: 'Ações',         table: 'actions'       },
   { key: 'commission_payments', label: 'Pagamentos',    table: 'commission_payments' },
   { key: 'companies',           label: 'Empresas',      table: 'companies'     },
   { key: 'goals',               label: 'Metas & KPIs',  table: 'goals'         },
   { key: 'sellers',             label: 'Parceiros',     table: 'sellers'       },
+  { key: 'contacts',           label: 'Contatos Canais', table: 'contacts'    },
 ]
 
 // ─── Campos por origem ────────────────────────────────────────────────────────
@@ -41,8 +44,9 @@ const CAMPOS_PADRAO = {
     { key: 'proxima_tarefa_hora',    label: 'Hora próxima tarefa',      tipo: 'text' },
     { key: 'primeira_conclusao_data',label: 'Data 1ª conclusão tarefa', tipo: 'date' },
     { key: 'primeira_conclusao_hora',label: 'Hora 1ª conclusão tarefa', tipo: 'text' },
-    { key: 'proposta_produto',       label: 'Proposta produto',         tipo: 'text' },
-    { key: 'proposta_servico',       label: 'Proposta serviço',         tipo: 'text' },
+    { key: 'proposta_produto',       label: 'Proposta produto',         tipo: 'text'   },
+    { key: 'proposta_servico',       label: 'Proposta serviço',         tipo: 'text'   },
+    { key: 'n_tarefas',             label: 'Qtd. de tarefas',          tipo: 'number' },
   ],
   contracts: [
     { key: 'data_inicio',    label: 'Início da vigência',  tipo: 'date'  },
@@ -63,9 +67,19 @@ const CAMPOS_PADRAO = {
     { key: 'created_at',  label: 'Data de cadastro',  tipo: 'date' },
     { key: 'status',      label: 'Status', tipo: 'enum', opts: ['em_andamento','concluido','cancelado','pausado'] },
     { key: 'phase',       label: 'Fase',   tipo: 'enum', opts: ['iniciacao','planejamento','execucao','encerramento'] },
-    { key: 'responsavel', label: 'Responsável',        tipo: 'text' },
-    { key: 'nome',        label: 'Nome do projeto',    tipo: 'text' },
-    { key: 'cliente',     label: 'Cliente',            tipo: 'text' },
+    { key: 'responsavel', label: 'Responsável',        tipo: 'text'   },
+    { key: 'nome',        label: 'Nome do projeto',    tipo: 'text'   },
+    { key: 'cliente',     label: 'Cliente',            tipo: 'text'   },
+    { key: 'fin_valor_contrato',   label: 'Valor do contrato (R$)',   tipo: 'money'  },
+    { key: 'fin_custo_realizado',  label: 'Custo realizado (R$)',     tipo: 'money'  },
+    { key: 'fin_receita_faturada', label: 'Receita faturada (R$)',    tipo: 'money'  },
+    { key: 'fin_margem_bruta',     label: 'Margem bruta (R$)',        tipo: 'money'  },
+    { key: 'fin_margem_pct',       label: 'Margem (%)',               tipo: 'number' },
+    { key: 'fin_custo_forecast',   label: 'Custo estimado/forecast (R$)', tipo: 'money'  },
+    { key: 'fin_margem_forecast',  label: 'Margem forecast (R$)',     tipo: 'money'  },
+    { key: 'fin_horas_aprovadas',  label: 'Horas aprovadas',          tipo: 'number' },
+    { key: 'fin_horas_executadas', label: 'Horas executadas',         tipo: 'number' },
+    { key: 'fin_custo_hora',       label: 'Custo/hora (R$)',          tipo: 'money'  },
   ],
   tasks: [
     { key: 'prazo',       label: 'Prazo',             tipo: 'date' },
@@ -77,6 +91,31 @@ const CAMPOS_PADRAO = {
     { key: 'responsavel', label: 'Responsável',tipo: 'text' },
     { key: 'tipo',        label: 'Tipo',       tipo: 'text' },
     { key: 'titulo',      label: 'Título',     tipo: 'text' },
+  ],
+  actions: [
+    { key: 'data_prevista',       label: 'Data de início',         tipo: 'date'   },
+    { key: 'data_conclusao',      label: 'Data de fim',            tipo: 'date'   },
+    { key: 'created_at',          label: 'Data de cadastro',       tipo: 'date'   },
+    { key: 'updated_at',          label: 'Última atualização',     tipo: 'date'   },
+    { key: 'status',              label: 'Status',     tipo: 'enum', opts: ['agendado','em_andamento','realizado','cancelado'] },
+    { key: 'tipo',                label: 'Tipo',       tipo: 'enum', opts: ['treinamento','capacitacao','reuniao','evento','campanha','visita','outros'] },
+    { key: 'prioridade',          label: 'Prioridade', tipo: 'enum', opts: ['alta','media','baixa'] },
+    { key: 'titulo',              label: 'Título',                 tipo: 'text'   },
+    { key: 'descricao',           label: 'Descrição',              tipo: 'text'   },
+    { key: 'responsavel_nome',    label: 'Responsável',            tipo: 'text'   },
+    { key: 'empresa_nome',        label: 'Empresa / Parceiro',     tipo: 'text'   },
+    { key: 'local',               label: 'Local',                  tipo: 'text'   },
+    { key: 'vagas',               label: 'Vagas',                  tipo: 'number' },
+    { key: 'inscritos',           label: 'Inscritos',              tipo: 'number' },
+    { key: 'custo_previsto',      label: 'Custo previsto (R$)',    tipo: 'money'  },
+    { key: 'n_custos',            label: 'Qtd. de custos',         tipo: 'number' },
+    { key: 'custo_realizado',     label: 'Custo realizado (R$)',   tipo: 'money'  },
+    { key: 'custos_aguardando',   label: 'Custos aguard. aprovação', tipo: 'number' },
+    { key: 'custos_aprovados',    label: 'Custos aprovados',       tipo: 'number' },
+    { key: 'custos_rejeitados',   label: 'Custos rejeitados',      tipo: 'number' },
+    { key: 'custos_executados',   label: 'Custos executados',      tipo: 'number' },
+    { key: 'n_documentos',        label: 'Qtd. de documentos',     tipo: 'number' },
+    { key: 'n_anexos',            label: 'Qtd. de anexos',         tipo: 'number' },
   ],
   commission_payments: [
     { key: 'data_vencimento',    label: 'Data de vencimento',   tipo: 'date'  },
@@ -122,6 +161,14 @@ const CAMPOS_PADRAO = {
     { key: 'regiao',        label: 'Região',              tipo: 'text'   },
     { key: 'equipe',        label: 'Equipe',              tipo: 'text'   },
   ],
+  contacts: [
+    { key: 'created_at',  label: 'Data de cadastro',    tipo: 'date' },
+    { key: 'updated_at',  label: 'Última atualização',  tipo: 'date' },
+    { key: 'nome',        label: 'Nome',                tipo: 'text' },
+    { key: 'email',       label: 'E-mail',              tipo: 'text' },
+    { key: 'phone',       label: 'Telefone',            tipo: 'text' },
+    { key: 'cargo',       label: 'Cargo',               tipo: 'text' },
+  ],
 }
 
 // ─── Operadores ───────────────────────────────────────────────────────────────
@@ -157,6 +204,7 @@ const DEST_TIPOS = [
   { key: 'lider_equipe',       label: 'Líder da equipe'             },
   { key: 'email_fixo',         label: 'Email fixo (digitar)'        },
   { key: 'usuario_sistema',    label: 'Usuário do sistema'          },
+  { key: 'papel',              label: 'Papel / Perfil'              },
 ]
 
 // ─── Estilos ──────────────────────────────────────────────────────────────────
@@ -177,8 +225,8 @@ function cfTipo(type) {
 }
 
 function newCond()  { return { id: crypto.randomUUID(), campo: '', operador: '', valor: '', logico: 'E' } }
-function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', prazo_dias: 3, titulo_tarefa: '', destinatarios_extra: [] } }
-function newDestExtra() { return { id: crypto.randomUUID(), tipo: 'responsavel_origem', email_fixo: '', usuario_id: '' } }
+function newAcao()  { return { id: crypto.randomUUID(), tipo: 'notificar', destinatario_tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '', prazo_dias: 3, titulo_tarefa: '', destinatarios_extra: [] } }
+function newDestExtra() { return { id: crypto.randomUUID(), tipo: 'responsavel_origem', email_fixo: '', usuario_id: '', papel: '' } }
 function emptyRule(){ return { origem: '', gatilho_nome: '', ativo: true, condicoes: [newCond()], acoes: [newAcao()], acoes_else: [], com_else: false } }
 
 // ─── Engine de avaliação ──────────────────────────────────────────────────────
@@ -262,13 +310,28 @@ async function resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tena
   return null
 }
 
+async function resolverPapel(papel, tenantId) {
+  if (!papel || !tenantId) return []
+  const { data } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).eq('papel', papel)
+  return (data || []).map(p => p.email).filter(Boolean)
+}
+
 async function resolverTodosDestinatarios(acao, registro, tenantId) {
   const emails = new Set()
-  const principal = await resolverUmDestinatario(acao.destinatario_tipo, acao.email_fixo, acao.usuario_id, registro, tenantId)
-  if (principal) emails.add(principal)
+
+  async function addDestinatario(tipo, emailFixo, usuarioId, papel) {
+    if (tipo === 'papel') {
+      const lista = await resolverPapel(papel, tenantId)
+      lista.forEach(e => emails.add(e))
+    } else {
+      const e = await resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tenantId)
+      if (e) emails.add(e)
+    }
+  }
+
+  await addDestinatario(acao.destinatario_tipo, acao.email_fixo, acao.usuario_id, acao.papel)
   for (const de of (acao.destinatarios_extra || [])) {
-    const e = await resolverUmDestinatario(de.tipo, de.email_fixo, de.usuario_id, registro, tenantId)
-    if (e) emails.add(e)
+    await addDestinatario(de.tipo, de.email_fixo, de.usuario_id, de.papel)
   }
   return [...emails]
 }
@@ -278,9 +341,12 @@ async function executarAcoes(acoes, registro, rule, tenantId) {
     if (acao.tipo === 'email') {
       const emails = await resolverTodosDestinatarios(acao, registro, tenantId)
       const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
-      const assunto = (acao.assunto || rule.gatilho_nome || 'Alerta Boostly')
-        .replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
-      const html = `<p>${(acao.mensagem || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)}</p>`
+      const interpolar = (str) => (str || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
+        const v = registro[key]
+        return v !== undefined && v !== null ? String(v) : ''
+      }).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
+      const assunto = interpolar(acao.assunto) || rule.gatilho_nome || 'Alerta Boostly'
+      const html = `<p>${interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`}</p>`
       for (const email of emails) {
         await supabase.functions.invoke('send-email', { body: { to: email, subject: assunto, html } })
       }
@@ -300,6 +366,93 @@ async function executarEngine(tenantId) {
     if (!origemDef) continue
     const { data } = await supabase.from(origemDef.table).select('*').eq('tenant_id', tenantId).limit(500)
     let registros = data || []
+
+    // Enriquece oportunidades com tarefas (contagem + próxima tarefa + 1ª conclusão)
+    if (origem === 'oportunidades' && registros.length > 0) {
+      const ids = registros.map(r => r.id)
+      const { data: taskRows } = await supabase
+        .from('tasks')
+        .select('entidade_id, status, data_inicio, concluida_em')
+        .in('entidade_id', ids)
+
+      const tasksByOpp = {}
+      for (const t of (taskRows || [])) {
+        const eid = t.entidade_id
+        if (!eid) continue
+        if (!tasksByOpp[eid]) tasksByOpp[eid] = { pendentes: [], concluidas: [] }
+        if (t.status === 'concluida' && t.concluida_em) tasksByOpp[eid].concluidas.push(t)
+        else if (t.status !== 'cancelada') tasksByOpp[eid].pendentes.push(t)
+      }
+
+      registros = registros.map(r => {
+        const g = tasksByOpp[r.id] || { pendentes: [], concluidas: [] }
+        const proxima = g.pendentes
+          .filter(t => t.data_inicio)
+          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+        const primeira = g.concluidas
+          .sort((a, b) => a.concluida_em.localeCompare(b.concluida_em))[0]
+        return {
+          ...r,
+          n_tarefas:              g.pendentes.length + g.concluidas.length,
+          proxima_tarefa_data:    proxima?.data_inicio?.slice(0, 10) || '',
+          proxima_tarefa_hora:    proxima?.data_inicio?.slice(11, 16) || '',
+          primeira_conclusao_data: primeira?.concluida_em?.slice(0, 10) || '',
+          primeira_conclusao_hora: primeira?.concluida_em?.slice(11, 16) || '',
+        }
+      })
+    }
+
+    // Enriquece projetos com campos financeiros de custom_fields
+    if (origem === 'projects' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        return {
+          ...r,
+          fin_valor_contrato:   cf.fin_valor_contrato   ?? null,
+          fin_custo_realizado:  cf.fin_custo_realizado  ?? null,
+          fin_receita_faturada: cf.fin_receita_faturada ?? null,
+          fin_margem_bruta:     cf.fin_margem_bruta     ?? null,
+          fin_margem_pct:       cf.fin_margem_pct       ?? null,
+          fin_custo_forecast:   cf.fin_custo_forecast   ?? null,
+          fin_margem_forecast:  cf.fin_margem_forecast  ?? null,
+          fin_horas_aprovadas:  cf.fin_horas_aprovadas  ?? null,
+          fin_horas_executadas: cf.fin_horas_executadas ?? null,
+          fin_custo_hora:       cf.fin_custo_hora       ?? null,
+        }
+      })
+    }
+
+    // Enriquece ações com campos calculados de custos/documentos/anexos
+    if (origem === 'actions' && registros.length > 0) {
+      registros = registros.map(r => {
+        const cf = r.custom_fields || {}
+        const custos = cf.custos || []
+        const ultimoStatus = (c) => {
+          const aprovs = c.aprovacoes || []
+          if (!aprovs.length) return 'pendente'
+          return aprovs[aprovs.length - 1].status || 'pendente'
+        }
+        const custosRealizadoTotal = custos.filter(c => c.executado).reduce((s, c) => s + (Number(c.valor_realizado) || 0), 0)
+        return {
+          ...r,
+          responsavel_nome:  cf.responsavel_nome || '',
+          empresa_nome:      cf.empresa_nome || '',
+          local:             cf.local || '',
+          vagas:             cf.vagas || 0,
+          inscritos:         cf.inscritos || 0,
+          custo_previsto:    Number(cf.custo_previsto) || 0,
+          custo_realizado:   custosRealizadoTotal,
+          n_custos:          custos.length,
+          custos_aguardando: custos.filter(c => ultimoStatus(c) === 'aguardando').length,
+          custos_aprovados:  custos.filter(c => ultimoStatus(c) === 'aprovado').length,
+          custos_rejeitados: custos.filter(c => ultimoStatus(c) === 'rejeitado').length,
+          custos_executados: custos.filter(c => c.executado).length,
+          n_documentos:      (cf.documentos || []).length,
+          n_anexos:          (cf.anexos || []).length,
+        }
+      })
+    }
+
     if (origem === 'goals') {
       // Agrupa meses por meta lógica (tipo_alvo + alvo_id + tipo_meta)
       const grupos = {}
@@ -326,10 +479,13 @@ async function executarEngine(tenantId) {
     dados[origem] = registros
   }
 
-  const { data: existentes } = await supabase.from('alerts').select('rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
-  const jaAlertado = new Set((existentes || []).map(a => `${a.rule_id}:${a.entidade_id}`))
+  const { data: existentes } = await supabase.from('alerts').select('id, rule_id, entidade_id').eq('tenant_id', tenantId).eq('resolvido', false)
+  // mapa chave → alert_id para poder auto-resolver
+  const jaAlertadoMap = {}
+  for (const a of (existentes || [])) jaAlertadoMap[`${a.rule_id}:${a.entidade_id}`] = a.id
 
   const novos = []
+  const autoResolver = [] // ids de alertas a resolver automaticamente
   for (const rule of rules) {
     const cf = rule.custom_fields || {}
     const metasIds = cf.metas_ids || []
@@ -340,8 +496,18 @@ async function executarEngine(tenantId) {
     const fullRule = { ...rule, condicoes: cf.condicoes || [], acoes: cf.acoes || [], acoes_else: cf.acoes_else || [], com_else: cf.com_else || false }
     for (const reg of registros) {
       const chave = `${rule.id}:${reg.id}`
-      if (jaAlertado.has(chave)) continue
+      const alertaExistenteId = jaAlertadoMap[chave]
       const passou = avaliarRegra(fullRule, reg)
+
+      // Auto-resolver: alerta existe mas condição não é mais verdadeira
+      if (alertaExistenteId && !passou) {
+        autoResolver.push(alertaExistenteId)
+        continue
+      }
+
+      // Já alertado e condição ainda é verdadeira — não duplicar
+      if (alertaExistenteId) continue
+
       if (!passou && !fullRule.com_else) continue
 
       const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.nome || `#${reg.id?.slice(0,8)}`
@@ -370,10 +536,13 @@ async function executarEngine(tenantId) {
     }
   }
 
+  if (autoResolver.length) {
+    await supabase.from('alerts').update({ resolvido: true, resolvido_em: new Date().toISOString() }).in('id', autoResolver)
+  }
   if (novos.length) {
     await supabase.from('alerts').insert(novos)
   }
-  return novos.length
+  return { criados: novos.length, resolvidos: autoResolver.length }
 }
 
 // ─── Selector de usuário do sistema ──────────────────────────────────────────
@@ -492,7 +661,34 @@ function CondicoesEditor({ origem, condicoes, onChangeCondicoes }) {
 }
 
 // ─── Editor de Ações ──────────────────────────────────────────────────────────
-function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
+function VarPicker({ origem, onInsert }) {
+  const [open, setOpen] = useState(false)
+  const campos = CAMPOS_PADRAO[origem] || []
+  if (!campos.length) return null
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 13 }}>{'{ }'}</span> Inserir variável
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', zIndex: 200, top: '100%', left: 0, marginTop: 4, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,.12)', minWidth: 220, maxHeight: 260, overflowY: 'auto', padding: '4px 0' }}>
+          {campos.map(c => (
+            <div key={c.key} onClick={() => { onInsert(`{{${c.key}}}`); setOpen(false) }}
+              style={{ padding: '6px 12px', fontSize: 12, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', gap: 8 }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--surface2)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+              <span style={{ color: 'var(--text)' }}>{c.label}</span>
+              <code style={{ color: 'var(--accent)', fontSize: 10 }}>{`{{${c.key}}}`}</code>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação', origem }) {
   function update(id, patch) { onChange(acoes.map(a => a.id === id ? { ...a, ...patch } : a)) }
   function add()      { onChange([...acoes, newAcao()]) }
   function remove(id) { onChange(acoes.filter(a => a.id !== id)) }
@@ -540,6 +736,15 @@ function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
               <UsuarioSelector tenantId={tenantId} value={a.usuario_id} onChange={v => update(a.id, { usuario_id: v })} />
             </div>
           )}
+          {a.destinatario_tipo === 'papel' && (
+            <div style={{ marginBottom: 10 }}>
+              <div style={lbl}>Papel</div>
+              <Sel value={a.papel || ''} onChange={v => update(a.id, { papel: v })}>
+                <option value="">— Selecione —</option>
+                {PAPEIS_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+              </Sel>
+            </div>
+          )}
 
           {/* Destinatários extras */}
           {(a.destinatarios_extra || []).map((de, dei) => {
@@ -560,6 +765,12 @@ function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
                   {de.tipo === 'usuario_sistema' && tenantId && (
                     <UsuarioSelector tenantId={tenantId} value={de.usuario_id} onChange={v => updDe({ usuario_id: v })} />
                   )}
+                  {de.tipo === 'papel' && (
+                    <Sel value={de.papel || ''} onChange={v => updDe({ papel: v })}>
+                      <option value="">— Selecione —</option>
+                      {PAPEIS_OPTIONS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                    </Sel>
+                  )}
                 </div>
                 <button onClick={remDe} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '7px 4px' }}>
                   <Trash2 size={13} strokeWidth={2}/>
@@ -572,21 +783,43 @@ function AcoesEditor({ acoes, onChange, tenantId, label = 'Ação' }) {
             + Adicionar destinatário
           </button>
 
-          {a.tipo === 'email' && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
-              <div>
-                <div style={lbl}>Assunto</div>
-                <input value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
-                  style={inp} placeholder="Ex: Alerta: contrato vencendo" />
+          {a.tipo === 'email' && (() => {
+            const assuntoRef = { current: null }
+            const mensagemRef = { current: null }
+            const insertAt = (ref, fieldKey, token) => {
+              const el = ref.current
+              if (!el) { update(a.id, { [fieldKey]: (a[fieldKey] || '') + token }); return }
+              const start = el.selectionStart ?? (a[fieldKey] || '').length
+              const end   = el.selectionEnd   ?? start
+              const val   = a[fieldKey] || ''
+              const next  = val.slice(0, start) + token + val.slice(end)
+              update(a.id, { [fieldKey]: next })
+              setTimeout(() => { el.focus(); el.setSelectionRange(start + token.length, start + token.length) }, 0)
+            }
+            return (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <div style={lbl}>Assunto</div>
+                    <VarPicker origem={origem} onInsert={t => insertAt(assuntoRef, 'assunto', t)} />
+                  </div>
+                  <input ref={el => assuntoRef.current = el}
+                    value={a.assunto || ''} onChange={e => update(a.id, { assunto: e.target.value })}
+                    style={inp} placeholder="Ex: Alerta — {{titulo}}" />
+                </div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3 }}>
+                    <div style={lbl}>Mensagem</div>
+                    <VarPicker origem={origem} onInsert={t => insertAt(mensagemRef, 'mensagem', t)} />
+                  </div>
+                  <textarea ref={el => mensagemRef.current = el}
+                    value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
+                    style={{ ...inp, minHeight: 96, resize: 'vertical' }}
+                    placeholder={`Corpo do e-mail. Use {{campo}} para inserir dados dinâmicos.\nEx: O projeto {{titulo}} está com margem em {{fin_margem_pct}}%.`} />
+                </div>
               </div>
-              <div>
-                <div style={lbl}>Mensagem</div>
-                <textarea value={a.mensagem || ''} onChange={e => update(a.id, { mensagem: e.target.value })}
-                  style={{ ...inp, minHeight: 72, resize: 'vertical' }}
-                  placeholder="Corpo do e-mail. Você pode usar {titulo}, {entidade}." />
-              </div>
-            </div>
-          )}
+            )
+          })()}
           {a.tipo === 'tarefa' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
               <div>
@@ -931,6 +1164,7 @@ export default function SettingsAlertas() {
               acoes={editing.acoes}
               onChange={v => setEditing(f => ({ ...f, acoes: v }))}
               tenantId={tenantId}
+              origem={editing.origem}
             />
           </div>
 
@@ -953,6 +1187,7 @@ export default function SettingsAlertas() {
                   onChange={v => setEditing(f => ({ ...f, acoes_else: v }))}
                   tenantId={tenantId}
                   label="Ação SENÃO"
+                  origem={editing.origem}
                 />
               </div>
             )}
