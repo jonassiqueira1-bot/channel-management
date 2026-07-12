@@ -127,7 +127,6 @@ const ACOES_PIPELINE = [
 
 // ─── Engine de execução (Pipeline) ───────────────────────────────────────────
 async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) {
-  console.log('[Rotina] executarPipeline | tenantId:', tenantId, '| parametros:', JSON.stringify(parametros))
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
   const p = parametros
   if (p.situacao)       q = q.eq('situacao', p.situacao)
@@ -149,7 +148,6 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (createdAtDate)  q = q.lte('created_at', createdAtDate + 'T23:59:59')
 
   const { data: opps, error } = await q
-  console.log('[Rotina] DB retornou:', opps?.length, 'opps | error:', error?.message)
   if (error) return { ok: false, error: error.message, registros: [] }
 
   let lista = opps || []
@@ -158,14 +156,7 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     lista = lista.filter(o => String(o.custom_fields?.etapa_id || o.stage_id) === String(p.stage_id))
   }
   if (p.funil_id) {
-    const antes = lista.length
     lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
-    console.log(
-      '[Rotina] filtro funil_id:',
-      JSON.stringify(p.funil_id), typeof p.funil_id,
-      '| antes:', antes, '→ depois:', lista.length,
-      '| amostras cf.funil_id:', opps?.slice(0,5).map(o => JSON.stringify(o.custom_fields?.funil_id) + ' (' + typeof o.custom_fields?.funil_id + ')')
-    )
   }
   if (p.empresa_nome) {
     const termo = p.empresa_nome.toLowerCase()
@@ -193,7 +184,6 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     lista = lista.filter(o => !comTarefa.has(o.id))
   }
 
-  console.log('[Rotina] lista final após todos os filtros:', lista.length, lista.map(o=>o.titulo))
   if (!lista.length) return { ok: true, registros: [], resumo: { total_encontrados:0, total_afetados:0, acoes_aplicadas:[], erros:[] } }
 
   const snapshot_antes = []
@@ -1139,7 +1129,6 @@ export default function RotinasDrawer({ contexto, onClose }) {
   const { usuarios }   = useUsuarios()
   const funis          = useMemo(() => {
     const lista = (allFunis || []).filter(f => !f.status || f.status === 'ativo')
-    console.log('[Rotinas] allFunis:', allFunis?.length, 'funis ativos:', lista.length, lista.map(f=>({id:f.id,nome:f.nome,etapas:f.etapas?.length})))
     return lista
   }, [allFunis])
   const { routines, loading, save, remove, saveExecution, loadExecutions, revert } = useRoutines(contexto)
