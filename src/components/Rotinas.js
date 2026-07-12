@@ -5,6 +5,59 @@ import { useProfile } from '../hooks/useProfile'
 import { useFunnels } from '../hooks/useFunnels'
 import { useUsuarios } from '../hooks/useUsuarios'
 
+// ─── Datas relativas ──────────────────────────────────────────────────────────
+const DATE_PRESETS = [
+  { value:'hoje',       label:'Hoje' },
+  { value:'ontem',      label:'Ontem' },
+  { value:'ini_mes',    label:'Início do mês' },
+  { value:'fim_mes',    label:'Fim do mês' },
+  { value:'em_x_dias',  label:'Em X dias',          hasNum:true },
+  { value:'x_meses',    label:'Próximos X meses',   hasNum:true },
+  { value:'fixo',       label:'Data fixa' },
+]
+
+function resolveDate(v) {
+  if (!v) return null
+  if (typeof v === 'string') return v // retrocompatibilidade
+  const t = new Date(); t.setHours(0,0,0,0)
+  const iso = d => d.toISOString().slice(0,10)
+  switch (v.tipo) {
+    case 'hoje':      return iso(t)
+    case 'ontem':     { const d=new Date(t); d.setDate(d.getDate()-1); return iso(d) }
+    case 'ini_mes':   return iso(new Date(t.getFullYear(), t.getMonth(), 1))
+    case 'fim_mes':   return iso(new Date(t.getFullYear(), t.getMonth()+1, 0))
+    case 'em_x_dias': { const d=new Date(t); d.setDate(d.getDate()+Number(v.valor||0)); return iso(d) }
+    case 'x_meses':   { const d=new Date(t); d.setMonth(d.getMonth()+Number(v.valor||1)); return iso(d) }
+    case 'fixo':      return v.valor || null
+    default:          return null
+  }
+}
+
+function DateRelInput({ value, onChange, placeholder }) {
+  const tipo = value?.tipo || ''
+  const preset = DATE_PRESETS.find(p => p.value === tipo)
+  return (
+    <div style={{ display:'flex', gap:6, alignItems:'center', flex:1 }}>
+      <select style={{ flex:1, padding:'6px 8px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12 }}
+        value={tipo}
+        onChange={e => onChange(e.target.value ? { tipo: e.target.value, valor: '' } : null)}>
+        <option value="">{placeholder || 'Qualquer data'}</option>
+        {DATE_PRESETS.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+      </select>
+      {preset?.hasNum && (
+        <input type="number" min="1" style={{ width:52, padding:'6px 8px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12 }}
+          value={value?.valor || ''}
+          onChange={e => onChange({ tipo, valor: e.target.value })} />
+      )}
+      {tipo === 'fixo' && (
+        <input type="date" style={{ flex:1, padding:'6px 8px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12 }}
+          value={value?.valor || ''}
+          onChange={e => onChange({ tipo:'fixo', valor: e.target.value })} />
+      )}
+    </div>
+  )
+}
+
 // ─── Paleta / tokens ─────────────────────────────────────────────────────────
 const C = {
   bg:      'var(--bg)',
@@ -65,10 +118,14 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (p.motivo_perda)   q = q.ilike('motivo_perda', `%${p.motivo_perda}%`)
   if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
   if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-  if (p.prazo_de)       q = q.gte('prazo', p.prazo_de)
-  if (p.prazo_ate)      q = q.lte('prazo', p.prazo_ate)
-  if (p.created_at_de)  q = q.gte('created_at', p.created_at_de)
-  if (p.created_at_ate) q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
+  const prazo_de      = resolveDate(p.prazo_de)
+  const prazo_ate     = resolveDate(p.prazo_ate)
+  const created_at_de = resolveDate(p.created_at_de)
+  const created_at_ate= resolveDate(p.created_at_ate)
+  if (prazo_de)       q = q.gte('prazo', prazo_de)
+  if (prazo_ate)      q = q.lte('prazo', prazo_ate)
+  if (created_at_de)  q = q.gte('created_at', created_at_de)
+  if (created_at_ate) q = q.lte('created_at', created_at_ate + 'T23:59:59')
 
   const { data: opps, error } = await q
   if (error) return { ok: false, error: error.message, registros: [] }
@@ -83,11 +140,13 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
   }
   if (p.proxima_tarefa_data_de || p.proxima_tarefa_data_ate) {
+    const pt_de  = resolveDate(p.proxima_tarefa_data_de)
+    const pt_ate = resolveDate(p.proxima_tarefa_data_ate)
     lista = lista.filter(o => {
       const d = o.custom_fields?.proxima_tarefa_data
       if (!d) return false
-      if (p.proxima_tarefa_data_de && d < p.proxima_tarefa_data_de) return false
-      if (p.proxima_tarefa_data_ate && d > p.proxima_tarefa_data_ate) return false
+      if (pt_de  && d < pt_de)  return false
+      if (pt_ate && d > pt_ate) return false
       return true
     })
   }
@@ -421,9 +480,19 @@ function resumoParam(campo, p) {
   if (campo.tipo === 'range_date') {
     const de = p[campo.key + '_de'], ate = p[campo.key + '_ate']
     if (!de && !ate) return null
-    if (de && ate) return `${de} → ${ate}`
-    if (de) return `a partir de ${de}`
-    return `até ${ate}`
+    const fmt = v => {
+      if (!v) return null
+      if (typeof v === 'string') return v
+      const pr = DATE_PRESETS.find(p => p.value === v.tipo)
+      if (!pr) return null
+      if (pr.hasNum) return `${pr.label.replace('X', v.valor||'?')}`
+      return pr.label
+    }
+    const fde = fmt(de), fate = fmt(ate)
+    if (fde && fate) return `${fde} → ${fate}`
+    if (fde) return `a partir de ${fde}`
+    if (fate) return `até ${fate}`
+    return null
   }
   return String(v)
 }
@@ -516,10 +585,15 @@ function CampoFiltro({ campo, p, setP, funis, usuarios }) {
             </div>
           )}
           {campo.tipo === 'range_date' && (
-            <div style={s.row}>
-              <input type="date" style={{...s.input,flex:1}} value={p[campo.key+'_de']||''} onChange={e=>setP(campo.key+'_de',e.target.value)} />
-              <span style={{color:C.muted}}>→</span>
-              <input type="date" style={{...s.input,flex:1}} value={p[campo.key+'_ate']||''} onChange={e=>setP(campo.key+'_ate',e.target.value)} />
+            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontSize:11, color:C.muted, width:20, flexShrink:0 }}>De</span>
+                <DateRelInput value={p[campo.key+'_de']||null} onChange={v=>setP(campo.key+'_de',v)} placeholder="Qualquer data" />
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                <span style={{ fontSize:11, color:C.muted, width:20, flexShrink:0 }}>Até</span>
+                <DateRelInput value={p[campo.key+'_ate']||null} onChange={v=>setP(campo.key+'_ate',v)} placeholder="Qualquer data" />
+              </div>
             </div>
           )}
           {campo.tipo === 'bool' && (
@@ -698,10 +772,10 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
     if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
     if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-    if (p.prazo_de)       q = q.gte('prazo', p.prazo_de)
-    if (p.prazo_ate)      q = q.lte('prazo', p.prazo_ate)
-    if (p.created_at_de)  q = q.gte('created_at', p.created_at_de)
-    if (p.created_at_ate) q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
+    if (p.prazo_de)       q = q.gte('prazo', resolveDate(p.prazo_de))
+    if (p.prazo_ate)      q = q.lte('prazo', resolveDate(p.prazo_ate))
+    if (p.created_at_de)  q = q.gte('created_at', resolveDate(p.created_at_de))
+    if (p.created_at_ate) q = q.lte('created_at', (resolveDate(p.created_at_ate) || '') + 'T23:59:59')
     const { data, error } = await q
     if (error) { setPreview(0); return }
     let lista = data || []
