@@ -3810,8 +3810,9 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
 
   function handleSave() {
     const e = {}
-    if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
-    if (!form.empresa_id)    e.empresa_id = 'Selecione uma empresa'
+    if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
+    if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
+    if (!form.responsavel?.trim()) e.responsavel   = 'Responsável é obrigatório'
     if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
 
     // Regra: ao fechar como ganha, exige ao menos um produto vinculado

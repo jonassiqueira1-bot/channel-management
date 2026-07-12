@@ -250,9 +250,10 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
             titulo:       acao.tarefa_titulo || 'Tarefa gerada por rotina',
             tipo:         acao.tarefa_tipo || 'ligação',
             status:       'pendente',
-            prioridade:   'media',
+            prioridade:   acao.tarefa_prioridade || 'media',
             prazo,
             responsavel:  acao.tarefa_responsavel || opp.responsavel || '',
+            descricao:    acao.tarefa_descricao || '',
             entidade_tipo:'oportunidade',
             entidade_id:  opp.id,
             entidade_nome: opp.titulo,
@@ -729,12 +730,22 @@ function AcaoEditor({ acao, onChange, onRemove, funis, usuarios, parametros }) {
       )}
       {acao.key === 'criar_tarefa' && (
         <>
-          <input style={s.input} value={acao.tarefa_titulo||''} onChange={e=>set('tarefa_titulo',e.target.value)} placeholder="Título da tarefa" />
+          <input style={s.input} value={acao.tarefa_titulo||''} onChange={e=>set('tarefa_titulo',e.target.value)} placeholder="Título da tarefa *" />
           <div style={s.row}>
             <select style={{...s.input, flex:1}} value={acao.tarefa_tipo||'ligação'} onChange={e=>set('tarefa_tipo',e.target.value)}>
               {['ligação','reunião','email','visita','proposta','follow-up','outros'].map(t=><option key={t}>{t}</option>)}
             </select>
-            <input type="number" style={{...s.input, flex:1}} value={acao.tarefa_prazo_dias||1} onChange={e=>set('tarefa_prazo_dias',e.target.value)} placeholder="Prazo (dias)" />
+            <select style={{...s.input, flex:1}} value={acao.tarefa_prioridade||'media'} onChange={e=>set('tarefa_prioridade',e.target.value)}>
+              <option value="baixa">Prioridade: Baixa</option>
+              <option value="media">Prioridade: Média</option>
+              <option value="alta">Prioridade: Alta</option>
+            </select>
+          </div>
+          <div style={s.row}>
+            <div style={{ flex:1, display:'flex', flexDirection:'column', gap:4 }}>
+              <span style={{ fontSize:11, color:C.muted }}>Prazo (dias a partir de hoje)</span>
+              <input type="number" min="0" style={{...s.input}} value={acao.tarefa_prazo_dias||1} onChange={e=>set('tarefa_prazo_dias',e.target.value)} placeholder="Prazo (dias)" />
+            </div>
           </div>
           <select style={s.input} value={acao.tarefa_responsavel||''} onChange={e=>set('tarefa_responsavel',e.target.value)}>
             <option value="">Responsável (mesmo da oportunidade)</option>
@@ -742,6 +753,7 @@ function AcaoEditor({ acao, onChange, onRemove, funis, usuarios, parametros }) {
               <option key={u.id} value={u.nome}>{u.nome}</option>
             ))}
           </select>
+          <textarea style={{...s.input, height:56, resize:'vertical'}} value={acao.tarefa_descricao||''} onChange={e=>set('tarefa_descricao',e.target.value)} placeholder="Descrição / orientações (opcional)" />
         </>
       )}
       {acao.key === 'enviar_email' && (
@@ -1047,6 +1059,77 @@ function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, us
   )
 }
 
+// ─── Modal de relatório de execuções ─────────────────────────────────────────
+function RelatorioModal({ rotina, executions, onClose, onRevert }) {
+  const [verExec, setVerExec] = useState(null)
+  return (
+    <div style={s.overlay} onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...s.drawer, maxWidth:560 }}>
+        <div style={s.header}>
+          <span style={s.title}>📋 Relatório — {rotina.nome}</span>
+          <button style={s.btn('ghost')} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ ...s.body, gap:8 }}>
+          {executions.length === 0 && <div style={{ fontSize:13, color:C.muted }}>Nenhuma execução ainda.</div>}
+          {executions.map(ex => (
+            <div key={ex.id} style={{ ...s.card, marginBottom:0 }}>
+              <div style={s.row}>
+                <span style={s.badge(ex.status==='sucesso'?'#00aa44':ex.status==='parcial'?'#f59e0b':'#ef4444')}>{ex.status}</span>
+                <span style={{ fontSize:12, color:C.muted }}>
+                  {new Date(ex.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
+                  {' · '}{ex.resumo?.total_afetados ?? '?'} afetados
+                </span>
+                <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
+                  <button style={{ ...s.btn('ghost'), fontSize:11 }} onClick={()=>setVerExec(verExec?.id===ex.id?null:ex)}>
+                    {verExec?.id===ex.id ? 'Fechar' : 'Detalhes'}
+                  </button>
+                  {!ex.revertido && (ex.snapshot_antes||[]).length > 0 && (
+                    <button style={{ ...s.btn('danger'), fontSize:11 }} onClick={()=>onRevert(ex)}>Reverter</button>
+                  )}
+                  {ex.revertido && <span style={s.badge('#888')}>Revertido</span>}
+                </div>
+              </div>
+              {verExec?.id === ex.id && (
+                <div style={{ marginTop:10, fontSize:12, color:C.text }}>
+                  <div><b>Encontrados:</b> {ex.resumo?.total_encontrados ?? '?'} · <b>Afetados:</b> {ex.resumo?.total_afetados ?? '?'}</div>
+                  {(ex.resumo?.erros||[]).length > 0 && (
+                    <div style={{ marginTop:6, color:C.danger }}>
+                      <b>Erros:</b>
+                      <ul style={{ margin:'4px 0 0 16px', padding:0 }}>
+                        {ex.resumo.erros.map((e,i)=><li key={i}>{e.opp_titulo}: {e.erro}</li>)}
+                      </ul>
+                    </div>
+                  )}
+                  {(ex.snapshot_antes||[]).length > 0 && (
+                    <div style={{ marginTop:8 }}>
+                      <b>Registros alterados:</b>
+                      <div style={{ maxHeight:160, overflowY:'auto', marginTop:4, background:C.surface, borderRadius:4, padding:6 }}>
+                        {ex.snapshot_antes.map((snap,i)=>(
+                          <div key={i} style={{ marginBottom:4, borderBottom:`1px solid ${C.border}`, paddingBottom:4 }}>
+                            <b>{ex.snapshot_depois?.[i]?.titulo || snap.id}</b>
+                            {Object.keys(snap).filter(k=>k!=='id').map(k=>(
+                              <div key={k} style={{ color:C.muted }}>
+                                {k}: <span style={{ color:C.danger }}>{String(snap[k])}</span> → <span style={{ color:C.success }}>{String(ex.snapshot_depois?.[i]?.[k])}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ ...s.header, borderTop:`1px solid ${C.border}`, borderBottom:'none', justifyContent:'flex-end' }}>
+          <button style={s.btn('ghost')} onClick={onClose}>Fechar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Drawer principal ─────────────────────────────────────────────────────────
 export default function RotinasDrawer({ contexto, onClose }) {
   const { profile }    = useProfile()
@@ -1060,7 +1143,13 @@ export default function RotinasDrawer({ contexto, onClose }) {
     return lista
   }, [allFunis])
   const { routines, loading, save, remove, saveExecution, loadExecutions, revert } = useRoutines(contexto)
-  const [wizard, setWizard] = useState(null) // null | {} | {routine}
+  const [wizard, setWizard]       = useState(null)
+  const [relatorio, setRelatorio] = useState(null) // { rotina, executions }
+
+  const abrirRelatorio = useCallback(async (r) => {
+    const execs = await loadExecutions(r.id)
+    setRelatorio({ rotina: r, executions: execs })
+  }, [loadExecutions])
 
   const badgeColor = (c) => c==='equipe'?'#3b82f6':c==='filiais'?'#8b5cf6':'#888'
 
@@ -1100,6 +1189,7 @@ export default function RotinasDrawer({ contexto, onClose }) {
                 <div style={s.row}>
                   <button style={s.btn('primary')} onClick={()=>setWizard({ ...r, _goStep:3 })}>▶ Executar</button>
                   <button style={s.btn('ghost')}   onClick={()=>setWizard(r)}>✏ Editar</button>
+                  <button style={s.btn('ghost')}   onClick={()=>abrirRelatorio(r)}>📋 Relatório</button>
                   <button style={{ ...s.btn('ghost'), marginLeft:'auto', color:C.danger, borderColor:C.danger }}
                     onClick={()=>{ if(window.confirm('Remover rotina?')) remove(r.id) }}>
                     Remover
@@ -1110,6 +1200,20 @@ export default function RotinasDrawer({ contexto, onClose }) {
           </div>
         </div>
       </div>
+
+      {relatorio && (
+        <RelatorioModal
+          rotina={relatorio.rotina}
+          executions={relatorio.executions}
+          onClose={()=>setRelatorio(null)}
+          onRevert={async (ex) => {
+            if (!window.confirm(`Reverter ${(ex.snapshot_antes||[]).length} registro(s)?`)) return
+            const r = await revert(ex, 'oportunidades')
+            if (r.ok) { const execs = await loadExecutions(relatorio.rotina.id); setRelatorio(prev=>({...prev, executions:execs})) }
+            else alert('Erro ao reverter: ' + (r.errors||[]).map(e=>e.error).join(', '))
+          }}
+        />
+      )}
 
       {wizard !== null && (
         <RotinaWizard
