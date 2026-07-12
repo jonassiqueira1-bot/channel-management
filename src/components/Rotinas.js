@@ -19,6 +19,7 @@ const DATE_PRESETS = [
   { value:'hoje',       label:'Hoje' },
   { value:'ontem',      label:'Ontem' },
   { value:'atrasado',   label:'Vencido / Em atraso' },
+  { value:'mes_atual',  label:'Mês atual' },
   { value:'ini_mes',    label:'Início do mês' },
   { value:'fim_mes',    label:'Fim do mês' },
   { value:'em_x_dias',  label:'Em X dias',          hasNum:true },
@@ -28,13 +29,14 @@ const DATE_PRESETS = [
 
 function resolveDate(v) {
   if (!v) return null
-  if (typeof v === 'string') return v // retrocompatibilidade
+  if (typeof v === 'string') return v
   const t = new Date(); t.setHours(0,0,0,0)
   const iso = d => d.toISOString().slice(0,10)
   switch (v.tipo) {
     case 'hoje':      return iso(t)
     case 'ontem':     { const d=new Date(t); d.setDate(d.getDate()-1); return iso(d) }
     case 'atrasado':  { const d=new Date(t); d.setDate(d.getDate()-1); return iso(d) }
+    case 'mes_atual': return iso(new Date(t.getFullYear(), t.getMonth()+1, 0))
     case 'ini_mes':   return iso(new Date(t.getFullYear(), t.getMonth(), 1))
     case 'fim_mes':   return iso(new Date(t.getFullYear(), t.getMonth()+1, 0))
     case 'em_x_dias': { const d=new Date(t); d.setDate(d.getDate()+Number(v.valor||0)); return iso(d) }
@@ -42,6 +44,15 @@ function resolveDate(v) {
     case 'fixo':      return v.valor || null
     default:          return null
   }
+}
+
+// Retorna a data "de" para presets que representam um intervalo completo
+function resolveDateFrom(v) {
+  if (!v || typeof v === 'string') return null
+  const t = new Date(); t.setHours(0,0,0,0)
+  const iso = d => d.toISOString().slice(0,10)
+  if (v.tipo === 'mes_atual') return iso(new Date(t.getFullYear(), t.getMonth(), 1))
+  return null
 }
 
 function DateRelInput({ value, onChange, placeholder }) {
@@ -130,8 +141,12 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
   if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
   const prazoDate      = resolveDate(p.prazo)
+  const prazoDateFrom  = resolveDateFrom(p.prazo)
   const createdAtDate  = resolveDate(p.created_at)
+  const createdAtFrom  = resolveDateFrom(p.created_at)
+  if (prazoDateFrom)  q = q.gte('prazo', prazoDateFrom)
   if (prazoDate)      q = q.lte('prazo', prazoDate)
+  if (createdAtFrom)  q = q.gte('created_at', createdAtFrom)
   if (createdAtDate)  q = q.lte('created_at', createdAtDate + 'T23:59:59')
 
   const { data: opps, error } = await q
@@ -493,6 +508,7 @@ function resumoParam(campo, p) {
     if (typeof val === 'string') return `até ${val}`
     const pr = DATE_PRESETS.find(p => p.value === val.tipo)
     if (!pr) return null
+    if (val.tipo === 'mes_atual') return pr.label
     if (pr.hasNum) return `até ${pr.label.replace('X', val.valor||'?')}`
     return `até ${pr.label}`
   }
@@ -772,8 +788,10 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
     if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
     if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-    if (p.prazo)      q = q.lte('prazo', resolveDate(p.prazo))
-    if (p.created_at) q = q.lte('created_at', (resolveDate(p.created_at) || '') + 'T23:59:59')
+    if (resolveDateFrom(p.prazo))      q = q.gte('prazo', resolveDateFrom(p.prazo))
+    if (resolveDate(p.prazo))         q = q.lte('prazo', resolveDate(p.prazo))
+    if (resolveDateFrom(p.created_at)) q = q.gte('created_at', resolveDateFrom(p.created_at))
+    if (resolveDate(p.created_at))    q = q.lte('created_at', (resolveDate(p.created_at) || '') + 'T23:59:59')
     const { data, error } = await q
     if (error) { setPreview(0); return }
     let lista = data || []
