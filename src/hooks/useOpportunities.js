@@ -33,6 +33,8 @@ function rowToOpp(row) {
     descricao:             row.descricao || '',
     motivo_perda:          row.motivo_perda || '',
     proxima_acao_data:     cf.proxima_acao_data || '',
+    proxima_tarefa_data:   cf.proxima_tarefa_data || null,
+    proxima_tarefa_hora:   cf.proxima_tarefa_hora || null,
     tenant_id:             row.tenant_id || null,
     branch_id:             row.branch_id || null,
     custom_fields: {

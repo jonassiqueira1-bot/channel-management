@@ -6574,8 +6574,8 @@ export default function Pipeline() {
     const mesFim   = new Date(today.getFullYear(), today.getMonth()+1, 0).toISOString().slice(0,10)
     const semFim   = new Date(today); semFim.setDate(semFim.getDate()+(6-semFim.getDay())); const semFimStr=semFim.toISOString().slice(0,10)
 
-    // Pega ids de opps com tarefas abertas no período
-    const oppTaskMap = MOCK_TAREFAS.reduce((acc, t) => {
+    // Pega ids de opps com tarefas abertas no período (usa dados reais do useTasks)
+    const oppTaskMap = tarefas.reduce((acc, t) => {
       if (!acc[t.entidade_id]) acc[t.entidade_id] = []
       acc[t.entidade_id].push(t)
       return acc
@@ -6616,10 +6616,11 @@ export default function Pipeline() {
       // Filtro tarefas
       if (filterTarefa) {
         const tasks = (oppTaskMap[o.id]||[]).filter(t => t.entidade_tipo==='oportunidade' && t.status!=='concluida')
+        const dataEfetiva = (t) => (t.data_inicio || t.prazo || '').slice(0, 10)
         if (filterTarefa === 'sem') { if (tasks.length > 0) return false }
-        else if (filterTarefa === 'hoje') { if (!tasks.some(t => t.prazo === todayStr)) return false }
-        else if (filterTarefa === 'semana') { if (!tasks.some(t => t.prazo >= todayStr && t.prazo <= semFimStr)) return false }
-        else if (filterTarefa === 'atrasadas') { if (!tasks.some(t => t.prazo && t.prazo < todayStr)) return false }
+        else if (filterTarefa === 'hoje') { if (!tasks.some(t => dataEfetiva(t) === todayStr)) return false }
+        else if (filterTarefa === 'semana') { if (!tasks.some(t => dataEfetiva(t) >= todayStr && dataEfetiva(t) <= semFimStr)) return false }
+        else if (filterTarefa === 'atrasadas') { if (!tasks.some(t => dataEfetiva(t) && dataEfetiva(t) < todayStr)) return false }
       }
 
       // Filtro campos personalizados
