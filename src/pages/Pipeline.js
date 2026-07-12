@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import BatchProgress from '../components/BatchProgress'
+import RotinasDrawer from '../components/Rotinas'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useTasks } from '../hooks/useTasks'
@@ -6522,6 +6523,7 @@ export default function Pipeline() {
   const [filterCF, setFilterCF]                   = useLocalState('pipeline:filterCF', {})
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
+  const [showRotinas, setShowRotinas]         = useState(false)
   // Quando parceiro tem funil definido, força o funil ativo para o dele
   useEffect(() => {
     if (partnerFunilId) setFunilAtivo(String(partnerFunilId))
@@ -6820,6 +6822,20 @@ export default function Pipeline() {
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
         <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
 
+          {/* Botão Rotinas */}
+          <button
+            onClick={() => setShowRotinas(true)}
+            style={{
+              display:'flex', alignItems:'center', gap:7,
+              padding:'0 13px', height:36, borderRadius:8,
+              border:'1.5px solid var(--border)',
+              background:'var(--surface)',
+              color:'var(--text-soft)',
+              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+            }}>
+            ⚙ Rotinas
+          </button>
+
           {/* Botão Filtros */}
           <button
             onClick={() => setFiltrosOpen(v => !v)}
@@ -7076,6 +7092,14 @@ export default function Pipeline() {
         filterCF={filterCF}                   setFilterCF={setFilterCF}
         activeFilterCount={advancedFilterCount}
       />
+
+      {showRotinas && (
+        <RotinasDrawer
+          contexto="pipeline"
+          funis={todosOsFunis}
+          onClose={() => setShowRotinas(false)}
+        />
+      )}
     </div>
   )
 }
