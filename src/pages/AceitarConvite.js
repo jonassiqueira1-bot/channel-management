@@ -59,10 +59,10 @@ export default function AceitarConvite() {
     const { data: { user } } = await supabase.auth.getUser()
     const { data: perfil } = await supabase
       .from('profiles')
-      .select('role, papel')
+      .select('role')
       .eq('id', user?.id)
       .single()
-    navigate(getDefaultRoute(perfil?.role || perfil?.papel))
+    navigate(getDefaultRoute(perfil?.role))
   }
 
   const s = {
