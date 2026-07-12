@@ -16,7 +16,15 @@ const CORES_ETAPA = [
   '#10B981','#EF4444','#14B8A6','#F97316','#1E3A5F',
 ]
 
-const ETAPA_VAZIA = { nome: '', cor: '#3B82F6', probabilidade: 50 }
+const CATEGORIAS_FORECAST = [
+  { value: 'fora',        label: 'Fora' },
+  { value: 'em_aberto',   label: 'Em Aberto' },
+  { value: 'provavel',    label: 'Provável' },
+  { value: 'confirmado',  label: 'Confirmado' },
+  { value: 'fechado',     label: 'Fechado' },
+]
+
+const ETAPA_VAZIA = { nome: '', cor: '#3B82F6', probabilidade: 50, categoria_forecast: 'em_aberto' }
 
 function novoId() { return Date.now() + Math.random() }
 
@@ -77,11 +85,12 @@ function EtapasEditor({ etapas, onChange }) {
 
   return (
     <div>
-      <div style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 90px minmax(180px,1fr) 32px', gap:8, alignItems:'center',
+      <div style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 80px 140px minmax(140px,1fr) 32px', gap:8, alignItems:'center',
         padding:'0 8px 8px', borderBottom:'1px solid var(--border2)', marginBottom:8 }}>
         <div />
         <div style={ed.colLabel}>Nome da etapa</div>
         <div style={ed.colLabel}>Prob. (%)</div>
+        <div style={ed.colLabel}>Forecast</div>
         <div style={ed.colLabel}>Cor</div>
         <div />
       </div>
@@ -93,7 +102,7 @@ function EtapasEditor({ etapas, onChange }) {
       )}
 
       {etapas.map((e, i) => (
-        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 90px minmax(180px,1fr) 32px', gap:8,
+        <div key={e.id} style={{ display:'grid', gridTemplateColumns:'32px minmax(100px,1fr) 80px 140px minmax(140px,1fr) 32px', gap:8,
           alignItems:'center', padding:'6px 8px', borderRadius:7, background: i % 2 === 0 ? 'transparent' : 'var(--surface2)' }}>
 
           <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:1 }}>
@@ -118,6 +127,14 @@ function EtapasEditor({ etapas, onChange }) {
             />
             <span style={{ position:'absolute', right:8, top:'50%', transform:'translateY(-50%)', fontSize:11, color:'var(--text-muted)', pointerEvents:'none' }}>%</span>
           </div>
+
+          <select
+            style={{ ...ed.input, fontSize:12 }}
+            value={e.categoria_forecast || 'em_aberto'}
+            onChange={ev => updateEtapa(e.id, 'categoria_forecast', ev.target.value)}
+          >
+            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
 
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
             <label style={{ cursor:'pointer', position:'relative', flexShrink:0 }}>
@@ -158,11 +175,11 @@ const ed = {
 const EMPTY_FUNIL = {
   nome: '', descricao: '', status: 'ativo', is_padrao: false,
   etapas: [
-    { id: novoId(), nome: 'Prospecção',    ordem: 1, cor: '#6B7280', probabilidade: 10 },
-    { id: novoId(), nome: 'Qualificação',  ordem: 2, cor: '#3B82F6', probabilidade: 30 },
-    { id: novoId(), nome: 'Proposta',      ordem: 3, cor: 'var(--accent)', probabilidade: 60 },
-    { id: novoId(), nome: 'Fechado Ganho', ordem: 4, cor: '#10B981', probabilidade: 100 },
-    { id: novoId(), nome: 'Fechado Perdido', ordem: 5, cor: '#EF4444', probabilidade: 0 },
+    { id: novoId(), nome: 'Prospecção',     ordem: 1, cor: '#6B7280', probabilidade: 10,  categoria_forecast: 'em_aberto'  },
+    { id: novoId(), nome: 'Qualificação',   ordem: 2, cor: '#3B82F6', probabilidade: 30,  categoria_forecast: 'em_aberto'  },
+    { id: novoId(), nome: 'Proposta',       ordem: 3, cor: 'var(--accent)', probabilidade: 60,  categoria_forecast: 'provavel'   },
+    { id: novoId(), nome: 'Fechado Ganho',  ordem: 4, cor: '#10B981', probabilidade: 100, categoria_forecast: 'fechado'     },
+    { id: novoId(), nome: 'Fechado Perdido',ordem: 5, cor: '#EF4444', probabilidade: 0,   categoria_forecast: 'fora'        },
   ],
 }
 

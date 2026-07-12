@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import BatchProgress from '../components/BatchProgress'
+import RotinasDrawer from '../components/Rotinas'
 import { useFunnels } from '../hooks/useFunnels'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useTasks } from '../hooks/useTasks'
@@ -61,6 +62,14 @@ import { supabase } from '../lib/supabase'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const STORAGE_KEY_OPP_PROPOSALS = 'opp:proposals_v1'
+
+export const CATEGORIAS_FORECAST = [
+  { value: 'fora',       label: 'Fora',        color: '#9CA3AF' },
+  { value: 'em_aberto',  label: 'Em Aberto',   color: '#3B82F6' },
+  { value: 'provavel',   label: 'Provável',     color: '#F59E0B' },
+  { value: 'confirmado', label: 'Confirmado',   color: '#10B981' },
+  { value: 'fechado',    label: 'Fechado',      color: '#6366F1' },
+]
 
 const ORIGEM_COLORS = {
   Inbound:    { color:'#10B981', bg:'rgba(16,185,129,0.10)', text:'#059669' },
@@ -3719,6 +3728,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           campanha_id: initial.campanha_id || null,
           funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
+          categoria_forecast: initial.categoria_forecast || null,
           custom_fields: { ...(initial.custom_fields || {}) } }
       : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [], responsavel: defaultResponsavel || '' }
   )
@@ -3800,8 +3810,9 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
 
   function handleSave() {
     const e = {}
-    if (!form.titulo.trim()) e.titulo = 'Título é obrigatório'
-    if (!form.empresa_id)    e.empresa_id = 'Selecione uma empresa'
+    if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
+    if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
+    if (!form.responsavel?.trim()) e.responsavel   = 'Responsável é obrigatório'
     if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
 
     // Regra: ao fechar como ganha, exige ao menos um produto vinculado
@@ -3940,11 +3951,29 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     }
   }
 
+  const etapaAtualForecast = etapas.find(e => String(e.id) === String(form.etapa_id))
+  const catEtapaForecast   = etapaAtualForecast?.categoria_forecast || 'em_aberto'
+  const cfgForecastAtual   = CATEGORIAS_FORECAST.find(c => c.value === (form.categoria_forecast || catEtapaForecast)) || CATEGORIAS_FORECAST[1]
+
   const dadosFormBody = (
     <>
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
       <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
+
+      {/* Forecast — fora do DynamicFormLayout para evitar conflito com layout salvo */}
+      <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Forecast</div>
+          <select style={{ ...m.input, fontWeight:600, color: cfgForecastAtual.color }}
+            value={form.categoria_forecast || ''}
+            onChange={e => set('categoria_forecast', e.target.value || null)}>
+            <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapaForecast)?.label || catEtapaForecast})</option>
+            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
+      </div>
+
       <div style={{ marginTop:16 }}>
         <DynamicFormLayout
           sections={oppSections}
@@ -5758,7 +5787,44 @@ function OrigemBadge({ origem }) {
 }
 
 // ─── Card do Kanban ───────────────────────────────────────────────────────────
-function OppCard({ opp, cor, onClick, onDragStart, onDragEnd }) {
+function ForecastBadge({ opp, etapaCat, onChange }) {
+  const [open, setOpen] = useState(false)
+  const cat = opp.categoria_forecast || etapaCat || 'em_aberto'
+  const cfg = CATEGORIAS_FORECAST.find(c => c.value === cat) || CATEGORIAS_FORECAST[1]
+  return (
+    <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
+      <button
+        onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
+        style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:10,
+          background: cfg.color + '18', color: cfg.color,
+          border:`1px solid ${cfg.color}44`, cursor:'pointer', whiteSpace:'nowrap' }}
+      >
+        {cfg.label}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', bottom:'calc(100% + 4px)', left:0, zIndex:200,
+          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
+          boxShadow:'0 4px 16px rgba(0,0,0,0.13)', padding:4, minWidth:130 }}
+          onMouseLeave={() => setOpen(false)}
+        >
+          {CATEGORIAS_FORECAST.map(c => (
+            <button key={c.value} onClick={() => { onChange(c.value); setOpen(false) }}
+              style={{ display:'block', width:'100%', textAlign:'left', padding:'5px 10px',
+                fontSize:11, fontWeight: c.value === cat ? 700 : 400,
+                color: c.value === cat ? c.color : 'var(--text)',
+                background: c.value === cat ? c.color + '12' : 'none',
+                border:'none', borderRadius:5, cursor:'pointer' }}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForecastChange }) {
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
   const dias     = diasRestantes(opp.prazo)
@@ -5872,9 +5938,14 @@ function OppCard({ opp, cor, onClick, onDragStart, onDragEnd }) {
         </div>
       )}
 
+      {/* Forecast inline */}
+      <div style={{ marginTop:8 }}>
+        <ForecastBadge opp={opp} etapaCat={etapaCat} onChange={v => onForecastChange && onForecastChange(opp, v)} />
+      </div>
+
       {/* Rodapé: responsável + prazo */}
       {(opp.prazo || opp.responsavel) && (
-        <div style={{ marginTop:10, paddingTop:9, borderTop:'1px solid var(--border2)',
+        <div style={{ marginTop:8, paddingTop:9, borderTop:'1px solid var(--border2)',
           display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
           {opp.responsavel && (
             <div style={{ display:'flex', alignItems:'center', gap:5 }}>
@@ -5922,7 +5993,7 @@ function calcTaxaConversao(etapas, allOpps, etapaId) {
   return Math.round((passaram.length / entraram.length) * 100)
 }
 
-function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
+function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForecastChange }) {
   const draggedId = useRef(null)
   const [overEtapa, setOverEtapa] = useState(null)
 
@@ -5955,6 +6026,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
             onDrop={() => handleDrop(etapa.id)}
             onCardDragStart={id => { draggedId.current = id }}
             onCardDragEnd={() => { draggedId.current = null; setOverEtapa(null) }}
+            onForecastChange={onForecastChange}
           />
         ))}
       </div>
@@ -5962,7 +6034,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage }) {
   )
 }
 
-function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd }) {
+function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd, onForecastChange }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
@@ -5994,7 +6066,7 @@ function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDra
         </div>
       </div>
       <div style={{ ...k.cards, background: isDragOver ? etapa.cor+'08' : 'transparent', transition:'background 0.15s' }}>
-        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} />)}
+        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} etapaCat={etapa.categoria_forecast} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} onForecastChange={onForecastChange} />)}
         {opps.length===0 && <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:12, opacity:0.6 }}>—</div>}
       </div>
       <button style={k.addBtn} onClick={()=>onAddOpp(etapa.id)}>+ Adicionar</button>
@@ -6522,6 +6594,7 @@ export default function Pipeline() {
   const [filterCF, setFilterCF]                   = useLocalState('pipeline:filterCF', {})
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
   const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
+  const [showRotinas, setShowRotinas]         = useState(false)
   // Quando parceiro tem funil definido, força o funil ativo para o dele
   useEffect(() => {
     if (partnerFunilId) setFunilAtivo(String(partnerFunilId))
@@ -6820,6 +6893,20 @@ export default function Pipeline() {
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
         <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
 
+          {/* Botão Rotinas */}
+          <button
+            onClick={() => setShowRotinas(true)}
+            style={{
+              display:'flex', alignItems:'center', gap:7,
+              padding:'0 13px', height:36, borderRadius:8,
+              border:'1.5px solid var(--border)',
+              background:'var(--surface)',
+              color:'var(--text-soft)',
+              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+            }}>
+            ⚙ Rotinas
+          </button>
+
           {/* Botão Filtros */}
           <button
             onClick={() => setFiltrosOpen(v => !v)}
@@ -6966,6 +7053,7 @@ export default function Pipeline() {
           allOpps={opps.filter(o => String(o.funil_id) === String(funilAtivo))}
           setModal={setModal}
           moveToStage={moveToStage}
+          onForecastChange={(opp, cat) => saveOpp({ ...opp, categoria_forecast: cat })}
         />
       )}
 
@@ -7076,6 +7164,14 @@ export default function Pipeline() {
         filterCF={filterCF}                   setFilterCF={setFilterCF}
         activeFilterCount={advancedFilterCount}
       />
+
+      {showRotinas && (
+        <RotinasDrawer
+          contexto="pipeline"
+          funis={todosOsFunis}
+          onClose={() => setShowRotinas(false)}
+        />
+      )}
     </div>
   )
 }

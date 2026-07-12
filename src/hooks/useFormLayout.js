@@ -1,10 +1,23 @@
-import { useMemo } from 'react'
+import { useMemo, useEffect } from 'react'
 import { useLocalState } from './useLocalState'
 import { FIELDS_SEED, LAYOUT_SEED } from '../data/formSeeds'
 
+// Remove chaves antigas que podem conter layout quebrado
+const STALE_KEYS = ['settings:form_fields_v3','settings:form_layout_v3','settings:form_fields_v4','settings:form_layout_v4']
+STALE_KEYS.forEach(k => localStorage.removeItem(k))
+
 export function useFormLayout(entity) {
-  const [storedFields, setStoredFields] = useLocalState('settings:form_fields_v3', FIELDS_SEED)
-  const [storedLayout, setStoredLayout] = useLocalState('settings:form_layout_v3', LAYOUT_SEED)
+  const [storedFields, setStoredFields] = useLocalState('settings:form_fields_v5', FIELDS_SEED)
+  const [storedLayout, setStoredLayout] = useLocalState('settings:form_layout_v5', LAYOUT_SEED)
+
+  // Força reset do v5 se contiver campos inválidos (sf_op_forecast não existe mais)
+  useEffect(() => {
+    const saved = localStorage.getItem('settings:form_layout_v5')
+    if (saved && saved.includes('sf_op_forecast')) {
+      localStorage.removeItem('settings:form_layout_v5')
+      setStoredLayout(LAYOUT_SEED)
+    }
+  }, [setStoredLayout])
 
   // Garante que campos novos do seed sejam adicionados ao localStorage (migração automática)
   const fields = useMemo(() => {
