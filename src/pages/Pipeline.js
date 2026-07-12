@@ -6855,7 +6855,7 @@ export default function Pipeline() {
 
 
       {/* ── KPIs retráteis (padrão BrowseLayout) ── */}
-      <div style={{ borderBottom:'1px solid var(--border)' }}>
+      <div style={{ borderBottom:'1px solid var(--border)', display: isParceiro ? 'none' : undefined }}>
         <button
           type="button"
           onClick={() => setShowMetrics(v => !v)}
