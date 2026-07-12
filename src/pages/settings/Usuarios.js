@@ -5,6 +5,7 @@ import { useUsuarios } from '../../hooks/useUsuarios'
 import { usePendingInvites } from '../../hooks/usePendingInvites'
 import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG } from '../../data/mockPerfis'
 import { useProfile } from '../../hooks/useProfile'
+import { checkEmUso } from '../../lib/checkUsage'
 import { PERFIS_NATIVOS_SEED } from '../Perfis'
 import { useCommissions } from '../../hooks/useCommissions'
 import Button from '../../components/Button'
@@ -955,8 +956,10 @@ export default function SettingsUsuarios() {
     log(isNew ? 'criar' : 'editar', 'usuario', novo.id, { descricao: `Usuário ${isNew ? 'criado' : 'editado'}: ${novo.nome || novo.email || ''}` })
   }
 
-  function deletarPerfil(id) {
+  async function deletarPerfil(id) {
     const p = perfis.find(x => x.id === id)
+    const bloqueio = await checkEmUso('usuario', id, p?.nome || p?.email || id, sessao?.tenant_id)
+    if (bloqueio) { alert(bloqueio); return }
     removeUsuario(id)
     log('excluir', 'usuario', id, { descricao: `Usuário excluído: ${p?.nome || p?.email || id}` })
   }

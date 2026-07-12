@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useProfile } from '../hooks/useProfile'
+import { checkEmUso } from '../lib/checkUsage'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
 
@@ -186,6 +188,8 @@ const EMPTY_FUNIL = {
 export default function Funis() {
   const { funis, save: saveFunil, remove: deleteFunil } = useFunnels()
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const [search, setSearch] = useLocalState('funis:search', '')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
@@ -227,8 +231,10 @@ export default function Funis() {
     setEditando(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const f = funis.find(x => x.id === id)
+    const bloqueio = await checkEmUso('funil', String(id), f?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     deleteFunil(id)
     log('excluir', 'funil', id, { descricao: `Funil excluído: ${f?.nome || id}` })
     setEditando(null)

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import logoBoostly from '../assets/logo-boostly.svg'
+import { getDefaultRoute } from '../data/mockPerfis'
 
 export default function AceitarConvite() {
   const [password, setPassword]   = useState('')
@@ -54,8 +55,14 @@ export default function AceitarConvite() {
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
     setLoading(false)
-    if (error) setError('Erro ao definir senha: ' + error.message)
-    else navigate('/dashboard')
+    if (error) { setError('Erro ao definir senha: ' + error.message); return }
+    const { data: { user } } = await supabase.auth.getUser()
+    const { data: perfil } = await supabase
+      .from('usuarios')
+      .select('papel')
+      .eq('user_id', user?.id)
+      .single()
+    navigate(getDefaultRoute(perfil?.papel))
   }
 
   const s = {

@@ -38,9 +38,21 @@ export function usePendingInvites() {
       body: JSON.stringify(record),
     })
     const json = await res.json()
-    console.log('[usePendingInvites] invite response:', res.status, json)
     if (!res.ok) return { ok: false, message: json.error || 'Erro ao enviar convite' }
-    await loadInvites()
+    // Adiciona otimisticamente para não depender de RLS na releitura
+    const optimistic = {
+      id:           `tmp_${Date.now()}`,
+      tenant_id:    tid.current,
+      nome:         record.nome || record.email,
+      email:        record.email,
+      papel:        record.papel || 'parceiro',
+      tipo_usuario: record.tipo_usuario || 'externo',
+      status:       'pendente',
+      criado_em:    new Date().toISOString(),
+    }
+    setInvites(prev => [optimistic, ...prev.filter(i => i.email !== record.email)])
+    // Tenta sincronizar com o DB em segundo plano
+    loadInvites()
     return { ok: true }
   }, [session, loadInvites])
 

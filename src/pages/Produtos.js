@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useProducts } from '../hooks/useProducts'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useProfile } from '../hooks/useProfile'
+import { checkEmUso } from '../lib/checkUsage'
 import Button from '../components/Button'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
@@ -330,6 +332,8 @@ export default function Produtos() {
   const [categorias, setCategorias] = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
   const { produtos, save: saveProduto, remove: deleteProduto, importMany: importProdutos } = useProducts()
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const { sections: pdSections, fieldById: pdFieldById } = useFormLayout('products')
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
@@ -374,8 +378,10 @@ export default function Produtos() {
     setErrs({})
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const p = produtos.find(x => x.id === id)
+    const bloqueio = await checkEmUso('produto', String(id), p?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     deleteProduto(id)
     log('excluir', 'produto', id, { descricao: `Produto excluído: ${p?.nome || id}` })
     setEditando(null)

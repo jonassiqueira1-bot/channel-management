@@ -527,9 +527,10 @@ async function resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tena
   if (tipo === 'responsavel_origem') {
     const responsavelId = registro.responsavel_id || registro.responsavel || null
     if (!responsavelId) return null
+    // Tenta por UUID primeiro, depois por nome
     const { data } = await supabase.from('profiles').select('email').eq('id', responsavelId).single()
     if (data?.email) return data.email
-    const { data: d2 } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).ilike('full_name', `%${responsavelId}%`).single()
+    const { data: d2 } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).ilike('nome', `%${responsavelId}%`).single()
     return d2?.email || null
   }
 
@@ -540,7 +541,8 @@ async function resolverUmDestinatario(tipo, emailFixo, usuarioId, registro, tena
   }
 
   if (tipo === 'lider_equipe') {
-    const { data } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).eq('role', 'lider').limit(1)
+    // Retorna todos os admin_isv do tenant como "líderes"
+    const { data } = await supabase.from('profiles').select('email').eq('tenant_id', tenantId).eq('papel', 'admin_isv').limit(3)
     return data?.[0]?.email || null
   }
 
@@ -575,19 +577,42 @@ async function resolverTodosDestinatarios(acao, registro, tenantId) {
 
 async function executarAcoes(acoes, registro, rule, tenantId) {
   for (const acao of acoes) {
-    if (acao.tipo === 'email') {
+    if (acao.tipo === 'email' || acao.tipo === 'notificar') {
       const emails = await resolverTodosDestinatarios(acao, registro, tenantId)
+      if (!emails.length) continue
+
       const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
       const interpolar = (str) => (str || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
         const v = registro[key]
         return v !== undefined && v !== null ? String(v) : ''
       }).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
-      const assunto  = interpolar(acao.assunto)  || rule.gatilho_nome || 'Alerta Boostly'
-      const mensagem = interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`
-      for (const email of emails) {
-        await supabase.functions.invoke('send-email', {
-          body: { template: 'alerta_generico', to: email, data: { titulo: assunto, mensagem } },
-        })
+
+      if (acao.tipo === 'email') {
+        const assunto  = interpolar(acao.assunto)  || rule.gatilho_nome || 'Alerta Boostly'
+        const mensagem = interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`
+        for (const email of emails) {
+          await supabase.functions.invoke('send-email', {
+            body: { template: 'alerta_generico', to: email, data: { titulo: assunto, mensagem } },
+          })
+        }
+      } else {
+        // tipo: 'notificar' — email padronizado com layout do projeto
+        const titulo = interpolar(acao.titulo_tarefa) || rule.gatilho_nome || 'Notificação Boostly'
+        for (const email of emails) {
+          await supabase.functions.invoke('send-email', {
+            body: {
+              template: 'notificacao',
+              to: email,
+              data: {
+                titulo,
+                entidade:  nomeReg,
+                gatilho:   (rule.gatilho_nome || '').toUpperCase(),
+                cor:       rule.cor || '#4F7FE8',
+                link:      'https://boostly.com.br',
+              },
+            },
+          })
+        }
       }
     }
   }

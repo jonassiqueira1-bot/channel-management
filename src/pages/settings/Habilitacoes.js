@@ -1,6 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useHabilitacoes } from '../../hooks/useHabilitacoes'
+import { useProfile } from '../../hooks/useProfile'
+import { checkEmUso } from '../../lib/checkUsage'
 import { useProducts } from '../../hooks/useProducts'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
@@ -112,6 +114,8 @@ function SituacaoBadge({ situacao }) {
 export default function Habilitacoes() {
   const { habilitacoes, save: saveHab, remove: removeHab } = useHabilitacoes()
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const { produtos } = useProducts()
 
   const produtosAtivos = useMemo(() => produtos.filter(p => p.status === 'ativo'), [produtos])
@@ -195,8 +199,10 @@ export default function Habilitacoes() {
     setEditando(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const h = habilitacoes.find(x => x.id === id)
+    const bloqueio = await checkEmUso('habilitacao', String(id), h?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     removeHab(id)
     log('excluir', 'habilitacao', id, { descricao: `Habilitação excluída: ${h?.nome || id}` })
     setEditando(null)

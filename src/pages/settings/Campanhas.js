@@ -1,6 +1,8 @@
 import { useState, useCallback, useRef } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useCampanhas } from '../../hooks/useCampanhas'
+import { useProfile } from '../../hooks/useProfile'
+import { checkEmUso } from '../../lib/checkUsage'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 
 /* ─── Constants ─────────────────────────────────────────── */
@@ -565,6 +567,8 @@ const SEEDS = [
 export default function Campanhas() {
   const { campanhas, save: saveCampanha, remove: removeCampanha } = useCampanhas(SEEDS)
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const [wizard, setWizard]       = useState(null)
   const [search, setSearch]       = useState('')
   const [importModal, setImportModal] = useState(false)
@@ -576,8 +580,10 @@ export default function Campanhas() {
     setWizard(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const c = campanhas.find(x => x.id === id)
+    const bloqueio = await checkEmUso('campanha', String(id), c?.nome || c?.titulo || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     removeCampanha(id)
     log('excluir', 'campanha', id, { descricao: `Campanha excluída: ${c?.nome || c?.titulo || id}` })
   }

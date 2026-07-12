@@ -20,6 +20,7 @@ type TemplateName =
   | 'pagamento_vencido'
   | 'contrato_vencendo'
   | 'oportunidade_parada'
+  | 'notificacao'
   | 'alerta_generico'
 
 interface EmailPayload {
@@ -153,6 +154,18 @@ function buildEmail(template: TemplateName, data: Record<string, unknown>): { su
           ${p(`A oportunidade <strong>${data.oportunidade}</strong> de <strong>${data.empresa}</strong> está parada há <strong>${data.dias} dia(s)</strong>.`)}
           ${p(`Etapa atual: <strong>${data.etapa}</strong> · Responsável: <strong>${data.responsavel}</strong>`)}
           ${btn('Ver no Pipeline', `https://boostly.com.br/pipeline`)}
+        `),
+      }
+
+    case 'notificacao':
+      return {
+        subject: `${data.titulo || 'Notificação Boostly'}`,
+        html: base(`
+          ${data.cor ? badge(data.gatilho || 'ALERTA', data.cor) : ''}
+          ${h1(`${data.titulo || 'Notificação'}`)}
+          ${data.entidade ? p(`Registro: <strong>${data.entidade}</strong>`) : ''}
+          ${data.mensagem ? p(`${data.mensagem}`) : ''}
+          ${btn('Ver no Boostly', `${data.link || 'https://boostly.com.br'}`)}
         `),
       }
 

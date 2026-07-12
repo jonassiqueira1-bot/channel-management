@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useTiposAcao } from '../../hooks/useTiposAcao'
+import { useProfile } from '../../hooks/useProfile'
+import { checkEmUso } from '../../lib/checkUsage'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
@@ -237,6 +239,8 @@ export const STORAGE_KEY = 'settings:tipos_acao_v1'
 export default function SettingsTiposAcao() {
   const { tipos, save: saveTipo, remove: removeTipo } = useTiposAcao(DEFAULTS)
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const [editando, setEditando] = useState(null)
   const [form, setForm] = useState(null)
   const [busca, setBusca] = useState('')
@@ -299,8 +303,10 @@ export default function SettingsTiposAcao() {
     setEditando(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const t = tipos.find(x => x.id === id)
+    const bloqueio = await checkEmUso('tipo_acao', t?.label || id, t?.label || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     removeTipo(id)
     log('excluir', 'tipo_acao', id, { descricao: `Tipo de ação excluído: ${t?.label || id}` })
     setEditando(null)

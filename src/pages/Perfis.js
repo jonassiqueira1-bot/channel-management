@@ -2,6 +2,8 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { usePerfisAcesso } from '../hooks/usePerfisAcesso'
+import { useProfile } from '../hooks/useProfile'
+import { checkEmUso } from '../lib/checkUsage'
 import {
   ShieldCheck, ShieldAlert, Eye, Pencil, Trash2, Download,
   Upload, Users, BarChart2, Target, Zap, Settings2, FileText,
@@ -437,6 +439,8 @@ function Toggle({ value, onChange, disabled }) {
 export default function Perfis() {
   const { perfis, perms, savePerfil, savePerms, remove: removePerfil } = usePerfisAcesso(PERFIS_NATIVOS_SEED, buildSeedPerms())
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const [editando, setEditando]     = useState(null)  // perfil obj | 'novo'
   const [formNovo, setFormNovo]     = useState({ nome: '', cor: PALETA[0], desc: '' })
   const [franquias]                 = useLocalState('settings:franquias_v2', [])
@@ -497,8 +501,10 @@ export default function Perfis() {
     })
   }
 
-  function handleDeletar(id) {
+  async function handleDeletar(id) {
     const p = perfis.find(x => x.id === id)
+    const bloqueio = await checkEmUso('perfil_acesso', id, p?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     removePerfil(id)
     log('excluir', 'perfil_acesso', id, { descricao: `Perfil de acesso excluído: ${p?.nome || id}` })
     setConfirmDel(null); setEditando(null)

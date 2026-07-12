@@ -4,6 +4,8 @@ import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
 import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useProfile } from '../hooks/useProfile'
+import { checkEmUso } from '../lib/checkUsage'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -470,6 +472,8 @@ export default function Vendedores() {
   const { parceiros }                                                        = useParceiros()
   const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany, inviteToPortal } = useSellers()
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
 
   const franquiasMap = useMemo(
     () => Object.fromEntries((parceiros || []).map(p => [String(p.id), p])),
@@ -515,8 +519,10 @@ export default function Vendedores() {
     setSlideOpen(false)
     setEditing(null)
   }
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const s = sellers.find(x => x.id === id)
+    const bloqueio = await checkEmUso('vendedor_nome', s?.nome || '', s?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     deleteSeller(id)
     log('excluir', 'vendedor', id, { descricao: `Vendedor excluído: ${s?.nome || id}` })
     setSlideOpen(false)

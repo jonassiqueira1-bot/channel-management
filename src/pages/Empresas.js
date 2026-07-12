@@ -14,6 +14,8 @@ import { useParceiros } from '../hooks/useParceiros'
 import { LAER_STAGES, healthColor } from '../data/mockCustomerSuccess'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
 import { useAuditLog } from '../hooks/useAuditLog'
+import { useProfile } from '../hooks/useProfile'
+import { checkEmUso } from '../lib/checkUsage'
 import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -1046,6 +1048,8 @@ export default function Empresas() {
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
   const { records: csRecords } = useCustomerHealth()
   const { registrar: log } = useAuditLog()
+  const { profile } = useProfile()
+  const tenantId = profile?.tenant_id
   const customFields = useEntityCustomFields('companies')
   const [modal, setModal]               = useState(null)
   const [soTab, setSoTab]               = useState('dados')
@@ -1144,8 +1148,10 @@ export default function Empresas() {
     if (!keepOpen) setModal(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const emp = empresas.find(e => e.id === id)
+    const bloqueio = await checkEmUso('empresa', id, emp?.razao || emp?.nome || id, tenantId)
+    if (bloqueio) { alert(bloqueio); return }
     removeEmpresa(id)
     log('excluir', 'empresa', id, { descricao: `Empresa excluída: ${emp?.razao || emp?.nome || id}` })
     setModal(null)

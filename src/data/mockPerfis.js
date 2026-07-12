@@ -88,6 +88,13 @@ export const PAPEIS_ROTAS = {
   parceiro:   ['/pipeline', '/playbooks', '/documentos', '/settings'],
 }
 
+// Retorna a rota inicial para um papel — usada após login/convite
+export function getDefaultRoute(papel) {
+  const rotas = PAPEIS_ROTAS[papel]
+  if (!rotas) return '/dashboard' // admin_isv / gestor_canais = acesso total
+  return rotas[0] || '/dashboard'
+}
+
 export const STATUS_CONFIG = {
   ativo:    { label: 'Ativo',    color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
   inativo:  { label: 'Inativo', color: '#9CA3AF', bg: '#F3F4F6', text: '#4B5563' },
