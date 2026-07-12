@@ -202,6 +202,8 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
         if (acao.key === 'alterar_prazo') {
           const novaData = acao.prazo_tipo === 'fixo'
             ? acao.prazo_valor
+            : acao.prazo_tipo === 'fim_mes'
+            ? (() => { const t = new Date(); return new Date(t.getFullYear(), t.getMonth()+1, 0).toISOString().slice(0,10) })()
             : new Date(Date.now() + Number(acao.prazo_valor||0)*86400000).toISOString().slice(0,10)
           before.prazo = opp.prazo
           after.prazo  = novaData
@@ -685,12 +687,15 @@ function AcaoEditor({ acao, onChange, onRemove, funis, usuarios, parametros }) {
         <div style={s.row}>
           <select style={{...s.input, flex:1}} value={acao.prazo_tipo||'relativo'} onChange={e=>set('prazo_tipo',e.target.value)}>
             <option value="relativo">+N dias a partir de hoje</option>
+            <option value="fim_mes">Último dia do mês atual</option>
             <option value="fixo">Data fixa</option>
           </select>
-          {acao.prazo_tipo === 'fixo'
-            ? <input type="date" style={{...s.input, flex:1}} value={acao.prazo_valor||''} onChange={e=>set('prazo_valor',e.target.value)} />
-            : <input type="number" style={{...s.input, flex:1}} value={acao.prazo_valor||''} onChange={e=>set('prazo_valor',e.target.value)} placeholder="Dias" />
-          }
+          {acao.prazo_tipo === 'fixo' && (
+            <input type="date" style={{...s.input, flex:1}} value={acao.prazo_valor||''} onChange={e=>set('prazo_valor',e.target.value)} />
+          )}
+          {(!acao.prazo_tipo || acao.prazo_tipo === 'relativo') && (
+            <input type="number" style={{...s.input, flex:1}} value={acao.prazo_valor||''} onChange={e=>set('prazo_valor',e.target.value)} placeholder="Dias" />
+          )}
         </div>
       )}
       {acao.key === 'criar_tarefa' && (
