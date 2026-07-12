@@ -35,6 +35,7 @@ function rowToOpp(row) {
     proxima_acao_data:     cf.proxima_acao_data || '',
     proxima_tarefa_data:   cf.proxima_tarefa_data || null,
     proxima_tarefa_hora:   cf.proxima_tarefa_hora || null,
+    categoria_forecast:    cf.categoria_forecast || null,
     tenant_id:             row.tenant_id || null,
     branch_id:             row.branch_id || null,
     custom_fields: {
@@ -92,6 +93,7 @@ function oppToRow(opp, tenantId, branchId) {
       exige_integracao:      opp.custom_fields?.exige_integracao || false,
       itens:                 opp.itens || [],
       proxima_acao_data:     opp.proxima_acao_data || null,
+      categoria_forecast:    opp.categoria_forecast || null,
     },
   }
 }
