@@ -58,11 +58,11 @@ export default function AceitarConvite() {
     if (error) { setError('Erro ao definir senha: ' + error.message); return }
     const { data: { user } } = await supabase.auth.getUser()
     const { data: perfil } = await supabase
-      .from('usuarios')
-      .select('papel')
-      .eq('user_id', user?.id)
+      .from('profiles')
+      .select('role, papel')
+      .eq('id', user?.id)
       .single()
-    navigate(getDefaultRoute(perfil?.papel))
+    navigate(getDefaultRoute(perfil?.role || perfil?.papel))
   }
 
   const s = {

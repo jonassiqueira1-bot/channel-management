@@ -51,8 +51,8 @@ export function usePendingInvites() {
       criado_em:    new Date().toISOString(),
     }
     setInvites(prev => [optimistic, ...prev.filter(i => i.email !== record.email)])
-    // Tenta sincronizar com o DB em segundo plano
-    loadInvites()
+    // Sincroniza após delay para não sobrescrever o optimistic imediatamente
+    setTimeout(() => loadInvites(), 2000)
     return { ok: true }
   }, [session, loadInvites])
 
