@@ -1001,7 +1001,7 @@ export default function SettingsUsuarios() {
                     </span>
                   )}
                 </div>
-                <div style={{ fontSize: 11, color: '#71717A' }}>{row.tipo_usuario === 'interno' ? 'ISV' : 'Parceiro'}</div>
+                <div style={{ fontSize: 11, color: '#71717A' }}>{row.tipo_usuario === 'interno' ? 'ISV' : row.contact_id ? 'Parceiro' : ''}</div>
               </div>
             </div>
           )},
