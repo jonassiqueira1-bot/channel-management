@@ -197,6 +197,154 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
 // ─── Wizard ──────────────────────────────────────────────────────────────────
 const STEPS = ['Identidade','Parâmetros','Ações','Executar']
 
+const DIAS_SEMANA = [
+  { key:'1', label:'Seg' }, { key:'2', label:'Ter' }, { key:'3', label:'Qua' },
+  { key:'4', label:'Qui' }, { key:'5', label:'Sex' }, { key:'6', label:'Sáb' }, { key:'0', label:'Dom' },
+]
+
+function buildCron(sch) {
+  if (!sch || sch.frequencia === 'manual') return null
+  const [hh, mm] = (sch.hora || '08:00').split(':')
+  const h = hh || '8', m = mm || '0'
+  const iv = Math.max(1, Number(sch.intervalo) || 1)
+  if (sch.frequencia === 'minutos') return `*/${iv} * * * *`
+  if (sch.frequencia === 'horas')   return `${m} */${iv} * * *`
+  if (sch.frequencia === 'dias')    return `${m} ${h} */${iv} * *`
+  if (sch.frequencia === 'semanas') {
+    const dias = (sch.dias_semana || ['1']).join(',')
+    return `${m} ${h} * * ${dias}`
+  }
+  if (sch.frequencia === 'meses') {
+    const dia = sch.dia_mes || '1'
+    return `${m} ${h} ${dia} */${iv} *`
+  }
+  return null
+}
+
+function cronToHuman(cron) {
+  if (!cron) return ''
+  const p = cron.split(' ')
+  if (p[0].startsWith('*/')) return `A cada ${p[0].slice(2)} minutos`
+  if (p[1].startsWith('*/')) return `A cada ${p[1].slice(2)} hora(s) às :${p[0].padStart(2,'0')}`
+  if (p[2].startsWith('*/')) return `A cada ${p[2].slice(2)} dia(s) às ${p[1].padStart(2,'0')}:${p[0].padStart(2,'0')}`
+  if (p[4] !== '*') {
+    const nomes = { '0':'Dom','1':'Seg','2':'Ter','3':'Qua','4':'Qui','5':'Sex','6':'Sáb' }
+    const dias = p[4].split(',').map(d=>nomes[d]||d).join(', ')
+    return `Semanal (${dias}) às ${p[1].padStart(2,'0')}:${p[0].padStart(2,'0')}`
+  }
+  if (p[3].startsWith('*/')) return `A cada ${p[3].slice(2)} mês(es), dia ${p[2]} às ${p[1].padStart(2,'0')}:${p[0].padStart(2,'0')}`
+  return cron
+}
+
+function AgendamentoEditor({ sch, onChange }) {
+  const freq = sch?.frequencia || 'manual'
+  const set  = (k, v) => onChange({ ...sch, [k]: v })
+  const toggleDia = (d) => {
+    const dias = sch?.dias_semana || ['1']
+    const novo = dias.includes(d) ? dias.filter(x=>x!==d) : [...dias, d]
+    set('dias_semana', novo.length ? novo : [d])
+  }
+
+  const cron  = buildCron(sch)
+  const human = cronToHuman(cron)
+
+  const chipStyle = (active) => ({
+    padding:'4px 10px', borderRadius:20, fontSize:12, fontWeight:500, cursor:'pointer', border:'none',
+    background: active ? C.primary : C.surface,
+    color:      active ? '#fff' : C.muted,
+    outline: `1px solid ${active ? C.primary : C.border}`,
+  })
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+      {/* Frequência */}
+      <div>
+        <label style={s.label}>Frequência</label>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+          {[
+            { v:'manual',   l:'Manual' },
+            { v:'minutos',  l:'Minutos' },
+            { v:'horas',    l:'Horas' },
+            { v:'dias',     l:'Dias' },
+            { v:'semanas',  l:'Semanas' },
+            { v:'meses',    l:'Meses' },
+          ].map(({ v, l }) => (
+            <button key={v} style={chipStyle(freq===v)} onClick={()=>set('frequencia',v)}>{l}</button>
+          ))}
+        </div>
+      </div>
+
+      {freq !== 'manual' && (
+        <>
+          {/* Intervalo */}
+          {freq !== 'semanas' && (
+            <div style={s.row}>
+              <div style={{ flex:1 }}>
+                <label style={s.label}>A cada</label>
+                <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                  <input type="number" min="1" style={{...s.input, width:70}} value={sch?.intervalo||1} onChange={e=>set('intervalo',e.target.value)} />
+                  <span style={{ fontSize:13, color:C.muted }}>{freq}</span>
+                </div>
+              </div>
+              {(freq === 'dias' || freq === 'meses' || freq === 'horas') && (
+                <div style={{ flex:1 }}>
+                  <label style={s.label}>{freq === 'minutos' ? '' : 'Horário'}</label>
+                  {freq !== 'minutos' && <input type="time" style={s.input} value={sch?.hora||'08:00'} onChange={e=>set('hora',e.target.value)} />}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Dias da semana */}
+          {freq === 'semanas' && (
+            <>
+              <div>
+                <label style={s.label}>Executar nos dias</label>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {DIAS_SEMANA.map(d => (
+                    <button key={d.key} style={chipStyle((sch?.dias_semana||['1']).includes(d.key))} onClick={()=>toggleDia(d.key)}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label style={s.label}>Horário</label>
+                <input type="time" style={{...s.input, width:120}} value={sch?.hora||'08:00'} onChange={e=>set('hora',e.target.value)} />
+              </div>
+            </>
+          )}
+
+          {/* Dia do mês */}
+          {freq === 'meses' && (
+            <div>
+              <label style={s.label}>Dia do mês</label>
+              <input type="number" min="1" max="28" style={{...s.input, width:80}} value={sch?.dia_mes||'1'} onChange={e=>set('dia_mes',e.target.value)} />
+            </div>
+          )}
+
+          {/* Início */}
+          <div>
+            <label style={s.label}>Início</label>
+            <input type="datetime-local" style={s.input} value={sch?.inicio||''} onChange={e=>set('inicio',e.target.value)} />
+          </div>
+
+          {/* Preview cron */}
+          {human && (
+            <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:6, padding:'8px 12px', fontSize:12 }}>
+              <span style={{ color:C.muted }}>Expressão: </span>
+              <span style={{ fontFamily:'monospace', color:C.primary }}>{cron}</span>
+              <br />
+              <span style={{ color:C.muted }}>Leitura: </span>
+              <span style={{ color:C.text }}>{human}</span>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 function WizardStep1({ form, set }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -222,21 +370,13 @@ function WizardStep1({ form, set }) {
           </select>
         </div>
       </div>
-      <div>
-        <label style={s.label}>Agendamento</label>
-        <select style={s.input} value={form.schedule_tipo||'manual'} onChange={e=>set('schedule_tipo',e.target.value)}>
-          <option value="manual">Somente manual</option>
-          <option value="diario">Diário</option>
-          <option value="semanal">Semanal (toda segunda)</option>
-          <option value="mensal">Mensal (dia 1)</option>
-        </select>
+      <div style={{ borderTop:`1px solid ${C.border}`, paddingTop:14 }}>
+        <label style={{ ...s.label, fontWeight:600, fontSize:13, color:C.text, marginBottom:10 }}>Agendamento</label>
+        <AgendamentoEditor
+          sch={form.schedule_config || { frequencia:'manual' }}
+          onChange={v => set('schedule_config', v)}
+        />
       </div>
-      {form.schedule_tipo && form.schedule_tipo !== 'manual' && (
-        <div>
-          <label style={s.label}>Horário de execução</label>
-          <input type="time" style={s.input} value={form.schedule_hora||'08:00'} onChange={e=>set('schedule_hora',e.target.value)} />
-        </div>
-      )}
     </div>
   )
 }
@@ -564,12 +704,10 @@ function RotinaWizard({ initial, onClose, onSaved, funis, tenantId, userId, save
     }
   }, [step, form.id, loadExecutions])
 
-  const scheduleMap = { manual:null, diario:`0 ${(form.schedule_hora||'08:00').replace(':','  ')} * * *`, semanal:`0 8 * * 1`, mensal:`0 8 1 * *` }
-
   const handleSave = async () => {
     if (!form.nome.trim()) { setErroGeral('Informe o nome da rotina.'); return }
     setSaving(true)
-    const res = await onSaved({ ...form, schedule: scheduleMap[form.schedule_tipo||'manual'] })
+    const res = await onSaved({ ...form, schedule: buildCron(form.schedule_config) })
     setSaving(false)
     if (!res?.ok) { setErroGeral(res?.message || 'Erro ao salvar'); return }
     if (step < 3) setStep(s=>s+1)
