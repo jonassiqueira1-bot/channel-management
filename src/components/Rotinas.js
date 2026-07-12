@@ -913,7 +913,7 @@ function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, us
     if (!initial) return empty
     return { ...initial, schedule_config: initial.parametros?._schedule_config || { frequencia:'manual' } }
   })
-  const [step, setStep]   = useState(0)
+  const [step, setStep]   = useState(initial?._goStep ?? 0)
   const [saving, setSaving] = useState(false)
   const [erroGeral, setErroGeral] = useState('')
   const [executions, setExecutions] = useState([])
