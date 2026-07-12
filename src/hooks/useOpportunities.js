@@ -138,6 +138,32 @@ export function useOpportunities() {
     }
 
     let _q = supabase.from('oportunidades').select('*').is('deleted_at', null)
+
+    // Parceiro: filtra apenas oportunidades onde é membro canal
+    const isParceiro = profile?.role === 'parceiro' || profile?.papel === 'parceiro'
+    if (isParceiro) {
+      const contactId = profile?.contact_id
+      if (!contactId) {
+        isMockMode.current = false
+        setOpps([])
+        setLoading(false)
+        return
+      }
+      const { data: membros } = await supabase
+        .from('oportunidade_membros')
+        .select('opportunity_id')
+        .eq('user_id', String(contactId))
+        .eq('tipo_membro', 'canal')
+      const ids = (membros || []).map(m => m.opportunity_id).filter(Boolean)
+      if (ids.length === 0) {
+        isMockMode.current = false
+        setOpps([])
+        setLoading(false)
+        return
+      }
+      _q = _q.in('id', ids)
+    }
+
     const { data, error } = await _q.order('created_at', { ascending: false })
 
     if (error) {
