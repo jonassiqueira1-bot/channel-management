@@ -61,20 +61,8 @@ export function useProfile() {
         .single()
 
       if (profErr) {
-        // Perfil não encontrado — usa fallback mínimo sem dados mock
-        const fallback = {
-          id:           session.user.id,
-          nome:         session.user.email?.split('@')[0] || 'Usuário',
-          email:        session.user.email,
-          avatar:       initials(session.user.email?.split('@')[0] || 'U'),
-          papel:        'vendedor',
-          role:         'vendedor',
-          tenant_id:    null,
-          branch_id:    null,
-          status:       'ativo',
-        }
-        setProfile(fallback)
-        setLoading(false)
+        // Perfil não encontrado — força logout para evitar sessão órfã
+        await supabase.auth.signOut()
         return
       }
 
