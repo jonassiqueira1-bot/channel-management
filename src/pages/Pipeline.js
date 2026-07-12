@@ -4795,7 +4795,7 @@ function Field({ label, children }) {
 }
 
 // ─── Dropdown seletor de funil ────────────────────────────────────────────────
-function FunilDropdown({ funis, funilAtivo, onChange }) {
+function FunilDropdown({ funis, funilAtivo, onChange, isParceiro }) {
   const [open, setOpen] = useState(false)
   const ref             = useRef(null)
   const ativo           = funis.find(f => f.id === funilAtivo)
@@ -4850,9 +4850,11 @@ function FunilDropdown({ funis, funilAtivo, onChange }) {
               </button>
             )
           })}
+          {!isParceiro && (
           <div style={{ padding:'8px 14px', borderTop:'1px solid var(--border2)', background:'var(--surface2)' }}>
             <a href="/settings/funis" style={{ fontSize:12, color:'var(--accent)', textDecoration:'none', fontWeight:500 }}>⚙ Configurar funis</a>
           </div>
+          )}
         </div>
       )}
     </div>
@@ -6155,7 +6157,7 @@ function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onT
 }
 
 // ─── Menu de Ações (⋯) ───────────────────────────────────────────────────────
-function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLogs, showTray, setShowTray, setExportLogs }) {
+function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLogs, showTray, setShowTray, setExportLogs, isParceiro }) {
   const ref = useRef(null)
 
   useEffect(() => {
@@ -6183,6 +6185,7 @@ function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLog
       border:'1px solid var(--border)', boxShadow:'0 8px 28px rgba(0,0,0,0.13)',
       padding:6, overflow:'hidden',
     }}>
+      {!isParceiro && (
       <button style={itemStyle}
         onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
         onMouseLeave={e => e.currentTarget.style.background='none'}
@@ -6190,6 +6193,7 @@ function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLog
         <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3M1 2h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
         Importar dados
       </button>
+      )}
       <button style={itemStyle}
         onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
         onMouseLeave={e => e.currentTarget.style.background='none'}
@@ -6886,7 +6890,7 @@ export default function Pipeline() {
 
         {/* ── Lado Esquerdo: funil + busca + responsável ── */}
         <div style={{ ...p.tbLeft, flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : undefined }}>
-          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} />
+          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} isParceiro={isParceiro} />
 
           <div style={{ ...p.searchWrap, width: isMobile ? '100%' : 240 }}>
             <span style={p.searchIcon}>⌕</span>
@@ -6977,6 +6981,7 @@ export default function Pipeline() {
               <AcoesMenu
                 onExport={() => { handleExport(); setAcoesOpen(false) }}
                 onImport={() => { setImportModal(true); setAcoesOpen(false) }}
+                isParceiro={isParceiro}
                 onClose={() => setAcoesOpen(false)}
                 anchorRef={acoesRef}
                 selected={selected}
