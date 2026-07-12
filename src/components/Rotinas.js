@@ -157,7 +157,12 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (p.funil_id) {
     const antes = lista.length
     lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
-    console.log('[Rotina] filtro funil_id:', p.funil_id, '| antes:', antes, '→ depois:', lista.length, '| amostra cf.funil_id:', opps?.slice(0,3).map(o=>o.custom_fields?.funil_id))
+    console.log(
+      '[Rotina] filtro funil_id:',
+      JSON.stringify(p.funil_id), typeof p.funil_id,
+      '| antes:', antes, '→ depois:', lista.length,
+      '| amostras cf.funil_id:', opps?.slice(0,5).map(o => JSON.stringify(o.custom_fields?.funil_id) + ' (' + typeof o.custom_fields?.funil_id + ')')
+    )
   }
   if (p.empresa_nome) {
     const termo = p.empresa_nome.toLowerCase()
