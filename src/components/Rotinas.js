@@ -156,7 +156,7 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
 
   // Filtros client-side (funil_id está em custom_fields, não coluna direta)
   if (p.funil_id)
-    lista = lista.filter(o => (o.custom_fields?.funil_id || o.funil_id) === p.funil_id)
+    lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
   if (p.empresa_nome) {
     const termo = p.empresa_nome.toLowerCase()
     lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
@@ -203,6 +203,9 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
           before.stage_id = opp.stage_id
           after.stage_id  = acao.etapa_id
           changes.stage_id = acao.etapa_id
+          // sincroniza custom_fields.etapa_id para consistência com o hook useOpportunities
+          const cfAtual = opp.custom_fields || {}
+          changes.custom_fields = { ...cfAtual, ...(changes.custom_fields||{}), etapa_id: acao.etapa_id }
         }
         if (acao.key === 'alterar_situacao' && acao.situacao) {
           before.situacao = opp.situacao
