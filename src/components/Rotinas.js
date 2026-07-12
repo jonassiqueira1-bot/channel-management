@@ -51,28 +51,43 @@ const ACOES_PIPELINE = [
 // ─── Engine de execução (Pipeline) ───────────────────────────────────────────
 async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) {
   // 1. Busca oportunidades filtrando no banco
+  // Filtros seguros no banco (colunas reais, sem jsonb path)
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
   const p = parametros
-  if (p.funil_id)          q = q.eq('funil_id', p.funil_id)
-  if (p.situacao)          q = q.eq('situacao', p.situacao)
-  if (p.stage_id)          q = q.eq('stage_id', p.stage_id)
-  if (p.origem)            q = q.eq('origem', p.origem)
-  if (p.responsavel)       q = q.ilike('responsavel', `%${p.responsavel}%`)
-  if (p.titulo)            q = q.ilike('titulo', `%${p.titulo}%`)
-  if (p.empresa_nome)      q = q.ilike('custom_fields->>empresa_nome', `%${p.empresa_nome}%`)
-  if (p.descricao)         q = q.ilike('descricao', `%${p.descricao}%`)
-  if (p.motivo_perda)      q = q.ilike('motivo_perda', `%${p.motivo_perda}%`)
-  if (p.valor_min)         q = q.gte('valor', Number(p.valor_min))
-  if (p.valor_max)         q = q.lte('valor', Number(p.valor_max))
-  if (p.prazo_de)          q = q.gte('prazo', p.prazo_de)
-  if (p.prazo_ate)         q = q.lte('prazo', p.prazo_ate)
-  if (p.created_at_de)     q = q.gte('created_at', p.created_at_de)
-  if (p.created_at_ate)    q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
+  if (p.funil_id)       q = q.eq('funil_id', p.funil_id)
+  if (p.situacao)       q = q.eq('situacao', p.situacao)
+  if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
+  if (p.origem)         q = q.eq('origem', p.origem)
+  if (p.responsavel)    q = q.ilike('responsavel', `%${p.responsavel}%`)
+  if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
+  if (p.descricao)      q = q.ilike('descricao', `%${p.descricao}%`)
+  if (p.motivo_perda)   q = q.ilike('motivo_perda', `%${p.motivo_perda}%`)
+  if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
+  if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
+  if (p.prazo_de)       q = q.gte('prazo', p.prazo_de)
+  if (p.prazo_ate)      q = q.lte('prazo', p.prazo_ate)
+  if (p.created_at_de)  q = q.gte('created_at', p.created_at_de)
+  if (p.created_at_ate) q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
 
   const { data: opps, error } = await q
   if (error) return { ok: false, error: error.message, registros: [] }
 
   let lista = opps || []
+
+  // Filtros client-side (campos dentro de custom_fields ou lógica composta)
+  if (p.empresa_nome) {
+    const termo = p.empresa_nome.toLowerCase()
+    lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
+  }
+  if (p.proxima_tarefa_data_de || p.proxima_tarefa_data_ate) {
+    lista = lista.filter(o => {
+      const d = o.custom_fields?.proxima_tarefa_data
+      if (!d) return false
+      if (p.proxima_tarefa_data_de && d < p.proxima_tarefa_data_de) return false
+      if (p.proxima_tarefa_data_ate && d > p.proxima_tarefa_data_ate) return false
+      return true
+    })
+  }
 
   // Filtro "sem tarefa aberta" (não dá pra fazer no banco facilmente)
   if (parametros.sem_tarefa) {
@@ -651,15 +666,28 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
 
   const fazerPreview = useCallback(async () => {
     setPreview('carregando')
-    let q = supabase.from('oportunidades').select('id,titulo').eq('tenant_id', tenantId).is('deleted_at', null)
+    let q = supabase.from('oportunidades').select('id,titulo,custom_fields').eq('tenant_id', tenantId).is('deleted_at', null)
     const p = routine.parametros || {}
-    if (p.funil_id)   q = q.eq('funil_id', p.funil_id)
-    if (p.situacao && p.situacao !== 'todas') q = q.eq('situacao', p.situacao)
-    if (p.stage_id)   q = q.eq('stage_id', p.stage_id)
-    if (p.valor_min)  q = q.gte('valor', Number(p.valor_min))
-    if (p.valor_max)  q = q.lte('valor', Number(p.valor_max))
-    const { data } = await q
-    setPreview(data?.length ?? 0)
+    if (p.funil_id)       q = q.eq('funil_id', p.funil_id)
+    if (p.situacao)       q = q.eq('situacao', p.situacao)
+    if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
+    if (p.origem)         q = q.eq('origem', p.origem)
+    if (p.responsavel)    q = q.ilike('responsavel', `%${p.responsavel}%`)
+    if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
+    if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
+    if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
+    if (p.prazo_de)       q = q.gte('prazo', p.prazo_de)
+    if (p.prazo_ate)      q = q.lte('prazo', p.prazo_ate)
+    if (p.created_at_de)  q = q.gte('created_at', p.created_at_de)
+    if (p.created_at_ate) q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
+    const { data, error } = await q
+    if (error) { setPreview(0); return }
+    let lista = data || []
+    if (p.empresa_nome) {
+      const t = p.empresa_nome.toLowerCase()
+      lista = lista.filter(o => (o.custom_fields?.empresa_nome||'').toLowerCase().includes(t))
+    }
+    setPreview(lista.length)
   }, [routine, tenantId])
 
   useEffect(() => { fazerPreview() }, [fazerPreview])
