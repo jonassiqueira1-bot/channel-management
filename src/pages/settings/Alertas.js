@@ -1228,7 +1228,7 @@ export default function SettingsAlertas() {
     if (!tenantId) { setLoading(false); return }
     setLoading(true)
     let q = supabase.from('alert_rules').select('*').eq('tenant_id', tenantId).order('created_at')
-    if (activeBranchId) q = q.eq('branch_id', activeBranchId)
+    if (activeBranchId) q = q.or(`branch_id.eq.${activeBranchId},branch_id.is.null`)
     const { data } = await q
     setRules((data || []).map(rowToRule))
     setLoading(false)
