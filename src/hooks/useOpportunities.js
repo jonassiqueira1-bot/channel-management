@@ -250,7 +250,10 @@ export function useOpportunities() {
       setOpps(prev => prev.filter(o => o.id !== id))
       return { ok: true }
     }
-    const { error } = await supabase.rpc('soft_delete_oportunidade', { p_id: id })
+    const { error } = await supabase
+      .from('opportunities')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
     if (error) return { ok: false, message: error.message }
     setOpps(prev => prev.filter(o => o.id !== id))
     return { ok: true }
@@ -260,7 +263,10 @@ export function useOpportunities() {
   const removeMany = useCallback(async (ids) => {
     setOpps(prev => prev.filter(o => !ids.includes(o.id)))
     if (!isMockMode.current) {
-      await Promise.all(ids.map(id => supabase.rpc('soft_delete_oportunidade', { p_id: id })))
+      await supabase
+        .from('opportunities')
+        .update({ deleted_at: new Date().toISOString() })
+        .in('id', ids)
     }
   }, [])
 
