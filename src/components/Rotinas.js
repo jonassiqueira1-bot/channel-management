@@ -5,22 +5,22 @@ import { useProfile } from '../hooks/useProfile'
 
 // ─── Paleta / tokens ─────────────────────────────────────────────────────────
 const C = {
-  bg:      'var(--color-bg)',
-  surface: 'var(--color-surface)',
-  border:  'var(--color-border)',
-  text:    'var(--color-text)',
-  muted:   'var(--color-text-muted)',
-  primary: 'var(--color-primary)',
-  danger:  'var(--color-danger)',
-  success: 'var(--color-success)',
+  bg:      'var(--bg)',
+  surface: 'var(--surface)',
+  border:  'var(--border)',
+  text:    'var(--text)',
+  muted:   'var(--text-muted)',
+  primary: 'var(--accent)',
+  danger:  '#ef4444',
+  success: '#22c55e',
 }
 
 const s = {
   overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:1200, display:'flex', alignItems:'flex-start', justifyContent:'flex-end' },
-  drawer:  { width:400, height:'100vh', background:C.bg, borderLeft:`1px solid ${C.border}`, display:'flex', flexDirection:'column', overflowY:'auto' },
+  drawer:  { width:400, height:'100vh', background:C.bg, borderLeft:`1px solid ${C.border}`, display:'flex', flexDirection:'column' },
   header:  { padding:'16px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' },
   title:   { fontWeight:600, fontSize:15, color:C.text, margin:0 },
-  body:    { flex:1, padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 },
+  body:    { flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 },
   btn:     (variant='primary') => ({
     padding:'7px 14px', borderRadius:6, border:'none', cursor:'pointer', fontSize:13, fontWeight:500,
     background: variant==='primary' ? C.primary : variant==='danger' ? C.danger : C.surface,
