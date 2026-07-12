@@ -56,7 +56,6 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   // Filtros seguros no banco (colunas reais, sem jsonb path)
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
   const p = parametros
-  if (p.funil_id)       q = q.eq('funil_id', p.funil_id)
   if (p.situacao)       q = q.eq('situacao', p.situacao)
   if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
   if (p.origem)         q = q.eq('origem', p.origem)
@@ -76,7 +75,9 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
 
   let lista = opps || []
 
-  // Filtros client-side (campos dentro de custom_fields ou lógica composta)
+  // Filtros client-side (funil_id está em custom_fields, não coluna direta)
+  if (p.funil_id)
+    lista = lista.filter(o => (o.custom_fields?.funil_id || o.funil_id) === p.funil_id)
   if (p.empresa_nome) {
     const termo = p.empresa_nome.toLowerCase()
     lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
@@ -690,7 +691,6 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     setPreview('carregando')
     let q = supabase.from('oportunidades').select('id,titulo,custom_fields').eq('tenant_id', tenantId).is('deleted_at', null)
     const p = routine.parametros || {}
-    if (p.funil_id)       q = q.eq('funil_id', p.funil_id)
     if (p.situacao)       q = q.eq('situacao', p.situacao)
     if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
     if (p.origem)         q = q.eq('origem', p.origem)
@@ -705,6 +705,8 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     const { data, error } = await q
     if (error) { setPreview(0); return }
     let lista = data || []
+    if (p.funil_id)
+      lista = lista.filter(o => (o.custom_fields?.funil_id || o.funil_id) === p.funil_id)
     if (p.empresa_nome) {
       const t = p.empresa_nome.toLowerCase()
       lista = lista.filter(o => (o.custom_fields?.empresa_nome||'').toLowerCase().includes(t))
