@@ -1858,7 +1858,7 @@ function OppEquipeTab({ oppId }) {
   const poolCanais = useMemo(() =>
     sellers
       .filter(u => u.status !== 'inativo' && u.status !== 'afastado')
-      .map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '', franquia: u.franquia_nome || '' })),
+      .map(u => ({ id: u.id, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '', franquia: u.franquia_nome || '' })),
   [sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
