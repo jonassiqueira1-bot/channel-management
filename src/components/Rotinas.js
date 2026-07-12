@@ -412,7 +412,9 @@ function resumoParam(campo, p) {
 
 function CampoFiltro({ campo, p, setP, funis }) {
   const [open, setOpen] = useState(false)
-  const etapas = funis.find(f => f.id === p.funil_id)?.etapas || []
+  const etapas = p.funil_id
+    ? (funis.find(f => f.id === p.funil_id)?.etapas || [])
+    : funis.flatMap(f => (f.etapas || []).map(e => ({ ...e, _funil: f.nome })))
 
   const temValor = () => {
     if (campo.tipo === 'range_num')  return !!(p[campo.key+'_min'] || p[campo.key+'_max'])
@@ -460,7 +462,7 @@ function CampoFiltro({ campo, p, setP, funis }) {
           {campo.tipo === 'select' && campo.key === 'stage_id' && (
             <select style={s.input} value={p.stage_id||''} onChange={e=>setP('stage_id', e.target.value||null)}>
               <option value="">Todas as etapas</option>
-              {etapas.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
+              {etapas.map(e=><option key={e.id} value={e.id}>{e._funil ? `${e._funil} › ${e.nome}` : e.nome}</option>)}
             </select>
           )}
           {campo.tipo === 'select' && campo.key === 'situacao' && (
