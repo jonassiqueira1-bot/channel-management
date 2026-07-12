@@ -431,7 +431,7 @@ function resumoParam(campo, p) {
 function CampoFiltro({ campo, p, setP, funis, usuarios }) {
   const [open, setOpen] = useState(false)
   const etapas = p.funil_id
-    ? (funis.find(f => f.id === p.funil_id)?.etapas || [])
+    ? (funis.find(f => String(f.id) === String(p.funil_id))?.etapas || [])
     : funis.flatMap(f => (f.etapas || []).map(e => ({ ...e, _funil: f.nome })))
 
   const temValor = () => {
@@ -576,7 +576,7 @@ function WizardStep2({ form, set, funis, usuarios }) {
 
 function AcaoEditor({ acao, onChange, onRemove, funis, usuarios, parametros }) {
   const etapas = parametros?.funil_id
-    ? (funis.find(f=>f.id===parametros.funil_id)?.etapas || [])
+    ? (funis.find(f=>String(f.id)===String(parametros.funil_id))?.etapas || [])
     : funis.flatMap(f=>(f.etapas||[]).map(e=>({...e, _funil:f.nome})))
   const set = (k,v) => onChange({ ...acao, [k]:v })
 
@@ -838,7 +838,10 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
 
 function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, userId, saveExecution, loadExecutions, onRevert }) {
   const empty = { nome:'', descricao:'', compartilhamento:'privado', schedule_tipo:'manual', parametros:{}, acoes:[] }
-  const [form, setForm]   = useState(initial || empty)
+  const [form, setForm]   = useState(() => {
+    if (!initial) return empty
+    return { ...initial, schedule_config: initial.parametros?._schedule_config || { frequencia:'manual' } }
+  })
   const [step, setStep]   = useState(0)
   const [saving, setSaving] = useState(false)
   const [erroGeral, setErroGeral] = useState('')
@@ -855,7 +858,11 @@ function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, us
   const handleSave = async () => {
     if (!form.nome.trim()) { setErroGeral('Informe o nome da rotina.'); return }
     setSaving(true)
-    const res = await onSaved({ ...form, schedule: buildCron(form.schedule_config) })
+    const res = await onSaved({
+      ...form,
+      schedule: buildCron(form.schedule_config),
+      parametros: { ...(form.parametros || {}), _schedule_config: form.schedule_config || null },
+    })
     setSaving(false)
     if (!res?.ok) { setErroGeral(res?.message || 'Erro ao salvar'); return }
     if (step < 3) setStep(s=>s+1)
@@ -936,7 +943,11 @@ export default function RotinasDrawer({ contexto, onClose }) {
   const userId         = profile?.id
   const { funis: allFunis } = useFunnels()
   const { usuarios }   = useUsuarios()
-  const funis          = useMemo(() => (allFunis || []).filter(f => !f.status || f.status === 'ativo'), [allFunis])
+  const funis          = useMemo(() => {
+    const lista = (allFunis || []).filter(f => !f.status || f.status === 'ativo')
+    console.log('[Rotinas] allFunis:', allFunis?.length, 'funis ativos:', lista.length, lista.map(f=>({id:f.id,nome:f.nome,etapas:f.etapas?.length})))
+    return lista
+  }, [allFunis])
   const { routines, loading, save, remove, saveExecution, loadExecutions, revert } = useRoutines(contexto)
   const [wizard, setWizard] = useState(null) // null | {} | {routine}
 
