@@ -74,7 +74,7 @@ function buildEmail(template: TemplateName, data: Record<string, unknown>): { su
   `
 
   const btn = (label: string, url: string) =>
-    `<a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#4F7FE8 0%,#2B52C8 100%);color:#fff;padding:13px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin-top:24px;letter-spacing:0.2px;">${label}</a>`
+    `<a href="${url}" style="display:inline-block;background:#1E3A5F;color:#ffffff;padding:13px 28px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;margin-top:24px;letter-spacing:0.2px;mso-padding-alt:0;border:2px solid #1E3A5F;">${label}</a>`
 
   const h1 = (text: string) =>
     `<h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#1a2a5e;">${text}</h1>`
