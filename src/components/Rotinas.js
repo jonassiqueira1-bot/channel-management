@@ -1056,7 +1056,8 @@ function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, us
 }
 
 // ─── Modal de relatório de execuções ─────────────────────────────────────────
-function RelatorioModal({ rotina, executions, onClose, onRevert }) {
+function RelatorioModal({ rotina, executions, usuarios, onClose, onRevert }) {
+  const nomeUsuario = (id) => (usuarios||[]).find(u => u.id === id)?.nome || 'Automático'
   const [verExec, setVerExec] = useState(null)
   return (
     <div style={s.overlay} onClick={e=>{ if(e.target===e.currentTarget) onClose() }}>
@@ -1073,7 +1074,8 @@ function RelatorioModal({ rotina, executions, onClose, onRevert }) {
                 <span style={s.badge(ex.status==='sucesso'?'#00aa44':ex.status==='parcial'?'#f59e0b':'#ef4444')}>{ex.status}</span>
                 <span style={{ fontSize:12, color:C.muted }}>
                   {new Date(ex.created_at).toLocaleString('pt-BR',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})}
-                  {' · '}{ex.resumo?.total_afetados ?? '?'} afetados
+                  {' · '}{ex.resumo?.total_afetados ?? '?'} afetadas
+                  {' · '}<span style={{ color:C.text }}>{nomeUsuario(ex.executado_por)}</span>
                 </span>
                 <div style={{ marginLeft:'auto', display:'flex', gap:6 }}>
                   <button style={{ ...s.btn('ghost'), fontSize:11 }} onClick={()=>setVerExec(verExec?.id===ex.id?null:ex)}>
@@ -1217,6 +1219,7 @@ export default function RotinasDrawer({ contexto, onClose }) {
         <RelatorioModal
           rotina={relatorio.rotina}
           executions={relatorio.executions}
+          usuarios={usuarios}
           onClose={()=>setRelatorio(null)}
           onRevert={async (ex) => {
             if (!window.confirm(`Reverter ${(ex.snapshot_antes||[]).length} registro(s)?`)) return
