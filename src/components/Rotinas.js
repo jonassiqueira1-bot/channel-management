@@ -18,6 +18,7 @@ const CATEGORIAS_FORECAST_LOCAL = [
 const DATE_PRESETS = [
   { value:'hoje',       label:'Hoje' },
   { value:'ontem',      label:'Ontem' },
+  { value:'atrasado',   label:'Vencido / Em atraso' },
   { value:'ini_mes',    label:'Início do mês' },
   { value:'fim_mes',    label:'Fim do mês' },
   { value:'em_x_dias',  label:'Em X dias',          hasNum:true },
@@ -33,6 +34,7 @@ function resolveDate(v) {
   switch (v.tipo) {
     case 'hoje':      return iso(t)
     case 'ontem':     { const d=new Date(t); d.setDate(d.getDate()-1); return iso(d) }
+    case 'atrasado':  { const d=new Date(t); d.setDate(d.getDate()-1); return iso(d) }
     case 'ini_mes':   return iso(new Date(t.getFullYear(), t.getMonth(), 1))
     case 'fim_mes':   return iso(new Date(t.getFullYear(), t.getMonth()+1, 0))
     case 'em_x_dias': { const d=new Date(t); d.setDate(d.getDate()+Number(v.valor||0)); return iso(d) }
