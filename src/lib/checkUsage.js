@@ -41,8 +41,14 @@ export async function checkEmUso(tipo, id, label, tenantId) {
       return null
     }
     case 'usuario': {
-      const n = await count('tasks', 'responsavel_id', id, tenantId)
-      if (n > 0) return `Este usuário possui ${n} tarefa(s) vinculada(s). Inative-o em vez de excluir.`
+      const tasks = await count('tasks', 'responsavel_id', id, tenantId)
+      // busca o nome do usuário para verificar oportunidades (responsavel é campo texto)
+      const { data: perfil } = await supabase.from('profiles').select('nome').eq('id', id).single()
+      const opps = perfil?.nome
+        ? await count('oportunidades', 'responsavel', perfil.nome, tenantId)
+        : 0
+      const total = tasks + opps
+      if (total > 0) return `Este usuário está em uso (${tasks} tarefa(s), ${opps} oportunidade(s)). Inative-o em vez de excluir.`
       return null
     }
     case 'tipo_acao': {
