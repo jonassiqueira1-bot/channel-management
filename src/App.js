@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
 import Login from './pages/Login'
 import ForgotPassword from './pages/ForgotPassword'
+import ResetPassword from './pages/ResetPassword'
 import Signup from './pages/Signup'
 import AceitarConvite from './pages/AceitarConvite'
 import Dashboard from './pages/Dashboard'
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/confirmar-assinatura" element={<ConfirmarAssinatura />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/signup" element={<Signup />} />
           <Route path="/aceitar-convite" element={<AceitarConvite />} />
           <Route
