@@ -52,15 +52,22 @@ const ACOES_PIPELINE = [
 async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) {
   // 1. Busca oportunidades filtrando no banco
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
-  if (parametros.funil_id)   q = q.eq('funil_id', parametros.funil_id)
-  if (parametros.situacao && parametros.situacao !== 'todas') q = q.eq('situacao', parametros.situacao)
-  if (parametros.stage_id)   q = q.eq('stage_id', parametros.stage_id)
-  if (parametros.responsavel) q = q.ilike('responsavel', `%${parametros.responsavel}%`)
-  if (parametros.valor_min)  q = q.gte('valor', Number(parametros.valor_min))
-  if (parametros.valor_max)  q = q.lte('valor', Number(parametros.valor_max))
-  if (parametros.prazo_ate)  q = q.lte('prazo', parametros.prazo_ate)
-  if (parametros.criado_de)  q = q.gte('created_at', parametros.criado_de)
-  if (parametros.criado_ate) q = q.lte('created_at', parametros.criado_ate + 'T23:59:59')
+  const p = parametros
+  if (p.funil_id)          q = q.eq('funil_id', p.funil_id)
+  if (p.situacao)          q = q.eq('situacao', p.situacao)
+  if (p.stage_id)          q = q.eq('stage_id', p.stage_id)
+  if (p.origem)            q = q.eq('origem', p.origem)
+  if (p.responsavel)       q = q.ilike('responsavel', `%${p.responsavel}%`)
+  if (p.titulo)            q = q.ilike('titulo', `%${p.titulo}%`)
+  if (p.empresa_nome)      q = q.ilike('custom_fields->>empresa_nome', `%${p.empresa_nome}%`)
+  if (p.descricao)         q = q.ilike('descricao', `%${p.descricao}%`)
+  if (p.motivo_perda)      q = q.ilike('motivo_perda', `%${p.motivo_perda}%`)
+  if (p.valor_min)         q = q.gte('valor', Number(p.valor_min))
+  if (p.valor_max)         q = q.lte('valor', Number(p.valor_max))
+  if (p.prazo_de)          q = q.gte('prazo', p.prazo_de)
+  if (p.prazo_ate)         q = q.lte('prazo', p.prazo_ate)
+  if (p.created_at_de)     q = q.gte('created_at', p.created_at_de)
+  if (p.created_at_ate)    q = q.lte('created_at', p.created_at_ate + 'T23:59:59')
 
   const { data: opps, error } = await q
   if (error) return { ok: false, error: error.message, registros: [] }
@@ -381,73 +388,160 @@ function WizardStep1({ form, set }) {
   )
 }
 
-function WizardStep2({ form, set, funis }) {
-  const etapas = funis.find(f=>f.id===form.parametros?.funil_id)?.etapas || []
-  const setP = (k,v) => set('parametros', { ...form.parametros, [k]:v })
+// Resumo legível do valor de um parâmetro
+function resumoParam(campo, p) {
+  const v = p[campo.key]
+  if (v === undefined || v === null || v === '' || v === false) return null
+  if (campo.tipo === 'bool') return v ? 'Sim' : null
+  if (campo.tipo === 'range_num') {
+    const min = p[campo.key + '_min'], max = p[campo.key + '_max']
+    if (!min && !max) return null
+    if (min && max) return `${min} – ${max}`
+    if (min) return `≥ ${min}`
+    return `≤ ${max}`
+  }
+  if (campo.tipo === 'range_date') {
+    const de = p[campo.key + '_de'], ate = p[campo.key + '_ate']
+    if (!de && !ate) return null
+    if (de && ate) return `${de} → ${ate}`
+    if (de) return `a partir de ${de}`
+    return `até ${ate}`
+  }
+  return String(v)
+}
+
+function CampoFiltro({ campo, p, setP, funis }) {
+  const [open, setOpen] = useState(false)
+  const etapas = funis.find(f => f.id === p.funil_id)?.etapas || []
+
+  const temValor = () => {
+    if (campo.tipo === 'range_num')  return !!(p[campo.key+'_min'] || p[campo.key+'_max'])
+    if (campo.tipo === 'range_date') return !!(p[campo.key+'_de']  || p[campo.key+'_ate'])
+    if (campo.tipo === 'bool')       return !!p[campo.key]
+    return !!(p[campo.key])
+  }
+  const ativo = temValor()
+  const resumo = resumoParam(campo, p)
+
+  const clear = () => {
+    if (campo.tipo === 'range_num')  { setP(campo.key+'_min',''); setP(campo.key+'_max','') }
+    else if (campo.tipo === 'range_date') { setP(campo.key+'_de',''); setP(campo.key+'_ate','') }
+    else setP(campo.key, campo.tipo==='bool' ? false : '')
+  }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-      <div>
-        <label style={s.label}>Funil</label>
-        <select style={s.input} value={form.parametros?.funil_id||''} onChange={e=>setP('funil_id', e.target.value||null)}>
-          <option value="">Todos os funis</option>
-          {funis.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
-        </select>
+    <div style={{ borderBottom:`1px solid ${C.border}` }}>
+      {/* Linha do campo */}
+      <div style={{ display:'flex', alignItems:'center', padding:'10px 0', gap:8, cursor:'pointer' }} onClick={()=>setOpen(o=>!o)}>
+        <div style={{ flex:1 }}>
+          <span style={{ fontSize:13, color: ativo ? C.text : C.muted, fontWeight: ativo ? 600 : 400 }}>
+            {campo.label}
+          </span>
+          {resumo && !open && (
+            <span style={{ fontSize:11, color:C.primary, marginLeft:8 }}>{resumo}</span>
+          )}
+        </div>
+        {ativo && !open && (
+          <button style={{ fontSize:11, color:C.danger, background:'none', border:'none', cursor:'pointer', padding:'0 4px' }}
+            onClick={e=>{ e.stopPropagation(); clear() }}>✕</button>
+        )}
+        <span style={{ fontSize:11, color:C.muted, transition:'transform .2s', display:'inline-block', transform: open ? 'rotate(90deg)' : 'rotate(0deg)' }}>▶</span>
       </div>
-      {etapas.length > 0 && (
-        <div>
-          <label style={s.label}>Etapa</label>
-          <select style={s.input} value={form.parametros?.stage_id||''} onChange={e=>setP('stage_id', e.target.value||null)}>
-            <option value="">Todas as etapas</option>
-            {etapas.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
-          </select>
+
+      {/* Opções expandidas */}
+      {open && (
+        <div style={{ paddingBottom:12, display:'flex', flexDirection:'column', gap:8 }}>
+          {campo.tipo === 'select' && campo.key === 'funil_id' && (
+            <select style={s.input} value={p.funil_id||''} onChange={e=>setP('funil_id', e.target.value||null)}>
+              <option value="">Todos os funis</option>
+              {funis.map(f=><option key={f.id} value={f.id}>{f.nome}</option>)}
+            </select>
+          )}
+          {campo.tipo === 'select' && campo.key === 'stage_id' && (
+            <select style={s.input} value={p.stage_id||''} onChange={e=>setP('stage_id', e.target.value||null)}>
+              <option value="">Todas as etapas</option>
+              {etapas.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
+            </select>
+          )}
+          {campo.tipo === 'select' && campo.key === 'situacao' && (
+            <select style={s.input} value={p.situacao||''} onChange={e=>setP('situacao',e.target.value)}>
+              <option value="">Qualquer</option>
+              <option value="em_andamento">Em andamento</option>
+              <option value="ganha">Ganha</option>
+              <option value="perdida">Perdida</option>
+            </select>
+          )}
+          {campo.tipo === 'select' && campo.key === 'origem' && (
+            <select style={s.input} value={p.origem||''} onChange={e=>setP('origem',e.target.value)}>
+              <option value="">Qualquer</option>
+              {['Indicação','Evento','Prospecção','Inbound','Canal','Outro'].map(o=><option key={o}>{o}</option>)}
+            </select>
+          )}
+          {campo.tipo === 'text' && (
+            <input style={s.input} value={p[campo.key]||''} onChange={e=>setP(campo.key,e.target.value)} placeholder={campo.placeholder||'Contém...'} />
+          )}
+          {campo.tipo === 'range_num' && (
+            <div style={s.row}>
+              <input type="number" style={{...s.input,flex:1}} placeholder="Mínimo" value={p[campo.key+'_min']||''} onChange={e=>setP(campo.key+'_min',e.target.value)} />
+              <span style={{color:C.muted}}>–</span>
+              <input type="number" style={{...s.input,flex:1}} placeholder="Máximo" value={p[campo.key+'_max']||''} onChange={e=>setP(campo.key+'_max',e.target.value)} />
+            </div>
+          )}
+          {campo.tipo === 'range_date' && (
+            <div style={s.row}>
+              <input type="date" style={{...s.input,flex:1}} value={p[campo.key+'_de']||''} onChange={e=>setP(campo.key+'_de',e.target.value)} />
+              <span style={{color:C.muted}}>→</span>
+              <input type="date" style={{...s.input,flex:1}} value={p[campo.key+'_ate']||''} onChange={e=>setP(campo.key+'_ate',e.target.value)} />
+            </div>
+          )}
+          {campo.tipo === 'bool' && (
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="checkbox" checked={!!p[campo.key]} onChange={e=>setP(campo.key,e.target.checked)} />
+              {campo.label}
+            </label>
+          )}
         </div>
       )}
-      <div>
-        <label style={s.label}>Situação</label>
-        <select style={s.input} value={form.parametros?.situacao||'todas'} onChange={e=>setP('situacao',e.target.value)}>
-          <option value="todas">Todas</option>
-          <option value="em_andamento">Em andamento</option>
-          <option value="ganha">Ganha</option>
-          <option value="perdida">Perdida</option>
-        </select>
+    </div>
+  )
+}
+
+const CAMPOS_OPP = [
+  { key:'funil_id',            label:'Funil',                    tipo:'select' },
+  { key:'stage_id',            label:'Etapa',                    tipo:'select' },
+  { key:'situacao',            label:'Situação',                 tipo:'select' },
+  { key:'titulo',              label:'Título',                   tipo:'text',       placeholder:'Contém...' },
+  { key:'responsavel',         label:'Responsável',              tipo:'text',       placeholder:'Nome ou parte do nome' },
+  { key:'empresa_nome',        label:'Empresa',                  tipo:'text',       placeholder:'Nome da empresa' },
+  { key:'origem',              label:'Origem',                   tipo:'select' },
+  { key:'valor',               label:'Valor (R$)',               tipo:'range_num' },
+  { key:'created_at',          label:'Data de abertura',         tipo:'range_date' },
+  { key:'prazo',               label:'Previsão de fechamento',   tipo:'range_date' },
+  { key:'proxima_tarefa_data', label:'Próxima tarefa',           tipo:'range_date' },
+  { key:'sem_tarefa',          label:'Sem tarefa aberta',        tipo:'bool' },
+  { key:'descricao',           label:'Descrição',                tipo:'text',       placeholder:'Contém...' },
+  { key:'motivo_perda',        label:'Motivo de perda',          tipo:'text',       placeholder:'Contém...' },
+]
+
+function WizardStep2({ form, set, funis }) {
+  const p    = form.parametros || {}
+  const setP = (k, v) => set('parametros', { ...p, [k]: v })
+
+  const ativos = CAMPOS_OPP.filter(c => {
+    if (c.tipo === 'range_num')  return !!(p[c.key+'_min'] || p[c.key+'_max'])
+    if (c.tipo === 'range_date') return !!(p[c.key+'_de']  || p[c.key+'_ate'])
+    if (c.tipo === 'bool')       return !!p[c.key]
+    return !!(p[c.key])
+  }).length
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column' }}>
+      <div style={{ fontSize:12, color:C.muted, marginBottom:12 }}>
+        {ativos > 0 ? `${ativos} filtro(s) ativo(s) — clique em um campo para configurar` : 'Clique em qualquer campo para definir o filtro'}
       </div>
-      <div>
-        <label style={s.label}>Responsável (contém)</label>
-        <input style={s.input} value={form.parametros?.responsavel||''} onChange={e=>setP('responsavel',e.target.value)} placeholder="Nome ou parte do nome" />
-      </div>
-      <div style={s.row}>
-        <div style={{flex:1}}>
-          <label style={s.label}>Valor mínimo (R$)</label>
-          <input type="number" style={s.input} value={form.parametros?.valor_min||''} onChange={e=>setP('valor_min',e.target.value)} />
-        </div>
-        <div style={{flex:1}}>
-          <label style={s.label}>Valor máximo (R$)</label>
-          <input type="number" style={s.input} value={form.parametros?.valor_max||''} onChange={e=>setP('valor_max',e.target.value)} />
-        </div>
-      </div>
-      <div style={s.row}>
-        <div style={{flex:1}}>
-          <label style={s.label}>Abertura de</label>
-          <input type="date" style={s.input} value={form.parametros?.criado_de||''} onChange={e=>setP('criado_de',e.target.value)} />
-        </div>
-        <div style={{flex:1}}>
-          <label style={s.label}>Abertura até</label>
-          <input type="date" style={s.input} value={form.parametros?.criado_ate||''} onChange={e=>setP('criado_ate',e.target.value)} />
-        </div>
-      </div>
-      <div style={s.row}>
-        <div style={{flex:1}}>
-          <label style={s.label}>Previsão até</label>
-          <input type="date" style={s.input} value={form.parametros?.prazo_ate||''} onChange={e=>setP('prazo_ate',e.target.value)} />
-        </div>
-        <div style={{flex:1, paddingTop:20}}>
-          <label style={{...s.label, display:'flex', alignItems:'center', gap:6, cursor:'pointer'}}>
-            <input type="checkbox" checked={!!form.parametros?.sem_tarefa} onChange={e=>setP('sem_tarefa',e.target.checked)} />
-            Sem tarefa aberta
-          </label>
-        </div>
-      </div>
+      {CAMPOS_OPP.map(campo => (
+        <CampoFiltro key={campo.key} campo={campo} p={p} setP={setP} funis={funis} />
+      ))}
     </div>
   )
 }
