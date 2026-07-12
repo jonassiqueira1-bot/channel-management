@@ -6600,6 +6600,14 @@ export default function Pipeline() {
     if (partnerFunilId) setFunilAtivo(String(partnerFunilId))
   }, [partnerFunilId])
 
+  // Auto-seleciona funil padrão se funilAtivo for null ou não existir na lista atual
+  useEffect(() => {
+    if (!funilPadrao?.id) return
+    const valid = FUNIS_ATIVOS.some(f => String(f.id) === String(funilAtivo))
+    if (!funilAtivo || !valid) setFunilAtivo(String(funilPadrao.id))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [funilPadrao?.id])
+
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
   const { companies, add: addCompany } = useCompanies()
