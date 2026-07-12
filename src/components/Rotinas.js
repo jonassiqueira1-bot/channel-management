@@ -5,6 +5,15 @@ import { useProfile } from '../hooks/useProfile'
 import { useFunnels } from '../hooks/useFunnels'
 import { useUsuarios } from '../hooks/useUsuarios'
 
+// ─── Forecast ─────────────────────────────────────────────────────────────────
+const CATEGORIAS_FORECAST_LOCAL = [
+  { value: 'fora',       label: 'Fora' },
+  { value: 'em_aberto',  label: 'Em Aberto' },
+  { value: 'provavel',   label: 'Provável' },
+  { value: 'confirmado', label: 'Confirmado' },
+  { value: 'fechado',    label: 'Fechado' },
+]
+
 // ─── Datas relativas ──────────────────────────────────────────────────────────
 const DATE_PRESETS = [
   { value:'hoje',       label:'Hoje' },
@@ -118,14 +127,10 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (p.motivo_perda)   q = q.ilike('motivo_perda', `%${p.motivo_perda}%`)
   if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
   if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-  const prazo_de      = resolveDate(p.prazo_de)
-  const prazo_ate     = resolveDate(p.prazo_ate)
-  const created_at_de = resolveDate(p.created_at_de)
-  const created_at_ate= resolveDate(p.created_at_ate)
-  if (prazo_de)       q = q.gte('prazo', prazo_de)
-  if (prazo_ate)      q = q.lte('prazo', prazo_ate)
-  if (created_at_de)  q = q.gte('created_at', created_at_de)
-  if (created_at_ate) q = q.lte('created_at', created_at_ate + 'T23:59:59')
+  const prazoDate      = resolveDate(p.prazo)
+  const createdAtDate  = resolveDate(p.created_at)
+  if (prazoDate)      q = q.lte('prazo', prazoDate)
+  if (createdAtDate)  q = q.lte('created_at', createdAtDate + 'T23:59:59')
 
   const { data: opps, error } = await q
   if (error) return { ok: false, error: error.message, registros: [] }
@@ -139,13 +144,14 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     const termo = p.empresa_nome.toLowerCase()
     lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
   }
-  if (p.proxima_tarefa_data_de || p.proxima_tarefa_data_ate) {
-    const pt_de  = resolveDate(p.proxima_tarefa_data_de)
-    const pt_ate = resolveDate(p.proxima_tarefa_data_ate)
+  if (p.categoria_forecast) {
+    lista = lista.filter(o => (o.custom_fields?.categoria_forecast || null) === p.categoria_forecast)
+  }
+  if (p.proxima_tarefa_data) {
+    const pt_ate = resolveDate(p.proxima_tarefa_data)
     lista = lista.filter(o => {
       const d = o.custom_fields?.proxima_tarefa_data
       if (!d) return false
-      if (pt_de  && d < pt_de)  return false
       if (pt_ate && d > pt_ate) return false
       return true
     })
@@ -477,22 +483,14 @@ function resumoParam(campo, p) {
     if (min) return `≥ ${min}`
     return `≤ ${max}`
   }
-  if (campo.tipo === 'range_date') {
-    const de = p[campo.key + '_de'], ate = p[campo.key + '_ate']
-    if (!de && !ate) return null
-    const fmt = v => {
-      if (!v) return null
-      if (typeof v === 'string') return v
-      const pr = DATE_PRESETS.find(p => p.value === v.tipo)
-      if (!pr) return null
-      if (pr.hasNum) return `${pr.label.replace('X', v.valor||'?')}`
-      return pr.label
-    }
-    const fde = fmt(de), fate = fmt(ate)
-    if (fde && fate) return `${fde} → ${fate}`
-    if (fde) return `a partir de ${fde}`
-    if (fate) return `até ${fate}`
-    return null
+  if (campo.tipo === 'date') {
+    const val = p[campo.key]
+    if (!val) return null
+    if (typeof val === 'string') return `até ${val}`
+    const pr = DATE_PRESETS.find(p => p.value === val.tipo)
+    if (!pr) return null
+    if (pr.hasNum) return `até ${pr.label.replace('X', val.valor||'?')}`
+    return `até ${pr.label}`
   }
   return String(v)
 }
@@ -505,7 +503,6 @@ function CampoFiltro({ campo, p, setP, funis, usuarios }) {
 
   const temValor = () => {
     if (campo.tipo === 'range_num')  return !!(p[campo.key+'_min'] || p[campo.key+'_max'])
-    if (campo.tipo === 'range_date') return !!(p[campo.key+'_de']  || p[campo.key+'_ate'])
     if (campo.tipo === 'bool')       return !!p[campo.key]
     return !!(p[campo.key])
   }
@@ -513,8 +510,7 @@ function CampoFiltro({ campo, p, setP, funis, usuarios }) {
   const resumo = resumoParam(campo, p)
 
   const clear = () => {
-    if (campo.tipo === 'range_num')  { setP(campo.key+'_min',''); setP(campo.key+'_max','') }
-    else if (campo.tipo === 'range_date') { setP(campo.key+'_de',''); setP(campo.key+'_ate','') }
+    if (campo.tipo === 'range_num') { setP(campo.key+'_min',''); setP(campo.key+'_max','') }
     else setP(campo.key, campo.tipo==='bool' ? false : '')
   }
 
@@ -584,17 +580,14 @@ function CampoFiltro({ campo, p, setP, funis, usuarios }) {
               <input type="number" style={{...s.input,flex:1}} placeholder="Máximo" value={p[campo.key+'_max']||''} onChange={e=>setP(campo.key+'_max',e.target.value)} />
             </div>
           )}
-          {campo.tipo === 'range_date' && (
-            <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ fontSize:11, color:C.muted, width:20, flexShrink:0 }}>De</span>
-                <DateRelInput value={p[campo.key+'_de']||null} onChange={v=>setP(campo.key+'_de',v)} placeholder="Qualquer data" />
-              </div>
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <span style={{ fontSize:11, color:C.muted, width:20, flexShrink:0 }}>Até</span>
-                <DateRelInput value={p[campo.key+'_ate']||null} onChange={v=>setP(campo.key+'_ate',v)} placeholder="Qualquer data" />
-              </div>
-            </div>
+          {campo.tipo === 'date' && (
+            <DateRelInput value={p[campo.key]||null} onChange={v=>setP(campo.key,v)} placeholder="Qualquer data" />
+          )}
+          {campo.tipo === 'select' && campo.key === 'categoria_forecast' && (
+            <select style={s.input} value={p.categoria_forecast||''} onChange={e=>setP('categoria_forecast',e.target.value||null)}>
+              <option value="">Qualquer</option>
+              {CATEGORIAS_FORECAST_LOCAL.map(c=><option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           )}
           {campo.tipo === 'bool' && (
             <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
@@ -617,9 +610,10 @@ const CAMPOS_OPP = [
   { key:'empresa_nome',        label:'Empresa',                  tipo:'text',       placeholder:'Nome da empresa' },
   { key:'origem',              label:'Origem',                   tipo:'select' },
   { key:'valor',               label:'Valor (R$)',               tipo:'range_num' },
-  { key:'created_at',          label:'Data de abertura',         tipo:'range_date' },
-  { key:'prazo',               label:'Previsão de fechamento',   tipo:'range_date' },
-  { key:'proxima_tarefa_data', label:'Próxima tarefa',           tipo:'range_date' },
+  { key:'categoria_forecast',   label:'Forecast',                 tipo:'select' },
+  { key:'created_at',          label:'Data de abertura',         tipo:'date' },
+  { key:'prazo',               label:'Previsão de fechamento',   tipo:'date' },
+  { key:'proxima_tarefa_data', label:'Próxima tarefa',           tipo:'date' },
   { key:'sem_tarefa',          label:'Sem tarefa aberta',        tipo:'bool' },
   { key:'descricao',           label:'Descrição',                tipo:'text',       placeholder:'Contém...' },
   { key:'motivo_perda',        label:'Motivo de perda',          tipo:'text',       placeholder:'Contém...' },
@@ -631,7 +625,6 @@ function WizardStep2({ form, set, funis, usuarios }) {
 
   const ativos = CAMPOS_OPP.filter(c => {
     if (c.tipo === 'range_num')  return !!(p[c.key+'_min'] || p[c.key+'_max'])
-    if (c.tipo === 'range_date') return !!(p[c.key+'_de']  || p[c.key+'_ate'])
     if (c.tipo === 'bool')       return !!p[c.key]
     return !!(p[c.key])
   }).length
@@ -772,10 +765,8 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
     if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
     if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-    if (p.prazo_de)       q = q.gte('prazo', resolveDate(p.prazo_de))
-    if (p.prazo_ate)      q = q.lte('prazo', resolveDate(p.prazo_ate))
-    if (p.created_at_de)  q = q.gte('created_at', resolveDate(p.created_at_de))
-    if (p.created_at_ate) q = q.lte('created_at', (resolveDate(p.created_at_ate) || '') + 'T23:59:59')
+    if (p.prazo)      q = q.lte('prazo', resolveDate(p.prazo))
+    if (p.created_at) q = q.lte('created_at', (resolveDate(p.created_at) || '') + 'T23:59:59')
     const { data, error } = await q
     if (error) { setPreview(0); return }
     let lista = data || []
@@ -784,6 +775,12 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     if (p.empresa_nome) {
       const t = p.empresa_nome.toLowerCase()
       lista = lista.filter(o => (o.custom_fields?.empresa_nome||'').toLowerCase().includes(t))
+    }
+    if (p.categoria_forecast)
+      lista = lista.filter(o => (o.custom_fields?.categoria_forecast || null) === p.categoria_forecast)
+    if (p.proxima_tarefa_data) {
+      const pt_ate = resolveDate(p.proxima_tarefa_data)
+      lista = lista.filter(o => { const d = o.custom_fields?.proxima_tarefa_data; return d && (!pt_ate || d <= pt_ate) })
     }
     setPreview(lista.length)
   }, [routine, tenantId])
