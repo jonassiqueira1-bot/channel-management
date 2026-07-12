@@ -192,9 +192,11 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   let afetados = 0
   const hoje = new Date().toISOString().slice(0,10)
 
+  const registros_afetados = []
+
   for (const opp of lista) {
-    const before = { id: opp.id }
-    const after  = { id: opp.id }
+    const before = { id: opp.id, titulo: opp.titulo }
+    const after  = { id: opp.id, titulo: opp.titulo }
     let changes  = {}
 
     for (const acao of acoes) {
@@ -285,11 +287,14 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
       if (updErr) { erros.push({ opp_id: opp.id, opp_titulo: opp.titulo, acao:'update', erro: updErr.message }); continue }
       snapshot_antes.push(before)
       snapshot_depois.push(after)
+      registros_afetados.push({ id: opp.id, titulo: opp.titulo })
       afetados++
     } else {
-      // ações que não alteram opp (tarefa, alerta, email) ainda contam
       const acoesIndiretas = acoes.filter(a => ['criar_tarefa','criar_alerta','enviar_email'].includes(a.key))
-      if (acoesIndiretas.length) afetados++
+      if (acoesIndiretas.length) {
+        registros_afetados.push({ id: opp.id, titulo: opp.titulo })
+        afetados++
+      }
     }
   }
 
@@ -302,6 +307,7 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
       total_encontrados: lista.length,
       total_afetados:    afetados,
       acoes_aplicadas:   acoes.map(a=>a.key),
+      registros_afetados,
       erros,
     },
   }
@@ -1081,9 +1087,26 @@ function RelatorioModal({ rotina, executions, onClose, onRevert }) {
               </div>
               {verExec?.id === ex.id && (
                 <div style={{ marginTop:10, fontSize:12, color:C.text }}>
-                  <div><b>Encontrados:</b> {ex.resumo?.total_encontrados ?? '?'} · <b>Afetados:</b> {ex.resumo?.total_afetados ?? '?'}</div>
+                  <div style={{ marginBottom:8 }}>
+                    <b>Encontrados:</b> {ex.resumo?.total_encontrados ?? '?'} · <b>Afetados:</b> {ex.resumo?.total_afetados ?? '?'}
+                  </div>
+
+                  {/* Lista de oportunidades afetadas */}
+                  {(ex.resumo?.registros_afetados||ex.snapshot_antes||[]).length > 0 && (
+                    <div style={{ marginBottom:10 }}>
+                      <div style={{ fontWeight:600, marginBottom:4 }}>Oportunidades afetadas:</div>
+                      <div style={{ maxHeight:140, overflowY:'auto', background:C.surface, borderRadius:6, padding:'6px 8px', border:`1px solid ${C.border}` }}>
+                        {(ex.resumo?.registros_afetados || ex.snapshot_antes).map((r,i) => (
+                          <div key={i} style={{ padding:'3px 0', borderBottom: i < (ex.resumo?.registros_afetados||ex.snapshot_antes).length-1 ? `1px solid ${C.border}` : 'none', fontSize:12 }}>
+                            {r.titulo || r.id}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {(ex.resumo?.erros||[]).length > 0 && (
-                    <div style={{ marginTop:6, color:C.danger }}>
+                    <div style={{ marginBottom:8, color:C.danger }}>
                       <b>Erros:</b>
                       <ul style={{ margin:'4px 0 0 16px', padding:0 }}>
                         {ex.resumo.erros.map((e,i)=><li key={i}>{e.opp_titulo}: {e.erro}</li>)}
@@ -1091,13 +1114,13 @@ function RelatorioModal({ rotina, executions, onClose, onRevert }) {
                     </div>
                   )}
                   {(ex.snapshot_antes||[]).length > 0 && (
-                    <div style={{ marginTop:8 }}>
-                      <b>Registros alterados:</b>
+                    <div style={{ marginTop:4 }}>
+                      <b>Alterações realizadas:</b>
                       <div style={{ maxHeight:160, overflowY:'auto', marginTop:4, background:C.surface, borderRadius:4, padding:6 }}>
                         {ex.snapshot_antes.map((snap,i)=>(
                           <div key={i} style={{ marginBottom:4, borderBottom:`1px solid ${C.border}`, paddingBottom:4 }}>
-                            <b>{ex.snapshot_depois?.[i]?.titulo || snap.id}</b>
-                            {Object.keys(snap).filter(k=>k!=='id').map(k=>(
+                            <b>{snap.titulo || ex.snapshot_depois?.[i]?.titulo || snap.id}</b>
+                            {Object.keys(snap).filter(k=>k!=='id'&&k!=='titulo').map(k=>(
                               <div key={k} style={{ color:C.muted }}>
                                 {k}: <span style={{ color:C.danger }}>{String(snap[k])}</span> → <span style={{ color:C.success }}>{String(ex.snapshot_depois?.[i]?.[k])}</span>
                               </div>
