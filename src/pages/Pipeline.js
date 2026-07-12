@@ -3728,6 +3728,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
           campanha_id: initial.campanha_id || null,
           funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
+          categoria_forecast: initial.categoria_forecast || null,
           custom_fields: { ...(initial.custom_fields || {}) } }
       : { ...EMPTY_OPP, funil_id: funilId || null, etapa_id: etapas[0]?.id || null, itens: [], responsavel: defaultResponsavel || '' }
   )
@@ -3895,6 +3896,20 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
       case 'etapa_id':
         return null
+      case 'categoria_forecast': {
+        const etapaAtual = etapas.find(e => String(e.id) === String(form.etapa_id))
+        const catEtapa = etapaAtual?.categoria_forecast || 'em_aberto'
+        const catAtual = form.categoria_forecast || catEtapa
+        const cfgAtual = CATEGORIAS_FORECAST.find(c => c.value === catAtual) || CATEGORIAS_FORECAST[1]
+        return (
+          <select style={{ ...m.input, fontWeight:600, color: cfgAtual.color }}
+            value={form.categoria_forecast || ''}
+            onChange={e => set('categoria_forecast', e.target.value || null)}>
+            <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapa)?.label || catEtapa})</option>
+            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        )
+      }
       case 'origem':
         return <select style={m.input} value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
           <option value="">—</option>
