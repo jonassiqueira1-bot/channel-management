@@ -3,8 +3,8 @@ import { useLocalState } from './useLocalState'
 import { FIELDS_SEED, LAYOUT_SEED } from '../data/formSeeds'
 
 export function useFormLayout(entity) {
-  const [storedFields, setStoredFields] = useLocalState('settings:form_fields_v4', FIELDS_SEED)
-  const [storedLayout, setStoredLayout] = useLocalState('settings:form_layout_v4', LAYOUT_SEED)
+  const [storedFields, setStoredFields] = useLocalState('settings:form_fields_v5', FIELDS_SEED)
+  const [storedLayout, setStoredLayout] = useLocalState('settings:form_layout_v5', LAYOUT_SEED)
 
   // Garante que campos novos do seed sejam adicionados ao localStorage (migração automática)
   const fields = useMemo(() => {
