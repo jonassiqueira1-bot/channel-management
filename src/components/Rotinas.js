@@ -1,7 +1,9 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useRoutines } from '../hooks/useRoutines'
 import { useProfile } from '../hooks/useProfile'
+import { useFunnels } from '../hooks/useFunnels'
+import { useUsuarios } from '../hooks/useUsuarios'
 
 // ─── Paleta / tokens ─────────────────────────────────────────────────────────
 const C = {
@@ -425,7 +427,7 @@ function resumoParam(campo, p) {
   return String(v)
 }
 
-function CampoFiltro({ campo, p, setP, funis }) {
+function CampoFiltro({ campo, p, setP, funis, usuarios }) {
   const [open, setOpen] = useState(false)
   const etapas = p.funil_id
     ? (funis.find(f => f.id === p.funil_id)?.etapas || [])
@@ -494,7 +496,15 @@ function CampoFiltro({ campo, p, setP, funis }) {
               {['Indicação','Evento','Prospecção','Inbound','Canal','Outro'].map(o=><option key={o}>{o}</option>)}
             </select>
           )}
-          {campo.tipo === 'text' && (
+          {campo.tipo === 'text' && campo.key === 'responsavel' && (
+            <select style={s.input} value={p.responsavel||''} onChange={e=>setP('responsavel',e.target.value)}>
+              <option value="">Qualquer responsável</option>
+              {(usuarios||[]).filter(u=>u.status!=='inativo').map(u=>(
+                <option key={u.id} value={u.nome}>{u.nome}</option>
+              ))}
+            </select>
+          )}
+          {campo.tipo === 'text' && campo.key !== 'responsavel' && (
             <input style={s.input} value={p[campo.key]||''} onChange={e=>setP(campo.key,e.target.value)} placeholder={campo.placeholder||'Contém...'} />
           )}
           {campo.tipo === 'range_num' && (
@@ -540,7 +550,7 @@ const CAMPOS_OPP = [
   { key:'motivo_perda',        label:'Motivo de perda',          tipo:'text',       placeholder:'Contém...' },
 ]
 
-function WizardStep2({ form, set, funis }) {
+function WizardStep2({ form, set, funis, usuarios }) {
   const p    = form.parametros || {}
   const setP = (k, v) => set('parametros', { ...p, [k]: v })
 
@@ -557,14 +567,16 @@ function WizardStep2({ form, set, funis }) {
         {ativos > 0 ? `${ativos} filtro(s) ativo(s) — clique em um campo para configurar` : 'Clique em qualquer campo para definir o filtro'}
       </div>
       {CAMPOS_OPP.map(campo => (
-        <CampoFiltro key={campo.key} campo={campo} p={p} setP={setP} funis={funis} />
+        <CampoFiltro key={campo.key} campo={campo} p={p} setP={setP} funis={funis} usuarios={usuarios} />
       ))}
     </div>
   )
 }
 
-function AcaoEditor({ acao, onChange, onRemove, funis, parametros }) {
-  const etapas = funis.find(f=>f.id===parametros?.funil_id)?.etapas || []
+function AcaoEditor({ acao, onChange, onRemove, funis, usuarios, parametros }) {
+  const etapas = parametros?.funil_id
+    ? (funis.find(f=>f.id===parametros.funil_id)?.etapas || [])
+    : funis.flatMap(f=>(f.etapas||[]).map(e=>({...e, _funil:f.nome})))
   const set = (k,v) => onChange({ ...acao, [k]:v })
 
   return (
@@ -580,7 +592,7 @@ function AcaoEditor({ acao, onChange, onRemove, funis, parametros }) {
       {acao.key === 'mover_etapa' && (
         <select style={s.input} value={acao.etapa_id||''} onChange={e=>set('etapa_id',e.target.value)}>
           <option value="">Selecione a etapa</option>
-          {etapas.map(e=><option key={e.id} value={e.id}>{e.nome}</option>)}
+          {etapas.map(e=><option key={e.id} value={e.id}>{e._funil ? `${e._funil} › ${e.nome}` : e.nome}</option>)}
         </select>
       )}
       {acao.key === 'alterar_situacao' && (
@@ -592,7 +604,12 @@ function AcaoEditor({ acao, onChange, onRemove, funis, parametros }) {
         </select>
       )}
       {acao.key === 'alterar_responsavel' && (
-        <input style={s.input} value={acao.responsavel||''} onChange={e=>set('responsavel',e.target.value)} placeholder="Nome do responsável" />
+        <select style={s.input} value={acao.responsavel||''} onChange={e=>set('responsavel',e.target.value)}>
+          <option value="">Selecione o responsável</option>
+          {(usuarios||[]).filter(u=>u.status!=='inativo').map(u=>(
+            <option key={u.id} value={u.nome}>{u.nome}</option>
+          ))}
+        </select>
       )}
       {acao.key === 'alterar_prazo' && (
         <div style={s.row}>
@@ -615,7 +632,12 @@ function AcaoEditor({ acao, onChange, onRemove, funis, parametros }) {
             </select>
             <input type="number" style={{...s.input, flex:1}} value={acao.tarefa_prazo_dias||1} onChange={e=>set('tarefa_prazo_dias',e.target.value)} placeholder="Prazo (dias)" />
           </div>
-          <input style={s.input} value={acao.tarefa_responsavel||''} onChange={e=>set('tarefa_responsavel',e.target.value)} placeholder="Responsável (vazio = mesmo da oportunidade)" />
+          <select style={s.input} value={acao.tarefa_responsavel||''} onChange={e=>set('tarefa_responsavel',e.target.value)}>
+            <option value="">Responsável (mesmo da oportunidade)</option>
+            {(usuarios||[]).filter(u=>u.status!=='inativo').map(u=>(
+              <option key={u.id} value={u.nome}>{u.nome}</option>
+            ))}
+          </select>
         </>
       )}
       {acao.key === 'enviar_email' && (
@@ -641,7 +663,7 @@ function AcaoEditor({ acao, onChange, onRemove, funis, parametros }) {
   )
 }
 
-function WizardStep3({ form, set, funis }) {
+function WizardStep3({ form, set, funis, usuarios }) {
   const acoes = form.acoes || []
   const addAcao = () => set('acoes', [...acoes, { key:'' }])
   const updAcao = (i, v) => { const a=[...acoes]; a[i]=v; set('acoes',a) }
@@ -651,7 +673,7 @@ function WizardStep3({ form, set, funis }) {
     <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
       <p style={{ fontSize:13, color:C.muted, margin:0 }}>Ações executadas em ordem para cada registro encontrado.</p>
       {acoes.map((a,i)=>(
-        <AcaoEditor key={i} acao={a} onChange={v=>updAcao(i,v)} onRemove={()=>rmAcao(i)} funis={funis} parametros={form.parametros} />
+        <AcaoEditor key={i} acao={a} onChange={v=>updAcao(i,v)} onRemove={()=>rmAcao(i)} funis={funis} usuarios={usuarios} parametros={form.parametros} />
       ))}
       <button style={s.btn('ghost')} onClick={addAcao}>+ Adicionar ação</button>
     </div>
@@ -812,7 +834,7 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
   )
 }
 
-function RotinaWizard({ initial, onClose, onSaved, funis, tenantId, userId, saveExecution, loadExecutions, onRevert }) {
+function RotinaWizard({ initial, onClose, onSaved, funis, usuarios, tenantId, userId, saveExecution, loadExecutions, onRevert }) {
   const empty = { nome:'', descricao:'', compartilhamento:'privado', schedule_tipo:'manual', parametros:{}, acoes:[] }
   const [form, setForm]   = useState(initial || empty)
   const [step, setStep]   = useState(0)
@@ -870,8 +892,8 @@ function RotinaWizard({ initial, onClose, onSaved, funis, tenantId, userId, save
         <div style={{ flex:1, overflowY:'auto', padding:'20px 24px' }}>
           {erroGeral && <div style={{ color:C.danger, fontSize:13, marginBottom:12 }}>{erroGeral}</div>}
           {step === 0 && <WizardStep1 form={form} set={set} />}
-          {step === 1 && <WizardStep2 form={form} set={set} funis={funis} />}
-          {step === 2 && <WizardStep3 form={form} set={set} funis={funis} />}
+          {step === 1 && <WizardStep2 form={form} set={set} funis={funis} usuarios={usuarios} />}
+          {step === 2 && <WizardStep3 form={form} set={set} funis={funis} usuarios={usuarios} />}
           {step === 3 && (
             <WizardStep4
               routine={form}
@@ -906,10 +928,13 @@ function RotinaWizard({ initial, onClose, onSaved, funis, tenantId, userId, save
 }
 
 // ─── Drawer principal ─────────────────────────────────────────────────────────
-export default function RotinasDrawer({ contexto, funis = [], onClose }) {
-  const { profile }  = useProfile()
-  const tenantId     = profile?.tenant_id
-  const userId       = profile?.id
+export default function RotinasDrawer({ contexto, onClose }) {
+  const { profile }    = useProfile()
+  const tenantId       = profile?.tenant_id
+  const userId         = profile?.id
+  const { funis: allFunis } = useFunnels()
+  const { usuarios }   = useUsuarios()
+  const funis          = useMemo(() => (allFunis || []).filter(f => f.status === 'ativo'), [allFunis])
   const { routines, loading, save, remove, saveExecution, loadExecutions, revert } = useRoutines(contexto)
   const [wizard, setWizard] = useState(null) // null | {} | {routine}
 
@@ -966,6 +991,7 @@ export default function RotinasDrawer({ contexto, funis = [], onClose }) {
         <RotinaWizard
           initial={wizard.id ? wizard : null}
           funis={funis}
+          usuarios={usuarios}
           tenantId={tenantId}
           userId={userId}
           onClose={()=>setWizard(null)}
