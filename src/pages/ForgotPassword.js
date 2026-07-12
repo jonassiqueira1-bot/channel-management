@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
+import logoBoostly from '../assets/logo-boostly.svg'
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('')
@@ -24,94 +25,180 @@ export default function ForgotPassword() {
   }
 
   return (
-    <div style={styles.page}>
-      <div style={styles.card}>
-        <div style={styles.header}>
-          <div style={styles.logoMark}>CM</div>
-          <h1 style={styles.title}>Recuperar senha</h1>
-          <p style={styles.subtitle}>
-            {sent
-              ? 'Verifique sua caixa de entrada.'
-              : 'Digite seu e-mail e enviaremos um link para redefinir sua senha.'}
-          </p>
-        </div>
+    <div style={s.page} className="login-page">
+      {/* Painel esquerdo */}
+      <div style={s.left} className="login-left">
+        <div style={s.leftInner}>
+          <img src={logoBoostly} alt="Boostly" style={{ height: 44, width: 'auto' }} />
 
-        {sent ? (
-          <div style={styles.successBox}>
-            ✉️ Link enviado para <strong>{email}</strong>. Verifique também a pasta de spam.
+          <div style={s.heroText}>
+            <h1 style={s.heroTitle}>Recupere seu acesso.</h1>
+            <p style={s.heroSub}>Enviaremos um link seguro para redefinir sua senha em instantes.</p>
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} style={styles.form}>
-            <div style={styles.field}>
-              <label style={styles.label}>E-mail</label>
-              <input
-                type="email"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                placeholder="voce@empresa.com"
-                required
-                style={styles.input}
-              />
-            </div>
 
-            {error && <p style={styles.error}>{error}</p>}
+          <div style={s.pillars}>
+            {[
+              { icon: '🔒', label: 'Seguro', desc: 'Link com validade de 1 hora' },
+              { icon: '📨', label: 'Rápido', desc: 'Email enviado imediatamente' },
+              { icon: '✓',  label: 'Simples', desc: 'Sem burocracia, sem suporte' },
+            ].map(p => (
+              <div key={p.label} style={s.pillar}>
+                <span style={s.pillarIcon}>{p.icon}</span>
+                <div>
+                  <div style={s.pillarLabel}>{p.label}</div>
+                  <div style={s.pillarDesc}>{p.desc}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-            <button type="submit" disabled={loading} style={styles.button}>
-              {loading ? 'Enviando…' : 'Enviar link de recuperação'}
-            </button>
-          </form>
-        )}
+      {/* Painel direito */}
+      <div style={s.right}>
+        <div style={s.formWrap}>
+          <h2 style={s.formTitle}>Recuperar senha</h2>
 
-        <Link to="/login" style={styles.back}>← Voltar para o login</Link>
+          {sent ? (
+            <>
+              <div style={s.successBox}>
+                <span style={s.successIcon}>✉️</span>
+                <div>
+                  <p style={s.successTitle}>Link enviado!</p>
+                  <p style={s.successText}>
+                    Verifique a caixa de entrada de <strong>{email}</strong>. Cheque também a pasta de spam.
+                  </p>
+                </div>
+              </div>
+              <Link to="/login" style={s.back}>← Voltar para o login</Link>
+            </>
+          ) : (
+            <>
+              <p style={s.formSub}>
+                Digite seu e-mail e enviaremos um link para redefinir sua senha.
+              </p>
+
+              <form onSubmit={handleSubmit} style={s.form}>
+                <div style={s.field}>
+                  <label style={s.label}>E-mail</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                    placeholder="voce@empresa.com"
+                    required
+                    style={s.input}
+                  />
+                </div>
+
+                {error && <p style={s.error}>{error}</p>}
+
+                <button type="submit" disabled={loading} style={s.button}>
+                  {loading ? 'Enviando…' : 'Enviar link de recuperação'}
+                </button>
+              </form>
+
+              <Link to="/login" style={s.back}>← Voltar para o login</Link>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
 }
 
-const styles = {
+const s = {
   page: {
     minHeight: '100vh',
-    backgroundColor: '#F0EDE8',
+    display: 'flex',
+    fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  },
+  left: {
+    flex: '0 0 420px',
+    background: 'linear-gradient(160deg, #0f1b2d 0%, #1E3A5F 100%)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
+    padding: '48px 40px',
   },
-  card: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: '40px 36px',
-    width: '100%',
-    maxWidth: 420,
-    boxShadow: '0 4px 24px rgba(15,27,45,0.08)',
+  leftInner: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 40,
+    maxWidth: 320,
   },
-  header: {
-    textAlign: 'center',
-    marginBottom: 32,
+  heroText: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 10,
   },
-  logoMark: {
-    width: 48,
-    height: 48,
-    backgroundColor: '#1E3A5F',
-    borderRadius: 12,
-    color: '#ffffff',
+  heroTitle: {
+    fontSize: 28,
     fontWeight: 700,
-    fontSize: 18,
+    color: '#ffffff',
+    margin: 0,
+    lineHeight: 1.2,
+  },
+  heroSub: {
+    fontSize: 15,
+    color: 'rgba(255,255,255,0.65)',
+    margin: 0,
+    lineHeight: 1.6,
+  },
+  pillars: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 18,
+  },
+  pillar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 14,
+  },
+  pillarIcon: {
+    fontSize: 20,
+    width: 40,
+    height: 40,
+    background: 'rgba(255,255,255,0.1)',
+    borderRadius: 10,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    margin: '0 auto 16px',
+    flexShrink: 0,
   },
-  title: {
-    fontSize: 22,
+  pillarLabel: {
+    fontSize: 14,
+    fontWeight: 600,
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  pillarDesc: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.55)',
+  },
+  right: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '48px 40px',
+    background: '#f9fafb',
+  },
+  formWrap: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  formTitle: {
+    fontSize: 24,
     fontWeight: 700,
     color: '#0f1b2d',
-    margin: '0 0 6px',
+    margin: '0 0 8px',
   },
-  subtitle: {
+  formSub: {
     fontSize: 14,
     color: '#6b7280',
-    margin: 0,
+    margin: '0 0 28px',
+    lineHeight: 1.5,
   },
   form: {
     display: 'flex',
@@ -129,13 +216,15 @@ const styles = {
     color: '#374151',
   },
   input: {
-    padding: '10px 14px',
+    padding: '11px 14px',
     borderRadius: 8,
     border: '1.5px solid #e5e7eb',
     fontSize: 14,
     color: '#111827',
     outline: 'none',
     fontFamily: 'inherit',
+    background: '#ffffff',
+    transition: 'border-color 0.15s',
   },
   error: {
     color: '#dc2626',
@@ -145,18 +234,9 @@ const styles = {
     backgroundColor: '#fef2f2',
     borderRadius: 8,
   },
-  successBox: {
-    backgroundColor: '#f0fdf4',
-    color: '#166534',
-    fontSize: 14,
-    padding: '14px 16px',
-    borderRadius: 8,
-    marginBottom: 24,
-    lineHeight: 1.5,
-  },
   button: {
-    padding: '12px',
-    backgroundColor: '#1E3A5F',
+    padding: '13px',
+    background: 'linear-gradient(135deg, #1E3A5F 0%, #2B52C8 100%)',
     color: '#ffffff',
     border: 'none',
     borderRadius: 8,
@@ -165,12 +245,39 @@ const styles = {
     cursor: 'pointer',
     fontFamily: 'inherit',
     marginTop: 4,
+    transition: 'opacity 0.15s',
+  },
+  successBox: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: 14,
+    backgroundColor: '#f0fdf4',
+    border: '1px solid #bbf7d0',
+    borderRadius: 10,
+    padding: '18px 20px',
+    marginBottom: 24,
+  },
+  successIcon: {
+    fontSize: 22,
+    flexShrink: 0,
+  },
+  successTitle: {
+    fontWeight: 700,
+    color: '#166534',
+    margin: '0 0 4px',
+    fontSize: 15,
+  },
+  successText: {
+    color: '#166534',
+    margin: 0,
+    fontSize: 14,
+    lineHeight: 1.5,
   },
   back: {
     display: 'block',
-    textAlign: 'center',
     marginTop: 24,
     fontSize: 13,
     color: '#6b7280',
+    textDecoration: 'none',
   },
 }

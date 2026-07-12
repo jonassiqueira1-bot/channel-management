@@ -31,7 +31,7 @@ serve(async (req) => {
     const { data: linkData, error: linkErr } = await admin.auth.admin.generateLink({
       type: 'recovery',
       email,
-      options: { redirectTo: `${APP_URL}/reset-password` },
+      options: { redirectTo: `${APP_URL}/login` },
     })
 
     if (linkErr) {
