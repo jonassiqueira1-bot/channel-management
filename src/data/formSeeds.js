@@ -41,7 +41,6 @@ export const FIELDS_SEED = [
   { id:'sf_op_servico',  entity:'opportunities', field_key:'valor_servico',        label:'Valor Serviço',         field_type:'number',   options:[], is_required:false, is_system:true  },
   { id:'sf_op_desconto', entity:'opportunities', field_key:'valor_desconto',       label:'Desconto',              field_type:'number',   options:[], is_required:false, is_system:true  },
   { id:'sf_op_motivo',   entity:'opportunities', field_key:'motivo_perda',         label:'Motivo de Perda',       field_type:'textarea', options:[], is_required:false, is_system:false },
-  { id:'sf_op_forecast', entity:'opportunities', field_key:'categoria_forecast',    label:'Forecast',              field_type:'select',   options:['fora','em_aberto','provavel','confirmado','fechado'], is_required:false, is_system:true },
 
   // ── Projetos ───────────────────────────────────────────────────────────────
   { id:'sf_pr_nome',     entity:'projects', field_key:'name',                 label:'Nome do Projeto',       field_type:'text',     options:[], is_required:true,  is_system:true  },
@@ -157,8 +156,7 @@ export const LAYOUT_SEED = {
         rows: [
           ['sf_op_titulo',   'sf_op_empresa'],
           ['sf_op_contato',  'sf_op_resp'],
-          ['sf_op_situacao', 'sf_op_forecast'],
-          ['sf_op_etapa',    null],
+          ['sf_op_situacao', 'sf_op_etapa'],
           ['sf_op_origem',   'sf_op_campanha'],
           ['sf_op_prazo',    'sf_op_playbook'],
         ],

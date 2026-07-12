@@ -18,37 +18,16 @@ export function useFormLayout(entity) {
     return storedFields
   }, [storedFields, setStoredFields])
 
-  // Garante que entidades e campos novos do seed apareçam no layout (migração automática)
+  // Garante que entidades novas do seed apareçam no layout (migração automática)
   const layout = useMemo(() => {
-    let changed = false
-    const merged = { ...storedLayout }
-
-    for (const [entity, seedEntity] of Object.entries(LAYOUT_SEED)) {
-      if (!merged[entity]) {
-        merged[entity] = seedEntity
-        changed = true
-        continue
-      }
-      // Merge seções existentes: adiciona linhas com campos novos
-      const storedSections = merged[entity].sections || []
-      const seedSections   = seedEntity.sections || []
-      const newSections = storedSections.map(sec => {
-        const seedSec = seedSections.find(s => s.id === sec.id)
-        if (!seedSec) return sec
-        // Ids de campos já presentes nesta seção
-        const presentIds = new Set(sec.rows.flatMap(r => r.filter(Boolean)))
-        const missingRows = seedSec.rows.filter(r =>
-          r.some(id => id && !presentIds.has(id))
-        )
-        if (!missingRows.length) return sec
-        changed = true
-        return { ...sec, rows: [...sec.rows, ...missingRows] }
-      })
-      merged[entity] = { ...merged[entity], sections: newSections }
+    const missingEntities = Object.keys(LAYOUT_SEED).filter(e => !storedLayout[e])
+    if (missingEntities.length > 0) {
+      const merged = { ...storedLayout }
+      missingEntities.forEach(e => { merged[e] = LAYOUT_SEED[e] })
+      setStoredLayout(merged)
+      return merged
     }
-
-    if (changed) { setStoredLayout(merged) }
-    return merged
+    return storedLayout
   }, [storedLayout, setStoredLayout])
 
   const sections   = useMemo(() => layout[entity]?.sections || [], [layout, entity])

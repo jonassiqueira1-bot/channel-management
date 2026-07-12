@@ -3896,20 +3896,6 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
       // etapa_id renderizada como stepper fixo acima do DynamicFormLayout — ocultar aqui
       case 'etapa_id':
         return null
-      case 'categoria_forecast': {
-        const etapaAtual = etapas.find(e => String(e.id) === String(form.etapa_id))
-        const catEtapa = etapaAtual?.categoria_forecast || 'em_aberto'
-        const catAtual = form.categoria_forecast || catEtapa
-        const cfgAtual = CATEGORIAS_FORECAST.find(c => c.value === catAtual) || CATEGORIAS_FORECAST[1]
-        return (
-          <select style={{ ...m.input, fontWeight:600, color: cfgAtual.color }}
-            value={form.categoria_forecast || ''}
-            onChange={e => set('categoria_forecast', e.target.value || null)}>
-            <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapa)?.label || catEtapa})</option>
-            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        )
-      }
       case 'origem':
         return <select style={m.input} value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
           <option value="">—</option>
@@ -3964,11 +3950,29 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     }
   }
 
+  const etapaAtualForecast = etapas.find(e => String(e.id) === String(form.etapa_id))
+  const catEtapaForecast   = etapaAtualForecast?.categoria_forecast || 'em_aberto'
+  const cfgForecastAtual   = CATEGORIAS_FORECAST.find(c => c.value === (form.categoria_forecast || catEtapaForecast)) || CATEGORIAS_FORECAST[1]
+
   const dadosFormBody = (
     <>
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
       <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
+
+      {/* Forecast — fora do DynamicFormLayout para evitar conflito com layout salvo */}
+      <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+        <div>
+          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Forecast</div>
+          <select style={{ ...m.input, fontWeight:600, color: cfgForecastAtual.color }}
+            value={form.categoria_forecast || ''}
+            onChange={e => set('categoria_forecast', e.target.value || null)}>
+            <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapaForecast)?.label || catEtapaForecast})</option>
+            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+          </select>
+        </div>
+      </div>
+
       <div style={{ marginTop:16 }}>
         <DynamicFormLayout
           sections={oppSections}
