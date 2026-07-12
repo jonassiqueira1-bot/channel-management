@@ -127,8 +127,7 @@ const ACOES_PIPELINE = [
 
 // ─── Engine de execução (Pipeline) ───────────────────────────────────────────
 async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) {
-  // 1. Busca oportunidades filtrando no banco
-  // Filtros seguros no banco (colunas reais, sem jsonb path)
+  console.log('[Rotina] executarPipeline | tenantId:', tenantId, '| parametros:', JSON.stringify(parametros))
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
   const p = parametros
   if (p.situacao)       q = q.eq('situacao', p.situacao)
@@ -150,13 +149,16 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   if (createdAtDate)  q = q.lte('created_at', createdAtDate + 'T23:59:59')
 
   const { data: opps, error } = await q
+  console.log('[Rotina] DB retornou:', opps?.length, 'opps | error:', error?.message)
   if (error) return { ok: false, error: error.message, registros: [] }
 
   let lista = opps || []
 
-  // Filtros client-side (funil_id está em custom_fields, não coluna direta)
-  if (p.funil_id)
+  if (p.funil_id) {
+    const antes = lista.length
     lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
+    console.log('[Rotina] filtro funil_id:', p.funil_id, '| antes:', antes, '→ depois:', lista.length, '| amostra cf.funil_id:', opps?.slice(0,3).map(o=>o.custom_fields?.funil_id))
+  }
   if (p.empresa_nome) {
     const termo = p.empresa_nome.toLowerCase()
     lista = lista.filter(o => (o.custom_fields?.empresa_nome || '').toLowerCase().includes(termo))
@@ -174,7 +176,6 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     })
   }
 
-  // Filtro "sem tarefa aberta" (não dá pra fazer no banco facilmente)
   if (parametros.sem_tarefa) {
     const { data: tasks } = await supabase
       .from('tasks').select('entidade_id')
@@ -184,6 +185,7 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
     lista = lista.filter(o => !comTarefa.has(o.id))
   }
 
+  console.log('[Rotina] lista final após todos os filtros:', lista.length, lista.map(o=>o.titulo))
   if (!lista.length) return { ok: true, registros: [], resumo: { total_encontrados:0, total_afetados:0, acoes_aplicadas:[], erros:[] } }
 
   const snapshot_antes = []
