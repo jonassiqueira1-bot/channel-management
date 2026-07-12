@@ -936,7 +936,7 @@ export default function RotinasDrawer({ contexto, onClose }) {
   const userId         = profile?.id
   const { funis: allFunis } = useFunnels()
   const { usuarios }   = useUsuarios()
-  const funis          = useMemo(() => (allFunis || []).filter(f => f.status === 'ativo'), [allFunis])
+  const funis          = useMemo(() => (allFunis || []).filter(f => !f.status || f.status === 'ativo'), [allFunis])
   const { routines, loading, save, remove, saveExecution, loadExecutions, revert } = useRoutines(contexto)
   const [wizard, setWizard] = useState(null) // null | {} | {routine}
 
