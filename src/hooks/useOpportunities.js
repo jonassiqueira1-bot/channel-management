@@ -1,6 +1,6 @@
 import { captureError } from '../lib/sentry'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete, softDeleteMany } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -250,11 +250,8 @@ export function useOpportunities() {
       setOpps(prev => prev.filter(o => o.id !== id))
       return { ok: true }
     }
-    const { error } = await supabase
-      .from('oportunidades')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-    if (error) return { ok: false, message: error.message }
+    const result = await softDelete('opportunities', id)
+    if (!result.ok) return result
     setOpps(prev => prev.filter(o => o.id !== id))
     return { ok: true }
   }, [])
@@ -263,10 +260,7 @@ export function useOpportunities() {
   const removeMany = useCallback(async (ids) => {
     setOpps(prev => prev.filter(o => !ids.includes(o.id)))
     if (!isMockMode.current) {
-      await supabase
-        .from('oportunidades')
-        .update({ deleted_at: new Date().toISOString() })
-        .in('id', ids)
+      await softDeleteMany('opportunities', ids)
     }
   }, [])
 
