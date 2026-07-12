@@ -131,7 +131,7 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
   let q = supabase.from('oportunidades').select('*').eq('tenant_id', tenantId).is('deleted_at', null)
   const p = parametros
   if (p.situacao)       q = q.eq('situacao', p.situacao)
-  if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
+  // stage_id não é UUID quando criado via UI (novoId = Date.now()), fica em custom_fields.etapa_id — filtrar client-side
   if (p.origem)         q = q.eq('origem', p.origem)
   if (p.responsavel)    q = q.ilike('responsavel', `%${p.responsavel}%`)
   if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
@@ -154,6 +154,9 @@ async function executarPipeline({ parametros, acoes, tenantId, userId, funis }) 
 
   let lista = opps || []
 
+  if (p.stage_id) {
+    lista = lista.filter(o => String(o.custom_fields?.etapa_id || o.stage_id) === String(p.stage_id))
+  }
   if (p.funil_id) {
     const antes = lista.length
     lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
@@ -792,21 +795,23 @@ function WizardStep4({ routine, funis, tenantId, userId, onSaveExecution, execut
     let q = supabase.from('oportunidades').select('id,titulo,custom_fields').eq('tenant_id', tenantId).is('deleted_at', null)
     const p = routine.parametros || {}
     if (p.situacao)       q = q.eq('situacao', p.situacao)
-    if (p.stage_id)       q = q.eq('stage_id', p.stage_id)
+    // stage_id não é UUID (gerado por Date.now()), filtrar client-side via custom_fields.etapa_id
     if (p.origem)         q = q.eq('origem', p.origem)
     if (p.responsavel)    q = q.ilike('responsavel', `%${p.responsavel}%`)
     if (p.titulo)         q = q.ilike('titulo', `%${p.titulo}%`)
     if (p.valor_min)      q = q.gte('valor', Number(p.valor_min))
     if (p.valor_max)      q = q.lte('valor', Number(p.valor_max))
-    if (resolveDateFrom(p.prazo))      q = q.gte('prazo', resolveDateFrom(p.prazo))
-    if (resolveDate(p.prazo))         q = q.lte('prazo', resolveDate(p.prazo))
-    if (resolveDateFrom(p.created_at)) q = q.gte('created_at', resolveDateFrom(p.created_at))
-    if (resolveDate(p.created_at))    q = q.lte('created_at', (resolveDate(p.created_at) || '') + 'T23:59:59')
+    if (resolveDateFrom(p.prazo))       q = q.gte('prazo', resolveDateFrom(p.prazo))
+    if (resolveDate(p.prazo))           q = q.lte('prazo', resolveDate(p.prazo))
+    if (resolveDateFrom(p.created_at))  q = q.gte('created_at', resolveDateFrom(p.created_at))
+    if (resolveDate(p.created_at))      q = q.lte('created_at', (resolveDate(p.created_at) || '') + 'T23:59:59')
     const { data, error } = await q
-    if (error) { setPreview(0); return }
+    if (error) { console.error('[Rotina preview] erro DB:', error.message); setPreview(0); return }
     let lista = data || []
+    if (p.stage_id)
+      lista = lista.filter(o => String(o.custom_fields?.etapa_id || o.stage_id) === String(p.stage_id))
     if (p.funil_id)
-      lista = lista.filter(o => (o.custom_fields?.funil_id || o.funil_id) === p.funil_id)
+      lista = lista.filter(o => String(o.custom_fields?.funil_id || o.funil_id) === String(p.funil_id))
     if (p.empresa_nome) {
       const t = p.empresa_nome.toLowerCase()
       lista = lista.filter(o => (o.custom_fields?.empresa_nome||'').toLowerCase().includes(t))
