@@ -4000,7 +4000,8 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const oppQuestionariosCount = allSubmissions.filter(s => String(s.opportunity_id) === String(initial?.id)).length
   const oppPlaybookCount     = form.playbook_id ? 1 : 0
 
-  function handleSave() {
+  const [saving, setSaving] = useState(false)
+  async function handleSave() {
     const e = {}
     if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
     if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
@@ -4036,7 +4037,13 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       playbook_ids: autoVincularPlaybooks({ ...form, funil_id: funilFinal }, playbooks, produtosById),
     }
 
-    onSave(oppSalva)
+    setSaving(true)
+    const result = await onSave(oppSalva)
+    setSaving(false)
+    if (result?.ok === false) {
+      setErrs({ _salvar: result.message || 'Erro ao salvar a oportunidade. Tente novamente.' })
+      return
+    }
     if (form.situacao === 'ganha' && !eraGanha) {
       onFechamento(oppSalva)
     }
@@ -4157,6 +4164,11 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
 
   const dadosFormBody = (
     <>
+      {(errs._salvar || errs._produto) && (
+        <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:12 }}>
+          {errs._salvar || errs._produto}
+        </div>
+      )}
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
       <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => tentarMudarEtapa(id, etapas)} />
@@ -4534,6 +4546,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
         onTabChange={setTab}
         defaultWidth={isEditing ? 860 : 580}
         saveLabel={isEditing ? 'Salvar' : 'Criar oportunidade'}
+        saving={saving}
         cancelLabel="Cancelar"
         rightPanel={logPanelContent}
         rightPanelOpen={logOpen}
@@ -7134,6 +7147,7 @@ export default function Pipeline() {
     const funil_id   = funilFinal?.id || funilAtivo
     const funil_nome = funilFinal?.nome || funil?.nome || ''
     const result = await saveOpp({ ...data, funil_id, funil_nome })
+    if (result?.ok === false) return result
     log(isNew ? 'criar' : 'editar', 'oportunidade', data.id, { descricao: `Oportunidade ${isNew ? 'criada' : 'editada'}: ${data.nome || data.titulo || ''}` })
 
     // Parceiro criando oportunidade: auto-adiciona em "Contatos Canal" na aba
@@ -7157,6 +7171,7 @@ export default function Pipeline() {
         prioridade: 'media',
       }).then(({ error }) => { if (error) console.warn('[Pipeline] erro ao criar alerta de oportunidade de canal:', error.message) })
     }
+    return result
   }
   function handleFechamento(opp) { setFechamentoModal(opp) }
   function handleDelete(id) {

@@ -207,7 +207,10 @@ export function useOpportunities() {
       // Atualiza local imediatamente
       setOpps(prev => prev.map(o => o.id === data.id ? { ...o, ...data } : o))
       const { error } = await supabase.from('oportunidades').update(row).eq('id', data.id)
-      if (error) console.warn('[useOpportunities] update error:', error.message)
+      if (error) {
+        console.warn('[useOpportunities] update error:', error.message, 'row:', JSON.stringify(row).slice(0, 300))
+        return { ok: false, message: error.message }
+      }
     } else {
       // Insere localmente com UUID temporário (com traço) para que edições subsequentes tomem o caminho UPDATE
       const tempId = crypto.randomUUID()
