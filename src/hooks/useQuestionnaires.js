@@ -4,13 +4,22 @@ import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
 
+// A tabela real (questionnaire_templates) não tem colunas `type`/`is_active` —
+// só nome/descricao/status/fields. `type` (pre_venda/qualificacao_lead/etc.)
+// vai dentro do jsonb `fields`, ao lado de `secoes`; `is_active` (boolean, é
+// o que a UI usa) mapeia pra `status` (texto 'ativo'/'inativo', é o que o
+// banco tem). Sem isso os dois eram perdidos a cada reload (voltavam pro
+// default do formulário, não pro que estava realmente salvo).
 function rowToTemplate(row) {
+  const fields = row.fields || {}
   return {
     id:               row.id,
     title:            row.nome || '',
     description:      row.descricao || '',
     status:           row.status || 'ativo',
-    estrutura_secoes: row.fields || {},
+    is_active:        row.status !== 'inativo',
+    type:             fields.type || 'pre_venda',
+    estrutura_secoes: { secoes: fields.secoes || [] },
     criado:           row.created_at?.slice(0, 10) || '',
     atualizado:       row.updated_at?.slice(0, 10) || '',
   }
@@ -22,8 +31,8 @@ function templateToRow(t, tenantId, branchId) {
     branch_id: branchId || null,
     nome:      t.title || t.nome || '',
     descricao: t.description || t.descricao || null,
-    status:    t.status || 'ativo',
-    fields:    t.estrutura_secoes || t.fields || {},
+    status:    t.is_active === false ? 'inativo' : 'ativo',
+    fields:    { ...(t.estrutura_secoes || t.fields || {}), type: t.type || 'pre_venda' },
   }
 }
 
