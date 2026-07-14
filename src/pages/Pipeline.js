@@ -3992,6 +3992,21 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const itensCount        = form.itens.length
   const { membros: todosMembrosOpp } = useOppMembros()
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
+
+  // Responsável não é mais um campo digitado na aba Dados — vem de quem está
+  // marcado como "Vendedor" no Time Interno (aba Equipe). Mantém form.responsavel
+  // em sincronia automaticamente pra não quebrar nada que já lê esse campo
+  // (validação, filtros, indicadores).
+  const vendedorEquipe = useMemo(() => {
+    const membro = todosMembrosOpp.find(m => m.oportunidade_id === initial?.id && m.tipo_membro === 'interno' && m.papel === 'vendedor')
+    if (!membro) return null
+    return allUsuarios.find(u => u.id === membro.user_id) || null
+  }, [todosMembrosOpp, initial?.id, allUsuarios])
+
+  useEffect(() => {
+    if (vendedorEquipe?.nome && vendedorEquipe.nome !== form.responsavel) set('responsavel', vendedorEquipe.nome)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendedorEquipe?.nome])
   const [allDocsOpp]      = useLocalState(DOC_STORAGE_KEY, [])
   const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
   const { templates: allQuestionTemplates, submissions: allSubmissions } = useQuestionnaires()
@@ -4005,13 +4020,20 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     const e = {}
     if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
     if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
-    if (!form.responsavel?.trim()) e.responsavel   = 'Responsável é obrigatório'
     // Campos customizados marcados como obrigatórios em Config. de Campos
     Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required).forEach(f => {
       const v = form.custom_fields?.[f.field_key]
       if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
     })
     if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
+
+    // Responsável vem do Time Interno (aba Equipe) — sem ninguém marcado como
+    // Vendedor lá, não tem como saber quem é o responsável.
+    if (!form.responsavel?.trim()) {
+      setErrs({ _equipe: 'Adicione alguém como "Vendedor" no Time Interno (aba Equipe) para definir o responsável.' })
+      setTab('equipe')
+      return
+    }
 
     // Regra: ao fechar como ganha, exige ao menos um produto vinculado
     if (form.situacao === 'ganha') {
@@ -4511,6 +4533,11 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       {tab==='equipe' && (
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0, padding:'0 24px' }}>
           <div style={{ flex:1, overflowY:'auto', minHeight:0, paddingTop:4, paddingBottom:16 }}>
+            {errs._equipe && (
+              <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:12 }}>
+                {errs._equipe}
+              </div>
+            )}
             <OppEquipeTab oppId={initial.id} />
           </div>
         </div>
