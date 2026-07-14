@@ -14,13 +14,17 @@ import { usePermissions } from '../hooks/usePermissions'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { useCompanies } from '../hooks/useCompanies'
 import { PORTES, RECEITA_FAIXAS } from './Empresas'
+import { SENIORIDADE_OPTIONS, PODER_DECISAO_OPTIONS } from './Contatos'
+import { useContactListOptions, DEPARTAMENTOS_DEFAULT } from '../hooks/useContactListOptions'
+import { useQuestionnaires } from '../hooks/useQuestionnaires'
 
 const STEP_ICONS = ['📋','✅','🎯','💡','🔍','📞','🤝','📊','⚡','🏆','📝','🔧','💬','🚀','⚙️','📌','🔑','💰','📅','🌟']
 
 // ─── Multi-select com pesquisa ────────────────────────────────────────────────
-function MultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…' }) {
+export function MultiSelect({ options, value = [], onChange, placeholder = 'Selecionar…', onCreate, createPlaceholder = 'Nova opção…' }) {
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
+  const [novaOpcao, setNovaOpcao] = useState('')
   const ref = useRef(null)
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -29,6 +33,13 @@ function MultiSelect({ options, value = [], onChange, placeholder = 'Selecionar�
   const selected = options.filter(o => value.includes(o.value))
   const filtered = options.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
   function toggle(val) { onChange(value.includes(val) ? value.filter(v => v !== val) : [...value, val]) }
+  function criarOpcao() {
+    const t = novaOpcao.trim()
+    if (!t || !onCreate) return
+    onCreate(t)
+    onChange([...value, t])
+    setNovaOpcao('')
+  }
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
@@ -61,6 +72,16 @@ function MultiSelect({ options, value = [], onChange, placeholder = 'Selecionar�
                   )
                 })}
           </div>
+          {onCreate && (
+            <div style={{ display: 'flex', gap: 6, padding: '8px', borderTop: '1px solid var(--border2)' }}>
+              <input value={novaOpcao} onChange={e => setNovaOpcao(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); criarOpcao() } }}
+                placeholder={createPlaceholder} className="so-field" style={{ height: 30, fontSize: 12, flex: 1 }} />
+              <button type="button" onClick={criarOpcao} style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                + Adicionar
+              </button>
+            </div>
+          )}
           {value.length > 0 && (
             <div style={{ padding: '5px 12px 8px', borderTop: '1px solid var(--border2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{value.length} selecionado{value.length !== 1 ? 's' : ''}</span>
@@ -393,7 +414,7 @@ const EMPTY_PB = {
   produto_filtro_tipo: '', produto_ids: [], produto_categorias: [], produto_id: '',
   objecoes: [], tipo: 'vendas',
   segmento_pesos: {}, porte_pesos: {},
-  checklist_etapas: {}, icp: {},
+  checklist_etapas: {}, icp: {}, questionario_etapas: {},
 }
 
 // ─── Peso 0-100 por opção (Segmento / Porte) ─────────────────────────────────
@@ -1118,7 +1139,7 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
   )
 }
 
-// ─── Checklist de Qualificação — itens sim/não por etapa, cada um com peso ────
+// ─── Checklist de Avanço de Etapas — itens sim/não por etapa, cada um com peso ────
 // Checks positivos aumentam a qualificação da Oportunidade (Pipeline.js soma os
 // pesos marcados / total de pesos da etapa = qualificacao_score).
 function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
@@ -1141,7 +1162,7 @@ function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
   return (
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
-        <h2 style={dp.panelTitle}>Checklist de Qualificação</h2>
+        <h2 style={dp.panelTitle}>Checklist de Avanço de Etapas</h2>
         <p style={dp.panelSub}>Itens sim/não por etapa do funil. Cada item marcado como "sim" na Oportunidade soma seu peso na Qualificação (0–100%).</p>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -1184,9 +1205,47 @@ function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
   )
 }
 
+// ─── Questionário recomendado por etapa ───────────────────────────────────────
+// Aponta, por etapa do funil, qual template de Questionário deve ser aplicado
+// — hoje o vínculo era solto (o SDR escolhia manualmente, sem relação com o
+// Playbook nem com a etapa). Fica só como sugestão/atalho na aba Questionários
+// da Oportunidade, não bloqueia — pode virar obrigatório depois se fizer sentido.
+function QuestionarioEtapaPanel({ questionarioEtapas = {}, onChange, stageCfg = STAGE_CFG }) {
+  const { templates } = useQuestionnaires()
+  const ativos = templates.filter(t => t.is_active !== false)
+
+  return (
+    <div style={dp.panel}>
+      <div style={dp.panelHeader}>
+        <h2 style={dp.panelTitle}>Questionário Recomendado</h2>
+        <p style={dp.panelSub}>Template de Questionário sugerido por etapa do funil — aparece como atalho na aba Questionários da Oportunidade quando ela estiver nessa etapa.</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {Object.entries(stageCfg).map(([key, cfg]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1px solid var(--border2)', borderRadius: 10, padding: '12px 16px', background: 'var(--surface)' }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color || 'var(--accent)', flexShrink: 0 }} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 150, flexShrink: 0 }}>{cfg.label}</span>
+            <select value={questionarioEtapas[key] || ''} onChange={e => onChange({ ...questionarioEtapas, [key]: e.target.value || null })}
+              style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }}>
+              <option value="">— Nenhum —</option>
+              {ativos.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
+            </select>
+          </div>
+        ))}
+        {ativos.length === 0 && (
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+            Nenhum template de Questionário ativo cadastrado ainda — crie um em Questionários primeiro.
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── ICP — Perfil de Cliente Ideal ────────────────────────────────────────────
 function IcpPanel({ icp = {}, onChange }) {
   const set = (k, v) => onChange({ ...icp, [k]: v })
+  const { opcoes: departamentos, setOpcoes: setDepartamentos } = useContactListOptions('departamento', DEPARTAMENTOS_DEFAULT)
   const addTag = (k, v) => { const t = (v || '').trim(); if (!t) return; set(k, [...(icp[k] || []), t]) }
   const removeTag = (k, t) => set(k, (icp[k] || []).filter(x => x !== t))
 
@@ -1266,6 +1325,24 @@ function IcpPanel({ icp = {}, onChange }) {
           <TagField field="stack" placeholder="Ex: Planilhas, CRM concorrente X…" />
         </div>
       ))}
+
+      {block('Perfil de Contato', (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Departamento(s) ideal(is)</div>
+            <MultiSelect options={departamentos.map(d => ({ value: d, label: d }))} value={icp.departamentos || []} onChange={v => set('departamentos', v)} placeholder="Selecionar departamentos…"
+              onCreate={nome => setDepartamentos(prev => prev.includes(nome) ? prev : [...prev, nome])} createPlaceholder="Novo departamento…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Senioridade ideal</div>
+            <MultiSelect options={SENIORIDADE_OPTIONS.filter(o => o.value)} value={icp.senioridades || []} onChange={v => set('senioridades', v)} placeholder="Selecionar senioridades…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Poder de decisão exigido</div>
+            <MultiSelect options={PODER_DECISAO_OPTIONS.filter(o => o.value)} value={icp.poderes_decisao || []} onChange={v => set('poderes_decisao', v)} placeholder="Selecionar poder de decisão…" />
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -1274,7 +1351,8 @@ function IcpPanel({ icp = {}, onChange }) {
 // ─── Detail View ─────────────────────────────────────────────────────────────
 const DETAIL_SECTIONS_VENDAS = [
   { id: 'funnel',    icon: '🎯', label: 'Atividades por Etapa' },
-  { id: 'checklist', icon: '✅', label: 'Checklist de Qualificação' },
+  { id: 'checklist', icon: '✅', label: 'Checklist de Avanço de Etapas' },
+  { id: 'questionario', icon: '📝', label: 'Questionário Recomendado' },
   { id: 'icp',       icon: '🧭', label: 'ICP' },
   { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
   { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
@@ -1302,7 +1380,7 @@ const SEGMENT_COLORS = {
 function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], onBack, onEditPlaybook,
   onAddStep, onEditStep, onDeleteStep, onAddRef, onEditRef, onDeleteRef,
   onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes,
-  onUpdateChecklist, onUpdateIcp }) {
+  onUpdateChecklist, onUpdateIcp, onUpdateQuestionario }) {
   const [section, setSection] = useState('funnel')
 
   const isAdministrativo = playbook.tipo === 'administrativo'
@@ -1323,6 +1401,7 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
   const resourceCount = resources.length
   const objecoesCount  = (playbook.objecoes || []).length
   const checklistCount = Object.values(playbook.checklist_etapas || {}).reduce((s, arr) => s + arr.length, 0)
+  const questionarioCount = Object.values(playbook.questionario_etapas || {}).filter(Boolean).length
 
   return (
     <div style={dv.wrap}>
@@ -1347,7 +1426,8 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
           <div style={dv.sbInner}>
             {(isAdministrativo ? DETAIL_SECTIONS_ADMIN : DETAIL_SECTIONS_VENDAS).map(sec => {
               const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount
-                : sec.id === 'checklist' ? checklistCount : sec.id === 'icp' ? undefined : objecoesCount
+                : sec.id === 'checklist' ? checklistCount : sec.id === 'questionario' ? questionarioCount
+                : sec.id === 'icp' ? undefined : objecoesCount
               return (
                 <button key={sec.id}
                   style={{ ...dv.sbItem, ...(section === sec.id ? dv.sbItemActive : {}) }}
@@ -1375,6 +1455,9 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
           )}
           {section === 'checklist' && (
             <ChecklistPanel checklist={playbook.checklist_etapas || {}} onChange={onUpdateChecklist} stageCfg={stageCfg} />
+          )}
+          {section === 'questionario' && (
+            <QuestionarioEtapaPanel questionarioEtapas={playbook.questionario_etapas || {}} onChange={onUpdateQuestionario} stageCfg={stageCfg} />
           )}
           {section === 'icp' && (
             <IcpPanel icp={playbook.icp || {}} onChange={onUpdateIcp} />
@@ -1536,6 +1619,12 @@ export default function Playbooks() {
     await savePb(updated)
   }
 
+  async function updateQuestionario(questionario_etapas) {
+    const updated = { ...currentPb, questionario_etapas }
+    setSelectedPb(updated)
+    await savePb(updated)
+  }
+
   function saveStep(form) {
     const t = now()
     let newPbSteps
@@ -1630,6 +1719,7 @@ export default function Playbooks() {
           onUpdateObjecoes={updateObjecoes}
           onUpdateChecklist={updateChecklist}
           onUpdateIcp={updateIcp}
+          onUpdateQuestionario={updateQuestionario}
         />
       ) : (
         <PlaybookList

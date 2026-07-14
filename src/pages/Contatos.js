@@ -1,10 +1,12 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useContacts } from '../hooks/useContacts'
+import { useContactListOptions, CARGOS_DEFAULT, DEPARTAMENTOS_DEFAULT } from '../hooks/useContactListOptions'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCompanies } from '../hooks/useCompanies'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCampanhas } from '../hooks/useCampanhas'
 import { useProducts } from '../hooks/useProducts'
+import { usePlaybooks } from '../hooks/usePlaybooks'
 import Button from '../components/Button'
 import EmpresaSearch from '../components/EmpresaSearch'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
@@ -50,8 +52,66 @@ const STATUS_CFG = {
   lead:     { label:'Lead',     bg:'#FEF3C7', text:'#92400E' },
   prospect: { label:'Prospect', bg:'#DBEAFE', text:'#1E40AF' },
 }
-const SENIORIDADE_OPTIONS  = [{ value:'', label:'—' }, { value:'junior', label:'Júnior' }, { value:'pleno', label:'Pleno' }, { value:'senior', label:'Sênior' }, { value:'c_level', label:'C-Level / Diretoria' }]
-const PODER_DECISAO_OPTIONS = [{ value:'', label:'—' }, { value:'decisor', label:'Decisor' }, { value:'influenciador', label:'Influenciador' }, { value:'usuario', label:'Usuário final' }]
+export const SENIORIDADE_OPTIONS  = [{ value:'', label:'—' }, { value:'junior', label:'Júnior' }, { value:'pleno', label:'Pleno' }, { value:'senior', label:'Sênior' }, { value:'c_level', label:'C-Level / Diretoria' }]
+export const PODER_DECISAO_OPTIONS = [{ value:'', label:'—' }, { value:'decisor', label:'Decisor' }, { value:'influenciador', label:'Influenciador' }, { value:'usuario', label:'Usuário final' }]
+
+// ─── Lista fechada com criação inline (Cargo / Departamento) ──────────────────
+// Antes eram <input> de texto livre — impossível de comparar de forma
+// confiável contra o ICP de Contato do Playbook ("Analista PCM" x "Analista
+// de PCM" nunca batem). Mesmo padrão de CategoriaSelect (Produtos.js).
+function ListSelect({ value, onChange, opcoes, setOpcoes, placeholder = 'Selecione…' }) {
+  const [open, setOpen] = useState(false)
+  const [nova, setNova] = useState('')
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  function addOpcao() {
+    const t = nova.trim()
+    if (!t || opcoes.includes(t)) return
+    setOpcoes(prev => [...prev, t])
+    onChange(t)
+    setNova('')
+    setOpen(false)
+  }
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(v => !v)} className="so-field"
+        style={{ display:'flex', alignItems:'center', justifyContent:'space-between', cursor:'pointer', textAlign:'left', width:'100%', color: value ? 'var(--text)' : 'var(--text-muted)' }}>
+        <span>{value || placeholder}</span>
+        <span style={{ fontSize:10, color:'var(--text-muted)', marginLeft:6 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:400,
+          background:'var(--surface)', border:'1px solid var(--border)', borderRadius:9,
+          boxShadow:'0 8px 28px rgba(0,0,0,0.13)', overflow:'hidden' }}>
+          <div style={{ maxHeight:200, overflowY:'auto', padding:'4px 0' }}>
+            <div onClick={() => { onChange(''); setOpen(false) }}
+              style={{ padding:'7px 12px', fontSize:12.5, cursor:'pointer', color:'var(--text-muted)', background: !value ? 'var(--accent-glow)' : 'transparent' }}>
+              — Nenhum —
+            </div>
+            {opcoes.map(op => (
+              <div key={op} onClick={() => { onChange(op); setOpen(false) }}
+                style={{ padding:'7px 12px', fontSize:13, cursor:'pointer', color:'var(--text)', background: value === op ? 'var(--accent-glow)' : 'transparent' }}>
+                {op}
+              </div>
+            ))}
+          </div>
+          <div style={{ display:'flex', gap:6, padding:'8px', borderTop:'1px solid var(--border2)' }}>
+            <input value={nova} onChange={e => setNova(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addOpcao() } }}
+              placeholder="Nova opção…" className="so-field" style={{ height:30, fontSize:12, flex:1 }} />
+            <button type="button" onClick={addOpcao} style={{ fontSize:12, fontWeight:600, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)' }}>
+              + Adicionar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function StatusBadge({ status, em_nutricao }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.lead
@@ -73,7 +133,7 @@ function TabOportunidades({ opps = [] }) {
   const totalValor = opps.reduce((s, o) => s + (Number(o.valor) || 0), 0)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', boxSizing: 'border-box', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
       {opps.length > 0 && (
         <div style={{ display: 'flex', gap: 16, padding: '12px 20px', background: 'var(--surface)',
           borderRadius: 12, border: '1px solid var(--border2)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
@@ -148,24 +208,40 @@ function topN(lista, n = 3) {
     .map(([label, count]) => ({ label, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
 }
 
-function PerfilCard({ titulo, contatos }) {
+function PerfilCard({ titulo, contatos, icpIdeal }) {
   const cargos    = topN(contatos.map(c => c.cargo))
   const deptos     = topN(contatos.map(c => c.departamento))
   const senior     = topN(contatos.map(c => c.senioridade))
   const decisao    = topN(contatos.map(c => c.poder_decisao))
-  const bloco = (label, itens) => itens.length > 0 && (
+  // Compara o perfil observado (topN) contra o ICP de Contato definido no
+  // Playbook vinculado a este Produto/Categoria — sem isso a análise é só
+  // estatística, sem servir de definição de "cliente ideal" de verdade.
+  const bloco = (label, itens, idealSet) => itens.length > 0 && (
     <div>
       <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', marginBottom:6 }}>{label}</div>
       <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
-        {itens.map(it => (
-          <div key={it.label} style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{it.label}</span>
-            <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--accent)', fontWeight:700 }}>{it.pct}%</span>
-          </div>
-        ))}
+        {itens.map(it => {
+          const aderente = idealSet && idealSet.size > 0 ? idealSet.has(it.label) : null
+          return (
+            <div key={it.label} style={{ display:'flex', alignItems:'center', gap:8 }}>
+              {aderente !== null && (
+                <span title={aderente ? 'Dentro do ICP do Playbook' : 'Fora do ICP do Playbook'} style={{ fontSize:11 }}>
+                  {aderente ? '✅' : '⚠️'}
+                </span>
+              )}
+              <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{it.label}</span>
+              <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--accent)', fontWeight:700 }}>{it.pct}%</span>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
+  // topN acima coleta o valor bruto salvo no contato (ex: "junior", não
+  // "Júnior") — o Set de comparação usa os mesmos valores brutos do ICP.
+  const idealDeptos  = icpIdeal?.departamentos?.length ? new Set(icpIdeal.departamentos) : null
+  const idealSenior  = icpIdeal?.senioridades?.length ? new Set(icpIdeal.senioridades) : null
+  const idealDecisao = icpIdeal?.poderes_decisao?.length ? new Set(icpIdeal.poderes_decisao) : null
   return (
     <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
       boxShadow:'0 1px 3px rgba(0,0,0,0.06)', padding:'16px 18px', display:'flex', flexDirection:'column', gap:14 }}>
@@ -175,16 +251,21 @@ function PerfilCard({ titulo, contatos }) {
           {contatos.length} contato{contatos.length !== 1 ? 's' : ''}
         </span>
       </div>
+      {!icpIdeal && (
+        <div style={{ fontSize:11, color:'var(--text-muted)', fontStyle:'italic' }}>
+          Nenhum Playbook com ICP de Contato configurado para este item — comparação indisponível, só estatística observada.
+        </div>
+      )}
       {cargos.length === 0 && deptos.length === 0 && senior.length === 0 && decisao.length === 0 ? (
         <div style={{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic' }}>
           Nenhum atributo de perfil preenchido nos contatos ainda.
         </div>
       ) : (
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:16 }}>
-          {bloco('Cargo', cargos)}
-          {bloco('Departamento', deptos)}
-          {bloco('Senioridade', senior)}
-          {bloco('Poder de decisão', decisao)}
+          {bloco('Cargo', cargos, null)}
+          {bloco('Departamento', deptos, idealDeptos)}
+          {bloco('Senioridade', senior, idealSenior)}
+          {bloco('Poder de decisão', decisao, idealDecisao)}
         </div>
       )}
     </div>
@@ -192,6 +273,25 @@ function PerfilCard({ titulo, contatos }) {
 }
 
 function AnaliseICP({ opps, contatos, produtos }) {
+  const { playbooks: playbooksAll } = usePlaybooks()
+  const playbooksVendas = useMemo(() => playbooksAll.filter(p => (p.tipo || 'vendas') === 'vendas'), [playbooksAll])
+
+  // Playbook com ICP de Contato configurado, vinculado a este Produto ou
+  // Categoria (mesmo critério de auto-vínculo usado em Pipeline.js) — é o
+  // "cenário ideal" contra o qual o perfil observado é comparado.
+  function icpParaProduto(prod) {
+    if (!prod) return null
+    const pb = playbooksVendas.find(p =>
+      (p.produto_filtro_tipo === 'produto' && (p.produto_ids || []).includes(String(prod.id))) ||
+      (p.produto_filtro_tipo === 'categoria' && prod.categoria && (p.produto_categorias || []).includes(prod.categoria))
+    )
+    return pb?.icp || null
+  }
+  function icpParaCategoria(categoria) {
+    const pb = playbooksVendas.find(p => p.produto_filtro_tipo === 'categoria' && (p.produto_categorias || []).includes(categoria))
+    return pb?.icp || null
+  }
+
   const { porProduto, porCategoria } = useMemo(() => {
     const produtosById = Object.fromEntries((produtos || []).map(p => [String(p.id), p]))
     const contatosById = Object.fromEntries((contatos || []).map(c => [c.id, c]))
@@ -204,16 +304,17 @@ function AnaliseICP({ opps, contatos, produtos }) {
       for (const item of (o.itens || [])) {
         const prod = produtosById[String(item.produto_id)]
         if (!prod) continue
-        if (!porProduto[prod.id]) porProduto[prod.id] = { nome: prod.nome, contatos: [] }
+        if (!porProduto[prod.id]) porProduto[prod.id] = { nome: prod.nome, contatos: [], icp: icpParaProduto(prod) }
         porProduto[prod.id].contatos.push(contato)
         if (prod.categoria) {
-          if (!porCategoria[prod.categoria]) porCategoria[prod.categoria] = { nome: prod.categoria, contatos: [] }
+          if (!porCategoria[prod.categoria]) porCategoria[prod.categoria] = { nome: prod.categoria, contatos: [], icp: icpParaCategoria(prod.categoria) }
           porCategoria[prod.categoria].contatos.push(contato)
         }
       }
     }
     return { porProduto, porCategoria }
-  }, [opps, contatos, produtos])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [opps, contatos, produtos, playbooksVendas])
 
   const gruposProduto   = Object.values(porProduto).sort((a, b) => b.contatos.length - a.contatos.length)
   const gruposCategoria = Object.values(porCategoria).sort((a, b) => b.contatos.length - a.contatos.length)
@@ -235,7 +336,7 @@ function AnaliseICP({ opps, contatos, produtos }) {
           Por Produto
         </div>
         <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:12 }}>
-          {gruposProduto.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} />)}
+          {gruposProduto.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} icpIdeal={g.icp} />)}
         </div>
       </div>
       {gruposCategoria.length > 0 && (
@@ -244,7 +345,7 @@ function AnaliseICP({ opps, contatos, produtos }) {
             Por Categoria de Produto
           </div>
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:12 }}>
-            {gruposCategoria.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} />)}
+            {gruposCategoria.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} icpIdeal={g.icp} />)}
           </div>
         </div>
       )}
@@ -270,7 +371,7 @@ function TabCampanhas({ opps = [], campanhas = [] }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', boxSizing: 'border-box', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 10 }}>
       {vinculadas.map(c => (
         <div key={c.id} style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: '14px 18px' }}>
@@ -298,6 +399,8 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
   const [errs, setErrs] = useState({})
   const av = avatarColor(form.nome || '?')
+  const { opcoes: cargos, setOpcoes: setCargos } = useContactListOptions('cargo', CARGOS_DEFAULT)
+  const { opcoes: departamentos, setOpcoes: setDepartamentos } = useContactListOptions('departamento', DEPARTAMENTOS_DEFAULT)
 
   function patch(k, v) {
     const next = { ...form, [k]: v }
@@ -329,7 +432,7 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
   }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', boxSizing:'border-box', padding:'20px 28px 28px', display:'flex', flexDirection:'column', gap:24 }}>
       {/* Avatar + nome */}
       <div style={{ display:'flex', alignItems:'center', gap:14 }}>
         <div style={{ width:52, height:52, borderRadius:'50%', background:av.bg, color:av.color,
@@ -362,10 +465,7 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
       <FormSection label="Dados">
         <FormGrid cols={2}>
           <FormField label="Cargo">
-            <input className="so-field" value={form.cargo || ''}
-              onChange={e => setForm(f => ({ ...f, cargo: e.target.value }))}
-              onBlur={e => patch('cargo', e.target.value)}
-              placeholder="Ex: Diretor Comercial" />
+            <ListSelect value={form.cargo} onChange={v => patch('cargo', v)} opcoes={cargos} setOpcoes={setCargos} placeholder="Selecione o cargo…" />
           </FormField>
           <FormField label="Empresa">
             <EmpresaSearch
@@ -444,10 +544,7 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
             </label>
           </FormField>
           <FormField label="Departamento">
-            <input className="so-field" value={form.departamento || ''}
-              onChange={e => setForm(f => ({ ...f, departamento: e.target.value }))}
-              onBlur={e => patch('departamento', e.target.value)}
-              placeholder="Ex: TI, Financeiro, Vendas" />
+            <ListSelect value={form.departamento} onChange={v => patch('departamento', v)} opcoes={departamentos} setOpcoes={setDepartamentos} placeholder="Selecione o departamento…" />
           </FormField>
           <FormField label="Senioridade">
             <select className="so-field" value={form.senioridade || ''}
