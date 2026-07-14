@@ -75,7 +75,7 @@ DO $$
 DECLARE
   t text;
   tabelas text[] := ARRAY[
-    'oportunidades','tasks','playbooks','sellers','actions','parceiros',
+    'oportunidades','opportunities','tasks','playbooks','sellers','actions','parceiros',
     'companies','contacts','projects','customer_health','contracts',
     'payments','commission_rules','questionnaire_templates','documents',
     'goals','relatorios','partner_maturity_params','perfis_acesso',
@@ -83,8 +83,13 @@ DECLARE
     'campanhas','indicadores','metas_kpi','alert_rules'
   ];
 BEGIN
+  -- 'oportunidades' é tabela base em alguns ambientes e view (com base real
+  -- 'opportunities') em outros — só aplica a policy à tabela base de verdade.
   FOREACH t IN ARRAY tabelas LOOP
     IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema='public' AND table_name=t AND table_type='BASE TABLE'
+    ) AND EXISTS (
       SELECT 1 FROM information_schema.columns
       WHERE table_schema='public' AND table_name=t AND column_name='branch_id'
     ) AND EXISTS (

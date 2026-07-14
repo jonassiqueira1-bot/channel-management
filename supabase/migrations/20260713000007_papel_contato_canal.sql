@@ -3,7 +3,16 @@
 -- que continua existindo normalmente e agora é atribuído via mapeamento explícito
 -- na função invite-user, não mais por comparação direta de texto.
 
+-- O CHECK constraint de profiles.role nem sempre inclui 'contato_canal' ainda
+-- (schemas de dev/prod divergiram) — remove antes do UPDATE (linhas existentes
+-- com role='parceiro' violariam um constraint que já exigisse 'contato_canal'),
+-- e recria depois já sem 'parceiro' (não sobra nenhuma linha com esse valor).
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_role_check;
+
 UPDATE public.profiles SET role = 'contato_canal' WHERE role = 'parceiro';
+
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_role_check
+  CHECK (role = ANY (ARRAY['admin_isv','vendedor','financeiro','cs','projetos','contato_canal']));
 
 ALTER POLICY "payments: block_parceiro" ON public.payments
   USING (public.my_role() <> 'contato_canal');

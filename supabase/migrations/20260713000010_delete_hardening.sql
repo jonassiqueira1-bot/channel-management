@@ -158,13 +158,20 @@ DECLARE
     'actions','sellers','goals','customer_health','habilitacoes','tipos_acao',
     'campanhas','parceiros','perfis_acesso','equipes','documents','tasks',
     'playbooks','questionnaire_templates','questionnaire_submissions',
-    'oportunidades','provisoes','tabela_precos','profiles',
+    'oportunidades','opportunities','provisoes','tabela_precos','profiles',
     'partner_maturity_params','commission_rules','commission_payments'
   ];
 BEGIN
+  -- 'oportunidades' é tabela base em alguns ambientes e view (com base real
+  -- 'opportunities') em outros — só aplica a policy à tabela base de verdade.
   FOREACH t IN ARRAY tabelas LOOP
-    EXECUTE format('DROP POLICY IF EXISTS no_hard_delete ON public.%I', t);
-    EXECUTE format('CREATE POLICY no_hard_delete ON public.%I AS RESTRICTIVE FOR DELETE USING (false)', t);
+    IF EXISTS (
+      SELECT 1 FROM information_schema.tables
+      WHERE table_schema='public' AND table_name=t AND table_type='BASE TABLE'
+    ) THEN
+      EXECUTE format('DROP POLICY IF EXISTS no_hard_delete ON public.%I', t);
+      EXECUTE format('CREATE POLICY no_hard_delete ON public.%I AS RESTRICTIVE FOR DELETE USING (false)', t);
+    END IF;
   END LOOP;
 END $$;
 

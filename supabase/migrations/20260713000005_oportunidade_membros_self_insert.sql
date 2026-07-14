@@ -11,6 +11,6 @@ ALTER TABLE public.oportunidade_membros
 CREATE POLICY "oportunidade_membros: self_insert" ON public.oportunidade_membros
   FOR INSERT WITH CHECK (
     tenant_id = public.my_tenant_id()
-    AND user_id = auth.uid()
+    AND user_id::text = auth.uid()::text
     AND tipo_membro = 'canal'
   );
