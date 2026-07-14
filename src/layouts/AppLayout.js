@@ -109,7 +109,7 @@ const s = {
 
   /* ── Top bar desktop/tablet: colada na borda superior, mesma cor da sidebar ── */
   topBarDesktop: {
-    height: 8,
+    height: 11,
     backgroundColor: 'var(--sb-bg)',
     flexShrink: 0,
   },

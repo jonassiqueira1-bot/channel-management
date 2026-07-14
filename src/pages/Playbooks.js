@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { STAGE_CFG, RESOURCE_CFG, SEGMENT_OPTIONS, REGION_OPTIONS } from '../data/mockPlaybooks'
+import { STAGE_CFG, RESOURCE_CFG, REGION_OPTIONS } from '../data/mockPlaybooks'
+import { SEGMENTOS_PADRAO as SEGMENT_OPTIONS } from '../data/segmentos'
 import { useLocalState } from '../hooks/useLocalState'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import { useAuditLog } from '../hooks/useAuditLog'
