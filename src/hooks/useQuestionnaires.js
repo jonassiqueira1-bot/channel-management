@@ -36,17 +36,25 @@ function templateToRow(t, tenantId, branchId) {
   }
 }
 
+// A tabela real (questionnaire_submissions) só tem id/tenant_id/template_id/
+// company_id/created_by/respostas/status/created_at/updated_at/branch_id —
+// NÃO tem contact_id, respondente_nome, enviado_em nem custom_fields como
+// colunas próprias. Tudo isso ia direto no payload do insert/update e o
+// Postgres rejeitava (coluna inexistente) — falha silenciosa: a UI otimista
+// mostrava "salvo", mas nada persistia de verdade. Agora usa a coluna
+// custom_fields (jsonb, adicionada em 20260714000004) pra guardar esses
+// campos extras, igual ao padrão do resto do sistema.
 function rowToSubmission(row) {
   const cf = row.custom_fields || {}
   return {
     id:               row.id,
     template_id:      row.template_id || null,
     company_id:       row.company_id || null,
-    contact_id:       row.contact_id || null,
-    respondente_nome: row.respondente_nome || cf.answered_by_nome || '',
+    contact_id:       cf.contact_id || null,
+    respondente_nome: cf.respondente_nome || '',
     status:           row.status || 'rascunho',
-    respostas:        row.respostas || cf.valores_respostas || {},
-    enviado_em:       row.enviado_em || null,
+    respostas:        row.respostas || {},
+    enviado_em:       cf.enviado_em || null,
     criado:           row.created_at?.slice(0, 10) || '',
     opportunity_id:   cf.opportunity_id || null,
     company_nome:     cf.company_nome || '',
@@ -59,14 +67,14 @@ function submissionToRow(s, tenantId) {
     tenant_id:        tenantId,
     template_id:      s.template_id || null,
     company_id:       s.company_id || null,
-    contact_id:       s.contact_id || null,
-    respondente_nome: s.respondente_nome || s.answered_by_nome || null,
     status:           s.status || 'rascunho',
     respostas:        s.respostas || s.valores_respostas || {},
-    enviado_em:       s.enviado_em || s.submitted_at || null,
     custom_fields:    {
-      opportunity_id: s.opportunity_id || null,
-      company_nome:   s.company_nome || '',
+      opportunity_id:   s.opportunity_id || null,
+      contact_id:       s.contact_id || null,
+      respondente_nome: s.respondente_nome || s.answered_by_nome || '',
+      enviado_em:       s.enviado_em || s.submitted_at || null,
+      company_nome:     s.company_nome || '',
     },
   }
 }

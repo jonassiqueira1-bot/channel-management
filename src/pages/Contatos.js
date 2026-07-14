@@ -681,7 +681,7 @@ export default function Contatos() {
         onClose={() => { setModal(null); setSoTab('dados') }}
         title={modal && modal !== 'novo' ? (modal.nome || 'Contato') : 'Novo contato'}
         subtitle={modal && modal !== 'novo' ? 'Editando contato' : 'Novo cadastro'}
-        defaultWidth={560}
+        defaultWidth="50vw"
         tabs={modal && modal !== 'novo' ? [
           { key: 'dados',         label: 'Dados' },
           { key: 'oportunidades', label: 'Oportunidades' },
