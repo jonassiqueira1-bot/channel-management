@@ -41,6 +41,8 @@ function rowToEmpresa(row) {
     franquia_ar_id:    row.custom_fields?.franquia_ar_id || null,
     franquia_ar_nome:  row.custom_fields?.franquia_ar_nome || '',
     resp_ar_id:        row.custom_fields?.resp_ar_id || null,
+    porte:             row.porte || '',
+    receita_faixa:     row.receita_faixa || '',
     branch_id:         row.branch_id || null,
     tenant_id:         row.tenant_id || null,
   }
@@ -57,6 +59,8 @@ function empresaToRow(form, tenantId, branchId) {
     tipo:           form.tipo,
     segment:        form.segmento,
     status:         form.status,
+    porte:          form.porte || null,
+    receita_faixa:  form.receita_faixa || null,
     email:          form.email,
     phone:          form.telefone,
     website:        form.site,

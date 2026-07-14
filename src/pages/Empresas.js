@@ -17,6 +17,7 @@ import { useAuditLog } from '../hooks/useAuditLog'
 import { useProfile } from '../hooks/useProfile'
 import { checkEmUso } from '../lib/checkUsage'
 import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
+import { SEGMENTOS_PADRAO } from '../data/segmentos'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -46,18 +47,18 @@ function fmtCNAE(code) {
   return `${s.slice(0,4)}-${s.slice(4,5)}/${s.slice(5,7)}`
 }
 
-// Mapa CNAE simplificado → segmento
+// Mapa CNAE simplificado → segmento (vocabulário único, ver src/data/segmentos.js)
 const CNAE_MAP = [
-  { re: /^(01|02|03)/, seg: 'Agro' },
+  { re: /^(01|02|03)/, seg: 'Agronegócio' },
   { re: /^(05|06|07|08|09)/, seg: 'Mineração' },
-  { re: /^(1[0-9]|2[0-9]|3[0-3])/, seg: 'Indústria' },
+  { re: /^(1[0-9]|2[0-9]|3[0-3])/, seg: 'Indústria e Manufatura' },
   { re: /^(35)/, seg: 'Energia' },
-  { re: /^(41|42|43)/, seg: 'Construção' },
-  { re: /^(45|46|47)/, seg: 'Distribuição' },
-  { re: /^(49|50|51|52|53)/, seg: 'Logística' },
+  { re: /^(41|42|43)/, seg: 'Construção e Projetos' },
+  { re: /^(45|46|47)/, seg: 'Distribuição e Logística' },
+  { re: /^(49|50|51|52|53)/, seg: 'Distribuição e Logística' },
   { re: /^(55|56)/, seg: 'Turismo' },
   { re: /^(58|59|60|61|62|63)/, seg: 'Tecnologia' },
-  { re: /^(64|65|66)/, seg: 'Financeiro' },
+  { re: /^(64|65|66)/, seg: 'Finanças e Contabilidade' },
   { re: /^(86|87|88)/, seg: 'Saúde' },
   { re: /^(85)/, seg: 'Educação' },
 ]
@@ -85,10 +86,10 @@ const STATUS_MAP = {
   inativo:    { label: 'Inativo',    color: '#9A9590',       bg: 'var(--surface3)',  text: 'var(--text-muted)' },
 }
 
-const SEGMENTOS = ['Agro','Construção','Distribuição','Educação','Energia','Financeiro','Indústria','Logística','Mineração','Saúde','Tecnologia','Turismo']
+const SEGMENTOS = SEGMENTOS_PADRAO
 const ORIGENS   = ['Inbound','Outbound','Canal','Indicação','Evento','Prospecção']
 
-const PORTES = [
+export const PORTES = [
   { value: '',          label: '—' },
   { value: 'micro',     label: 'Microempresa (até 9 func.)' },
   { value: 'pequena',   label: 'Pequena (10–49 func.)' },
@@ -96,7 +97,7 @@ const PORTES = [
   { value: 'grande',    label: 'Grande (250–999 func.)' },
   { value: 'enterprise',label: 'Enterprise (1.000+ func.)' },
 ]
-const RECEITA_FAIXAS = [
+export const RECEITA_FAIXAS = [
   { value: '',    label: '—' },
   { value: 'ate500k',   label: 'Até R$ 500 mil/ano' },
   { value: 'ate2m',     label: 'R$ 500 mil – R$ 2 mi/ano' },

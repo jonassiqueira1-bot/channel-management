@@ -23,21 +23,8 @@ export const RESOURCE_CFG = {
   outro: { icon: '📌', label: 'Outro',        color: '#6B7280', bg: '#F3F4F6' },
 }
 
-// Segmentos alinhados aos verticais gerenciados pela TOTVS (totvs.com)
-export const SEGMENT_OPTIONS = [
-  'Agronegócio',
-  'Construção e Projetos',
-  'Distribuição e Logística',
-  'Educação',
-  'Finanças e Contabilidade',
-  'Indústria e Manufatura',
-  'Jurídico',
-  'Saúde',
-  'Serviços',
-  'Varejo e Comércio',
-  'Setor Público',
-  'Outro',
-]
+// Segmentos — vocabulário único, compartilhado com Empresas/ICP (src/data/segmentos.js)
+export { SEGMENTOS_PADRAO as SEGMENT_OPTIONS } from './segmentos'
 export const REGION_OPTIONS  = ['Sul', 'Sudeste', 'Centro-Oeste', 'Nordeste', 'Norte', 'Nacional']
 
 // ─── Playbooks (registros mestre) ─────────────────────────────────────────────

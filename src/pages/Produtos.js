@@ -9,6 +9,7 @@ import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
+import { useProductCategories } from '../hooks/useProductCategories'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TIPOS_PRODUTO = [
@@ -33,8 +34,6 @@ const COBRANCAS = [
   { value: 'uso',     label: 'Por uso' },
   { value: 'usuario', label: 'Por usuário' },
 ]
-
-const CATEGORIAS_DEFAULT = ['CRM', 'ERP', 'BI / Analytics', 'Segurança', 'Infraestrutura', 'Integração', 'Suporte', 'Implementação', 'Outros']
 
 const EMPTY_FORM = {
   nome: '', codigo: '', descricao: '', tipo: 'saas', categoria: '',
@@ -329,7 +328,7 @@ const im = {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Produtos() {
   const [search, setSearch] = useLocalState('produtos:search', '')
-  const [categorias, setCategorias] = useLocalState('produtos:categorias', CATEGORIAS_DEFAULT)
+  const { categorias, setCategorias } = useProductCategories()
   const { produtos, save: saveProduto, remove: deleteProduto, importMany: importProdutos } = useProducts()
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()

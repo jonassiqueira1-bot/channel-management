@@ -13,6 +13,7 @@ import BrowseLayout from '../components/BrowseLayout'
 import { usePermissions } from '../hooks/usePermissions'
 import EmpresaSearch from '../components/EmpresaSearch'
 import { useCompanies } from '../hooks/useCompanies'
+import { PORTES, RECEITA_FAIXAS } from './Empresas'
 
 const STEP_ICONS = ['📋','✅','🎯','💡','🔍','📞','🤝','📊','⚡','🏆','📝','🔧','💬','🚀','⚙️','📌','🔑','💰','📅','🌟']
 
@@ -391,6 +392,28 @@ const EMPTY_PB = {
   funil_ids: [], funil_id: '',
   produto_filtro_tipo: '', produto_ids: [], produto_categorias: [], produto_id: '',
   objecoes: [], tipo: 'vendas',
+  segmento_pesos: {}, porte_pesos: {},
+  checklist_etapas: {}, icp: {},
+}
+
+// ─── Peso 0-100 por opção (Segmento / Porte) ─────────────────────────────────
+function PesoList({ options, value = {}, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {options.map(opt => {
+        const peso = value[opt.value] ?? 50
+        return (
+          <div key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text)', width: 200, flexShrink: 0 }}>{opt.label}</span>
+            <input type="range" min={0} max={100} step={5} value={peso}
+              onChange={e => onChange({ ...value, [opt.value]: Number(e.target.value) })}
+              style={{ flex: 1 }} />
+            <span style={{ fontSize: 12, fontFamily: 'var(--mono)', color: 'var(--text-muted)', width: 36, textAlign: 'right', flexShrink: 0 }}>{peso}%</span>
+          </div>
+        )
+      })}
+    </div>
+  )
 }
 
 function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [], produtos = [] }) {
@@ -501,6 +524,20 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
                     onChange={v => set('produto_categorias', v)}
                     placeholder="Pesquisar categoria…"
                   />
+                </FormField>
+              )}
+              {(form.produto_filtro_tipo === 'produto' || form.produto_filtro_tipo === 'categoria') && (
+                <FormField label="Peso por Segmento" span={2}
+                  hint="Quão aderente cada Segmento é a este Produto/Categoria — usado no indicador de aderência da Oportunidade.">
+                  <PesoList options={SEGMENT_OPTIONS.map(s => ({ value: s, label: s }))}
+                    value={form.segmento_pesos} onChange={v => set('segmento_pesos', v)} />
+                </FormField>
+              )}
+              {(form.funil_id || form.produto_filtro_tipo) && (
+                <FormField label="Porte aderente" span={2}
+                  hint="Quão aderente cada Porte de empresa é a este Funil/Produto/Categoria.">
+                  <PesoList options={PORTES.filter(p => p.value)}
+                    value={form.porte_pesos} onChange={v => set('porte_pesos', v)} />
                 </FormField>
               )}
               <FormField label="Descrição" span={2}>
@@ -1081,10 +1118,164 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
   )
 }
 
+// ─── Checklist de Qualificação — itens sim/não por etapa, cada um com peso ────
+// Checks positivos aumentam a qualificação da Oportunidade (Pipeline.js soma os
+// pesos marcados / total de pesos da etapa = qualificacao_score).
+function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
+  const [novoLabel, setNovoLabel] = useState({})
+
+  function addItem(etapaKey) {
+    const label = (novoLabel[etapaKey] || '').trim()
+    if (!label) return
+    const itens = checklist[etapaKey] || []
+    onChange({ ...checklist, [etapaKey]: [...itens, { id: `chk-${Date.now()}-${Math.random().toString(36).slice(2,6)}`, label, peso: 10 }] })
+    setNovoLabel(p => ({ ...p, [etapaKey]: '' }))
+  }
+  function removeItem(etapaKey, itemId) {
+    onChange({ ...checklist, [etapaKey]: (checklist[etapaKey] || []).filter(i => i.id !== itemId) })
+  }
+  function updatePeso(etapaKey, itemId, peso) {
+    onChange({ ...checklist, [etapaKey]: (checklist[etapaKey] || []).map(i => i.id === itemId ? { ...i, peso } : i) })
+  }
+
+  return (
+    <div style={dp.panel}>
+      <div style={dp.panelHeader}>
+        <h2 style={dp.panelTitle}>Checklist de Qualificação</h2>
+        <p style={dp.panelSub}>Itens sim/não por etapa do funil. Cada item marcado como "sim" na Oportunidade soma seu peso na Qualificação (0–100%).</p>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {Object.entries(stageCfg).map(([key, cfg]) => {
+          const itens = checklist[key] || []
+          return (
+            <div key={key} style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: '14px 16px', background: 'var(--surface)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color || 'var(--accent)', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{cfg.label}</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+                {itens.map(item => (
+                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span style={{ flex: 1, fontSize: 12.5, color: 'var(--text)' }}>{item.label}</span>
+                    <input type="number" min={0} max={100} value={item.peso}
+                      onChange={e => updatePeso(key, item.id, Number(e.target.value))}
+                      style={{ width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, textAlign: 'center' }} />
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>peso</span>
+                    <button onClick={() => removeItem(key, item.id)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '2px 4px' }}>✕</button>
+                  </div>
+                ))}
+                {itens.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum item nesta etapa ainda.</div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input value={novoLabel[key] || ''} onChange={e => setNovoLabel(p => ({ ...p, [key]: e.target.value }))}
+                  onKeyDown={e => e.key === 'Enter' && addItem(key)}
+                  placeholder="Ex: Empresa tem orçamento aprovado?"
+                  style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }} />
+                <button onClick={() => addItem(key)} style={dp.ghostAddBtn}>+ Adicionar</button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+// ─── ICP — Perfil de Cliente Ideal ────────────────────────────────────────────
+function IcpPanel({ icp = {}, onChange }) {
+  const set = (k, v) => onChange({ ...icp, [k]: v })
+  const addTag = (k, v) => { const t = (v || '').trim(); if (!t) return; set(k, [...(icp[k] || []), t]) }
+  const removeTag = (k, t) => set(k, (icp[k] || []).filter(x => x !== t))
+
+  function TagField({ field, placeholder }) {
+    const [draft, setDraft] = useState('')
+    return (
+      <div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {(icp[field] || []).map(t => (
+            <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: 'var(--accent)20', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {t}<span onClick={() => removeTag(field, t)} style={{ cursor: 'pointer', opacity: 0.7 }}>×</span>
+            </span>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <input value={draft} onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { addTag(field, draft); setDraft('') } }}
+            placeholder={placeholder}
+            style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }} />
+          <button onClick={() => { addTag(field, draft); setDraft('') }} style={dp.ghostAddBtn}>+ Adicionar</button>
+        </div>
+      </div>
+    )
+  }
+
+  const block = (title, children) => (
+    <div style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: '16px 18px', background: 'var(--surface)', marginBottom: 14 }}>
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 12 }}>{title}</div>
+      {children}
+    </div>
+  )
+
+  return (
+    <div style={dp.panel}>
+      <div style={dp.panelHeader}>
+        <h2 style={dp.panelTitle}>ICP — Perfil de Cliente Ideal</h2>
+        <p style={dp.panelSub}>Critérios objetivos de quem é o cliente ideal para este playbook — firmográfico, comportamental e tecnográfico.</p>
+      </div>
+
+      {block('Firmográfico', (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Segmentos</div>
+            <MultiSelect options={SEGMENT_OPTIONS.map(s => ({ value: s, label: s }))} value={icp.segmentos || []} onChange={v => set('segmentos', v)} placeholder="Selecionar segmentos…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Porte</div>
+            <MultiSelect options={PORTES.filter(p => p.value)} value={icp.portes || []} onChange={v => set('portes', v)} placeholder="Selecionar portes…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Faixa de faturamento</div>
+            <MultiSelect options={RECEITA_FAIXAS.filter(r => r.value)} value={icp.faturamento || []} onChange={v => set('faturamento', v)} placeholder="Selecionar faixas…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Região</div>
+            <MultiSelect options={REGION_OPTIONS.map(r => ({ value: r, label: r }))} value={icp.regioes || []} onChange={v => set('regioes', v)} placeholder="Selecionar regiões…" />
+          </div>
+        </div>
+      ))}
+
+      {block('Comportamental', (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Principais dores / gatilhos de compra</div>
+            <TagField field="dores" placeholder="Ex: Falta de visibilidade do funil de vendas…" />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Critérios de desqualificação</div>
+            <TagField field="desqualificacao" placeholder="Ex: Menos de 5 vendedores…" />
+          </div>
+        </div>
+      ))}
+
+      {block('Tecnográfico', (
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Stack / soluções concorrentes em uso</div>
+          <TagField field="stack" placeholder="Ex: Planilhas, CRM concorrente X…" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Objeções Detail Panel ────────────────────────────────────────────────────
 // ─── Detail View ─────────────────────────────────────────────────────────────
 const DETAIL_SECTIONS_VENDAS = [
   { id: 'funnel',    icon: '🎯', label: 'Atividades por Etapa' },
+  { id: 'checklist', icon: '✅', label: 'Checklist de Qualificação' },
+  { id: 'icp',       icon: '🧭', label: 'ICP' },
   { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
   { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
   { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
@@ -1110,7 +1301,8 @@ const SEGMENT_COLORS = {
 
 function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], onBack, onEditPlaybook,
   onAddStep, onEditStep, onDeleteStep, onAddRef, onEditRef, onDeleteRef,
-  onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes }) {
+  onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes,
+  onUpdateChecklist, onUpdateIcp }) {
   const [section, setSection] = useState('funnel')
   const segColor = SEGMENT_COLORS[playbook.segment] || SEGMENT_COLORS['Outro']
 
@@ -1130,7 +1322,8 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
   const stepsCount    = steps.length
   const refsCount     = refs.length
   const resourceCount = resources.length
-  const objecoesCount = (playbook.objecoes || []).length
+  const objecoesCount  = (playbook.objecoes || []).length
+  const checklistCount = Object.values(playbook.checklist_etapas || {}).reduce((s, arr) => s + arr.length, 0)
 
   return (
     <div style={dv.wrap}>
@@ -1155,7 +1348,8 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
         <aside style={dv.sidebar}>
           <div style={dv.sbInner}>
             {(isAdministrativo ? DETAIL_SECTIONS_ADMIN : DETAIL_SECTIONS_VENDAS).map(sec => {
-              const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount : objecoesCount
+              const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount
+                : sec.id === 'checklist' ? checklistCount : sec.id === 'icp' ? undefined : objecoesCount
               return (
                 <button key={sec.id}
                   style={{ ...dv.sbItem, ...(section === sec.id ? dv.sbItemActive : {}) }}
@@ -1181,6 +1375,12 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
           )}
           {section === 'resources' && (
             <ResourcesPanel resources={resources} isISV={isISV} onAdd={onAddResource} onEdit={onEditResource} onDelete={onDeleteResource} />
+          )}
+          {section === 'checklist' && (
+            <ChecklistPanel checklist={playbook.checklist_etapas || {}} onChange={onUpdateChecklist} stageCfg={stageCfg} />
+          )}
+          {section === 'icp' && (
+            <IcpPanel icp={playbook.icp || {}} onChange={onUpdateIcp} />
           )}
           {section === 'objecoes' && (
             <div style={dp.panel}>
@@ -1327,6 +1527,18 @@ export default function Playbooks() {
     await savePb(updated)
   }
 
+  async function updateChecklist(checklist_etapas) {
+    const updated = { ...currentPb, checklist_etapas }
+    setSelectedPb(updated)
+    await savePb(updated)
+  }
+
+  async function updateIcp(icp) {
+    const updated = { ...currentPb, icp }
+    setSelectedPb(updated)
+    await savePb(updated)
+  }
+
   function saveStep(form) {
     const t = now()
     let newPbSteps
@@ -1419,6 +1631,8 @@ export default function Playbooks() {
           onEditResource={res => setModal({ type: 'resource', data: res })}
           onDeleteResource={deleteResource}
           onUpdateObjecoes={updateObjecoes}
+          onUpdateChecklist={updateChecklist}
+          onUpdateIcp={updateIcp}
         />
       ) : (
         <PlaybookList
