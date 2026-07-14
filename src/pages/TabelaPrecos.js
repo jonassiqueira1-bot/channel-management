@@ -1,0 +1,254 @@
+import { useState, useMemo } from 'react'
+import { useProducts } from '../hooks/useProducts'
+import { useTabelaPrecos } from '../hooks/useTabelaPrecos'
+import Button from '../components/Button'
+import SettingsLayout from '../components/ui/SettingsLayout'
+import RotinasProdutosDrawer from '../components/RotinasProdutos'
+
+const INDICES = ['IPCA', 'IGPM', 'Manual']
+
+function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
+  const [modo, setModo] = useState('massa') // 'massa' | 'individual'
+  const [selecionados, setSelecionados] = useState([])
+  const [percentual, setPercentual] = useState('')
+  const [indice, setIndice] = useState('IPCA')
+  const [vigencia, setVigencia] = useState(new Date().toISOString().slice(0, 10))
+  const [observacoes, setObservacoes] = useState('')
+  const [produtoId, setProdutoId] = useState('')
+  const [novoPreco, setNovoPreco] = useState('')
+  const [erro, setErro] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const toggle = (id) => setSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const preview = useMemo(() => {
+    if (modo !== 'massa') return []
+    const pct = Number(percentual || 0)
+    return produtos.filter(p => selecionados.includes(p.id)).map(p => ({
+      ...p, novoPreco: Math.round(Number(p.preco || 0) * (1 + pct / 100) * 100) / 100,
+    }))
+  }, [modo, percentual, produtos, selecionados])
+
+  async function handleConfirmMassa() {
+    if (selecionados.length === 0) { setErro('Selecione ao menos um produto.'); return }
+    if (percentual === '' || isNaN(Number(percentual))) { setErro('Informe o percentual.'); return }
+    setSaving(true)
+    const res = await tabelaPrecos.registrarReajusteEmMassa({
+      produtos: produtos.filter(p => selecionados.includes(p.id)),
+      percentual: Number(percentual), vigencia_inicio: vigencia, indice, observacoes,
+    })
+    setSaving(false)
+    if (res.ok) onClose(); else setErro(res.message)
+  }
+
+  async function handleConfirmIndividual() {
+    const produto = produtos.find(p => p.id === produtoId)
+    if (!produto) { setErro('Selecione um produto.'); return }
+    if (novoPreco === '' || isNaN(Number(novoPreco))) { setErro('Informe o novo preço.'); return }
+    setSaving(true)
+    const res = await tabelaPrecos.registrarReajusteIndividual({
+      produto_id: produto.id, preco_atual: produto.preco, preco: Number(novoPreco),
+      vigencia_inicio: vigencia, indice, observacoes,
+    })
+    setSaving(false)
+    if (res.ok) onClose(); else setErro(res.message)
+  }
+
+  return (
+    <div style={mo.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={mo.modal}>
+        <div style={mo.header}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--text)' }}>Novo reajuste</span>
+          <button style={mo.close} onClick={onClose} type="button">✕</button>
+        </div>
+
+        <div style={mo.tabs}>
+          <button style={mo.tab(modo === 'massa')} onClick={() => { setModo('massa'); setErro('') }}>Em massa (%)</button>
+          <button style={mo.tab(modo === 'individual')} onClick={() => { setModo('individual'); setErro('') }}>Individual</button>
+        </div>
+
+        <div style={mo.body}>
+          {erro && <div style={{ color: '#DC2626', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
+
+          {modo === 'massa' ? (
+            <>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Produtos</div>
+              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', marginBottom: 14 }}>
+                {produtos.map(p => (
+                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={selecionados.includes(p.id)} onChange={() => toggle(p.id)} />
+                    <span style={{ flex: 1 }}>{p.nome}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</span>
+                  </label>
+                ))}
+                {produtos.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nenhum produto cadastrado.</div>}
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Percentual (%)</div>
+                  <input className="fpe-field" type="number" step="0.01" value={percentual} onChange={e => setPercentual(e.target.value)} placeholder="Ex: 4,5" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Índice</div>
+                  <select className="fpe-field" value={indice} onChange={e => setIndice(e.target.value)}>
+                    {INDICES.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Vigência a partir de</div>
+                <input className="fpe-field" type="date" value={vigencia} onChange={e => setVigencia(e.target.value)} />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Observações</div>
+                <textarea className="fpe-field" style={{ minHeight: 56, resize: 'vertical' }} value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Opcional" />
+              </div>
+
+              {preview.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ background: 'var(--surface2)' }}>
+                        <th style={{ padding: '6px 10px', textAlign: 'left' }}>Produto</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>Atual</th>
+                        <th style={{ padding: '6px 10px', textAlign: 'right' }}>Novo</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {preview.map(p => (
+                        <tr key={p.id} style={{ borderTop: '1px solid var(--border2)' }}>
+                          <td style={{ padding: '6px 10px' }}>{p.nome}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--mono)' }}>R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</td>
+                          <td style={{ padding: '6px 10px', textAlign: 'right', fontFamily: 'var(--mono)', fontWeight: 600, color: 'var(--green-text)' }}>R$ {p.novoPreco.toLocaleString('pt-BR')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Produto</div>
+                <select className="fpe-field" value={produtoId} onChange={e => setProdutoId(e.target.value)}>
+                  <option value="">Selecione…</option>
+                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome} — R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</option>)}
+                </select>
+              </div>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Novo preço (R$)</div>
+                  <input className="fpe-field" type="number" step="0.01" value={novoPreco} onChange={e => setNovoPreco(e.target.value)} placeholder="0,00" />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Índice</div>
+                  <select className="fpe-field" value={indice} onChange={e => setIndice(e.target.value)}>
+                    {INDICES.map(i => <option key={i} value={i}>{i}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Vigência a partir de</div>
+                <input className="fpe-field" type="date" value={vigencia} onChange={e => setVigencia(e.target.value)} />
+              </div>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Observações</div>
+                <textarea className="fpe-field" style={{ minHeight: 56, resize: 'vertical' }} value={observacoes} onChange={e => setObservacoes(e.target.value)} placeholder="Opcional" />
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={mo.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={saving} onClick={modo === 'massa' ? handleConfirmMassa : handleConfirmIndividual}>
+            {saving ? 'Salvando…' : 'Registrar reajuste'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const mo = {
+  overlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 500, backdropFilter: 'blur(2px)' },
+  modal:   { background: 'var(--surface)', borderRadius: 14, width: 640, maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.22)', overflow: 'hidden' },
+  header:  { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px 12px', flexShrink: 0 },
+  close:   { background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: 'var(--text-muted)', padding: 4 },
+  tabs:    { display: 'flex', gap: 4, padding: '0 24px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 },
+  tab:     (active) => ({ padding: '8px 14px', borderRadius: '8px 8px 0 0', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: active ? 'var(--accent-glow)' : 'transparent', color: active ? 'var(--accent)' : 'var(--text-muted)' }),
+  body:    { padding: '18px 24px', overflowY: 'auto', flex: 1 },
+  footer:  { padding: '14px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, justifyContent: 'flex-end', background: 'var(--surface2)', flexShrink: 0 },
+}
+
+export default function TabelaPrecos() {
+  const { produtos } = useProducts()
+  const tabelaPrecos = useTabelaPrecos()
+  const { historico, loading, aplicarAtualizacoes } = tabelaPrecos
+  const [modalAberto, setModalAberto] = useState(false)
+  const [rotinasAberto, setRotinasAberto] = useState(false)
+  const [aplicando, setAplicando] = useState(false)
+
+  const produtoNome = useMemo(() => {
+    const map = {}
+    produtos.forEach(p => { map[p.id] = p.nome })
+    return map
+  }, [produtos])
+
+  async function handleAplicar() {
+    setAplicando(true)
+    const res = await aplicarAtualizacoes()
+    setAplicando(false)
+    if (res.ok) {
+      const n = (res.mudancas || []).length
+      alert(n > 0 ? `${n} produto(s) atualizado(s).` : 'Nenhuma atualização pendente.')
+    } else {
+      alert('Erro ao aplicar: ' + res.message)
+    }
+  }
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '16px 24px 0' }}>
+        <Button variant="secondary" onClick={() => setRotinasAberto(true)}>⚙ Rotinas</Button>
+        <Button variant="secondary" disabled={aplicando} onClick={handleAplicar}>
+          {aplicando ? 'Aplicando…' : 'Aplicar atualizações pendentes'}
+        </Button>
+      </div>
+
+      <SettingsLayout
+        modulo="tabela_precos"
+        title="Tabela de Preços"
+        description="Histórico de reajustes de preço dos produtos. O cadastro de Produtos sempre reflete o preço vigente mais recente."
+        columns={[
+          { key: 'produto_id', label: 'Produto', render: (v) => produtoNome[v] || '—' },
+          { key: 'preco_anterior', label: 'Anterior', align: 'right', render: (v) => v != null ? <span style={{ fontFamily: 'var(--mono)' }}>R$ {Number(v).toLocaleString('pt-BR')}</span> : '—' },
+          { key: 'preco', label: 'Novo', align: 'right', render: (v) => <span style={{ fontFamily: 'var(--mono)', fontWeight: 600 }}>R$ {Number(v).toLocaleString('pt-BR')}</span> },
+          { key: 'percentual', label: '%', align: 'right', render: (v) => v != null ? `${Number(v).toLocaleString('pt-BR')}%` : '—', priority: 2 },
+          { key: 'indice', label: 'Índice', priority: 2 },
+          { key: 'vigencia_inicio', label: 'Vigência', priority: 2 },
+          { key: 'aplicado_em', label: 'Aplicado em', render: (v) => v ? new Date(v).toLocaleDateString('pt-BR') : <span style={{ color: 'var(--yellow-text)' }}>Pendente</span>, priority: 2 },
+        ]}
+        data={historico}
+        keyField="id"
+        loading={loading}
+        emptyLabel="Nenhum reajuste registrado ainda."
+        onNew={() => setModalAberto(true)}
+        newLabel="Novo reajuste"
+        storageKey="settings_tabela_precos"
+      />
+
+      {modalAberto && (
+        <ReajusteModal produtos={produtos} tabelaPrecos={tabelaPrecos} onClose={() => setModalAberto(false)} />
+      )}
+
+      {rotinasAberto && (
+        <RotinasProdutosDrawer produtos={produtos} tabelaPrecos={tabelaPrecos} onClose={() => setRotinasAberto(false)} />
+      )}
+    </>
+  )
+}

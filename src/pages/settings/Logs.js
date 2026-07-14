@@ -272,6 +272,7 @@ export default function Logs() {
       </div>
 
       <SettingsLayout
+        modulo="logs"
         title="Logs de Auditoria"
         description={`${filtered.length} de ${logs.length} eventos registrados`}
         icon={<Terminal size={16} />}

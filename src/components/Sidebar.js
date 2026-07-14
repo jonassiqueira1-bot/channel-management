@@ -3,9 +3,9 @@ import logoBoostly from '../assets/logo-boostly.svg'
 import { NavLink, useNavigate, useMatch } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from '../hooks/useProfile'
+import { usePermissions } from '../hooks/usePermissions'
 import { useLocalState } from '../hooks/useLocalState'
 import { useBranchContext } from '../contexts/BranchContext'
-import AlertsInbox from './AlertsInbox'
 import { PAPEIS_ROTAS } from '../data/mockPerfis'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
@@ -155,11 +155,20 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const [menuEditMode, setMenuEditMode] = useState(false)
 
   const { signOut } = useAuth()
-  const { profile } = useProfile()
+  const { profile, loading: profileLoading } = useProfile()
+  const { can }      = usePermissions()
   const navigate    = useNavigate()
   const inSettings  = !!useMatch('/settings/*')
+  // Sem acesso ao restante de Configurações, o botão leva direto pra Minha Conta
+  // (autoatendimento sempre liberado) em vez de ficar inacessível.
+  const settingsTarget = can('configuracoes', 'acessar') ? '/settings' : '/settings/conta'
 
-  const rotasPermitidas = profile ? PAPEIS_ROTAS[profile.papel] : null // null = tudo
+  // Enquanto o perfil ainda carrega, falha fechado (nenhuma rota liberada) em vez
+  // de mostrar o menu inteiro — evita o menu completo "piscar" antes da restrição
+  // real do papel ser aplicada.
+  const rotasPermitidas = profileLoading || !profile
+    ? []
+    : (profile.papel === 'admin_isv' ? null : (PAPEIS_ROTAS[profile.papel] ?? []))
 
   function isOpen(groupId) { return openGroups[groupId] !== false }
   function toggleGroup(id) { setOpenGroups(prev => ({ ...prev, [id]: !isOpen(id) })) }
@@ -472,12 +481,11 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         )}
       </nav>
 
-      {/* ── Bottom: Filial + Pendências + Configurações + Recolher + Sair ── */}
+      {/* ── Bottom: Filial + Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
         <BranchSelector collapsed={collapsed} />
-        <AlertsInbox collapsed={collapsed} />
         <NavLink
-          to="/settings"
+          to={settingsTarget}
           title={collapsed ? 'Configurações' : undefined}
           onClick={isMobile ? onClose : undefined}
           onMouseDown={e => e.preventDefault()}

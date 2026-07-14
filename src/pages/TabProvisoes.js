@@ -894,6 +894,7 @@ export default function TabProvisoes() {
   return (
     <>
       <BrowseLayout
+        modulo="pagamentos"
         data={lista}
         columns={columns}
         keyField="id"

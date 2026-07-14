@@ -1,11 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { useLocalState } from '../../hooks/useLocalState'
+import { useEquipes } from '../../hooks/useEquipes'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useUsuarios } from '../../hooks/useUsuarios'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
-
-export const EQUIPES_STORAGE_KEY = 'settings:equipes_v1'
 
 const IMPORT_COLS = ['nome', 'descricao', 'lider', 'status']
 
@@ -14,8 +12,6 @@ const STATUS_CFG = {
   inativa:  { label: 'Inativa',  color: '#9A9590',        bg: 'var(--surface3)',   text: 'var(--text-muted)'  },
   pausada:  { label: 'Pausada',  color: '#F59E0B',        bg: '#FEF3C7',           text: '#92400E'            },
 }
-
-function uid() { return Date.now() + Math.floor(Math.random() * 9999) }
 
 function parseCSV(text) {
   const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n')
@@ -132,7 +128,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── ImportModal ──────────────────────────────────────────────────────────────
-function ImportModal({ onClose, onImport, existingNames }) {
+function ImportModal({ onClose, onImport, existingNames, usuarios }) {
   const [step, setStep]     = useState('upload')
   const [rows, setRows]     = useState([])
   const [errors, setErrors] = useState({})
@@ -168,15 +164,18 @@ function ImportModal({ onClose, onImport, existingNames }) {
   const errRows = rows.filter((_, i) =>  errors[i])
 
   function doImport() {
-    onImport(okRows.map(r => ({
-      id: uid(),
-      nome:       r.nome.trim(),
-      descricao:  r.descricao?.trim() || '',
-      lider:      r.lider?.trim() || '',
-      status:     STATUS_CFG[r.status] ? r.status : 'ativa',
-      membro_ids: [],
-      meta_ids:   [],
-    })))
+    onImport(okRows.map(r => {
+      const liderNome = r.lider?.trim() || ''
+      const lider = liderNome ? usuarios.find(u => u.nome?.toLowerCase() === liderNome.toLowerCase()) : null
+      return {
+        nome:       r.nome.trim(),
+        descricao:  r.descricao?.trim() || '',
+        lider_id:   lider?.id || null,
+        status:     STATUS_CFG[r.status] ? r.status : 'ativa',
+        membro_ids: [],
+        meta_ids:   [],
+      }
+    }))
     onClose()
   }
 
@@ -264,12 +263,13 @@ function ImportModal({ onClose, onImport, existingNames }) {
 const EMPTY = { nome: '', descricao: '', status: 'ativa', lider_id: '', membro_ids: [], meta_ids: [] }
 
 export default function Equipes() {
-  const [equipes, setEquipes]   = useLocalState(EQUIPES_STORAGE_KEY, [])
+  const { equipes, save: saveEquipe, remove: removeEquipe, importMany: importEquipes } = useEquipes()
   const { usuarios }            = useUsuarios()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
   const [importModal, setImportModal] = useState(false)
+  const [erro, setErro]         = useState('')
   const { registrar: log } = useAuditLog()
 
   const usuariosAtivos = usuarios.filter(u => u.status === 'ativo' || u.status === 'active' || u.status === 'pendente')
@@ -308,10 +308,11 @@ export default function Equipes() {
     setEditando(eq)
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.nome.trim()) return
+    const isNew = editando === 'novo'
     const record = {
-      id:         editando === 'novo' ? uid() : form._id,
+      id:         isNew ? undefined : form._id,
       nome:       form.nome.trim(),
       descricao:  form.descricao.trim(),
       status:     form.status,
@@ -319,26 +320,24 @@ export default function Equipes() {
       membro_ids: form.membro_ids,
       meta_ids:   form.meta_ids,
     }
-    const isNew = editando === 'novo'
-    if (isNew) {
-      setEquipes(prev => [...prev, record])
-    } else {
-      setEquipes(prev => prev.map(e => e.id === record.id ? record : e))
-    }
-    log(isNew ? 'criar' : 'editar', 'equipe', record.id, { descricao: `Equipe ${isNew ? 'criada' : 'editada'}: ${record.nome}` })
+    const res = await saveEquipe(record)
+    if (!res.ok) { setErro(res.message || 'Erro ao salvar equipe'); return }
+    log(isNew ? 'criar' : 'editar', 'equipe', res.data?.id || record.id, { descricao: `Equipe ${isNew ? 'criada' : 'editada'}: ${record.nome}` })
+    setErro('')
     setEditando(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const eq = equipes.find(e => e.id === id)
-    setEquipes(prev => prev.filter(e => e.id !== id))
+    const res = await removeEquipe(id)
+    if (!res.ok) { setErro(res.message || 'Erro ao excluir equipe'); return }
     log('excluir', 'equipe', id, { descricao: `Equipe excluída: ${eq?.nome || id}` })
     setEditando(null)
   }
 
-  function handleImport(rows) {
-    setEquipes(prev => [...prev, ...rows])
-    log('importar', 'equipe', 'batch', { descricao: `${rows.length} equipe(s) importada(s)` })
+  async function handleImport(rows) {
+    const res = await importEquipes(rows)
+    if (res.ok) log('importar', 'equipe', 'batch', { descricao: `${rows.length} equipe(s) importada(s)` })
   }
 
   function exportCSV() {
@@ -372,6 +371,11 @@ export default function Equipes() {
         onCancel={() => setEditando(null)}
         onDelete={editando !== 'novo' ? () => handleDelete(form._id) : undefined}
       >
+        {erro && (
+          <div style={{ gridColumn: '1/-1', padding: '10px 14px', borderRadius: 8, background: 'var(--red-bg)', color: 'var(--red-text)', fontSize: 13, marginBottom: 12 }}>
+            {erro}
+          </div>
+        )}
         {/* Identificação */}
         <FPESection title="Identificação">
           <FPEGrid>
@@ -457,9 +461,11 @@ export default function Equipes() {
           onClose={() => setImportModal(false)}
           onImport={handleImport}
           existingNames={equipes.map(e => e.nome.toLowerCase())}
+          usuarios={usuarios}
         />
       )}
       <SettingsLayout
+        modulo="equipes"
         title="Equipes"
         description="Agrupe usuários em equipes para acompanhar métricas, metas e desempenho coletivo."
         columns={[
@@ -492,7 +498,7 @@ export default function Equipes() {
         bulkEditFields={[
           { key: 'status', label: 'Status', type: 'select', options: [{ value: 'ativa', label: 'Ativa' }, { value: 'inativa', label: 'Inativa' }, { value: 'pausada', label: 'Pausada' }] },
         ]}
-        onBulkEdit={(ids, changes) => setEquipes(prev => prev.map(e => ids.includes(e.id) ? { ...e, ...changes } : e))}
+        onBulkEdit={(ids, changes) => ids.forEach(id => { const e = equipes.find(x => x.id === id); if (e) saveEquipe({ ...e, ...changes }) })}
         search={busca}
         onSearchChange={setBusca}
         onImport={() => setImportModal(true)}

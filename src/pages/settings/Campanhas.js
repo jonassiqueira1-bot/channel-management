@@ -610,6 +610,7 @@ export default function Campanhas() {
   return (
     <>
       <SettingsLayout
+        modulo="campanhas"
         title="Campanhas de Incentivo"
         description="Crie e gerencie campanhas para motivar e engajar seus canais parceiros."
         columns={[

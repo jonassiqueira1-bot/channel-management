@@ -245,6 +245,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const { projetos: allProjetos, save: saveProjeto } = useProjects()
   const { sellers } = useSellers()
   const { parceiros: franquias } = useParceiros()
+  const customFieldsDef = useEntityCustomFields('companies').filter(f => !f.is_system)
   const [canal, setCanal] = useLocalState('empresa:canal:' + item?.id, {
     resp_ar: '', codigo_canal: '', data_credenciamento: '', nivel_parceria: ''
   })
@@ -278,6 +279,10 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     if (!form.segmento) e.segmento = 'Segmento é obrigatório'
     if (!form.telefone?.trim() && !form.email?.trim()) e.contato = 'Informe ao menos um telefone ou e-mail'
     if (!form.cidade?.trim()) e.cidade = 'Cidade é obrigatória'
+    customFieldsDef.filter(f => f.is_required).forEach(f => {
+      const v = form.custom_fields?.[f.field_key]
+      if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
+    })
     if (Object.keys(e).length) { setErrs(e); return }
     onSave(form)
   }
@@ -653,6 +658,34 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
           <InlineTextarea value={form.observacoes || ''} onChange={v => patch('observacoes', v)}
             placeholder="Observações internas, contexto comercial, histórico…" minRows={4} />
         </FormSection>
+
+        {customFieldsDef.length > 0 && (
+          <FormSection label="Campos personalizados">
+            <FormGrid>
+              {customFieldsDef.map(f => (
+                <FormField key={f.id} label={f.label + (f.is_required ? ' *' : '')} error={errs[`cf_${f.field_key}`]}>
+                  {f.field_type === 'select' ? (
+                    <select className="so-field" value={form.custom_fields?.[f.field_key] || ''}
+                      onChange={e => patch('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.value })}>
+                      <option value="">—</option>
+                      {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  ) : f.field_type === 'boolean' ? (
+                    <input type="checkbox" checked={!!form.custom_fields?.[f.field_key]}
+                      onChange={e => patch('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.checked })} />
+                  ) : f.field_type === 'textarea' ? (
+                    <InlineTextarea value={form.custom_fields?.[f.field_key] || ''}
+                      onChange={v => patch('custom_fields', { ...form.custom_fields, [f.field_key]: v })} minRows={3} />
+                  ) : (
+                    <input className="so-field" type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : 'text'}
+                      value={form.custom_fields?.[f.field_key] || ''}
+                      onChange={e => patch('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.value })} />
+                  )}
+                </FormField>
+              ))}
+            </FormGrid>
+          </FormSection>
+        )}
 
         {isNew && (
           <>
@@ -1224,6 +1257,7 @@ export default function Empresas() {
   return (
     <div style={p.page}>
       <BrowseLayout
+        modulo="empresas"
         data={filtered}
         columns={COLUMNS}
         filters={FILTERS}

@@ -53,9 +53,12 @@ export default function AceitarConvite() {
     if (password.length < 8)  { setError('Mínimo 8 caracteres.'); return }
     setLoading(true)
     const { error } = await supabase.auth.updateUser({ password })
+    if (error) { setLoading(false); setError('Erro ao definir senha: ' + error.message); return }
+    // Conclui o onboarding: só transiciona status 'pendente' -> 'ativo' (não
+    // reativa quem foi desativado por um admin — ver completar_onboarding()).
+    await supabase.rpc('completar_onboarding')
     setLoading(false)
-    if (error) setError('Erro ao definir senha: ' + error.message)
-    else navigate('/dashboard')
+    navigate('/dashboard')
   }
 
   const s = {

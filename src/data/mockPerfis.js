@@ -67,7 +67,7 @@ export const PAPEIS_CONFIG = {
   financeiro: { label: 'Financeiro',        color: '#10B981', bg: '#D1FAE5', text: '#065F46', icon: '◈' },
   cs:         { label: 'Customer Success',  color: '#6366F1', bg: '#EEF2FF', text: '#4338CA', icon: '◑' },
   projetos:   { label: 'Projetos',          color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6', icon: '◆' },
-  parceiro:   { label: 'Parceiro',          color: '#0EA5E9', bg: '#E0F2FE', text: '#0369A1', icon: '◎' },
+  contato_canal: { label: 'Contato Canal',  color: '#0EA5E9', bg: '#E0F2FE', text: '#0369A1', icon: '◎' },
 }
 
 export const PAPEIS_OPTIONS = [
@@ -85,7 +85,14 @@ export const PAPEIS_ROTAS = {
   financeiro: ['/comissoes', '/pagamentos', '/contratos'],
   cs:         ['/customer-success'],
   projetos:   ['/projetos'],
-  parceiro:   ['/pipeline', '/playbooks', '/documentos', '/settings'],
+  contato_canal: ['/pipeline', '/playbooks', '/documentos', '/settings'],
+}
+
+// Perfil de Acesso (perfis_acesso.slug) esperado por Papel — usado só pra alertar
+// quando o Perfil atribuído a um usuário diverge do que normalmente combina com
+// o Papel dele (mesmo mapeamento usado pela função invite-user no convite automático).
+export const PAPEL_PERFIL_ESPERADO = {
+  contato_canal: 'parceiro',
 }
 
 export const STATUS_CONFIG = {

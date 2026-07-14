@@ -30,6 +30,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
+import { usePermissions } from '../../hooks/usePermissions'
 import { Search, Plus, ChevronsUpDown, ArrowUp, ArrowDown,
          MoreHorizontal, ChevronDown, Loader2,
          Download, Upload, FileSpreadsheet, Edit2, X, Check,
@@ -355,7 +356,11 @@ export default function SettingsLayout({
   filterDefs    = [],
   activeFilters = null,
   onFilterChange,
+  modulo,        // id do módulo (Perfis de Acesso) — controla exibição de criar/excluir
 }) {
+  const { can } = usePermissions()
+  const podeCriarEditar = !modulo || can(modulo, 'criar_editar')
+  const podeExcluir     = !modulo || can(modulo, 'excluir')
   // ── Search (persistent) ───────────────────────────────────────────────────
   const searchLsKey = storageKey ? STORAGE_NS + storageKey + '_s' : null
   const [localSearch, setLocalSearch] = useState(() =>
@@ -453,7 +458,10 @@ export default function SettingsLayout({
     setSelected(new Set())
   }
 
-  const resolveActions = (row) => typeof rowActions === 'function' ? rowActions(row) : rowActions
+  const resolveActions = (row) => {
+    const list = typeof rowActions === 'function' ? rowActions(row) : rowActions
+    return podeExcluir ? list : list.filter(a => !a.danger)
+  }
   const hasActions = typeof rowActions === 'function' ? true : rowActions.length > 0
 
   return (
@@ -530,7 +538,7 @@ export default function SettingsLayout({
             <div style={{ flex:1 }} />
             {headerExtra}
             <GlobalMenu onExportCsv={onExportCsv} onExportExcel={onExportExcel} onImport={onImport} />
-            {onNew && (
+            {onNew && podeCriarEditar && (
               <button type="button" onClick={onNew}
                 style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 14px', border:'none', borderRadius:6, background:Z.blue, color:'#fff', fontFamily:'var(--font)', fontSize:12, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap', boxShadow:'0 1px 4px rgba(37,99,235,0.30)' }}
                 onMouseEnter={e => e.currentTarget.style.background = Z.blueHov}

@@ -4,7 +4,24 @@ import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
 import { useNavigate } from 'react-router-dom'
 
+// Chaves cobrem tanto o `entidade_tipo` gravado pelo motor atual (= rule.origem,
+// nomes de tabela) quanto os valores legados do processador antigo (singular/PT).
 const LINKS = {
+  // motor atual (src/pages/settings/Alertas.js → executarEngine)
+  oportunidades:       '/pipeline',
+  contracts:           '/contratos',
+  projects:            '/projetos',
+  tasks:               '/tarefas',
+  actions:             '/acoes',
+  commission_payments: '/comissoes',
+  payments:            '/pagamentos',
+  companies:           '/empresas',
+  goals:               '/metas',
+  sellers:             '/vendedores',
+  contacts:            '/contatos',
+  customer_health:     '/customer-success',
+  provisoes:           '/pagamentos',
+  // legado (processadores fixos antigos)
   oportunidade: '/pipeline',
   contrato:     '/contratos',
   pagamento:    '/pagamentos',
@@ -19,11 +36,11 @@ function fmtDias(iso) {
   return `${d}d`
 }
 
-const DEFAULT_POS = { x: window.innerWidth - 360, y: window.innerHeight - 480 }
+const DEFAULT_POS = { x: window.innerWidth - 356, y: 42 }
 
 function clamp(v, min, max) { return Math.max(min, Math.min(max, v)) }
 
-export default function AlertsInbox({ collapsed: sidebarCollapsed }) {
+export default function AlertsInbox() {
   const { profile }    = useProfile()
   const navigate       = useNavigate()
   const [visible, setVisible]       = useState(false)
@@ -103,34 +120,34 @@ export default function AlertsInbox({ collapsed: sidebarCollapsed }) {
 
   return (
     <>
-      {/* ── Botão na sidebar ── */}
+      {/* ── Botão flutuante (fora da sidebar, visível em toda tela) ── */}
       <button
         onClick={() => setVisible(v => !v)}
         title="Pendências"
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-          gap: 8, width: '100%', padding: sidebarCollapsed ? '8px 4px' : '8px 16px',
-          background: visible ? 'var(--sb-surface)' : 'none', border: 'none',
-          color: visible ? '#fff' : 'var(--sb-muted)', fontSize: 12,
-          cursor: 'pointer', fontFamily: 'var(--font)', transition: 'color var(--transition)',
-          position: 'relative',
+          position: 'fixed', top: 8, right: 8, zIndex: 60,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 28, height: 28, borderRadius: '50%',
+          background: visible ? 'var(--accent)' : 'var(--surface)',
+          border: '1px solid var(--border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+          cursor: 'pointer', transition: 'background 0.15s',
         }}
       >
         <span style={{ position: 'relative', display: 'inline-flex' }}>
-          <Bell size={15} strokeWidth={1.75} color={count > 0 ? '#ef4444' : 'currentColor'} />
+          <Bell size={13} strokeWidth={1.75} color={visible ? '#fff' : (count > 0 ? '#ef4444' : 'var(--text-muted)')} />
           {count > 0 && (
             <span style={{
-              position: 'absolute', top: -5, right: -7,
+              position: 'absolute', top: -5, right: -6,
               background: '#ef4444', color: '#fff',
-              fontSize: 9, fontWeight: 800, lineHeight: 1,
-              padding: '2px 4px', borderRadius: 99, minWidth: 14,
-              textAlign: 'center', boxShadow: '0 0 0 1.5px var(--sb-bg)',
+              fontSize: 8, fontWeight: 800, lineHeight: 1,
+              padding: '1.5px 3.5px', borderRadius: 99, minWidth: 12,
+              textAlign: 'center', boxShadow: '0 0 0 1.5px var(--surface)',
             }}>
               {count > 99 ? '99+' : count}
             </span>
           )}
         </span>
-        {!sidebarCollapsed && <span>Pendências</span>}
       </button>
 
       {/* ── Widget flutuante ── */}

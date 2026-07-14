@@ -6,7 +6,7 @@ import { useDocuments } from '../hooks/useDocuments'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
-import { useProfile } from '../hooks/useProfile'
+import { usePermissions } from '../hooks/usePermissions'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -276,8 +276,7 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOn
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Documentos() {
-  const { profile } = useProfile()
-  const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
+  const { can } = usePermissions()
   const { docs, save: saveDoc, remove: deleteDoc, uploadFile, removeFile } = useDocuments()
   const [search, setSearch] = useLocalState('browse:documentos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:documentos_browse:filters', {})
@@ -417,6 +416,7 @@ export default function Documentos() {
   return (
     <>
       <BrowseLayout
+        modulo="documentos"
         data={filtered}
         columns={COLUMNS}
         filters={FILTERS}
@@ -427,10 +427,10 @@ export default function Documentos() {
         keyField="id"
         storageKey="documentos_browse"
         onRowClick={row => setDrawer(row)}
-        onNew={isParceiro ? undefined : () => setDrawer('novo')}
+        onNew={can('documentos', 'criar_editar') ? () => setDrawer('novo') : undefined}
         newLabel="Novo Documento"
-        kpis={kpisNode}
-        bulkActions={isParceiro ? [] : [
+        kpis={can('documentos', 'ver_indicadores') ? kpisNode : undefined}
+        bulkActions={!can('documentos', 'excluir') ? [] : [
           {
             label: 'Arquivar', onClick: ids => {
               ids.forEach(id => {
@@ -514,7 +514,7 @@ export default function Documentos() {
           onSave={handleSave}
           uploadFile={uploadFile}
           removeFile={removeFile}
-          readOnly={isParceiro}
+          readOnly={!can('documentos', 'criar_editar')}
         />
       )}
     </>

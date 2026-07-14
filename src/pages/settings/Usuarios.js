@@ -3,9 +3,9 @@ import { useLocalState } from '../../hooks/useLocalState'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useUsuarios } from '../../hooks/useUsuarios'
 import { usePendingInvites } from '../../hooks/usePendingInvites'
-import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG } from '../../data/mockPerfis'
+import { PAPEIS_CONFIG, PAPEIS_OPTIONS, STATUS_CONFIG, PAPEL_PERFIL_ESPERADO } from '../../data/mockPerfis'
 import { useProfile } from '../../hooks/useProfile'
-import { PERFIS_NATIVOS_SEED } from '../Perfis'
+import { usePerfisAcesso } from '../../hooks/usePerfisAcesso'
 import { useCommissions } from '../../hooks/useCommissions'
 import Button from '../../components/Button'
 import SettingsLayout from '../../components/ui/SettingsLayout'
@@ -413,8 +413,25 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     whatsapp:            perfil.whatsapp || '',
   })
   const [novaHabilidade, setNovaHabilidade] = useState('')
-  const [rolesStore]   = useLocalState('perfis:roles', PERFIS_NATIVOS_SEED)
+  const { perfis: rolesStore } = usePerfisAcesso()
   const { rules: regrasComiss } = useCommissions()
+
+  // Alerta de conflito: o Perfil de Acesso atribuído não bate com o que normalmente
+  // combina com o Papel do usuário (ex: Papel "Contato Canal" deveria ter o Perfil
+  // "Parceiro" atribuído — se tiver outro perfil, ou nenhum, avisa).
+  const conflitoPapelPerfil = useMemo(() => {
+    const slugEsperado = PAPEL_PERFIL_ESPERADO[form.papel]
+    if (!slugEsperado) return null
+    const ids = form.perfis_acesso_ids || []
+    const temEsperado = rolesStore.some(r => ids.includes(r.id) && r.slug === slugEsperado)
+    if (temEsperado) return null
+    const perfilEsperado = rolesStore.find(r => r.slug === slugEsperado)
+    const atuais = rolesStore.filter(r => ids.includes(r.id)).map(r => r.nome)
+    return {
+      esperado: perfilEsperado?.nome || slugEsperado,
+      atuais,
+    }
+  }, [form.papel, form.perfis_acesso_ids, rolesStore])
   const { parceiros: franquias } = useParceiros()
   const { branches }  = useBranches()
 
@@ -531,6 +548,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
               financeiro: 'Acesso a Comissões, Pagamentos e Contratos.',
               cs:         'Acesso ao módulo Sucesso do Cliente.',
               projetos:   'Acesso ao módulo Projetos.',
+              contato_canal: 'Acesso restrito a Pipeline (só as próprias oportunidades), Playbooks e Documentos — atribuído automaticamente ao convidar em Contatos Canais.',
             }[form.papel]}
           </div>
         )}
@@ -586,12 +604,25 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
           <div style={{ fontSize:13, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum perfil configurado.</div>
         ) : (
           <SearchableMultiSelect
-            options={rolesStore.map(r => ({ value: r.id, label: r.nome, desc: r.descricao }))}
+            options={rolesStore.map(r => ({ value: r.id, label: r.nome, desc: r.desc }))}
             value={form.perfis_acesso_ids || []}
             onChange={ids => set('perfis_acesso_ids', ids)}
             placeholder="Selecionar perfis de acesso…"
             disabled={!podeEditar}
           />
+        )}
+        {conflitoPapelPerfil && (
+          <div style={{ gridColumn:'1/-1', fontSize:12, color:'#92400E', padding:'10px 14px',
+            background:'#FEF3C7', borderRadius:7, border:'1px solid #FDE68A', marginTop:8,
+            display:'flex', alignItems:'flex-start', gap:8 }}>
+            <span style={{ flexShrink:0 }}>⚠</span>
+            <span>
+              O Papel <b>{PAPEIS_CONFIG[form.papel]?.label || form.papel}</b> normalmente tem o Perfil de Acesso <b>{conflitoPapelPerfil.esperado}</b> atribuído.
+              {conflitoPapelPerfil.atuais.length > 0
+                ? <> Este usuário tem {conflitoPapelPerfil.atuais.length > 1 ? 'outros perfis' : 'outro perfil'} atribuído (<b>{conflitoPapelPerfil.atuais.join(', ')}</b>) — confirme se é intencional, pois pode dar mais ou menos acesso do que o esperado.</>
+                : <> Este usuário não tem nenhum Perfil de Acesso atribuído ainda.</>}
+            </span>
+          </div>
         )}
       </FPESection>
 
@@ -981,6 +1012,7 @@ export default function SettingsUsuarios() {
 
       {/* ── Tabela ── */}
       <SettingsLayout
+        modulo="usuarios"
         title="Usuários"
         description="Gerencie os usuários com acesso à plataforma e seus níveis de permissão."
         columns={[
@@ -1024,12 +1056,12 @@ export default function SettingsUsuarios() {
             { value: 'financeiro', label: 'Financeiro' },
             { value: 'cs',         label: 'Customer Success' },
             { value: 'projetos',   label: 'Projetos' },
-            { value: 'parceiro',   label: 'Parceiro' },
+            { value: 'contato_canal', label: 'Contato Canal' },
           ]},
           { key: 'status', label: 'Status', options: [
             { value: 'ativo',      label: 'Ativo' },
             { value: 'inativo',    label: 'Inativo' },
-            { value: 'convidado',  label: 'Convidado' },
+            { value: 'pendente',   label: 'Pendente' },
           ]},
         ]}
         bulkEditFields={[
@@ -1039,7 +1071,7 @@ export default function SettingsUsuarios() {
             { value: 'financeiro', label: 'Financeiro' },
             { value: 'cs',         label: 'Customer Success' },
             { value: 'projetos',   label: 'Projetos' },
-            { value: 'parceiro',   label: 'Parceiro' },
+            { value: 'contato_canal', label: 'Contato Canal' },
           ]},
         ]}
         onBulkEdit={(ids, changes) => ids.forEach(id => { const u = lista.find(x => x.id === id); if (u) saveUsuario({ ...u, ...changes }) })}

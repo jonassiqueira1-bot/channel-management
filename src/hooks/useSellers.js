@@ -154,8 +154,9 @@ export function useSellers() {
         body: JSON.stringify({
           email:      seller.email,
           nome:       seller.nome,
-          papel:      'parceiro',
+          papel:      'contato_canal',
           contact_id: seller.id,
+          branch_id:  activeBranchId || null,
         }),
       }
     )
@@ -166,7 +167,7 @@ export function useSellers() {
     await supabase.from('sellers').update({ portal_invited_at: now }).eq('id', seller.id)
     setSellers(prev => prev.map(s => s.id === seller.id ? { ...s, portal_invited_at: now } : s))
     return { ok: true }
-  }, [])
+  }, [activeBranchId])
 
   return { sellers, loading, reload: load, save, remove, bulkSetStatus, importMany, inviteToPortal, setFuncionarios: setSellers, isMock: isMockMode }
 }

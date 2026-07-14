@@ -10,6 +10,7 @@ import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import { PROVISOES_LS_KEY } from '../hooks/usePayments'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
+import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
 import BrowseLayout from '../components/BrowseLayout'
 import { DeleteZone } from '../components/NotionDrawer'
 import ActionFeedback from '../components/ActionFeedback'
@@ -634,6 +635,7 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
   const [playbookOpen, setPlaybookOpen] = useState(false)
 
   const { goals, save: saveGoals } = useGoals()
+  const customFieldsDef = useEntityCustomFields('contracts').filter(f => !f.is_system)
 
   // Determina mês/ano da venda a partir de vigencia_inicio do contrato (data da venda, não pagamento)
   function periodoVenda(contratoData) {
@@ -703,6 +705,10 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
         e.vencimento_itens = `Preencha a data de 1º pagamento em todos os produtos (${semData.length} sem data)`
       }
     }
+    customFieldsDef.filter(f => f.is_required).forEach(f => {
+      const v = form.custom_fields?.[f.field_key]
+      if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
+    })
     if (Object.keys(e).length) { setErrs(e); return }
     if (isNew) {
       // mostra confirm de integração antes de criar
@@ -1130,6 +1136,35 @@ function ContratoForm({ form, setForm, onSave, onDelete, onClose, isNew, contrat
       <FormSection label="Observações">
         <textarea className="so-field" value={form.observacoes || ''} onChange={e => set('observacoes', e.target.value)} placeholder="Condições especiais, anotações comerciais…" style={{ minHeight: 80, resize: 'vertical' }} />
       </FormSection>
+
+      {customFieldsDef.length > 0 && (
+        <FormSection label="Campos personalizados">
+          <FormGrid cols={2}>
+            {customFieldsDef.map(f => (
+              <FormField key={f.id} label={f.label + (f.is_required ? ' *' : '')} error={errs[`cf_${f.field_key}`]}>
+                {f.field_type === 'select' ? (
+                  <select className="so-field" value={form.custom_fields?.[f.field_key] || ''}
+                    onChange={e => set('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.value })}>
+                    <option value="">—</option>
+                    {(f.options || []).map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : f.field_type === 'boolean' ? (
+                  <input type="checkbox" checked={!!form.custom_fields?.[f.field_key]}
+                    onChange={e => set('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.checked })} />
+                ) : f.field_type === 'textarea' ? (
+                  <textarea className="so-field" value={form.custom_fields?.[f.field_key] || ''}
+                    onChange={e => set('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.value })}
+                    style={{ minHeight: 60, resize: 'vertical' }} />
+                ) : (
+                  <input className="so-field" type={f.field_type === 'number' ? 'number' : f.field_type === 'date' ? 'date' : 'text'}
+                    value={form.custom_fields?.[f.field_key] || ''}
+                    onChange={e => set('custom_fields', { ...form.custom_fields, [f.field_key]: e.target.value })} />
+                )}
+              </FormField>
+            ))}
+          </FormGrid>
+        </FormSection>
+      )}
 
     </div>
 
@@ -1620,6 +1655,7 @@ export default function Contratos() {
   return (
     <>
       <BrowseLayout
+        modulo="contratos"
         data={filtered}
         columns={buildColumns(inadimplentesIds)}
         filters={FILTERS}

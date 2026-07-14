@@ -78,6 +78,24 @@ serve(async (req) => {
     const { data: tenantData } = await admin.from('tenants').select('nome').eq('id', callerProfile.tenant_id).single()
     const tenantNome = tenantData?.nome || 'Boostly'
 
+    // Resolve o Perfil de Acesso nativo correspondente ao papel, pra já atribuir
+    // de cara — sem isso o usuário fica sem nenhuma permissão. O Papel e o Perfil
+    // de Acesso são conceitos separados (não compartilham nome de propósito), daí
+    // o mapeamento explícito em vez de comparar o texto diretamente.
+    const PERFIL_POR_PAPEL: Record<string, string> = { contato_canal: 'parceiro' }
+    let perfilAcessoId: string | null = null
+    if (papel) {
+      const perfilSlug = PERFIL_POR_PAPEL[papel] || papel
+      const { data: perfilRow } = await admin
+        .from('perfis_acesso')
+        .select('id')
+        .eq('tenant_id', callerProfile.tenant_id)
+        .eq('slug', perfilSlug)
+        .is('deleted_at', null)
+        .maybeSingle()
+      perfilAcessoId = perfilRow?.id || null
+    }
+
     // Verifica se email já existe em auth.users ANTES de gerar o link
     // (generateLink de invite pode retornar sucesso para emails existentes
     //  mas o link falha na verificação com "Error confirming user")
@@ -95,7 +113,7 @@ serve(async (req) => {
         tenant_id:    callerProfile.tenant_id,
         nome:         nome || email,
         email,
-        papel:        papel || 'parceiro',
+        papel:        papel || 'contato_canal',
         tipo_usuario: tipo_usuario || 'externo',
       }, { onConflict: 'tenant_id,email' })
       if (insertErr) console.error('[invite-user] pending_invites upsert:', insertErr.message)
@@ -110,7 +128,7 @@ serve(async (req) => {
       }
       await admin.from('profiles').update({
         contact_id: contact_id || null,
-        role:       papel || 'parceiro',
+        role:       papel || 'contato_canal',
         branch_id:  sellerBranchId,
       }).eq('id', existingUser.id)
 
@@ -134,7 +152,7 @@ serve(async (req) => {
         data: {
           tenant_id:  callerProfile.tenant_id,
           contact_id: contact_id || null,
-          role:       papel || 'parceiro',
+          role:       papel || 'contato_canal',
           nome:       nome || email,
         },
       },
@@ -153,10 +171,10 @@ serve(async (req) => {
         email,
         nome:         nome || email,
         tenant_id:    callerProfile.tenant_id,
-        role:         papel || 'parceiro',
-        status:       'pending',
-        tipo_usuario: tipo_usuario || 'externo',
+        role:         papel || 'contato_canal',
+        status:       'pendente',
         branch_id:    branch_id || null,
+        perfis_acesso_ids: perfilAcessoId ? [perfilAcessoId] : [],
       }, { onConflict: 'id' })
       if (profileErr) console.error('[invite-user] profile upsert:', profileErr.message)
     }

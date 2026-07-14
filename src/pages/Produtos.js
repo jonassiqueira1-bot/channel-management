@@ -364,6 +364,10 @@ export default function Produtos() {
       const isDup = produtos.some(p => p.codigo?.toUpperCase() === codigo && editando?.codigo?.toUpperCase() !== codigo)
       if (isDup) e.codigo = 'Já existe um produto com este código'
     }
+    Object.values(pdFieldById).filter(f => f.entity === 'products' && f.is_required).forEach(f => {
+      const v = form.custom_fields?.[f.field_key]
+      if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
+    })
     if (Object.keys(e).length) { setErrs(e); return }
     const codigo = form.codigo.trim().toUpperCase()
     const isNew = editando === 'novo'
@@ -467,6 +471,7 @@ export default function Produtos() {
   return (
     <>
       <SettingsLayout
+        modulo="produtos"
         title="Produtos"
         description="Catálogo de produtos e serviços oferecidos pelo canal."
         columns={[

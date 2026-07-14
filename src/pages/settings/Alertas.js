@@ -622,8 +622,14 @@ async function executarEngine(tenantId) {
       const ids = registros.map(r => r.id)
       const { data: taskRows } = await supabase
         .from('tasks')
-        .select('entidade_id, status, data_inicio, concluida_em')
+        .select('entidade_id, status, prazo, concluida_em, custom_fields')
+        .eq('entidade_tipo', 'oportunidade')
         .in('entidade_id', ids)
+        .neq('status', 'cancelada')
+        .is('deleted_at', null)
+
+      // Usa data_inicio (custom_fields) ou prazo como fallback — mesma regra de useTasks.js
+      const dataEfetiva = (t) => t.custom_fields?.data_inicio || t.prazo || null
 
       const tasksByOpp = {}
       for (const t of (taskRows || [])) {
@@ -631,21 +637,22 @@ async function executarEngine(tenantId) {
         if (!eid) continue
         if (!tasksByOpp[eid]) tasksByOpp[eid] = { pendentes: [], concluidas: [] }
         if (t.status === 'concluida' && t.concluida_em) tasksByOpp[eid].concluidas.push(t)
-        else if (t.status !== 'cancelada') tasksByOpp[eid].pendentes.push(t)
+        else tasksByOpp[eid].pendentes.push(t)
       }
 
       registros = registros.map(r => {
         const g = tasksByOpp[r.id] || { pendentes: [], concluidas: [] }
         const proxima = g.pendentes
-          .filter(t => t.data_inicio)
-          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+          .filter(t => dataEfetiva(t))
+          .sort((a, b) => dataEfetiva(a).localeCompare(dataEfetiva(b)))[0]
         const primeira = g.concluidas
           .sort((a, b) => a.concluida_em.localeCompare(b.concluida_em))[0]
+        const proximaData = proxima ? dataEfetiva(proxima) : null
         return {
           ...r,
           n_tarefas:              g.pendentes.length + g.concluidas.length,
-          proxima_tarefa_data:    proxima?.data_inicio?.slice(0, 10) || '',
-          proxima_tarefa_hora:    proxima?.data_inicio?.slice(11, 16) || '',
+          proxima_tarefa_data:    proximaData?.slice(0, 10) || '',
+          proxima_tarefa_hora:    proximaData?.length > 10 ? proximaData.slice(11, 16) : '',
           primeira_conclusao_data: primeira?.concluida_em?.slice(0, 10) || '',
           primeira_conclusao_hora: primeira?.concluida_em?.slice(11, 16) || '',
         }
@@ -1596,6 +1603,7 @@ export default function SettingsAlertas() {
 
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
         <SettingsLayout
+          modulo="alertas"
           title="Alertas"
           description="Regras automáticas que geram notificações no painel, enviam e-mails ou criam tarefas."
           columns={COLS} data={filtered} keyField="id"

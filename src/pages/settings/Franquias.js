@@ -1,7 +1,9 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useParceiros } from '../../hooks/useParceiros'
 import { useUsuarios } from '../../hooks/useUsuarios'
+import { useProfile } from '../../hooks/useProfile'
+import { supabase } from '../../lib/supabase'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui'
 
@@ -186,6 +188,15 @@ const TIPO_PARCEIRO_OPTIONS = [
   { value: 'finder',    label: 'Finder'           },
 ]
 
+const ESTADOS_UF = ['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO']
+
+// Opções únicas presentes nos dados, para filtros de campos sem lista fixa (nome, código, cidade, etc.)
+function uniqueOptions(list, key) {
+  const vals = [...new Set(list.map(r => r[key]).filter(v => v !== null && v !== undefined && v !== ''))]
+  vals.sort((a, b) => String(a).localeCompare(String(b)))
+  return vals.map(v => ({ value: String(v), label: String(v) }))
+}
+
 function ClassifBadge({ value }) {
   const cfg = CLASSIF_CONFIG[value] || CLASSIF_CONFIG.franquia
   return (
@@ -276,22 +287,54 @@ function BulkReclassifyModal({ ids, franquias, onConfirm, onClose }) {
 export default function Parceiros() {
   const { parceiros: franquias, save: saveParceiro, remove: removeParceiro, bulkReclassify } = useParceiros()
   const { usuarios } = useUsuarios()
+  const { profile } = useProfile()
   const { registrar: log } = useAuditLog()
   const [editando, setEditando]   = useState(null)
   const [form, setForm]           = useState(null)
   const [search, setSearch]       = useState('')
   const [bulkModal, setBulkModal] = useState(null)
   const [importModal, setImportModal] = useState(false)
+  const [activeFilters, setActiveFilters] = useState({})
+  const [equipes, setEquipes]     = useState([])
+
+  useEffect(() => {
+    if (!profile?.tenant_id) return
+    supabase.from('equipes').select('id, nome').eq('tenant_id', profile.tenant_id).is('deleted_at', null).order('nome')
+      .then(({ data }) => setEquipes(data || []))
+  }, [profile?.tenant_id])
 
   const franquiasMae = useMemo(() => franquias.filter(f => f.classificacao !== 'unidade'), [franquias])
 
+  const filterDefs = useMemo(() => [
+    { key: 'classificacao', label: 'Classificação', options: Object.entries(CLASSIF_CONFIG).map(([value, cfg]) => ({ value, label: cfg.label })) },
+    { key: 'situacao', label: 'Situação', options: [{ value: 'ativo', label: 'Ativa' }, { value: 'inativo', label: 'Inativa' }] },
+    { key: 'tipo_parceiro', label: 'Tipo de Parceiro', options: TIPO_PARCEIRO_OPTIONS.filter(o => o.value) },
+    { key: 'franquia_id', label: 'Parceiro detentor', options: franquiasMae.map(f => ({ value: f.id, label: f.nome })) },
+    { key: 'responsavel_id', label: 'Gestor responsável', options: (usuarios || []).filter(u => u.status === 'ativo').map(u => ({ value: u.id, label: u.nome })) },
+    { key: 'equipe_id', label: 'Equipe', options: equipes.map(eq => ({ value: eq.id, label: eq.nome })) },
+    { key: 'estado', label: 'Estado', options: uniqueOptions(franquias, 'estado') },
+    { key: 'cidade', label: 'Cidade', options: uniqueOptions(franquias, 'cidade') },
+    { key: 'nome', label: 'Nome', options: uniqueOptions(franquias, 'nome') },
+    { key: 'codigo', label: 'Código', options: uniqueOptions(franquias, 'codigo') },
+    { key: 'cnpj', label: 'CNPJ', options: uniqueOptions(franquias, 'cnpj') },
+    { key: 'email', label: 'E-mail', options: uniqueOptions(franquias, 'email') },
+    { key: 'telefone', label: 'Telefone', options: uniqueOptions(franquias, 'telefone') },
+  ], [franquias, franquiasMae, usuarios, equipes])
+
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
-    return franquias.filter(f => f.nome.toLowerCase().includes(q))
-  }, [franquias, search])
+    return franquias.filter(f => {
+      if (q && !f.nome.toLowerCase().includes(q)) return false
+      for (const key of Object.keys(activeFilters)) {
+        const vals = activeFilters[key]
+        if (vals?.length && !vals.includes(String(f[key] ?? ''))) return false
+      }
+      return true
+    })
+  }, [franquias, search, activeFilters])
 
   function abrirNovo() {
-    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null, tipo_parceiro: '', responsavel_id: null })
+    setForm({ nome: '', codigo: '', situacao: 'ativo', classificacao: 'franquia', franquia_id: null, tipo_parceiro: '', responsavel_id: null, equipe_id: null })
     setEditando('novo')
   }
 
@@ -448,7 +491,7 @@ export default function Parceiros() {
             <select className="fpe-field" value={form.estado || ''}
               onChange={e => set('estado', e.target.value)}>
               <option value="">— UF —</option>
-              {['AC','AL','AM','AP','BA','CE','DF','ES','GO','MA','MG','MS','MT','PA','PB','PE','PI','PR','RJ','RN','RO','RR','RS','SC','SE','SP','TO'].map(uf => (
+              {ESTADOS_UF.map(uf => (
                 <option key={uf} value={uf}>{uf}</option>
               ))}
             </select>
@@ -497,6 +540,17 @@ export default function Parceiros() {
               ))}
             </select>
           </FPEField>
+
+          {/* Equipe */}
+          <FPEField label="Equipe" style={{ gridColumn: '1/-1' }}>
+            <select className="fpe-field" value={form.equipe_id || ''}
+              onChange={e => set('equipe_id', e.target.value || null)}>
+              <option value="">— Nenhuma —</option>
+              {equipes.map(eq => (
+                <option key={eq.id} value={eq.id}>{eq.nome}</option>
+              ))}
+            </select>
+          </FPEField>
         </FPESection>
       </FullPageEdit>
     )
@@ -529,12 +583,26 @@ export default function Parceiros() {
         onRowClick={abrirEdicao}
         search={search}
         onSearchChange={setSearch}
+        filters={filterDefs}
+        activeFilters={activeFilters}
+        onFilterChange={setActiveFilters}
         onImport={() => setImportModal(true)}
         onExportCsv={exportCSV}
         onExportExcel={exportExcel}
         bulkEditFields={[
-          { key: 'situacao', label: 'Status', type: 'select', options: [{ value: 'ativo', label: 'Ativo' }, { value: 'inativo', label: 'Inativo' }] },
-          { key: 'classificacao', label: 'Tipo', type: 'select', options: [{ value: 'distribuidor', label: 'Distribuidor' }, { value: 'revendedor', label: 'Revendedor' }, { value: 'agente', label: 'Agente' }, { value: 'parceiro', label: 'Parceiro' }] },
+          { key: 'nome', label: 'Nome', type: 'text' },
+          { key: 'codigo', label: 'Código', type: 'text' },
+          { key: 'classificacao', label: 'Classificação', type: 'select', options: Object.entries(CLASSIF_CONFIG).map(([value, cfg]) => ({ value, label: cfg.label })) },
+          { key: 'tipo_parceiro', label: 'Tipo de Parceiro', type: 'select', options: TIPO_PARCEIRO_OPTIONS.filter(o => o.value) },
+          { key: 'franquia_id', label: 'Parceiro detentor', type: 'select', options: franquiasMae.map(f => ({ value: f.id, label: f.nome })) },
+          { key: 'responsavel_id', label: 'Gestor responsável', type: 'select', options: (usuarios || []).filter(u => u.status === 'ativo').map(u => ({ value: u.id, label: u.nome })) },
+          { key: 'equipe_id', label: 'Equipe', type: 'select', options: equipes.map(eq => ({ value: eq.id, label: eq.nome })) },
+          { key: 'situacao', label: 'Situação', type: 'select', options: [{ value: 'ativo', label: 'Ativa' }, { value: 'inativo', label: 'Inativa' }] },
+          { key: 'estado', label: 'Estado', type: 'select', options: ESTADOS_UF.map(uf => ({ value: uf, label: uf })) },
+          { key: 'cidade', label: 'Cidade', type: 'text' },
+          { key: 'cnpj', label: 'CNPJ', type: 'text' },
+          { key: 'email', label: 'E-mail', type: 'text' },
+          { key: 'telefone', label: 'Telefone', type: 'text' },
         ]}
         onBulkEdit={(ids, changes) => ids.forEach(id => { const f = franquias.find(x => x.id === id); if (f) saveParceiro({ ...f, ...changes }) })}
         bulkActions={[

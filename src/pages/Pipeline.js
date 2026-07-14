@@ -58,6 +58,7 @@ import PageHeader from '../components/ui/PageHeader'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
 import { useProfile } from '../hooks/useProfile'
+import { usePermissions } from '../hooks/usePermissions'
 import { supabase } from '../lib/supabase'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
@@ -1847,19 +1848,29 @@ function OppEquipeTab({ oppId }) {
   const { sellers }   = useSellers()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
 
-  // Internos: profiles do Supabase (usuários do sistema ISV)
+  // Internos: profiles do Supabase (usuários do sistema ISV) — user_id da tabela
+  // real tem FK pra profiles(id), então o id do pool precisa ser o profiles.id cru.
   const poolInternos = useMemo(() => {
     return usuarios
-      .filter(u => u.status !== 'inativo')
-      .map(u => ({ id: `s_${u.id}`, nome: u.nome, cargo: u.cargo || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '' }))
+      .filter(u => u.status !== 'inativo' && u.papel !== 'contato_canal')
+      .map(u => ({ id: u.id, nome: u.nome, cargo: u.cargo || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '' }))
   }, [usuarios])
 
-  // Canal: useSellers() = página "Contatos Canais"
+  // Canal: usuários com acesso à plataforma vinculados a Contatos Canais (profiles
+  // com papel='contato_canal') — precisa ser profiles.id (FK real), não sellers.id.
+  // Enriquecido com dados do cadastro de Vendedores via contact_id quando disponível.
   const poolCanais = useMemo(() =>
-    sellers
-      .filter(u => u.status !== 'inativo' && u.status !== 'afastado')
-      .map(u => ({ id: `c_${u.id}`, nome: u.nome, cargo: u.cargo || u.role || '', email: u.email || '', telefone: u.telefone || '', linkedin_url: u.linkedin_url || '', franquia: u.franquia_nome || '' })),
-  [sellers])
+    usuarios
+      .filter(u => u.status !== 'inativo' && u.papel === 'contato_canal')
+      .map(u => {
+        const seller = sellers.find(s => s.id === u.contact_id)
+        return {
+          id: u.id, nome: u.nome, cargo: seller?.cargo || seller?.role || '',
+          email: u.email || seller?.email || '', telefone: u.telefone || seller?.telefone || '',
+          linkedin_url: u.linkedin_url || '', franquia: seller?.franquia_nome || '',
+        }
+      }),
+  [usuarios, sellers])
 
   // Pool de contatos externos (cadastro de Contatos)
   const poolContatos = useMemo(() =>
@@ -3813,6 +3824,11 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
     if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
     if (!form.responsavel?.trim()) e.responsavel   = 'Responsável é obrigatório'
+    // Campos customizados marcados como obrigatórios em Config. de Campos
+    Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required).forEach(f => {
+      const v = form.custom_fields?.[f.field_key]
+      if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
+    })
     if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
 
     // Regra: ao fechar como ganha, exige ao menos um produto vinculado
@@ -4116,7 +4132,7 @@ function OppModal({ onClose, onSave, onDelete, onFechamento, initial, etapas, fu
     { key: 'proposta',      label: 'Proposta',      badge: oppPropostaCount || undefined },
     { key: 'questionarios', label: 'Questionários', badge: oppQuestionariosCount || undefined },
     { key: 'playbook',      label: 'Playbook',      badge: oppPlaybookCount || undefined },
-  ] : undefined
+  ].filter(t => !isParceiro || !['produtos', 'equipe', 'proposta', 'questionarios'].includes(t.key)) : undefined
 
   // ── botão de histórico (headerActions) ───────────────────────────────────
   const logToggleBtn = isEditing ? (
@@ -4795,16 +4811,30 @@ function Field({ label, children }) {
 }
 
 // ─── Dropdown seletor de funil ────────────────────────────────────────────────
-function FunilDropdown({ funis, funilAtivo, onChange }) {
+function FunilDropdown({ funis, funilAtivo, onChange, locked }) {
   const [open, setOpen] = useState(false)
   const ref             = useRef(null)
-  const ativo           = funis.find(f => f.id === funilAtivo)
+  const ativo           = funis.find(f => String(f.id) === String(funilAtivo))
 
   useEffect(() => {
     function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h)
     return () => document.removeEventListener('mousedown', h)
   }, [])
+
+  if (locked) {
+    return (
+      <div style={{ display:'flex', alignItems:'center', gap:8, height:36, padding:'0 12px', borderRadius:7,
+        border:'1px solid var(--border)', background:'var(--surface2)', minWidth:160, boxSizing:'border-box' }}>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink:0 }}>
+          <path d="M1 2h14l-5 6v5l-4-2V8L1 2z" stroke="var(--text-muted)" strokeWidth="1.5" strokeLinejoin="round" fill="none"/>
+        </svg>
+        <span style={{ fontSize:13, fontWeight:700, color:'var(--text)', flex:1, textAlign:'left' }}>
+          {ativo?.nome || 'Selecionar funil'}
+        </span>
+      </div>
+    )
+  }
 
   return (
     <div ref={ref} style={{ position:'relative', display:'inline-block' }}>
@@ -4830,7 +4860,7 @@ function FunilDropdown({ funis, funilAtivo, onChange }) {
             Funil de vendas
           </div>
           {funis.map(f => {
-            const isSel = f.id === funilAtivo
+            const isSel = String(f.id) === String(funilAtivo)
             return (
               <button key={f.id} onMouseDown={() => { onChange(f.id); setOpen(false) }}
                 style={{ display:'flex', alignItems:'center', gap:10, width:'100%', padding:'10px 14px',
@@ -6082,15 +6112,17 @@ const k = {
 }
 
 // ─── List View ────────────────────────────────────────────────────────────────
-function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected }) {
+function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected, hideSelect }) {
   return (
     <div style={{ ...p.tableWrap, overflowX:'auto' }}>
       <table style={{ ...p.table, minWidth: 700 }}>
         <thead>
           <tr>
+            {!hideSelect && (
             <th style={{ ...p.th, width:40, textAlign:'center' }}>
               <Checkbox checked={allSelected} indeterminate={someSelected} onChange={onToggleAll} title={allSelected?'Desmarcar todos':'Selecionar todos'} />
             </th>
+            )}
             {['Oportunidade','Funil','Situação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
               <th key={h} style={p.th}>{h}</th>
             ))}
@@ -6109,9 +6141,11 @@ function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onT
             const urgente  = dias!==null && dias>=0 && dias<=7
             return (
               <tr key={o.id} style={{ ...p.tr, ...(isSel?p.trSelected:{}) }}>
+                {!hideSelect && (
                 <td style={{ ...p.td, textAlign:'center', width:40 }}>
                   <Checkbox checked={isSel} onChange={()=>onToggleOne(o.id)} />
                 </td>
+                )}
                 <td style={p.td}>
                   <div style={{ fontWeight:600, color:'var(--text)', fontSize:13 }}>{o.titulo}</div>
                   <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
@@ -6183,20 +6217,24 @@ function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLog
       border:'1px solid var(--border)', boxShadow:'0 8px 28px rgba(0,0,0,0.13)',
       padding:6, overflow:'hidden',
     }}>
-      <button style={itemStyle}
-        onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background='none'}
-        onClick={onImport}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3M1 2h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        Importar dados
-      </button>
-      <button style={itemStyle}
-        onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-        onMouseLeave={e => e.currentTarget.style.background='none'}
-        onClick={onExport}>
-        <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-        {selected?.size > 0 ? `Exportar selecionados (${selected.size})` : 'Exportar dados'}
-      </button>
+      {onImport && (
+        <button style={itemStyle}
+          onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
+          onMouseLeave={e => e.currentTarget.style.background='none'}
+          onClick={onImport}>
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3M1 2h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          Importar dados
+        </button>
+      )}
+      {onExport && (
+        <button style={itemStyle}
+          onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
+          onMouseLeave={e => e.currentTarget.style.background='none'}
+          onClick={onExport}>
+          <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          {selected?.size > 0 ? `Exportar selecionados (${selected.size})` : 'Exportar dados'}
+        </button>
+      )}
       {exportLogs?.length > 0 && (
         <>
           <div style={{ height:1, background:'var(--border)', margin:'4px 0' }} />
@@ -6550,13 +6588,14 @@ function FiltrosPanel({
 export default function Pipeline() {
   // ── estado persistido em localStorage ───────────────────────────────────
   const { profile } = useProfile()
+  const { can } = usePermissions()
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
     const fn = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', fn)
     return () => window.removeEventListener('resize', fn)
   }, [])
-  const isParceiro = profile?.papel === 'parceiro' || profile?.role === 'parceiro'
+  const isParceiro = profile?.papel === 'contato_canal' || profile?.role === 'contato_canal'
   const [partnerFunilId, setPartnerFunilId] = useState(null)
   const [partnerNome, setPartnerNome]       = useState('')
 
@@ -6576,7 +6615,10 @@ export default function Pipeline() {
   const funis        = FUNIS_ATIVOS  // alias conveniente para uso no handleSave
   const funilPadrao  = FUNIS_ATIVOS.find(f => f.is_padrao) || FUNIS_ATIVOS[0]
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
-  const [view, setView]                 = useLocalState('pipeline:view', isMobile ? 'list' : 'kanban')
+  const [view, setViewRaw]               = useLocalState('pipeline:view', isMobile ? 'list' : 'kanban')
+  // Contato Canal só navega em lista — força mesmo se um valor antigo ('kanban') ficou salvo
+  const setView = isParceiro ? () => {} : setViewRaw
+  const viewEfetiva = isParceiro ? 'list' : view
   const [search, setSearch]             = useLocalState('pipeline:search', '')
   const [filterOrigem, setFilterOrigem]           = useLocalState('pipeline:filterOrigem2', [])
   const [filterEtapa, setFilterEtapa]             = useLocalState('pipeline:filterEtapa2', [])
@@ -6634,7 +6676,7 @@ export default function Pipeline() {
   const [selected, setSelected]         = useState(new Set())
   // trayRef removido — ExportTray agora é flutuante (fixed)
 
-  const funil  = FUNIS_ATIVOS.find(f => f.id === funilAtivo)
+  const funil  = FUNIS_ATIVOS.find(f => String(f.id) === String(funilAtivo))
   const etapas = funil?.etapas || []
 
   // ── filtro + sort ────────────────────────────────────────────────────────
@@ -6772,7 +6814,7 @@ export default function Pipeline() {
   }
 
   // ── save/delete ───────────────────────────────────────────────────────────
-  function handleSave(data) {
+  async function handleSave(data) {
     const isNew = !opps.find(o => o.id === data.id)
     // Garante funil definido — fallback para funil padrão ou primeiro ativo
     const funilFinal = funis.find(f => String(f.id) === String(data.funil_id))
@@ -6780,8 +6822,30 @@ export default function Pipeline() {
       || FUNIS_ATIVOS[0]
     const funil_id   = funilFinal?.id || funilAtivo
     const funil_nome = funilFinal?.nome || funil?.nome || ''
-    saveOpp({ ...data, funil_id, funil_nome })
+    const result = await saveOpp({ ...data, funil_id, funil_nome })
     log(isNew ? 'criar' : 'editar', 'oportunidade', data.id, { descricao: `Oportunidade ${isNew ? 'criada' : 'editada'}: ${data.nome || data.titulo || ''}` })
+
+    // Parceiro criando oportunidade: auto-adiciona em "Contatos Canal" na aba
+    // Equipe e avisa o time interno — não bloqueia o fluxo se falhar.
+    if (isNew && isParceiro && result?.data?.id && profile?.id) {
+      addMembroOpp({
+        oportunidade_id: result.data.id,
+        user_id: profile.id,
+        papel: 'vendedor',
+        tipo_membro: 'canal',
+      }).catch(err => console.warn('[Pipeline] erro ao auto-adicionar membro canal:', err))
+
+      supabase.from('alerts').insert({
+        tenant_id: profile.tenant_id,
+        gatilho: 'oportunidade_canal',
+        titulo: 'Nova oportunidade criada por parceiro',
+        mensagem: `${profile.nome || 'Um parceiro'} criou a oportunidade "${result.data.titulo || data.titulo || ''}"`,
+        entidade_tipo: 'oportunidade',
+        entidade_id: result.data.id,
+        entidade_nome: result.data.titulo || data.titulo || '',
+        prioridade: 'media',
+      }).then(({ error }) => { if (error) console.warn('[Pipeline] erro ao criar alerta de oportunidade de canal:', error.message) })
+    }
   }
   function handleFechamento(opp) { setFechamentoModal(opp) }
   function handleDelete(id) {
@@ -6839,10 +6903,11 @@ export default function Pipeline() {
   }
 
   return (
-    <div style={{ ...p.page, ...(view==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
+    <div style={{ ...p.page, ...(viewEfetiva==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
 
 
       {/* ── KPIs retráteis (padrão BrowseLayout) ── */}
+      {can('pipeline', 'ver_indicadores') && (
       <div style={{ borderBottom:'1px solid var(--border)' }}>
         <button
           type="button"
@@ -6872,13 +6937,14 @@ export default function Pipeline() {
           </div>
         )}
       </div>
+      )}
 
       {/* ── Toolbar ── */}
       <div style={{ ...p.toolbar, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: isMobile ? '8px' : '8px 12px' }}>
 
         {/* ── Lado Esquerdo: funil + busca + responsável ── */}
         <div style={{ ...p.tbLeft, flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : undefined }}>
-          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} />
+          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} locked={isParceiro} />
 
           <div style={{ ...p.searchWrap, width: isMobile ? '100%' : 240 }}>
             <span style={p.searchIcon}>⌕</span>
@@ -6893,7 +6959,8 @@ export default function Pipeline() {
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
         <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
 
-          {/* Botão Rotinas */}
+          {/* Botão Rotinas — não disponível pra Contato Canal */}
+          {!isParceiro && (
           <button
             onClick={() => setShowRotinas(true)}
             style={{
@@ -6906,8 +6973,10 @@ export default function Pipeline() {
             }}>
             ⚙ Rotinas
           </button>
+          )}
 
-          {/* Botão Filtros */}
+          {/* Botão Filtros — não disponível pra Contato Canal */}
+          {!isParceiro && (
           <button
             onClick={() => setFiltrosOpen(v => !v)}
             style={{
@@ -6930,6 +6999,7 @@ export default function Pipeline() {
               </span>
             )}
           </button>
+          )}
 
           {/* Ordenação */}
           <select style={{ ...p.select, color:'var(--text-muted)' }} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
@@ -6940,15 +7010,17 @@ export default function Pipeline() {
             <option value="titulo">Título A–Z</option>
           </select>
 
-          {/* View toggle */}
+          {/* View toggle — Contato Canal só navega em lista, sem opção de trocar */}
+          {!isParceiro && (
           <div style={p.viewToggle}>
-            <button style={{ ...p.viewBtn, ...(view==='list'?p.viewBtnOn:{}) }} onClick={()=>setView('list')} title="Lista">
+            <button style={{ ...p.viewBtn, ...(viewEfetiva==='list'?p.viewBtnOn:{}) }} onClick={()=>setView('list')} title="Lista">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="12" height="2" rx="1" fill="currentColor"/></svg>
             </button>
-            <button style={{ ...p.viewBtn, ...(view==='kanban'?p.viewBtnOn:{}) }} onClick={()=>setView('kanban')} title="Kanban">
+            <button style={{ ...p.viewBtn, ...(viewEfetiva==='kanban'?p.viewBtnOn:{}) }} onClick={()=>setView('kanban')} title="Kanban">
               <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
             </button>
           </div>
+          )}
 
           {/* Nova oportunidade */}
           <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>Nova oportunidade</Button>
@@ -6967,8 +7039,8 @@ export default function Pipeline() {
 
             {acoesOpen && (
               <AcoesMenu
-                onExport={() => { handleExport(); setAcoesOpen(false) }}
-                onImport={() => { setImportModal(true); setAcoesOpen(false) }}
+                onExport={can('pipeline', 'exportar') ? () => { handleExport(); setAcoesOpen(false) } : undefined}
+                onImport={can('pipeline', 'importar') ? () => { setImportModal(true); setAcoesOpen(false) } : undefined}
                 onClose={() => setAcoesOpen(false)}
                 anchorRef={acoesRef}
                 selected={selected}
@@ -7001,7 +7073,7 @@ export default function Pipeline() {
       )}
 
       {/* ── Bulk bar ── */}
-      {selected.size>0 && (
+      {(!isParceiro || can('pipeline', 'excluir')) && selected.size>0 && (
         <div style={p.bulkBar}>
           <span style={p.bulkCount}><span style={p.bulkDot} />{selected.size} selecionada{selected.size>1?'s':''}</span>
           <div style={p.bulkActions}>
@@ -7037,16 +7109,17 @@ export default function Pipeline() {
       )}
 
       {/* ── Views ── */}
-      {view==='list' && (
+      {viewEfetiva==='list' && (
         <ListView
           opps={filtered} etapas={etapas} funis={FUNIS_ATIVOS}
           onEdit={o=>setModal(o)}
           selected={selected} onToggleAll={toggleAll} onToggleOne={toggleOne}
           allSelected={allSelected} someSelected={someSelected}
+          hideSelect={isParceiro}
         />
       )}
 
-      {view==='kanban' && (
+      {viewEfetiva==='kanban' && (
         <KanbanBoard
           etapas={etapas}
           filtered={filtered}

@@ -156,7 +156,6 @@ export function useOpportunities() {
 
   // Salvar (insert ou update)
   const save = useCallback(async (data) => {
-    console.log('[save] isMockMode:', isMockMode.current, 'titulo:', data.titulo, 'tenantId:', tenantIdRef.current, 'playbook_id:', data.playbook_id)
     if (isMockMode.current) {
       setOpps(prev => {
         const idx = prev.findIndex(o => o.id === data.id)
@@ -182,14 +181,15 @@ export function useOpportunities() {
       const tempId = crypto.randomUUID()
       const optimistic = { ...data, id: tempId, criado: new Date().toISOString().slice(0, 10) }
       setOpps(prev => [...prev, optimistic])
-      const { error } = await supabase.from('oportunidades').insert(row)
+      const { data: inserted, error } = await supabase.from('oportunidades').insert(row).select().single()
       if (error) {
         console.warn('[useOpportunities] insert error:', error.message, 'row:', JSON.stringify(row).slice(0,200))
         // Mantém o opp otimístico — não chama load() para não sobrescrever
         return { ok: true }
       }
-      // INSERT ok: recarrega para obter ID real
+      // INSERT ok: recarrega para obter ID real na lista, mas já retorna o id real pro chamador
       load()
+      return { ok: true, data: rowToOpp(inserted) }
     }
     return { ok: true }
   }, [tenantId, branchId])

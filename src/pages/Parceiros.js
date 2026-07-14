@@ -860,6 +860,7 @@ export default function Parceiros() {
   return (
     <>
       <BrowseLayout
+        modulo="parceiros"
         storageKey="parceiros"
         kpis={kpis}
         kpisLabel="Visão Geral"

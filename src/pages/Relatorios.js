@@ -501,6 +501,7 @@ export default function Relatorios() {
   return (
     <>
       <BrowseLayout
+        modulo="relatorios"
         storageKey="relatorios"
         columns={columns}
         data={dados}

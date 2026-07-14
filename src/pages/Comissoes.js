@@ -1742,6 +1742,7 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
 
   return (
     <BrowseLayout
+      modulo="comissoes"
       data={filtered}
       columns={COLUMNS}
       filters={FILTERS}

@@ -91,11 +91,22 @@ export function useFunnels() {
   }, [persistAll])
 
   const remove = useCallback(async (id) => {
+    // Funis não são uma tabela própria (vivem dentro de form_layouts.fields),
+    // então não têm soft-delete de linha — a proteção aqui é bloquear a
+    // remoção quando já existe oportunidade usando esse funil.
+    const { count, error } = await supabase
+      .from('oportunidades')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('custom_fields->>funil_id', String(id))
+    if (error) return { ok: false, message: error.message }
+    if (count > 0) return { ok: false, message: 'Este funil já possui oportunidades vinculadas e não pode ser excluído.' }
+
     let next
     setFunis(prev => { next = prev.filter(f => f.id !== id); return next })
     setTimeout(() => { if (next && !isMockMode.current) persistAll(next) }, 0)
     return { ok: true }
-  }, [persistAll])
+  }, [persistAll, tenantId])
 
   return { funis, loading, reload: load, save, remove, setFunis, isMock: isMockMode }
 }

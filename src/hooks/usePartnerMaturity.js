@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -56,7 +56,7 @@ export function usePartnerMaturity() {
   }, [profile, fetch])
 
   const remove = useCallback(async (id) => {
-    await supabase.from('partner_maturity_params').delete().eq('id', id)
+    await softDelete('partner_maturity_params', id)
     await fetch()
   }, [fetch])
 

@@ -227,9 +227,10 @@ export default function Funis() {
     setEditando(null)
   }
 
-  function handleDelete(id) {
+  async function handleDelete(id) {
     const f = funis.find(x => x.id === id)
-    deleteFunil(id)
+    const { ok, message } = await deleteFunil(id)
+    if (!ok) { alert(message || 'Não foi possível excluir este funil.'); return }
     log('excluir', 'funil', id, { descricao: `Funil excluído: ${f?.nome || id}` })
     setEditando(null)
   }
@@ -324,6 +325,7 @@ export default function Funis() {
 
   return (
     <SettingsLayout
+      modulo="funis"
       title="Funis de Vendas"
       description="Configure os funis e etapas do pipeline de vendas do canal."
       columns={[
