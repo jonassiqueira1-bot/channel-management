@@ -361,11 +361,11 @@ function ProdutoSearch({ onAdd }) {
   const produtosAtivos      = (produtos || []).filter(p => p.status === 'ativo')
 
   const sugestoes = useMemo(() => {
-    if (!q.trim()) return produtosAtivos.slice(0, 6)
+    if (!q.trim()) return produtosAtivos.slice(0, 8)
     const lq = q.toLowerCase()
     return produtosAtivos.filter(p =>
       (p.nome||'').toLowerCase().includes(lq) || (p.codigo||'').toLowerCase().includes(lq)
-    ).slice(0, 8)
+    ).slice(0, 10)
   }, [q, produtosAtivos])
 
   useEffect(() => {
@@ -481,13 +481,22 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
         )}
 
         {itens.length > 0 && (
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
+          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, tableLayout:'fixed' }}>
+            <colgroup>
+              <col style={{ width:'auto' }} />
+              <col style={{ width:70 }} />
+              <col style={{ width:110 }} />
+              <col style={{ width:90 }} />
+              <col style={{ width:100 }} />
+              <col style={{ width:70 }} />
+              <col style={{ width:36 }} />
+            </colgroup>
             <thead>
               <tr style={{ background:'var(--surface2)' }}>
                 {['Produto','Qtd','Preço unit.','Desc. %','Subtotal','Cob.',''].map((h,i) => (
                   <th key={i} style={{ padding:'6px 8px', textAlign: i>=1&&i<=4 ? 'right' : i===6?'center':'left',
                     color:'var(--text-muted)', fontWeight:700, fontSize:10, fontFamily:'var(--mono)',
-                    borderBottom:'1px solid var(--border)', whiteSpace:'nowrap' }}>
+                    borderBottom:'1px solid var(--border)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
                     {h}
                   </th>
                 ))}
@@ -500,9 +509,9 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                   onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
 
                   {/* Nome */}
-                  <td style={{ padding:'8px 8px' }}>
-                    <div style={{ fontWeight:600, color:'var(--text)' }}>{item.produto_nome}</div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{item.produto_codigo}</div>
+                  <td style={{ padding:'8px 8px', overflow:'hidden' }}>
+                    <div style={{ fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={item.produto_nome}>{item.produto_nome}</div>
+                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.produto_codigo}</div>
                   </td>
 
                   {/* Quantidade */}
@@ -510,7 +519,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                     <input type="number" min="1" step="1"
                       value={item.quantidade}
                       onChange={e => updateItem(item.produto_id, 'quantidade', Math.max(1, Number(e.target.value)))}
-                      style={{ ...m.input, width:54, textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
+                      style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
                   </td>
 
                   {/* Preço unitário */}
@@ -518,7 +527,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                     <input type="number" min="0" step="1"
                       value={item.preco_unitario}
                       onChange={e => updateItem(item.produto_id, 'preco_unitario', Number(e.target.value))}
-                      style={{ ...m.input, width:90, textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
+                      style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
                   </td>
 
                   {/* Desconto % */}
@@ -528,9 +537,9 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                         max={item.desconto_max}
                         value={item.desconto_pct}
                         onChange={e => updateItem(item.produto_id, 'desconto_pct', Math.min(Number(e.target.value), item.desconto_max))}
-                        style={{ ...m.input, width:46, textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12,
+                        style={{ ...m.input, width:'100%', boxSizing:'border-box', minWidth:0, textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12,
                           borderColor: item.desconto_pct>=item.desconto_max&&item.desconto_max>0 ? '#F59E0B' : undefined }} />
-                      <span style={{ fontSize:10, color:'var(--text-muted)' }}>%</span>
+                      <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>%</span>
                     </div>
                     {item.desconto_max > 0 && (
                       <div style={{ fontSize:9, color:'var(--text-muted)', textAlign:'right', marginTop:1 }}>máx {item.desconto_max}%</div>
