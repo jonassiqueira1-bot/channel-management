@@ -4025,17 +4025,16 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     // pode existir na definição (fields) e ter sido retirado do layout (rows)
     // sem deixar de ser "obrigatório" — aí ficava impossível de preencher e
     // bloqueava o Salvar sem chance de correção (ex.: Responsável).
+    // Campos de sistema (is_system: titulo, empresa_id, situacao, etapa_id, valor_*
+    // etc.) guardam o valor direto em form.<field_key>, não em form.custom_fields —
+    // e titulo/empresa_id já são validados acima. Só campos genuinamente custom
+    // (is_system:false) usam form.custom_fields[field_key].
     const idsNoLayout = new Set((oppSections || []).flatMap(sec => (sec.rows || []).flat()).filter(Boolean))
-    Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required && idsNoLayout.has(f.id)).forEach(f => {
+    Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required && !f.is_system && idsNoLayout.has(f.id)).forEach(f => {
       const v = form.custom_fields?.[f.field_key]
       if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
     })
-    if (Object.keys(e).length) {
-      console.warn('[OppModal] validação de Dados falhou — valores atuais do form:', {
-        titulo: form.titulo, empresa_id: form.empresa_id, empresa_nome: form.empresa_nome, erros: e,
-      })
-      setErrs(e); setTab('dados'); return
-    }
+    if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
 
     // Responsável vem do Time Interno (aba Equipe) — sem ninguém marcado como
     // Vendedor lá, não tem como saber quem é o responsável.
