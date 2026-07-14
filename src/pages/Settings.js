@@ -251,7 +251,9 @@ const s = {
     overflowY: 'auto',
   },
   asideHeader: {
-    padding: '20px 20px 12px',
+    padding: '12px 20px',
+    minHeight: 56,
+    boxSizing: 'border-box',
     borderBottom: '1px solid var(--border)',
   },
   asideTitle: {

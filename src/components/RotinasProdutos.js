@@ -11,7 +11,7 @@ const C = {
 }
 const s = {
   overlay: { position:'fixed', inset:0, background:'rgba(0,0,0,.45)', zIndex:1200, display:'flex', alignItems:'flex-start', justifyContent:'flex-end' },
-  drawer:  { width:420, height:'100vh', background:C.bg, borderLeft:`1px solid ${C.border}`, display:'flex', flexDirection:'column' },
+  drawer:  { width:'100%', maxWidth:420, height:'100vh', background:C.bg, borderLeft:`1px solid ${C.border}`, display:'flex', flexDirection:'column', boxSizing:'border-box' },
   header:  { padding:'16px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' },
   title:   { fontWeight:600, fontSize:15, color:C.text, margin:0 },
   body:    { flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:12 },
@@ -24,10 +24,10 @@ const s = {
   card:  { background:C.surface, border:`1px solid ${C.border}`, borderRadius:8, padding:'12px 14px' },
   input: { width:'100%', padding:'7px 10px', borderRadius:6, border:`1px solid ${C.border}`, background:C.bg, color:C.text, fontSize:13, boxSizing:'border-box' },
   label: { fontSize:12, color:C.muted, marginBottom:4, display:'block' },
-  row:   { display:'flex', gap:8, alignItems:'center' },
+  row:   { display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' },
   badge: (color='#888') => ({ display:'inline-flex', alignItems:'center', gap:4, fontSize:11, padding:'2px 7px', borderRadius:10, background:color+'22', color }),
-  modal: { position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:1300, display:'flex', alignItems:'center', justifyContent:'center' },
-  wizard:{ width:520, maxHeight:'90vh', background:C.bg, borderRadius:12, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', overflow:'hidden' },
+  modal: { position:'fixed', inset:0, background:'rgba(0,0,0,.55)', zIndex:1300, display:'flex', alignItems:'center', justifyContent:'center', padding:12, boxSizing:'border-box' },
+  wizard:{ width:'100%', maxWidth:520, maxHeight:'90vh', background:C.bg, borderRadius:12, border:`1px solid ${C.border}`, display:'flex', flexDirection:'column', overflow:'hidden', boxSizing:'border-box' },
 }
 
 const INDICES = ['IPCA', 'IGPM', 'Manual']

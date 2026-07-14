@@ -19,6 +19,33 @@ export function useFormLayout(entity) {
     }
   }, [setStoredLayout])
 
+  // Remove campos retirados da aba Dados de Oportunidades (Playbook, Contato
+  // Principal, Responsável já aparecem em outras abas/lugares próprios) de
+  // instalações já existentes — a migração automática abaixo só adiciona
+  // campos novos, nunca remove os que já foram descontinuados do seed.
+  const REMOVIDOS = ['sf_op_contato', 'sf_op_resp', 'sf_op_playbook']
+  useEffect(() => {
+    if (storedFields.some(f => REMOVIDOS.includes(f.id))) {
+      setStoredFields(prev => prev.filter(f => !REMOVIDOS.includes(f.id)))
+    }
+    const opRows = storedLayout.opportunities?.sections?.[0]?.rows
+    if (opRows?.some(row => row.some(id => REMOVIDOS.includes(id)))) {
+      setStoredLayout(prev => ({
+        ...prev,
+        opportunities: {
+          ...prev.opportunities,
+          sections: prev.opportunities.sections.map(sec => ({
+            ...sec,
+            rows: sec.rows
+              .map(row => row.map(id => REMOVIDOS.includes(id) ? null : id))
+              .filter(row => row.some(id => id !== null)),
+          })),
+        },
+      }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Garante que campos novos do seed sejam adicionados ao localStorage (migração automática)
   const fields = useMemo(() => {
     const storedIds = new Set(storedFields.map(f => f.id))
