@@ -157,9 +157,14 @@ input, select, textarea {
   }
 }
 
-/* ── Crisp — afasta do rodapé do SlideOver ─────────────────────── */
+/* ── Crisp — some enquanto um modal/SlideOver está aberto ──────────────────
+   Reposicionar via `bottom` não é confiável (o botão do Crisp é renderizado
+   dentro de um iframe próprio, que não segue o offset do container pai), e
+   ele acabava sempre por cima do rodapé (Salvar/Cancelar/Excluir) dos modais.
+   Esconder é a forma garantida de nunca sobrepor. */
 body[style*="overflow: hidden"] #crisp-chatbox,
 body[style*="overflow: hidden"] .crisp-client {
-  bottom: 80px !important;
-  transition: bottom 0.2s ease !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.15s ease !important;
 }

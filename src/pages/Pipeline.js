@@ -3873,19 +3873,6 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     return () => window.removeEventListener('resize', fn)
   }, [])
 
-  // Empurra o widget do Crisp pra cima enquanto este modal está aberto —
-  // mesma técnica do SlideOver.js, mas aqui via mount/unmount porque OppModal
-  // só é renderizado enquanto está aberto (não tem prop `open`).
-  useEffect(() => {
-    if (!window.$crisp) return
-    window.$crisp.push(['config', 'position:reverse', [false]])
-    const el = document.querySelector('#crisp-chatbox')
-    if (el) el.style.setProperty('bottom', '80px', 'important')
-    return () => {
-      const el2 = document.querySelector('#crisp-chatbox')
-      if (el2) el2.style.removeProperty('bottom')
-    }
-  }, [])
   const [form, setForm] = useState(
     initial
       ? { titulo:initial.titulo, empresa_id:initial.empresa_id, empresa_nome:initial.empresa_nome,
