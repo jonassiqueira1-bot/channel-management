@@ -4081,7 +4081,10 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           empresaId={form.empresa_id} allContatos={todosContatos}
           onChange={(id, nome) => { set('primary_contact_id', id); set('primary_contact_nome', nome) }} />
       case 'responsavel':
-        return <SellerSelect value={form.responsavel} onChange={nome => set('responsavel', nome)} style={m.input} />
+        return <>
+          <SellerSelect value={form.responsavel} onChange={nome => set('responsavel', nome)} style={{ ...m.input, borderColor: errs.responsavel ? '#DC2626' : '' }} />
+          {errs.responsavel && <span style={{ color:'#DC2626', fontSize:11, marginTop:2, display:'block' }}>{errs.responsavel}</span>}
+        </>
       case 'situacao':
         return (<>
           <div style={{ position:'relative' }}>
