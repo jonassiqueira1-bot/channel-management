@@ -23,7 +23,7 @@ import {
   STORAGE_KEY_SUBMISSIONS as Q_STORAGE_SUBMISSIONS,
   TIPO_CFG as Q_TIPO_CFG,
   STATUS_CFG as Q_STATUS_CFG,
-  calcularScoreSubmission,
+  calcularResultadoSubmissao,
 } from '../data/mockQuestionarios'
 import {
   MOCK_DOCS,
@@ -3788,20 +3788,25 @@ function calcularQualificacaoCompleta({ opp, playbooks, empresa, templates, subm
     if (icpPossivel > 0) scores.push((icpObtido / icpPossivel) * 100)
   }
 
-  const qualifSubs = (submissions || []).filter(s =>
-    String(s.opportunity_id) === String(opp.id) &&
-    templates.find(t => t.id === s.template_id)?.type === 'qualificacao_lead'
-  )
-  if (qualifSubs.length) {
-    const media = qualifSubs.reduce((sum, s) => {
-      const tpl = templates.find(t => t.id === s.template_id)
-      return sum + calcularScoreSubmission(tpl, s.respostas || {})
-    }, 0) / qualifSubs.length
-    scores.push(media)
+  // Submissões de Qualificação de Lead entram na média do score. Qualquer
+  // submissão de QUALQUER tipo (inclusive Pré-Venda Técnica) que tenha
+  // marcado uma resposta "desqualifica" derruba a oportunidade pra 0,
+  // independente das outras fontes — desqualificação é sempre absoluta.
+  const submissoesDaOpp = (submissions || []).filter(s => String(s.opportunity_id) === String(opp.id))
+  const motivosDesqualificacao = []
+  const qualifSubs = []
+  for (const s of submissoesDaOpp) {
+    const tpl = templates.find(t => t.id === s.template_id)
+    if (!tpl) continue
+    const resultado = calcularResultadoSubmissao(tpl, s.respostas || {})
+    if (resultado.desqualificada) motivosDesqualificacao.push(...resultado.motivos.map(m => `${tpl.title}: ${m}`))
+    if (tpl.type === 'qualificacao_lead') qualifSubs.push(resultado.score)
   }
+  if (qualifSubs.length) scores.push(qualifSubs.reduce((a, b) => a + b, 0) / qualifSubs.length)
 
-  if (!scores.length) return 0
-  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+  if (motivosDesqualificacao.length) return { score: 0, desqualificada: true, motivos: motivosDesqualificacao }
+  if (!scores.length) return { score: 0, desqualificada: false, motivos: [] }
+  return { score: Math.round(scores.reduce((a, b) => a + b, 0) / scores.length), desqualificada: false, motivos: [] }
 }
 
 // Reúne os itens de checklist de qualificação configurados pra uma etapa
@@ -3952,8 +3957,8 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
         if (onSaveDireto && initial?.id) {
           const empresa = allCompanies.find(c => String(c.id) === String(initial.empresa_id))
           const oppAtualizada = { ...initial, ...form, etapa_id: novoEtapaId, checklist_respostas: novasRespostas, ...extra }
-          const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: allQuestionTemplates, submissions: allSubmissions })
-          onSaveDireto({ ...oppAtualizada, qualificacao_score: score })
+          const resultado = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: allQuestionTemplates, submissions: allSubmissions })
+          onSaveDireto({ ...oppAtualizada, qualificacao_score: resultado.score, qualificacao_desqualificada: resultado.desqualificada })
         }
         setStepGate(null)
       },
@@ -4071,10 +4076,18 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     const hoje = new Date().toISOString().slice(0, 10)
     const funilFinal = form.funil_id || funilId
     const produtosById = Object.fromEntries(allProdutos.map(p => [String(p.id), p]))
+    const playbookIds = autoVincularPlaybooks({ ...form, funil_id: funilFinal }, playbooks, produtosById)
+    const empresaAtual = allCompanies.find(c => String(c.id) === String(form.empresa_id))
+    const resultadoQualificacao = calcularQualificacaoCompleta({
+      opp: { ...form, playbook_ids: playbookIds }, playbooks, empresa: empresaAtual,
+      templates: allQuestionTemplates, submissions: allSubmissions,
+    })
     const oppSalva = { ...form, valor_desconto: desconto, valor: liquido,
       funil_id: funilFinal, id:initial?.id||novoId(), criado:initial?.criado||hoje,
       data_fechamento: form.situacao === 'ganha' && !eraGanha ? hoje : (initial?.data_fechamento || null),
-      playbook_ids: autoVincularPlaybooks({ ...form, funil_id: funilFinal }, playbooks, produtosById),
+      playbook_ids: playbookIds,
+      qualificacao_score: resultadoQualificacao.score,
+      qualificacao_desqualificada: resultadoQualificacao.desqualificada,
     }
 
     setSaving(true)
@@ -4684,8 +4697,8 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
       },
     }
     const oppAtualizada = { ...opp, checklist_respostas: novasRespostas }
-    const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: templates || [], submissions: submissions || [] })
-    onSaveOpp({ ...oppAtualizada, qualificacao_score: score })
+    const resultado = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: templates || [], submissions: submissions || [] })
+    onSaveOpp({ ...oppAtualizada, qualificacao_score: resultado.score, qualificacao_desqualificada: resultado.desqualificada })
   }
 
   // ── Inline styles ──────────────────────────────────────────────────────────
@@ -4842,7 +4855,11 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
           <p style={S.pbTitle}>{playbook.title}</p>
           <p style={S.pbSub}>{playbook.description || playbook.segment}</p>
         </div>
-        {opp?.qualificacao_score > 0 && (
+        {opp?.qualificacao_desqualificada ? (
+          <span style={{ ...S.stageBadge, background:'#FEE2E2', color:'#991B1B' }} title="Uma resposta de questionário marcada como desqualificante foi selecionada">
+            🚫 Desqualificada
+          </span>
+        ) : opp?.qualificacao_score > 0 && (
           <span style={{ ...S.stageBadge, background:'#D1FAE5', color:'#065F46' }}>
             🎯 Qualificação {opp.qualificacao_score}%
           </span>
@@ -6225,7 +6242,12 @@ function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForeca
           lineHeight:1.35, letterSpacing:'-0.01em' }}>
           {opp.titulo}
         </div>
-        {opp.qualificacao_score > 0 && (
+        {opp.qualificacao_desqualificada ? (
+          <span title="Desqualificada por resposta de questionário" style={{ fontSize:10, fontWeight:800, fontFamily:'var(--mono)',
+            padding:'2px 6px', borderRadius:6, flexShrink:0, whiteSpace:'nowrap', background:'#FEE2E2', color:'#991B1B' }}>
+            🚫
+          </span>
+        ) : opp.qualificacao_score > 0 && (
           <span title="Qualificação (checklist do Playbook)" style={{ fontSize:10, fontWeight:800, fontFamily:'var(--mono)',
             padding:'2px 6px', borderRadius:6, flexShrink:0, whiteSpace:'nowrap',
             background: opp.qualificacao_score >= 70 ? '#D1FAE5' : opp.qualificacao_score >= 40 ? '#FEF3C7' : '#FEE2E2',
@@ -7048,9 +7070,9 @@ export default function Pipeline() {
         const novasRespostas = aplicarRespostasChecklist(opp?.checklist_respostas, itens, respostas)
         const empresa = companies.find(c => String(c.id) === String(opp?.empresa_id))
         const oppAtualizada = { ...opp, etapa_id: etapaId, checklist_respostas: novasRespostas }
-        const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks: playbooksParaGate, empresa, templates: qTemplatesGate, submissions: qSubmissionsGate })
+        const resultado = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks: playbooksParaGate, empresa, templates: qTemplatesGate, submissions: qSubmissionsGate })
         moveToStageRaw(id, etapaId)
-        saveOpp({ ...oppAtualizada, qualificacao_score: score })
+        saveOpp({ ...oppAtualizada, qualificacao_score: resultado.score, qualificacao_desqualificada: resultado.desqualificada })
         setChecklistGate(null)
       },
       onCancel: () => setChecklistGate(null),

@@ -185,9 +185,65 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
   function removeOption(secId, pId, idx) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => p.id === pId
-          ? { ...p, opcoes: p.opcoes.filter((_, i) => i !== idx), pesos_opcoes: (p.pesos_opcoes || []).filter((_, i) => i !== idx) }
+          ? { ...p, opcoes: p.opcoes.filter((_, i) => i !== idx), pesos_opcoes: (p.pesos_opcoes || []).filter((_, i) => i !== idx), desqualifica_opcoes: (p.desqualifica_opcoes || []).filter((_, i) => i !== idx) }
           : p) }
       : s))
+  }
+  function toggleDesqualificaOpcao(secId, pId, idx) {
+    updateSecoes(secoes.map(s => s.id === secId
+      ? { ...s, perguntas: s.perguntas.map(p => {
+          if (p.id !== pId) return p
+          const flags = [...(p.desqualifica_opcoes || [])]
+          flags[idx] = !flags[idx]
+          return { ...p, desqualifica_opcoes: flags }
+        }) }
+      : s))
+  }
+
+  // ── Reordenar / Duplicar seções e perguntas ──────────────────────────────
+  function moveSection(secId, dir) {
+    const i = secoes.findIndex(s => s.id === secId)
+    const j = i + dir
+    if (i < 0 || j < 0 || j >= secoes.length) return
+    const next = [...secoes]
+    ;[next[i], next[j]] = [next[j], next[i]]
+    updateSecoes(next)
+  }
+  function duplicateSection(secId) {
+    const i = secoes.findIndex(s => s.id === secId)
+    if (i < 0) return
+    const original = secoes[i]
+    const copia = {
+      ...original, id: novoSecId(), titulo: `${original.titulo} (cópia)`,
+      perguntas: (original.perguntas || []).map(p => ({ ...p, id: novoPId() })),
+    }
+    const next = [...secoes]
+    next.splice(i + 1, 0, copia)
+    updateSecoes(next)
+  }
+  function moveQuestion(secId, pId, dir) {
+    updateSecoes(secoes.map(s => {
+      if (s.id !== secId) return s
+      const perguntas = s.perguntas || []
+      const i = perguntas.findIndex(p => p.id === pId)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= perguntas.length) return s
+      const next = [...perguntas]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return { ...s, perguntas: next }
+    }))
+  }
+  function duplicateQuestion(secId, pId) {
+    updateSecoes(secoes.map(s => {
+      if (s.id !== secId) return s
+      const perguntas = s.perguntas || []
+      const i = perguntas.findIndex(p => p.id === pId)
+      if (i < 0) return s
+      const copia = { ...perguntas[i], id: novoPId(), label: `${perguntas[i].label} (cópia)` }
+      const next = [...perguntas]
+      next.splice(i + 1, 0, copia)
+      return { ...s, perguntas: next }
+    }))
   }
 
   const TIPOS = [
@@ -262,6 +318,18 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
               onChange={e => updateSection(sec.id, 'titulo', e.target.value)}
               placeholder="Título da seção"
             />
+            <button onClick={() => moveSection(sec.id, -1)} disabled={si === 0}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: si === 0 ? 'default' : 'pointer',
+                fontSize: 13, padding: '2px 4px', borderRadius: 5, lineHeight: 1, opacity: si === 0 ? 0.3 : 1 }}
+              title="Mover seção pra cima">▲</button>
+            <button onClick={() => moveSection(sec.id, 1)} disabled={si === secoes.length - 1}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: si === secoes.length - 1 ? 'default' : 'pointer',
+                fontSize: 13, padding: '2px 4px', borderRadius: 5, lineHeight: 1, opacity: si === secoes.length - 1 ? 0.3 : 1 }}
+              title="Mover seção pra baixo">▼</button>
+            <button onClick={() => duplicateSection(sec.id)}
+              style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                fontSize: 12, padding: '2px 6px', borderRadius: 5, lineHeight: 1 }}
+              title="Duplicar seção">⧉</button>
             <button onClick={() => removeSection(sec.id)}
               style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
                 fontSize: 14, padding: '2px 6px', borderRadius: 5, lineHeight: 1 }}
@@ -316,6 +384,18 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
                         style={{ width: 48, padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, textAlign: 'center' }} />
                     </label>
                   )}
+                  <button onClick={() => moveQuestion(sec.id, p.id, -1)} disabled={pi === 0}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: pi === 0 ? 'default' : 'pointer',
+                      fontSize: 12, padding: '2px 4px', lineHeight: 1, flexShrink: 0, opacity: pi === 0 ? 0.3 : 1 }}
+                    title="Mover pra cima">▲</button>
+                  <button onClick={() => moveQuestion(sec.id, p.id, 1)} disabled={pi === (sec.perguntas || []).length - 1}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: pi === (sec.perguntas || []).length - 1 ? 'default' : 'pointer',
+                      fontSize: 12, padding: '2px 4px', lineHeight: 1, flexShrink: 0, opacity: pi === (sec.perguntas || []).length - 1 ? 0.3 : 1 }}
+                    title="Mover pra baixo">▼</button>
+                  <button onClick={() => duplicateQuestion(sec.id, p.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                      fontSize: 12, padding: '2px 5px', lineHeight: 1, flexShrink: 0 }}
+                    title="Duplicar pergunta">⧉</button>
                   <button onClick={() => removeQuestion(sec.id, p.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
                       fontSize: 13, padding: '2px 5px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}
@@ -341,6 +421,13 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
                           onChange={e => updatePesoOpcao(sec.id, p.id, oi, Number(e.target.value))}
                           title="Peso na Qualificação de Lead se esta opção for escolhida"
                           style={{ width: 44, padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, textAlign: 'center', flexShrink: 0 }} />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: (p.desqualifica_opcoes || [])[oi] ? '#B91C1C' : 'var(--text-muted)', flexShrink: 0, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          title="Se o SDR marcar esta opção, a oportunidade é desqualificada automaticamente — vale pra qualificação de lead e pra pré-venda técnica">
+                          <input type="checkbox" checked={!!(p.desqualifica_opcoes || [])[oi]}
+                            onChange={() => toggleDesqualificaOpcao(sec.id, p.id, oi)}
+                            style={{ accentColor: '#DC2626', cursor: 'pointer' }} />
+                          Desqualifica
+                        </label>
                         <button onClick={() => removeOption(sec.id, p.id, oi)}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
                             fontSize: 12, padding: '2px 4px', lineHeight: 1 }}>✕</button>

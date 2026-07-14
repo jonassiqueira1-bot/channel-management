@@ -18,6 +18,7 @@ function rowToOpp(row) {
     playbook_id:           cf.playbook_id || null,
     playbook_ids:          row.playbook_ids || [],
     qualificacao_score:    row.qualificacao_score || 0,
+    qualificacao_desqualificada: row.qualificacao_desqualificada || false,
     checklist_respostas:   row.checklist_respostas || {},
     empresa_id:            row.company_id || null,
     empresa_nome:          row.companies?.nome_fantasia || row.companies?.razao_social || cf.empresa_nome || '',
@@ -81,6 +82,7 @@ function oppToRow(opp, tenantId, branchId) {
     motivo_perda:opp.motivo_perda || '',
     playbook_ids:         opp.playbook_ids || [],
     qualificacao_score:   opp.qualificacao_score || 0,
+    qualificacao_desqualificada: opp.qualificacao_desqualificada || false,
     checklist_respostas:  opp.checklist_respostas || {},
     custom_fields: {
       funil_id:              opp.funil_id,

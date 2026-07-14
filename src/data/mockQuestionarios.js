@@ -8,8 +8,20 @@ export const STORAGE_KEY_SUBMISSIONS  = 'questionarios:submissions_v2'
 // Usado no indicador de Qualificação combinado (Pipeline.js) pra templates
 // do tipo 'qualificacao_lead'.
 export function calcularScoreSubmission(template, respostas) {
+  return calcularResultadoSubmissao(template, respostas).score
+}
+
+// Resultado lógico completo de uma submissão: score 0-100 + desqualificação.
+// Se alguma opção marcada como "desqualifica" (múltipla escolha) foi
+// escolhida, a submissão inteira vira desqualificada — independente do
+// score. Serve tanto pra Qualificação de Lead quanto pra Pré-Venda Técnica
+// (ex.: cliente com atributo negativo de arquitetura desqualifica a
+// oportunidade, mesmo com boa pontuação no resto do questionário).
+export function calcularResultadoSubmissao(template, respostas) {
   const perguntas = (template?.estrutura_secoes?.secoes || []).flatMap(s => s.perguntas || [])
   let obtido = 0, possivel = 0
+  let desqualificada = false
+  const motivos = []
   for (const p of perguntas) {
     const resp = respostas?.[p.id]
     if (p.tipo === 'multipla_escolha') {
@@ -17,14 +29,21 @@ export function calcularScoreSubmission(template, respostas) {
       const max = pesos.length ? Math.max(...pesos.map(Number)) : 0
       possivel += max
       const idx = (p.opcoes || []).indexOf(resp)
-      if (idx >= 0) obtido += Number(pesos[idx] || 0)
+      if (idx >= 0) {
+        obtido += Number(pesos[idx] || 0)
+        if ((p.desqualifica_opcoes || [])[idx]) {
+          desqualificada = true
+          motivos.push(`${p.label}: "${resp}"`)
+        }
+      }
     } else {
       const peso = Number(p.peso || 0)
       possivel += peso
       if (resp !== undefined && resp !== null && String(resp).trim() !== '') obtido += peso
     }
   }
-  return possivel > 0 ? Math.round((obtido / possivel) * 100) : 0
+  const score = possivel > 0 ? Math.round((obtido / possivel) * 100) : 0
+  return { score: desqualificada ? 0 : score, desqualificada, motivos }
 }
 
 export const TIPO_CFG = {
