@@ -3,6 +3,8 @@ import { useContacts } from '../hooks/useContacts'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCompanies } from '../hooks/useCompanies'
 import { useOpportunities } from '../hooks/useOpportunities'
+import { useCampanhas } from '../hooks/useCampanhas'
+import { useProducts } from '../hooks/useProducts'
 import Button from '../components/Button'
 import EmpresaSearch from '../components/EmpresaSearch'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
@@ -40,7 +42,26 @@ function avatarColor(nome) {
 }
 
 // ─── ContatoDetail ─────────────────────────────────────────────────────────────
-const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'', linkedin_url:'', whatsapp:'' }
+const EMPTY = { nome:'', email:'', telefone:'', cargo:'', empresa_id:null, empresa_nome:'', notas:'', linkedin_url:'', whatsapp:'',
+  status:'lead', em_nutricao:false, departamento:'', senioridade:'', poder_decisao:'' }
+
+const STATUS_CFG = {
+  cliente:  { label:'Cliente',  bg:'#D1FAE5', text:'#065F46' },
+  lead:     { label:'Lead',     bg:'#FEF3C7', text:'#92400E' },
+  prospect: { label:'Prospect', bg:'#DBEAFE', text:'#1E40AF' },
+}
+const SENIORIDADE_OPTIONS  = [{ value:'', label:'—' }, { value:'junior', label:'Júnior' }, { value:'pleno', label:'Pleno' }, { value:'senior', label:'Sênior' }, { value:'c_level', label:'C-Level / Diretoria' }]
+const PODER_DECISAO_OPTIONS = [{ value:'', label:'—' }, { value:'decisor', label:'Decisor' }, { value:'influenciador', label:'Influenciador' }, { value:'usuario', label:'Usuário final' }]
+
+function StatusBadge({ status, em_nutricao }) {
+  const cfg = STATUS_CFG[status] || STATUS_CFG.lead
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
+      <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text }}>{cfg.label}</span>
+      {em_nutricao && <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20, background:'#EDE9FE', color:'var(--accent)' }}>🌱 Em nutrição</span>}
+    </div>
+  )
+}
 
 const SIT_OPP = {
   em_andamento: { label: 'Em andamento', bg: '#FFFBEB', text: '#92400E' },
@@ -114,7 +135,165 @@ function TabOportunidades({ opps = [] }) {
   )
 }
 
-function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [], tab = 'dados', saveRef }) {
+// ─── Análise de Cliente Ideal (ICP de Contato) ────────────────────────────────
+// Cruza Oportunidades GANHAS × itens (Produto/Categoria) × o Contato principal
+// vinculado, e agrega o perfil (cargo/departamento/senioridade/poder de
+// decisão) mais frequente entre quem já comprou cada Produto/Categoria.
+function topN(lista, n = 3) {
+  const contagem = {}
+  for (const v of lista) { if (!v) continue; contagem[v] = (contagem[v] || 0) + 1 }
+  const total = lista.filter(Boolean).length
+  return Object.entries(contagem)
+    .sort((a, b) => b[1] - a[1]).slice(0, n)
+    .map(([label, count]) => ({ label, count, pct: total > 0 ? Math.round((count / total) * 100) : 0 }))
+}
+
+function PerfilCard({ titulo, contatos }) {
+  const cargos    = topN(contatos.map(c => c.cargo))
+  const deptos     = topN(contatos.map(c => c.departamento))
+  const senior     = topN(contatos.map(c => c.senioridade))
+  const decisao    = topN(contatos.map(c => c.poder_decisao))
+  const bloco = (label, itens) => itens.length > 0 && (
+    <div>
+      <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', color:'var(--text-muted)', marginBottom:6 }}>{label}</div>
+      <div style={{ display:'flex', flexDirection:'column', gap:4 }}>
+        {itens.map(it => (
+          <div key={it.label} style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <span style={{ fontSize:12, color:'var(--text)', flex:1 }}>{it.label}</span>
+            <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--accent)', fontWeight:700 }}>{it.pct}%</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+  return (
+    <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
+      boxShadow:'0 1px 3px rgba(0,0,0,0.06)', padding:'16px 18px', display:'flex', flexDirection:'column', gap:14 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+        <span style={{ fontSize:14, fontWeight:700, color:'var(--text)' }}>{titulo}</span>
+        <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>
+          {contatos.length} contato{contatos.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+      {cargos.length === 0 && deptos.length === 0 && senior.length === 0 && decisao.length === 0 ? (
+        <div style={{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic' }}>
+          Nenhum atributo de perfil preenchido nos contatos ainda.
+        </div>
+      ) : (
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:16 }}>
+          {bloco('Cargo', cargos)}
+          {bloco('Departamento', deptos)}
+          {bloco('Senioridade', senior)}
+          {bloco('Poder de decisão', decisao)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AnaliseICP({ opps, contatos, produtos }) {
+  const { porProduto, porCategoria } = useMemo(() => {
+    const produtosById = Object.fromEntries((produtos || []).map(p => [String(p.id), p]))
+    const contatosById = Object.fromEntries((contatos || []).map(c => [c.id, c]))
+    const ganhas = (opps || []).filter(o => o.situacao === 'ganha')
+    const porProduto = {}
+    const porCategoria = {}
+    for (const o of ganhas) {
+      const contato = contatosById[o.primary_contact_id]
+      if (!contato) continue
+      for (const item of (o.itens || [])) {
+        const prod = produtosById[String(item.produto_id)]
+        if (!prod) continue
+        if (!porProduto[prod.id]) porProduto[prod.id] = { nome: prod.nome, contatos: [] }
+        porProduto[prod.id].contatos.push(contato)
+        if (prod.categoria) {
+          if (!porCategoria[prod.categoria]) porCategoria[prod.categoria] = { nome: prod.categoria, contatos: [] }
+          porCategoria[prod.categoria].contatos.push(contato)
+        }
+      }
+    }
+    return { porProduto, porCategoria }
+  }, [opps, contatos, produtos])
+
+  const gruposProduto   = Object.values(porProduto).sort((a, b) => b.contatos.length - a.contatos.length)
+  const gruposCategoria = Object.values(porCategoria).sort((a, b) => b.contatos.length - a.contatos.length)
+
+  if (gruposProduto.length === 0) {
+    return (
+      <div style={{ padding:'48px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13,
+        background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)' }}>
+        <div style={{ fontSize:28, marginBottom:8 }}>🧭</div>
+        Nenhuma oportunidade ganha com produto e contato principal vinculados ainda — a análise aparece assim que houver dados suficientes.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:24 }}>
+      <div>
+        <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:10 }}>
+          Por Produto
+        </div>
+        <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:12 }}>
+          {gruposProduto.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} />)}
+        </div>
+      </div>
+      {gruposCategoria.length > 0 && (
+        <div>
+          <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:10 }}>
+            Por Categoria de Produto
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(280px, 1fr))', gap:12 }}>
+            {gruposCategoria.map(g => <PerfilCard key={g.nome} titulo={g.nome} contatos={g.contatos} />)}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabCampanhas({ opps = [], campanhas = [] }) {
+  const vinculadas = useMemo(() => {
+    const ids = new Set(opps.map(o => o.campanha_id).filter(Boolean))
+    return campanhas.filter(c => ids.has(c.id)).map(c => ({
+      ...c, opps: opps.filter(o => o.campanha_id === c.id),
+    }))
+  }, [opps, campanhas])
+
+  if (vinculadas.length === 0) {
+    return (
+      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13,
+        background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)' }}>
+        Nenhuma campanha de incentivo vinculada — via as oportunidades deste contato.
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {vinculadas.map(c => (
+        <div key={c.id} style={{ background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--border2)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.06)', padding: '14px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{c.nome}</span>
+            <span style={{ fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-muted)' }}>
+              {c.opps.length} oportunidade{c.opps.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+            {c.opps.map(o => (
+              <span key={o.id} style={{ fontSize: 11, color: 'var(--text-soft)', padding: '2px 8px', borderRadius: 6, background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+                {o.titulo}
+              </span>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [], campanhas = [], tab = 'dados', saveRef }) {
   const isNew = !item?.id
   const [form, setForm] = useState(item ? { ...EMPTY, ...item } : { ...EMPTY })
   const [errs, setErrs] = useState({})
@@ -144,6 +323,9 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
 
   if (!isNew && tab === 'oportunidades') {
     return <TabOportunidades opps={opps} />
+  }
+  if (!isNew && tab === 'campanhas') {
+    return <TabCampanhas opps={opps} campanhas={campanhas} />
   }
 
   return (
@@ -244,6 +426,44 @@ function ContatoDetail({ item, onSave, onDelete, onClose, todos = [], opps = [],
         </FormGrid>
       </FormSection>
 
+      {/* Status & Perfil (Análise de Cliente Ideal) */}
+      <FormSection label="Status & Perfil">
+        <FormGrid cols={2}>
+          <FormField label="Status">
+            <select className="so-field" value={form.status || 'lead'}
+              onChange={e => patch('status', e.target.value)}>
+              {Object.entries(STATUS_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+          </FormField>
+          <FormField label="Em nutrição">
+            <label style={{ display:'flex', alignItems:'center', gap:8, cursor:'pointer', padding:'8px 0' }}>
+              <input type="checkbox" checked={!!form.em_nutricao}
+                onChange={e => patch('em_nutricao', e.target.checked)}
+                style={{ accentColor:'var(--accent)', cursor:'pointer', width:16, height:16 }} />
+              <span style={{ fontSize:13, color:'var(--text)' }}>Contato está em fluxo de nutrição</span>
+            </label>
+          </FormField>
+          <FormField label="Departamento">
+            <input className="so-field" value={form.departamento || ''}
+              onChange={e => setForm(f => ({ ...f, departamento: e.target.value }))}
+              onBlur={e => patch('departamento', e.target.value)}
+              placeholder="Ex: TI, Financeiro, Vendas" />
+          </FormField>
+          <FormField label="Senioridade">
+            <select className="so-field" value={form.senioridade || ''}
+              onChange={e => patch('senioridade', e.target.value)}>
+              {SENIORIDADE_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </FormField>
+          <FormField label="Poder de decisão" style={{ gridColumn:'span 2' }}>
+            <select className="so-field" value={form.poder_decisao || ''}
+              onChange={e => patch('poder_decisao', e.target.value)}>
+              {PODER_DECISAO_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </FormField>
+        </FormGrid>
+      </FormSection>
+
       {/* Notas */}
       <FormSection label="Notas">
         <InlineTextarea
@@ -269,6 +489,9 @@ export default function Contatos() {
   const { contacts: contatos, save: salvarContatoBase, remove: deletarContatoBase } = useContacts()
   const { registrar: log } = useAuditLog()
   const { opps: opportunities } = useOpportunities()
+  const { campanhas } = useCampanhas()
+  const { produtos } = useProducts()
+  const [view, setView] = useState('lista') // 'lista' | 'analise'
   function salvarContato(c) {
     const isNew = !contatos.find(x => x.id === c.id)
     salvarContatoBase(c)
@@ -331,6 +554,7 @@ export default function Contatos() {
         {val || <span style={{ color:'var(--border2)' }}>—</span>}
       </span>
     },
+    { key: 'status', label: 'Status', render: (val, row) => <StatusBadge status={val} em_nutricao={row.em_nutricao} /> },
     { key: 'criado_em', label: 'Cadastro', render: val =>
       <span style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{fmtData(val)}</span>
     },
@@ -345,6 +569,8 @@ export default function Contatos() {
   const FILTERS = [
     { key: 'empresa_nome', label: 'Empresa',
       options: empresasUnicas.map(e => ({ value: e.fantasia || e.razao, label: e.fantasia || e.razao })) },
+    { key: 'status', label: 'Status',
+      options: Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label })) },
   ]
 
   const kpisNode = (data) => {
@@ -369,10 +595,39 @@ export default function Contatos() {
     )
   }
 
+  const btnAnaliseICP = (
+    <button type="button" onClick={() => setView(v => v === 'analise' ? 'lista' : 'analise')}
+      style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 14px', borderRadius:8,
+        border: `1px solid ${view === 'analise' ? 'var(--accent)' : 'var(--border)'}`,
+        background: view === 'analise' ? 'var(--accent-glow)' : 'var(--surface)',
+        color: view === 'analise' ? 'var(--accent)' : 'var(--text)',
+        fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+      🧭 {view === 'analise' ? 'Voltar à lista' : 'Análise de Cliente Ideal'}
+    </button>
+  )
+
+  if (view === 'analise') {
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <h1 style={{ fontSize:18, fontWeight:700, color:'var(--text)', margin:0 }}>Análise de Cliente Ideal</h1>
+            <p style={{ fontSize:13, color:'var(--text-muted)', margin:'4px 0 0' }}>
+              Perfil dos contatos com oportunidades ganhas, por Produto e Categoria de Produto.
+            </p>
+          </div>
+          {btnAnaliseICP}
+        </div>
+        <AnaliseICP opps={opportunities} contatos={contatos} produtos={produtos} />
+      </div>
+    )
+  }
+
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       <BrowseLayout
         modulo="contatos"
+        secondaryActions={btnAnaliseICP}
         data={contatos}
         columns={COLUMNS}
         filters={FILTERS}
@@ -384,6 +639,8 @@ export default function Contatos() {
         kpis={kpisNode}
         bulkEditFields={[
           { key: 'cargo', label: 'Cargo', type: 'text' },
+          { key: 'status', label: 'Status', type: 'select', options: Object.entries(STATUS_CFG).map(([k, v]) => ({ value: k, label: v.label })) },
+          { key: 'em_nutricao', label: 'Em nutrição', type: 'boolean' },
         ]}
         onBulkEdit={(ids, changes) =>
           ids.forEach(id => { const c = contatos.find(c => c.id === id); if (c) salvarContato({ ...c, ...changes }) })
@@ -428,6 +685,7 @@ export default function Contatos() {
         tabs={modal && modal !== 'novo' ? [
           { key: 'dados',         label: 'Dados' },
           { key: 'oportunidades', label: 'Oportunidades' },
+          { key: 'campanhas',     label: 'Campanhas' },
         ] : undefined}
         activeTab={soTab}
         onTabChange={setSoTab}
@@ -441,6 +699,7 @@ export default function Contatos() {
             item={modal === 'novo' ? null : modal}
             todos={contatos}
             opps={(opportunities || []).filter(o => o.primary_contact_id === modal?.id)}
+            campanhas={campanhas || []}
             tab={soTab}
             onSave={salvarContato}
             onDelete={deletarContato}
