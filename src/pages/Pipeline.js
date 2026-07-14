@@ -4192,11 +4192,17 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const catEtapaForecast   = etapaAtualForecast?.categoria_forecast || 'em_aberto'
   const cfgForecastAtual   = CATEGORIAS_FORECAST.find(c => c.value === (form.categoria_forecast || catEtapaForecast)) || CATEGORIAS_FORECAST[1]
 
+  const errosCamposCustom = Object.entries(errs).filter(([k]) => k.startsWith('cf_')).map(([, v]) => v)
   const dadosFormBody = (
     <>
-      {(errs._salvar || errs._produto) && (
+      {(errs._salvar || errs._produto || errosCamposCustom.length > 0) && (
         <div style={{ background:'#FEF2F2', border:'1px solid #FECACA', color:'#B91C1C', borderRadius:8, padding:'10px 14px', fontSize:13, marginBottom:12 }}>
           {errs._salvar || errs._produto}
+          {errosCamposCustom.length > 0 && (
+            <ul style={{ margin: (errs._salvar || errs._produto) ? '6px 0 0' : 0, paddingLeft:18 }}>
+              {errosCamposCustom.map((msg, i) => <li key={i}>{msg}</li>)}
+            </ul>
+          )}
         </div>
       )}
       {/* Etapa do funil — sempre fixo no topo */}
