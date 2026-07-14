@@ -4246,6 +4246,26 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
             {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
+        {isEditing && (
+          <div>
+            <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Qualificação</div>
+            <button type="button" onClick={() => setTab('playbook')}
+              style={{ display:'flex', alignItems:'center', gap:8, width:'100%', height:36, padding:'0 12px', borderRadius:8,
+                border:'1px solid var(--border)', background:'var(--surface2)', cursor:'pointer', fontFamily:'var(--font)' }}>
+              {initial?.qualificacao_desqualificada ? (
+                <span style={{ fontSize:12, fontWeight:700, color:'#991B1B' }}>🚫 Desqualificada</span>
+              ) : initial?.qualificacao_score > 0 ? (
+                <span style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)',
+                  color: initial.qualificacao_score >= 70 ? '#065F46' : initial.qualificacao_score >= 40 ? '#92400E' : '#991B1B' }}>
+                  🎯 {initial.qualificacao_score}%
+                </span>
+              ) : (
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>Sem checklist/questionário respondido ainda</span>
+              )}
+              <span style={{ marginLeft:'auto', fontSize:11, color:'var(--accent)' }}>Ver detalhes →</span>
+            </button>
+          </div>
+        )}
       </div>
 
       <div style={{ marginTop:16 }}>
@@ -6490,14 +6510,14 @@ function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onT
               <Checkbox checked={allSelected} indeterminate={someSelected} onChange={onToggleAll} title={allSelected?'Desmarcar todos':'Selecionar todos'} />
             </th>
             )}
-            {['Oportunidade','Funil','Situação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
+            {['Oportunidade','Funil','Situação','Qualificação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
               <th key={h} style={p.th}>{h}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {opps.length===0 && (
-            <tr><td colSpan={10} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma oportunidade encontrada</td></tr>
+            <tr><td colSpan={11} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma oportunidade encontrada</td></tr>
           )}
           {opps.map(o => {
             const etapa    = etapas.find(e => e.id===o.etapa_id)
@@ -6534,6 +6554,19 @@ function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onT
                   )}
                 </td>
                 <td style={p.td}><SituacaoBadge situacao={o.situacao||'em_andamento'} /></td>
+                <td style={p.td}>
+                  {o.qualificacao_desqualificada ? (
+                    <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#FEE2E2', color:'#991B1B', whiteSpace:'nowrap' }}>🚫 Desqualificada</span>
+                  ) : o.qualificacao_score > 0 ? (
+                    <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:20, whiteSpace:'nowrap',
+                      background: o.qualificacao_score >= 70 ? '#D1FAE5' : o.qualificacao_score >= 40 ? '#FEF3C7' : '#FEE2E2',
+                      color:      o.qualificacao_score >= 70 ? '#065F46' : o.qualificacao_score >= 40 ? '#92400E' : '#991B1B' }}>
+                      🎯 {o.qualificacao_score}%
+                    </span>
+                  ) : (
+                    <span style={{ fontSize:11, color:'var(--border2)' }}>—</span>
+                  )}
+                </td>
                 <td style={p.td}><EtapaBadge etapa={etapa} /></td>
                 <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:13, fontWeight:600, color:o.valor>0?'var(--accent)':'var(--text-muted)' }}>
                   {o.valor>0 ? fmtMoeda(o.valor) : '—'}
@@ -6626,6 +6659,7 @@ function FiltrosPanel({
   filterEtapa,       setFilterEtapa,
   filterOrigem,      setFilterOrigem,
   filterSituacao,    setFilterSituacao,
+  filterQualificacao, setFilterQualificacao,
   filterResponsavel, setFilterResponsavel,
   filterAbertura,    setFilterAbertura,
   filterAberturaIni, setFilterAberturaIni,
@@ -6791,6 +6825,21 @@ function FiltrosPanel({
               ]}
               values={filterSituacao}
               onChange={setFilterSituacao}
+            />
+          </Section>
+
+          {/* ── Qualificação ── */}
+          <Section title="Qualificação" hasValue={filterQualificacao.length>0} onClear={()=>setFilterQualificacao([])}>
+            <CheckList
+              options={[
+                { value:'alta',           label:'Alta (≥70%)'        },
+                { value:'media',          label:'Média (40–69%)'     },
+                { value:'baixa',          label:'Baixa (1–39%)'      },
+                { value:'sem_dado',       label:'Sem dado'           },
+                { value:'desqualificada', label:'🚫 Desqualificada'  },
+              ]}
+              values={filterQualificacao}
+              onChange={setFilterQualificacao}
             />
           </Section>
 
@@ -6990,6 +7039,7 @@ export default function Pipeline() {
   const [filterOrigem, setFilterOrigem]           = useLocalState('pipeline:filterOrigem2', [])
   const [filterEtapa, setFilterEtapa]             = useLocalState('pipeline:filterEtapa2', [])
   const [filterSituacao, setFilterSituacao]       = useLocalState('pipeline:filterSituacao', [])
+  const [filterQualificacao, setFilterQualificacao] = useLocalState('pipeline:filterQualificacao', [])
   const [filterResponsavel, setFilterResponsavel] = useLocalState('pipeline:filterResponsavel2', [])
   const [filterAbertura, setFilterAbertura]       = useLocalState('pipeline:filterAbertura', '')
   const [filterAberturaIni, setFilterAberturaIni] = useLocalState('pipeline:filterAberturaIni', '')
@@ -7102,6 +7152,13 @@ export default function Pipeline() {
       if (filterOrigem.length      && !filterOrigem.includes(o.origem))                          return false
       if (filterEtapa.length       && !filterEtapa.includes(String(o.etapa_id)))               return false
       if (filterSituacao.length    && !filterSituacao.includes(o.situacao||'em_andamento'))     return false
+      if (filterQualificacao.length) {
+        const bucket = o.qualificacao_desqualificada ? 'desqualificada'
+          : !o.qualificacao_score ? 'sem_dado'
+          : o.qualificacao_score >= 70 ? 'alta'
+          : o.qualificacao_score >= 40 ? 'media' : 'baixa'
+        if (!filterQualificacao.includes(bucket)) return false
+      }
       if (filterResponsavel.length && !filterResponsavel.includes(o.responsavel))              return false
       if (q && !(o.titulo.toLowerCase().includes(q) || o.empresa_nome.toLowerCase().includes(q))) return false
 
@@ -7162,7 +7219,7 @@ export default function Pipeline() {
       if (sortBy==='titulo')     return a.titulo.localeCompare(b.titulo)
       return new Date(b.criado)-new Date(a.criado)
     })
-  }, [opps, funilAtivo, search, filterOrigem, filterEtapa, filterSituacao, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterValorMin, filterValorMax, filterTarefa, filterCF, sortBy])
+  }, [opps, funilAtivo, search, filterOrigem, filterEtapa, filterSituacao, filterQualificacao, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterValorMin, filterValorMax, filterTarefa, filterCF, sortBy])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const totalValor      = filtered.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
@@ -7274,7 +7331,7 @@ export default function Pipeline() {
   , [opps, funilAtivo])
 
   const advancedFilterCount = [
-    filterOrigem.length, filterEtapa.length, filterSituacao.length, filterResponsavel.length,
+    filterOrigem.length, filterEtapa.length, filterSituacao.length, filterQualificacao.length, filterResponsavel.length,
     filterAbertura||filterAberturaIni||filterAberturaFim ? 1 : 0,
     filterPrazo||filterPrazoIni||filterPrazoFim ? 1 : 0,
     filterValorMin||filterValorMax ? 1 : 0,
@@ -7285,7 +7342,7 @@ export default function Pipeline() {
 
   function clearAllFilters() {
     setSearch('')
-    setFilterOrigem([]); setFilterEtapa([]); setFilterSituacao([]); setFilterResponsavel([])
+    setFilterOrigem([]); setFilterEtapa([]); setFilterSituacao([]); setFilterQualificacao([]); setFilterResponsavel([])
     setFilterAbertura(''); setFilterAberturaIni(''); setFilterAberturaFim('')
     setFilterPrazo(''); setFilterPrazoIni(''); setFilterPrazoFim('')
     setFilterValorMin(''); setFilterValorMax('')
@@ -7629,6 +7686,7 @@ export default function Pipeline() {
         oppsDoFunil={opps.filter(o => String(o.funil_id)===String(funilAtivo))}
         filterEtapa={filterEtapa}             setFilterEtapa={setFilterEtapa}
         filterSituacao={filterSituacao}       setFilterSituacao={setFilterSituacao}
+        filterQualificacao={filterQualificacao} setFilterQualificacao={setFilterQualificacao}
         filterOrigem={filterOrigem}           setFilterOrigem={setFilterOrigem}
         filterResponsavel={filterResponsavel} setFilterResponsavel={setFilterResponsavel}
         filterAbertura={filterAbertura}       setFilterAbertura={setFilterAbertura}
