@@ -4030,7 +4030,12 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       const v = form.custom_fields?.[f.field_key]
       if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
     })
-    if (Object.keys(e).length) { setErrs(e); setTab('dados'); return }
+    if (Object.keys(e).length) {
+      console.warn('[OppModal] validação de Dados falhou — valores atuais do form:', {
+        titulo: form.titulo, empresa_id: form.empresa_id, empresa_nome: form.empresa_nome, erros: e,
+      })
+      setErrs(e); setTab('dados'); return
+    }
 
     // Responsável vem do Time Interno (aba Equipe) — sem ninguém marcado como
     // Vendedor lá, não tem como saber quem é o responsável.
