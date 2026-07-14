@@ -575,44 +575,90 @@ async function resolverTodosDestinatarios(acao, registro, tenantId) {
   return [...emails]
 }
 
+// Mesma resolução de destinatário, mas devolvendo profiles.id em vez de email —
+// usado pra popular alerts.usuario_id (notificação no painel filtrada por usuário
+// de verdade, em vez de aparecer pra todo mundo do tenant).
+async function resolverUmDestinatarioId(tipo, usuarioId, registro, tenantId) {
+  if (tipo === 'usuario_sistema') return usuarioId || null
+
+  if (tipo === 'responsavel_origem') {
+    const responsavelId = registro.responsavel_id || registro.responsavel || null
+    if (!responsavelId) return null
+    const { data } = await supabase.from('profiles').select('id').eq('id', responsavelId).single()
+    if (data?.id) return data.id
+    const { data: d2 } = await supabase.from('profiles').select('id').eq('tenant_id', tenantId).ilike('nome', `%${responsavelId}%`).single()
+    return d2?.id || null
+  }
+
+  if (tipo === 'lider_equipe') {
+    const { data } = await supabase.from('profiles').select('id').eq('tenant_id', tenantId).eq('papel', 'admin_isv').limit(3)
+    return data?.[0]?.id || null
+  }
+
+  return null
+}
+
+async function resolverTodosDestinatariosIds(acao, registro, tenantId) {
+  const ids = new Set()
+
+  async function addDestinatario(tipo, usuarioId, papel) {
+    if (tipo === 'email_fixo') return // email fixo não tem usuário do sistema associado
+    if (tipo === 'papel') {
+      const { data } = await supabase.from('profiles').select('id').eq('tenant_id', tenantId).eq('papel', papel)
+      ;(data || []).forEach(p => ids.add(p.id))
+    } else {
+      const id = await resolverUmDestinatarioId(tipo, usuarioId, registro, tenantId)
+      if (id) ids.add(id)
+    }
+  }
+
+  await addDestinatario(acao.destinatario_tipo, acao.usuario_id, acao.papel)
+  for (const de of (acao.destinatarios_extra || [])) {
+    await addDestinatario(de.tipo, de.usuario_id, de.papel)
+  }
+  return [...ids]
+}
+
 async function executarAcoes(acoes, registro, rule, tenantId) {
   for (const acao of acoes) {
-    if (acao.tipo === 'email' || acao.tipo === 'notificar') {
+    const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
+
+    if (acao.tipo === 'tarefa') {
+      const idsResp = await resolverTodosDestinatariosIds(acao, registro, tenantId)
+      const prazo = new Date(Date.now() + (Number(acao.prazo_dias) || 3) * 86400000).toISOString().slice(0, 10)
+      const { data: perfilTenant } = await supabase.from('profiles').select('branch_id').eq('tenant_id', tenantId).limit(1).single()
+      await supabase.from('tasks').insert({
+        tenant_id: tenantId,
+        branch_id: perfilTenant?.branch_id || null,
+        titulo: acao.titulo_tarefa || rule.gatilho_nome || `Tarefa: ${nomeReg}`,
+        tipo: 'tarefa',
+        status: 'pendente',
+        prioridade: 'media',
+        prazo,
+        entidade_tipo: rule.origem,
+        entidade_id: String(registro.id),
+        entidade_nome: nomeReg,
+        responsavel_id: idsResp[0] || null,
+        custom_fields: { responsavel_id: idsResp[0] || null, data_inicio: new Date().toISOString() },
+      })
+      continue
+    }
+
+    if (acao.tipo === 'email') {
       const emails = await resolverTodosDestinatarios(acao, registro, tenantId)
       if (!emails.length) continue
 
-      const nomeReg = registro.titulo || registro.nome || registro.nome_fantasia || `#${registro.id?.slice(0,8)}`
       const interpolar = (str) => (str || '').replace(/\{\{(\w+)\}\}/g, (_, key) => {
         const v = registro[key]
         return v !== undefined && v !== null ? String(v) : ''
       }).replace('{titulo}', nomeReg).replace('{entidade}', nomeReg)
 
-      if (acao.tipo === 'email') {
-        const assunto  = interpolar(acao.assunto)  || rule.gatilho_nome || 'Alerta Boostly'
-        const mensagem = interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`
-        for (const email of emails) {
-          await supabase.functions.invoke('send-email', {
-            body: { template: 'alerta_generico', to: email, data: { titulo: assunto, mensagem } },
-          })
-        }
-      } else {
-        // tipo: 'notificar' — email padronizado com layout do projeto
-        const titulo = interpolar(acao.titulo_tarefa) || rule.gatilho_nome || 'Notificação Boostly'
-        for (const email of emails) {
-          await supabase.functions.invoke('send-email', {
-            body: {
-              template: 'notificacao',
-              to: email,
-              data: {
-                titulo,
-                entidade:  nomeReg,
-                gatilho:   (rule.gatilho_nome || '').toUpperCase(),
-                cor:       rule.cor || '#4F7FE8',
-                link:      'https://boostly.com.br',
-              },
-            },
-          })
-        }
+      const assunto  = interpolar(acao.assunto)  || rule.gatilho_nome || 'Alerta Boostly'
+      const mensagem = interpolar(acao.mensagem) || `Regra <b>${rule.gatilho_nome}</b> acionada para: ${nomeReg}`
+      for (const email of emails) {
+        await supabase.functions.invoke('send-email', {
+          body: { template: 'alerta_generico', to: email, data: { titulo: assunto, mensagem } },
+        })
       }
     }
   }
@@ -868,10 +914,17 @@ async function executarEngine(tenantId) {
       const nomeReg = reg.titulo || reg.nome_fantasia || reg.razao_social || reg.name || reg.nome || `#${reg.id?.slice(0,8)}`
       const acoesFire = passou ? fullRule.acoes : fullRule.acoes_else
 
-      // Cria notificação no painel para ações do tipo notificar
-      const temNotificar = acoesFire.some(a => a.tipo === 'notificar')
-      if (passou && temNotificar) {
-        novos.push({
+      // Cria notificação no painel para ações do tipo notificar — resolve o(s)
+      // destinatário(s) reais da regra e grava usuario_id, em vez de sempre
+      // aparecer pra todo mundo do tenant (usuario_id nulo).
+      const acoesNotificar = acoesFire.filter(a => a.tipo === 'notificar')
+      if (passou && acoesNotificar.length) {
+        const idsDestino = new Set()
+        for (const acao of acoesNotificar) {
+          const ids = await resolverTodosDestinatariosIds(acao, reg, tenantId)
+          ids.forEach(id => idsDestino.add(id))
+        }
+        const base = {
           tenant_id:     tenantId,
           rule_id:       rule.id,
           gatilho:       rule.gatilho_nome,
@@ -883,11 +936,16 @@ async function executarEngine(tenantId) {
           prioridade:    'media',
           resolvido:     false,
           created_at:    new Date().toISOString(),
-        })
+        }
+        if (idsDestino.size > 0) {
+          for (const usuario_id of idsDestino) novos.push({ ...base, usuario_id })
+        } else {
+          novos.push(base) // sem destinatário resolvido — mantém tenant-wide (usuario_id null)
+        }
       }
 
-      // Executa ações de email
-      await executarAcoes(acoesFire.filter(a => a.tipo === 'email'), reg, fullRule, tenantId)
+      // Executa ações de email e criar-tarefa
+      await executarAcoes(acoesFire.filter(a => a.tipo === 'email' || a.tipo === 'tarefa'), reg, fullRule, tenantId)
     }
   }
 

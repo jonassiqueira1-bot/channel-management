@@ -13,10 +13,20 @@ const db = createClient(SUPABASE_URL, SUPABASE_SERVICE)
 // ─── Tipos ─────────────────────────────────────────────────────────────────────
 
 interface Condicao { campo: string; operador: string; valor: string; logico?: 'E' | 'OU' }
+type DestinatarioTipo = 'responsavel_origem' | 'responsavel_tarefa' | 'contato_empresa' | 'email_fixo' | 'usuario_sistema' | 'lider_equipe' | 'papel'
+interface Destinatario {
+  tipo: DestinatarioTipo
+  email_fixo?: string
+  usuario_id?: string
+  papel?: string
+}
 interface Acao {
   tipo: 'notificar' | 'email' | 'tarefa'
-  destinatario_tipo: 'responsavel_origem' | 'responsavel_tarefa' | 'contato_empresa' | 'email_fixo'
+  destinatario_tipo: DestinatarioTipo
   email_fixo?: string
+  usuario_id?: string
+  papel?: string
+  destinatarios_extra?: Destinatario[]
   template?: string
   assunto?: string
   mensagem?: string
@@ -53,12 +63,13 @@ async function alertExists(tenantId: string, gatilho: string, entidadeId: string
 }
 
 async function createAlert(payload: {
-  tenant_id: string; rule_id?: string; gatilho: string
+  tenant_id: string; rule_id?: string; gatilho: string; usuario_id?: string | null
   titulo: string; mensagem?: string; entidade_tipo?: string
   entidade_id?: string; entidade_nome?: string; link?: string; prioridade?: string
 }) {
   await db.from('alerts').insert({
     tenant_id: payload.tenant_id, rule_id: payload.rule_id ?? null,
+    usuario_id: payload.usuario_id ?? null,
     gatilho: payload.gatilho, titulo: payload.titulo,
     mensagem: payload.mensagem ?? null, entidade_tipo: payload.entidade_tipo ?? null,
     entidade_id: payload.entidade_id ? String(payload.entidade_id) : null,
@@ -76,31 +87,41 @@ async function sendEmail(template: string, to: string, data: Record<string, unkn
   })
 }
 
-// ─── Resolve email do destinatário por papel ────────────────────────────────
+// ─── Resolve destinatário(s) — email + profiles.id ──────────────────────────
+// resolveOne cobre os tipos "de um só" (inclusive 'papel' fica de fora, ele é
+// tratado em resolveDestinatarios porque pode casar vários usuários de uma vez).
 
-async function resolveEmail(
-  acao: Acao,
+async function resolveOne(
+  destTipo: DestinatarioTipo,
+  emailFixo: string | undefined,
+  usuarioId: string | undefined,
   registro: Record<string, unknown>,
   tenantId: string,
-): Promise<string | null> {
-  if (acao.destinatario_tipo === 'email_fixo') return acao.email_fixo || null
+): Promise<{ id: string | null; email: string | null }> {
+  if (destTipo === 'email_fixo') return { id: null, email: emailFixo || null }
 
-  if (acao.destinatario_tipo === 'responsavel_origem') {
-    // tenta por responsavel_id ou responsavel (nome)
+  if (destTipo === 'usuario_sistema') {
+    if (!usuarioId) return { id: null, email: null }
+    const { data } = await db.from('profiles').select('id, email').eq('id', usuarioId).single()
+    return { id: data?.id || null, email: data?.email || null }
+  }
+
+  if (destTipo === 'responsavel_origem') {
     const responsavelId = registro.responsavel_id as string | undefined
     if (responsavelId) {
-      const { data } = await db.from('profiles').select('email').eq('id', responsavelId).single()
-      return data?.email || null
+      const { data } = await db.from('profiles').select('id, email').eq('id', responsavelId).single()
+      if (data) return { id: data.id, email: data.email }
     }
     const responsavel = registro.responsavel as string | undefined
     if (responsavel) {
-      const { data } = await db.from('profiles').select('email').eq('nome', responsavel).eq('tenant_id', tenantId).limit(1).single()
-      return data?.email || null
+      const { data } = await db.from('profiles').select('id, email').eq('nome', responsavel).eq('tenant_id', tenantId).limit(1).single()
+      if (data) return { id: data.id, email: data.email }
     }
+    return { id: null, email: null }
   }
 
-  if (acao.destinatario_tipo === 'lider_equipe') {
-    // Encontra a equipe onde o responsável do registro é membro e retorna o email do líder
+  if (destTipo === 'lider_equipe') {
+    // Encontra a equipe onde o responsável do registro é membro e retorna o líder
     const responsavelId = (registro.responsavel_id as string) || null
     if (responsavelId) {
       const { data: equipes } = await db.from('equipes')
@@ -110,8 +131,8 @@ async function resolveEmail(
         .limit(1)
       const liderId = equipes?.[0]?.lider_id as string | undefined
       if (liderId) {
-        const { data } = await db.from('profiles').select('email').eq('id', liderId).single()
-        return data?.email || null
+        const { data } = await db.from('profiles').select('id, email').eq('id', liderId).single()
+        if (data) return { id: data.id, email: data.email }
       }
     }
     // fallback: qualquer líder do tenant
@@ -122,32 +143,66 @@ async function resolveEmail(
       .limit(1)
       .maybeSingle()
     if (equipe?.lider_id) {
-      const { data } = await db.from('profiles').select('email').eq('id', equipe.lider_id as string).single()
-      return data?.email || null
+      const { data } = await db.from('profiles').select('id, email').eq('id', equipe.lider_id as string).single()
+      if (data) return { id: data.id, email: data.email }
     }
-    return null
+    return { id: null, email: null }
   }
 
-  if (acao.destinatario_tipo === 'responsavel_tarefa') {
-    // busca tarefa mais recente relacionada ao registro
+  if (destTipo === 'responsavel_tarefa') {
     const { data: task } = await db.from('tasks').select('custom_fields')
       .eq('entidade_id', String(registro.id)).order('created_at', { ascending: false }).limit(1).single()
     const responsavelId = (task?.custom_fields as Record<string, unknown>)?.responsavel_id as string | undefined
     if (responsavelId) {
-      const { data } = await db.from('profiles').select('email').eq('id', responsavelId).single()
-      return data?.email || null
+      const { data } = await db.from('profiles').select('id, email').eq('id', responsavelId).single()
+      if (data) return { id: data.id, email: data.email }
     }
+    return { id: null, email: null }
   }
 
-  if (acao.destinatario_tipo === 'contato_empresa') {
+  if (destTipo === 'contato_empresa') {
     const companyId = registro.company_id as string | undefined
     if (companyId) {
       const { data } = await db.from('contacts').select('email').eq('company_id', companyId).eq('is_primary', true).limit(1).single()
-      return data?.email || null
+      return { id: null, email: data?.email || null }
     }
+    return { id: null, email: null }
   }
 
-  return null
+  return { id: null, email: null }
+}
+
+// Resolve o destinatário principal + todos os destinatarios_extra de uma ação,
+// incluindo 'papel' (que pode casar vários usuários do tenant de uma vez).
+async function resolveDestinatarios(
+  acao: Acao,
+  registro: Record<string, unknown>,
+  tenantId: string,
+): Promise<{ ids: string[]; emails: string[] }> {
+  const ids = new Set<string>()
+  const emails = new Set<string>()
+
+  async function add(destTipo: DestinatarioTipo, emailFixo?: string, usuarioId?: string, papel?: string) {
+    if (destTipo === 'papel') {
+      if (!papel) return
+      const { data } = await db.from('profiles').select('id, email').eq('tenant_id', tenantId).eq('papel', papel)
+      for (const p of data ?? []) {
+        if (p.id) ids.add(p.id as string)
+        if (p.email) emails.add(p.email as string)
+      }
+      return
+    }
+    const r = await resolveOne(destTipo, emailFixo, usuarioId, registro, tenantId)
+    if (r.id) ids.add(r.id)
+    if (r.email) emails.add(r.email)
+  }
+
+  await add(acao.destinatario_tipo, acao.email_fixo, acao.usuario_id, acao.papel)
+  for (const extra of acao.destinatarios_extra || []) {
+    await add(extra.tipo, extra.email_fixo, extra.usuario_id, extra.papel)
+  }
+
+  return { ids: [...ids], emails: [...emails] }
 }
 
 // ─── Executa ações para um registro que bateu nas condições ─────────────────
@@ -162,7 +217,8 @@ async function executeAcoes(
   for (const acao of acoes) {
     if (acao.tipo === 'notificar') {
       if (await alertExists(rule.tenant_id, rule.gatilho, registro.id as string)) continue
-      await createAlert({
+      const { ids } = await resolveDestinatarios(acao, registro, rule.tenant_id)
+      const base = {
         tenant_id: rule.tenant_id, rule_id: rule.id,
         gatilho: rule.gatilho,
         titulo: contexto.titulo,
@@ -171,12 +227,17 @@ async function executeAcoes(
         entidade_nome: String(registro.nome || registro.titulo || registro.id || ''),
         link: contexto.link,
         prioridade: contexto.prioridade || 'media',
-      })
+      }
+      if (ids.length > 0) {
+        for (const usuario_id of ids) await createAlert({ ...base, usuario_id })
+      } else {
+        await createAlert(base) // destinatário não resolvido — mantém tenant-wide
+      }
     }
 
     if (acao.tipo === 'email') {
-      const to = await resolveEmail(acao, registro, rule.tenant_id)
-      if (to) {
+      const { emails } = await resolveDestinatarios(acao, registro, rule.tenant_id)
+      for (const to of emails) {
         await sendEmail(acao.template || 'alerta_generico', to, {
           titulo: contexto.titulo,
           mensagem: acao.mensagem || '',
@@ -188,14 +249,8 @@ async function executeAcoes(
     }
 
     if (acao.tipo === 'tarefa') {
-      let responsavelId: string | null = null
-      // resolve quem recebe a tarefa
-      if (acao.destinatario_tipo === 'responsavel_origem') {
-        responsavelId = (registro.responsavel_id as string) || null
-      } else if (acao.destinatario_tipo === 'email_fixo' && acao.email_fixo) {
-        const { data } = await db.from('profiles').select('id').eq('email', acao.email_fixo).eq('tenant_id', rule.tenant_id).single()
-        responsavelId = data?.id || null
-      }
+      const { ids } = await resolveDestinatarios(acao, registro, rule.tenant_id)
+      const responsavelId = ids[0] || null
 
       const prazo = new Date(Date.now() + (acao.prazo_dias || 3) * 86400000).toISOString().split('T')[0]
       const { data: profile } = await db.from('profiles').select('branch_id').eq('tenant_id', rule.tenant_id).limit(1).single()
@@ -305,6 +360,50 @@ const ORIGEM_CONFIG: Record<string, { select: string; entidade_tipo: string; lin
     entidade_tipo: 'meta', link: '/metas',
     titulo: r => `Meta · ${r.alvo_nome || r.tipo_alvo} (${r.periodo_mes}/${r.periodo_ano})`,
     prioridade: r => Number(r.valor_atual) < Number(r.valor_planejado) * 0.5 ? 'alta' : 'media',
+  },
+  // As entradas abaixo cobrem chaves de origem que a tela de Configuração
+  // (src/pages/settings/Alertas.js → ORIGENS) realmente envia — 'tarefas' e
+  // 'projetos' acima nunca batem com o que a UI grava ('tasks'/'projects'),
+  // então as regras dessas origens nunca eram avaliadas pelo CRON.
+  tasks: {
+    select: '*',
+    entidade_tipo: 'tarefa', link: '/tarefas',
+    titulo: r => `Tarefa · ${r.titulo}`,
+  },
+  projects: {
+    select: '*',
+    entidade_tipo: 'projeto', link: '/projetos',
+    titulo: r => `Projeto · ${r.titulo || r.nome}`,
+  },
+  actions: {
+    select: '*',
+    entidade_tipo: 'acao', link: '/acoes',
+    titulo: r => `Ação · ${r.titulo}`,
+  },
+  payments: {
+    select: '*',
+    entidade_tipo: 'pagamento', link: '/pagamentos',
+    titulo: r => `Pagamento · ${r.company_nome || r.id}`,
+  },
+  sellers: {
+    select: '*',
+    entidade_tipo: 'parceiro', link: '/vendedores',
+    titulo: r => `Contato Canal · ${r.nome}`,
+  },
+  contacts: {
+    select: '*',
+    entidade_tipo: 'contato', link: '/contatos',
+    titulo: r => `Contato · ${r.nome}`,
+  },
+  provisoes: {
+    select: '*',
+    entidade_tipo: 'provisao', link: '/pagamentos',
+    titulo: r => `Provisão · ${r.company_nome || r.id}`,
+  },
+  customer_health: {
+    select: '*',
+    entidade_tipo: 'customer_success', link: '/customer-success',
+    titulo: r => `Sucesso do Cliente · ${r.company_name || r.id}`,
   },
 }
 
