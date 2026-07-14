@@ -4020,8 +4020,13 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     const e = {}
     if (!form.titulo.trim())       e.titulo       = 'Título é obrigatório'
     if (!form.empresa_id)          e.empresa_id    = 'Selecione uma empresa'
-    // Campos customizados marcados como obrigatórios em Config. de Campos
-    Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required).forEach(f => {
+    // Campos customizados marcados como obrigatórios em Config. de Campos —
+    // só valida quem está de fato colocado em alguma seção do layout. Um campo
+    // pode existir na definição (fields) e ter sido retirado do layout (rows)
+    // sem deixar de ser "obrigatório" — aí ficava impossível de preencher e
+    // bloqueava o Salvar sem chance de correção (ex.: Responsável).
+    const idsNoLayout = new Set((oppSections || []).flatMap(sec => (sec.rows || []).flat()).filter(Boolean))
+    Object.values(oppFieldById).filter(f => f.entity === 'opportunities' && f.is_required && idsNoLayout.has(f.id)).forEach(f => {
       const v = form.custom_fields?.[f.field_key]
       if (v === undefined || v === null || String(v).trim() === '') e[`cf_${f.field_key}`] = `${f.label} é obrigatório`
     })
