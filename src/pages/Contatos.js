@@ -372,6 +372,7 @@ export default function Contatos() {
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
       <BrowseLayout
+        modulo="contatos"
         data={contatos}
         columns={COLUMNS}
         filters={FILTERS}

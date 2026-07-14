@@ -419,6 +419,7 @@ export default function SettingsTiposAcao() {
         />
       )}
       <SettingsLayout
+        modulo="tipos_acoes"
         title="Tipos de Atividades"
         description="Categorias usadas no cadastro de Ações e Tarefas do canal."
         columns={[

@@ -558,6 +558,7 @@ export default function SettingsIntegracoes() {
       <Toasts items={toast.toasts}/>
       <div style={{ flex: 1, overflow: 'auto', padding: '24px 32px' }}>
         <SettingsLayout
+          modulo="integracoes_cfg"
           title="Integrações e APIs"
           description="Webhooks para receber eventos de qualquer sistema externo via HTTP POST."
           columns={COLS}

@@ -2234,6 +2234,7 @@ export default function Pagamentos() {
       {tab === 'provisoes' && <TabProvisoes />}
 
       {tab === 'pagamentos' && <BrowseLayout
+        modulo="pagamentos"
         data={lista}
         columns={columns}
         keyField="id"

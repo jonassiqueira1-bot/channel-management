@@ -310,6 +310,7 @@ export default function Habilitacoes() {
 
   return (
     <SettingsLayout
+      modulo="habilitacoes"
       title="Habilitações"
       description="Defina os tipos de habilitação e vincule-os aos produtos do tenant."
       columns={[

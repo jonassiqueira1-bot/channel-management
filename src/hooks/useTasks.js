@@ -30,13 +30,13 @@ async function sincronizarProximaTarefa(oportunidadeId) {
 
   // Lê custom_fields atual para não sobrescrever outros campos
   const { data: opp } = await supabase
-    .from('opportunities')
+    .from('oportunidades')
     .select('custom_fields')
     .eq('id', oportunidadeId)
     .single()
 
   const cf = opp?.custom_fields || {}
-  await supabase.from('opportunities').update({
+  await supabase.from('oportunidades').update({
     custom_fields: {
       ...cf,
       proxima_tarefa_data:     proximaData?.slice(0, 10) || null,

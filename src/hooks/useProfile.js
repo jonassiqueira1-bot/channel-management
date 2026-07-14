@@ -40,6 +40,10 @@ export function useProfile() {
 
   // ── Carregar perfil ────────────────────────────────────────────────────────
   const load = useCallback(async () => {
+    // session === undefined: AuthContext ainda validando o JWT — mantém loading=true
+    // (não confundir com session === null, que é "confirmado sem sessão")
+    if (session === undefined && !DEV_BYPASS) return
+
     setLoading(true); setError(null)
 
     if (DEV_BYPASS) {

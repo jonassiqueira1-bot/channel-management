@@ -1252,6 +1252,7 @@ export default function Acoes() {
     <>
       {visao === 'franquias' ? viewFranquias : (
         <BrowseLayout
+          modulo="acoes"
           storageKey="acoes"
           kpis={kpis}
           kpisLabel="Indicadores"

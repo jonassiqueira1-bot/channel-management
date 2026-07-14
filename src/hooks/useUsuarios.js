@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
@@ -48,7 +48,7 @@ export function useUsuarios() {
         const filtrados = activeBranchId
           ? normalized.filter(u =>
               u.papel === 'admin_isv' ||
-              u.papel === 'parceiro' ||
+              u.papel === 'contato_canal' ||
               (Array.isArray(u.branch_ids) && u.branch_ids.includes(activeBranchId)) ||
               u.branch_id === activeBranchId
             )
@@ -105,21 +105,8 @@ export function useUsuarios() {
       setUsuarios(prev => { const next = prev.filter(u => u.id !== id); persist(next); return next })
       return { ok: true }
     }
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await window.fetch(
-      `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/delete-user`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`,
-          'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({ userId: id }),
-      }
-    )
-    const json = await res.json()
-    if (!res.ok) return { ok: false, message: json.error || 'Erro ao excluir usuário' }
+    const { ok, message } = await softDelete('profiles', id)
+    if (!ok) return { ok: false, message }
     setUsuarios(prev => prev.filter(u => u.id !== id))
     return { ok: true }
   }, [])

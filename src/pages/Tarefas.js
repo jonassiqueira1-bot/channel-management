@@ -1117,6 +1117,7 @@ export default function Tarefas() {
   return (
     <>
       <BrowseLayout
+        modulo="tarefas"
         columns={columns}
         data={filtered}
         keyField="id"

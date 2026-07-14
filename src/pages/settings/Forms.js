@@ -902,8 +902,11 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function SettingsForms() {
-  const [fields,  setFields]  = useLocalState('settings:form_fields_v3',  FIELDS_SEED)
-  const [layout,  setLayout]  = useLocalState('settings:form_layout_v3',  LAYOUT_SEED)
+  // Mesmas chaves que useFormLayout.js lê (era v3 — o editor gravava numa
+  // chave diferente da que Pipeline/Produtos/Pagamentos consomem, e a chave
+  // v3 era ativamente apagada pelo useFormLayout.js como storage obsoleto).
+  const [fields,  setFields]  = useLocalState('settings:form_fields_v5',  FIELDS_SEED)
+  const [layout,  setLayout]  = useLocalState('settings:form_layout_v5',  LAYOUT_SEED)
   const [editando, setEditando] = useState(null)
   const [search, setSearch] = useState('')
 
@@ -935,6 +938,7 @@ export default function SettingsForms() {
 
   return (
     <SettingsLayout
+      modulo="forms"
       title="Configuração de Campos"
       description="Configure os campos e layout dos formulários de cada entidade do sistema."
       columns={[

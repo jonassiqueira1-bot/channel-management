@@ -687,6 +687,7 @@ export default function Vendedores() {
   return (
     <>
       <BrowseLayout
+        modulo="contatos_canais"
         columns={columns}
         data={filtered}
         kpis={kpis}

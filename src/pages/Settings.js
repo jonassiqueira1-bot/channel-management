@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } from 'react-router-dom'
 import { useProfile } from '../hooks/useProfile'
+import { usePermissions } from '../hooks/usePermissions'
+import { findRotaPermissao } from '../data/moduloRotas'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu, Receipt,
 } from 'lucide-react'
 
 const SECTIONS = [
@@ -31,6 +33,7 @@ const SECTIONS = [
     items: [
       { path: '/settings/habilitacoes', label: 'Habilitações',            Icon: ToggleRight },
       { path: '/settings/produtos',     label: 'Produtos',                Icon: Package     },
+      { path: '/settings/tabela-precos', label: 'Tabela de Preços',       Icon: Receipt     },
       { path: '/settings/funis',        label: 'Funis de Vendas',         Icon: Filter      },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
       { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
@@ -135,11 +138,22 @@ export default function Settings() {
   const atRoot = useMatch('/settings')
   const [collapsed, setCollapsed] = useLocalState('settings:collapsed', false)
   const { profile } = useProfile()
+  const { can } = usePermissions()
   const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
 
   const visibleSections = isAdmin
     ? SECTIONS
-    : [{ label: 'Geral', items: [{ path: '/settings/conta', label: 'Minha Conta', Icon: SECTIONS[0].items[1].Icon }] }]
+    : SECTIONS
+        .map(sec => ({
+          ...sec,
+          items: sec.items.filter(item => {
+            const rota = findRotaPermissao(item.path)
+            return !rota || can(rota.modulo, rota.acao)
+          }),
+        }))
+        .filter(sec => sec.items.length > 0)
+
+  const semAcesso = !isAdmin && visibleSections.length === 0
 
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0, background: 'var(--surface)' }}>

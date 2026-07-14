@@ -4,12 +4,15 @@ import { useAuditLog } from '../hooks/useAuditLog'
 import { usePerfisAcesso } from '../hooks/usePerfisAcesso'
 import { useProfile } from '../hooks/useProfile'
 import { checkEmUso } from '../lib/checkUsage'
+import { buildSeedPerms } from '../data/perfisAcessoSeed'
 import {
   ShieldCheck, ShieldAlert, Eye, Pencil, Trash2, Download,
   Upload, Users, BarChart2, Target, Zap, Settings2, FileText,
   DollarSign, CheckSquare, Megaphone, Shield, UserCheck,
   BookOpen, FolderKanban, HeartPulse, CreditCard, ClipboardList,
   FileStack, Building2, UserCircle,
+  Package, Filter, Activity, TrendingUp, Receipt, UsersRound,
+  ToggleRight, Plug, Bell, Terminal, Layout, Share2, Store, Network,
 } from 'lucide-react'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../components/ui'
@@ -41,11 +44,12 @@ const MODULOS = [
     id: 'pipeline', label: 'Pipeline', icon: BarChart2, grupo: 'Comercial',
     desc: 'Oportunidades e funis de venda',
     acoes: [
-      { id: 'visualizar',   label: 'Visualizar',        icon: Eye,      danger: false },
-      { id: 'criar_editar', label: 'Criar / Editar',    icon: Pencil,   danger: false },
-      { id: 'excluir',      label: 'Excluir',           icon: Trash2,   danger: true  },
-      { id: 'exportar',     label: 'Exportar',          icon: Download, danger: false },
-      { id: 'importar',     label: 'Importar',          icon: Upload,   danger: false },
+      { id: 'visualizar',      label: 'Visualizar',          icon: Eye,      danger: false },
+      { id: 'criar_editar',    label: 'Criar / Editar',      icon: Pencil,   danger: false },
+      { id: 'excluir',         label: 'Excluir',             icon: Trash2,   danger: true  },
+      { id: 'exportar',        label: 'Exportar',            icon: Download, danger: false },
+      { id: 'importar',        label: 'Importar',            icon: Upload,   danger: false },
+      { id: 'ver_indicadores', label: 'Ver indicadores/KPIs', icon: BarChart2, danger: false },
       ACAO_ESCOPO,
     ],
   },
@@ -187,10 +191,11 @@ const MODULOS = [
     id: 'documentos', label: 'Documentos', icon: FileStack, grupo: 'Pós-venda',
     desc: 'Biblioteca de documentos e arquivos',
     acoes: [
-      { id: 'visualizar',   label: 'Visualizar',     icon: Eye,      danger: false },
-      { id: 'criar_editar', label: 'Enviar / Editar',icon: Pencil,   danger: false },
-      { id: 'excluir',      label: 'Excluir',        icon: Trash2,   danger: true  },
-      { id: 'exportar',     label: 'Baixar',         icon: Download, danger: false },
+      { id: 'visualizar',      label: 'Visualizar',          icon: Eye,      danger: false },
+      { id: 'criar_editar',    label: 'Enviar / Editar',     icon: Pencil,   danger: false },
+      { id: 'excluir',         label: 'Excluir',             icon: Trash2,   danger: true  },
+      { id: 'exportar',        label: 'Baixar',              icon: Download, danger: false },
+      { id: 'ver_indicadores', label: 'Ver indicadores/KPIs', icon: BarChart2, danger: false },
       ACAO_ESCOPO,
     ],
   },
@@ -224,6 +229,91 @@ const MODULOS = [
       { id: 'integracoes',      label: 'Integrações / APIs',      icon: Settings2,  danger: false },
     ],
   },
+  {
+    id: 'produtos', label: 'Produtos', icon: Package, grupo: 'Configurações',
+    desc: 'Catálogo de produtos e serviços',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }, { id: 'excluir', label: 'Excluir', icon: Trash2, danger: true }],
+  },
+  {
+    id: 'funis', label: 'Funis de Vendas', icon: Filter, grupo: 'Configurações',
+    desc: 'Etapas e configuração dos funis',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'tabela_precos', label: 'Tabela de Preços', icon: Receipt, grupo: 'Configurações',
+    desc: 'Histórico e reajustes de preços',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Aplicar reajustes', icon: Pencil, danger: true }],
+  },
+  {
+    id: 'equipes', label: 'Equipes', icon: UsersRound, grupo: 'Sistema',
+    desc: 'Cadastro de equipes internas e de parceiros',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }, { id: 'excluir', label: 'Excluir', icon: Trash2, danger: true }],
+  },
+  {
+    id: 'tipos_acoes', label: 'Tipos de Ações', icon: Activity, grupo: 'Configurações',
+    desc: 'Configuração de tipos de ações do canal',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'integracoes_cfg', label: 'Integrações', icon: Plug, grupo: 'Sistema',
+    desc: 'Conexões com sistemas externos e APIs',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: true }],
+  },
+  {
+    id: 'alertas', label: 'Alertas', icon: Bell, grupo: 'Sistema',
+    desc: 'Regras de alertas do sistema',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'habilitacoes', label: 'Habilitações', icon: ToggleRight, grupo: 'Configurações',
+    desc: 'Habilitações de parceiros',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'indicadores', label: 'Indicadores', icon: TrendingUp, grupo: 'Configurações',
+    desc: 'Configuração de indicadores e metas',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'perfis', label: 'Perfis de Acesso', icon: ShieldCheck, grupo: 'Sistema',
+    desc: 'Gestão dos próprios perfis de acesso',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: true }],
+  },
+  {
+    id: 'usuarios', label: 'Usuários', icon: Users, grupo: 'Sistema',
+    desc: 'Cadastro de usuários do sistema',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: true }, { id: 'excluir', label: 'Excluir', icon: Trash2, danger: true }],
+  },
+  {
+    id: 'empresa', label: 'Empresa / ISV', icon: Building2, grupo: 'Sistema',
+    desc: 'Dados cadastrais do ISV',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: true }],
+  },
+  {
+    id: 'forms', label: 'Config. de Campos', icon: Layout, grupo: 'Sistema',
+    desc: 'Configuração de campos customizados',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'logs', label: 'Logs', icon: Terminal, grupo: 'Sistema',
+    desc: 'Logs de auditoria e sistema',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }],
+  },
+  {
+    id: 'compartilhamento', label: 'Compartilhamento', icon: Share2, grupo: 'Configurações',
+    desc: 'Configuração de compartilhamento entre filiais',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
+  {
+    id: 'assinatura', label: 'Assinatura', icon: DollarSign, grupo: 'Sistema',
+    desc: 'Plano e cobrança do ISV',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: true }],
+  },
+  {
+    id: 'maturidade_parceiros', label: 'Maturidade Parceiros', icon: Network, grupo: 'Canal',
+    desc: 'Modelo de maturidade de parceiros',
+    acoes: [{ id: 'acessar', label: 'Acessar tela', icon: Eye, danger: false }, { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false }],
+  },
 ]
 
 const GRUPOS = [...new Set(MODULOS.map(m => m.grupo))]
@@ -234,106 +324,7 @@ const PALETA = [
   '#7C3AED','#EC4899','#14B8A6','#3B82F6','#84CC16',
 ]
 
-// ─── Perfis nativos ───────────────────────────────────────────────────────────
-export const PERFIS_NATIVOS_SEED = [
-  { id: 'native_master',   slug: 'master',   nome: 'Master',   nativo: true, cor: '#1E3A5F', icon: 'ShieldCheck', desc: 'Acesso total. Gerencia usuários, perfis e integrações.' },
-  { id: 'native_gestor',   slug: 'gestor',   nome: 'Gestor',   nativo: true, cor: '#2E5090', icon: 'Users',       desc: 'Acesso gerencial à equipe. Sem exclusões críticas.' },
-  { id: 'native_vendedor', slug: 'vendedor', nome: 'Vendedor', nativo: true, cor: '#059669', icon: 'Target',      desc: 'Acesso operacional ao pipeline e tarefas.' },
-  { id: 'native_parceiro', slug: 'parceiro', nome: 'Parceiro', nativo: true, cor: '#D97706', icon: 'ShieldAlert', desc: 'Acesso restrito ao próprio pipeline.' },
-]
-
 const ICON_MAP = { ShieldCheck, ShieldAlert, Users, Target, Shield }
-
-// ─── Seed de permissões ───────────────────────────────────────────────────────
-function buildSeedPerms() {
-  const T = true, F = false
-  return {
-    native_master: {
-      dashboard:       { visualizar:T, ver_financeiro:T, exportar:T, apenas_proprios:F },
-      pipeline:        { visualizar:T, criar_editar:T, excluir:T, exportar:T, importar:T, apenas_proprios:F },
-      metas:           { visualizar:T, ver_equipe:T, criar_editar:T, apenas_proprios:F },
-      tarefas:         { visualizar:T, ver_equipe:T, criar_editar:T, excluir:T, apenas_proprios:F },
-      acoes:           { visualizar:T, criar_editar:T, excluir:T, apenas_proprios:F },
-      playbooks:       { visualizar:T, criar_editar:T, excluir:T },
-      contatos_canais: { visualizar:T, criar_editar:T, excluir:T, exportar:T, apenas_proprios:F },
-      empresas:        { visualizar:T, criar_editar:T, excluir:T, ver_valores:T, exportar:T, apenas_proprios:F },
-      contatos:        { visualizar:T, criar_editar:T, excluir:T, apenas_proprios:F },
-      contratos:       { visualizar:T, criar_editar:T, excluir:T, ver_valores:T, apenas_proprios:F },
-      pagamentos:      { visualizar:T, criar_editar:T, excluir:T, ver_valores:T, apenas_proprios:F },
-      comissoes:       { visualizar:T, ver_equipe:T, criar_editar:T, ver_valores:T, apenas_proprios:F },
-      projetos:        { visualizar:T, criar_editar:T, excluir:T, apenas_proprios:F },
-      customer_success:{ visualizar:T, criar_editar:T, apenas_proprios:F },
-      questionarios:   { visualizar:T, criar_editar:T, excluir:T },
-      documentos:      { visualizar:T, criar_editar:T, excluir:T, exportar:T, apenas_proprios:F },
-      campanhas:       { visualizar:T, criar_editar:T, excluir:T },
-      parceiros:       { visualizar:T, criar_editar:T, excluir:T, exportar:T },
-      configuracoes:   { acessar:T, gerenciar_users:T, gerenciar_perfis:T, gerenciar_funis:T, integracoes:T },
-    },
-    native_gestor: {
-      dashboard:       { visualizar:T, ver_financeiro:T, exportar:T, apenas_proprios:F },
-      pipeline:        { visualizar:T, criar_editar:T, excluir:F, exportar:T, importar:T, apenas_proprios:F },
-      metas:           { visualizar:T, ver_equipe:T, criar_editar:T, apenas_proprios:F },
-      tarefas:         { visualizar:T, ver_equipe:T, criar_editar:T, excluir:F, apenas_proprios:F },
-      acoes:           { visualizar:T, criar_editar:T, excluir:F, apenas_proprios:F },
-      playbooks:       { visualizar:T, criar_editar:T, excluir:F },
-      contatos_canais: { visualizar:T, criar_editar:T, excluir:F, exportar:T, apenas_proprios:F },
-      empresas:        { visualizar:T, criar_editar:T, excluir:F, ver_valores:T, exportar:T, apenas_proprios:F },
-      contatos:        { visualizar:T, criar_editar:T, excluir:F, apenas_proprios:F },
-      contratos:       { visualizar:T, criar_editar:T, excluir:F, ver_valores:T, apenas_proprios:F },
-      pagamentos:      { visualizar:T, criar_editar:F, excluir:F, ver_valores:T, apenas_proprios:F },
-      comissoes:       { visualizar:T, ver_equipe:T, criar_editar:F, ver_valores:T, apenas_proprios:F },
-      projetos:        { visualizar:T, criar_editar:T, excluir:F, apenas_proprios:F },
-      customer_success:{ visualizar:T, criar_editar:T, apenas_proprios:F },
-      questionarios:   { visualizar:T, criar_editar:T, excluir:F },
-      documentos:      { visualizar:T, criar_editar:T, excluir:F, exportar:T, apenas_proprios:F },
-      campanhas:       { visualizar:T, criar_editar:F, excluir:F },
-      parceiros:       { visualizar:T, criar_editar:T, excluir:F, exportar:T },
-      configuracoes:   { acessar:T, gerenciar_users:T, gerenciar_perfis:F, gerenciar_funis:T, integracoes:F },
-    },
-    native_vendedor: {
-      dashboard:       { visualizar:T, ver_financeiro:F, exportar:F, apenas_proprios:T },
-      pipeline:        { visualizar:T, criar_editar:T, excluir:F, exportar:F, importar:F, apenas_proprios:T },
-      metas:           { visualizar:T, ver_equipe:F, criar_editar:F, apenas_proprios:T },
-      tarefas:         { visualizar:T, ver_equipe:F, criar_editar:T, excluir:F, apenas_proprios:T },
-      acoes:           { visualizar:T, criar_editar:F, excluir:F, apenas_proprios:T },
-      playbooks:       { visualizar:T, criar_editar:F, excluir:F },
-      contatos_canais: { visualizar:F, criar_editar:F, excluir:F, exportar:F, apenas_proprios:F },
-      empresas:        { visualizar:T, criar_editar:T, excluir:F, ver_valores:F, exportar:F, apenas_proprios:T },
-      contatos:        { visualizar:T, criar_editar:T, excluir:F, apenas_proprios:T },
-      contratos:       { visualizar:T, criar_editar:F, excluir:F, ver_valores:F, apenas_proprios:T },
-      pagamentos:      { visualizar:F, criar_editar:F, excluir:F, ver_valores:F, apenas_proprios:F },
-      comissoes:       { visualizar:T, ver_equipe:F, criar_editar:F, ver_valores:T, apenas_proprios:T },
-      projetos:        { visualizar:T, criar_editar:F, excluir:F, apenas_proprios:T },
-      customer_success:{ visualizar:T, criar_editar:F, apenas_proprios:T },
-      questionarios:   { visualizar:T, criar_editar:F, excluir:F },
-      documentos:      { visualizar:T, criar_editar:F, excluir:F, exportar:T, apenas_proprios:T },
-      campanhas:       { visualizar:T, criar_editar:F, excluir:F },
-      parceiros:       { visualizar:F, criar_editar:F, excluir:F, exportar:F },
-      configuracoes:   { acessar:F, gerenciar_users:F, gerenciar_perfis:F, gerenciar_funis:F, integracoes:F },
-    },
-    native_parceiro: {
-      dashboard:       { visualizar:T, ver_financeiro:F, exportar:F, apenas_proprios:T },
-      pipeline:        { visualizar:T, criar_editar:T, excluir:F, exportar:F, importar:F, apenas_proprios:T },
-      metas:           { visualizar:T, ver_equipe:F, criar_editar:F, apenas_proprios:T },
-      tarefas:         { visualizar:T, ver_equipe:F, criar_editar:T, excluir:F, apenas_proprios:T },
-      acoes:           { visualizar:T, criar_editar:F, excluir:F, apenas_proprios:T },
-      playbooks:       { visualizar:T, criar_editar:F, excluir:F },
-      contatos_canais: { visualizar:F, criar_editar:F, excluir:F, exportar:F, apenas_proprios:F },
-      empresas:        { visualizar:T, criar_editar:F, excluir:F, ver_valores:F, exportar:F, apenas_proprios:T },
-      contatos:        { visualizar:T, criar_editar:F, excluir:F, apenas_proprios:T },
-      contratos:       { visualizar:T, criar_editar:F, excluir:F, ver_valores:F, apenas_proprios:T },
-      pagamentos:      { visualizar:F, criar_editar:F, excluir:F, ver_valores:F, apenas_proprios:F },
-      comissoes:       { visualizar:T, ver_equipe:F, criar_editar:F, ver_valores:T, apenas_proprios:T },
-      projetos:        { visualizar:F, criar_editar:F, excluir:F, apenas_proprios:F },
-      customer_success:{ visualizar:F, criar_editar:F, apenas_proprios:F },
-      questionarios:   { visualizar:T, criar_editar:F, excluir:F },
-      documentos:      { visualizar:T, criar_editar:F, excluir:F, exportar:T, apenas_proprios:T },
-      campanhas:       { visualizar:T, criar_editar:F, excluir:F },
-      parceiros:       { visualizar:T, criar_editar:F, excluir:F, exportar:F },
-      configuracoes:   { acessar:F, gerenciar_users:F, gerenciar_perfis:F, gerenciar_funis:F, integracoes:F },
-    },
-  }
-}
 
 function emptyPerms() {
   const p = {}
@@ -437,7 +428,7 @@ function Toggle({ value, onChange, disabled }) {
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Perfis() {
-  const { perfis, perms, savePerfil, savePerms, remove: removePerfil } = usePerfisAcesso(PERFIS_NATIVOS_SEED, buildSeedPerms())
+  const { perfis, perms, savePerfil, savePerms, remove: removePerfil } = usePerfisAcesso()
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
   const tenantId = profile?.tenant_id
@@ -473,16 +464,17 @@ export default function Perfis() {
 
   function resetRole() {
     const seed = buildSeedPerms()
-    savePerms(perfil.id, seed[perfil.id] || emptyPerms())
+    savePerms(perfil.id, seed[`native_${perfil.slug}`] || emptyPerms())
   }
 
-  function handleCriar() {
+  async function handleCriar() {
     if (!formNovo.nome.trim()) return
-    const id = `custom_${Date.now()}`
-    const novo = { id, slug: id, nome: formNovo.nome.trim(), nativo: false, cor: formNovo.cor, icon: 'Shield', desc: formNovo.desc.trim() || 'Perfil personalizado', franquia_ids: formNovo.franquia_ids || [] }
-    savePerfil(novo, emptyPerms())
-    log('criar', 'perfil_acesso', id, { descricao: `Perfil de acesso criado: ${novo.nome}` })
-    setEditando(novo)
+    const slug = `custom_${Date.now()}`
+    const novo = { slug, nome: formNovo.nome.trim(), nativo: false, cor: formNovo.cor, icon: 'Shield', desc: formNovo.desc.trim() || 'Perfil personalizado', franquia_ids: formNovo.franquia_ids || [] }
+    const res = await savePerfil(novo, emptyPerms())
+    if (!res.ok) return
+    log('criar', 'perfil_acesso', res.data.id, { descricao: `Perfil de acesso criado: ${res.data.nome}` })
+    setEditando(res.data)
   }
 
   function toggleFranquiaNovo(id) {
@@ -694,7 +686,7 @@ export default function Perfis() {
                             {mod.acoes.filter(a => !a.scope).map(acao => {
                               const AcaoIcon = acao.icon
                               const val = !!modPerms[acao.id]
-                              const locked = editando.id === 'native_master' && acao.id === 'gerenciar_perfis'
+                              const locked = editando.slug === 'master' && acao.id === 'gerenciar_perfis'
                               return (
                                 <label key={acao.id} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 8px', borderRadius: 6, cursor: 'pointer', userSelect: 'none', background: val ? (acao.danger ? 'rgba(220,38,38,0.05)' : `${editando.cor}10`) : 'transparent', border: `1px solid ${val && acao.danger ? '#FECACA' : 'transparent'}`, transition: 'background 0.12s' }}>
                                   <AcaoIcon size={11} color={val ? (acao.danger ? '#DC2626' : editando.cor) : '#94A3B8'} />
@@ -753,6 +745,7 @@ export default function Perfis() {
   // ── Lista ─────────────────────────────────────────────────────────────────
   return (
     <SettingsLayout
+      modulo="perfis"
       title="Perfis de Acesso"
       description="Defina as permissões de cada perfil. Os perfis nativos não podem ser removidos."
       columns={[

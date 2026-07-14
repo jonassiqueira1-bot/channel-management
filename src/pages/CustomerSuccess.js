@@ -1202,6 +1202,7 @@ export default function CustomerSuccess() {
   return (
     <>
       <BrowseLayout
+        modulo="customer_success"
         data={lista}
         columns={COLUMNS}
         filters={FILTERS}

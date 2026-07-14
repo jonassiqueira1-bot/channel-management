@@ -636,6 +636,7 @@ export default function Questionarios() {
   return (
     <>
       <BrowseLayout
+        modulo="questionarios"
         data={filtered}
         columns={COLUMNS}
         filters={FILTERS}

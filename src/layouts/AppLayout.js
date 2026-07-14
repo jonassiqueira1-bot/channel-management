@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
+import AlertsInbox from '../components/AlertsInbox'
 
 function useBreakpoint() {
   const [bp, setBp] = useState(() => getBreakpoint(window.innerWidth))
@@ -32,6 +33,9 @@ export default function AppLayout() {
 
   return (
     <div style={s.shell}>
+
+      {/* ── Pendências: flutuante, presente em toda tela, fora da sidebar ── */}
+      <AlertsInbox />
 
       {/* ── Top bar (mobile only) ── */}
       {isMobile && (

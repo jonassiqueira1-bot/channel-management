@@ -235,6 +235,7 @@ export default function MaturidadeParceiros() {
   return (
     <>
       <SettingsLayout
+        modulo="maturidade_parceiros"
         title="Maturidade de Parceiros"
         description={`Configure os parâmetros que definem o score de maturidade de cada parceiro.${totalPeso > 0 ? `  Peso total ativo: ${totalPeso}pts` : ''}`}
         columns={columns}

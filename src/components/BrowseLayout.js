@@ -23,6 +23,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
+import { usePermissions } from '../hooks/usePermissions'
 import {
   Search, SlidersHorizontal, LayoutList, LayoutGrid,
   ChevronDown, ChevronUp, MoreHorizontal,
@@ -421,7 +422,12 @@ export default function BrowseLayout({
   extraMenuItems,           // [{label, onClick, dividerBefore?}] — itens extras no menu de três pontos
   secondaryActions,
   onRowClick,
+  modulo,                   // id do módulo (Perfis de Acesso) — controla exibição de importar/exportar
 }) {
+  const { can } = usePermissions()
+  const podeExportar = !modulo || can(modulo, 'exportar')
+  const podeImportar  = !modulo || can(modulo, 'importar')
+  const podeCriarEditar = !modulo || can(modulo, 'criar_editar')
   const storagePrefix = STORAGE_NS + storageKey
 
   // ── breakpoint ────────────────────────────────────────────────────────────
@@ -845,24 +851,26 @@ export default function BrowseLayout({
                   </button>
                 }
               >
-                <div style={s.dropdownLabel}>Exportar</div>
-                <div style={s.dropdownItem} onClick={() => {
-                  setOpenId(null)
-                  if (onExportCsv) { onExportCsv(); return }
-                  exportCsv(visibleColumns, sorted, exportFilename || storageKey)
-                }}>
-                  <Download size={13} style={{ color: 'var(--text-muted)' }} />
-                  Exportar CSV
-                </div>
-                <div style={s.dropdownItem} onClick={() => {
-                  setOpenId(null)
-                  if (onExportExcel) { onExportExcel(); return }
-                  exportExcel(visibleColumns, sorted, exportFilename || storageKey)
-                }}>
-                  <Download size={13} style={{ color: 'var(--text-muted)' }} />
-                  Exportar Excel (.xls)
-                </div>
-                {onImport && <><div style={s.dropdownDivider} /><div style={s.dropdownItem} onClick={onImport}>Importar dados</div></>}
+                {podeExportar && <>
+                  <div style={s.dropdownLabel}>Exportar</div>
+                  <div style={s.dropdownItem} onClick={() => {
+                    setOpenId(null)
+                    if (onExportCsv) { onExportCsv(); return }
+                    exportCsv(visibleColumns, sorted, exportFilename || storageKey)
+                  }}>
+                    <Download size={13} style={{ color: 'var(--text-muted)' }} />
+                    Exportar CSV
+                  </div>
+                  <div style={s.dropdownItem} onClick={() => {
+                    setOpenId(null)
+                    if (onExportExcel) { onExportExcel(); return }
+                    exportExcel(visibleColumns, sorted, exportFilename || storageKey)
+                  }}>
+                    <Download size={13} style={{ color: 'var(--text-muted)' }} />
+                    Exportar Excel (.xls)
+                  </div>
+                </>}
+                {onImport && podeImportar && <><div style={s.dropdownDivider} /><div style={s.dropdownItem} onClick={onImport}>Importar dados</div></>}
                 {(extraMenuItems||[]).map((item, i) => (
                   <span key={i}>
                     {item.dividerBefore && <div style={s.dropdownDivider} />}
@@ -872,7 +880,7 @@ export default function BrowseLayout({
               </Dropdown>
 
               {/* Botão primário */}
-              {onNew && (
+              {onNew && podeCriarEditar && (
                 <button type="button" style={s.primaryBtn} onClick={onNew}>
                   {newLabel}
                 </button>
@@ -981,11 +989,11 @@ export default function BrowseLayout({
                     onMouseEnter={e => { if (!sel) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--accent)' } }}
                     onMouseLeave={e => { if (!sel) { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' } }}
                   >
-                    <td style={{ ...s.td, ...s.tdCheck }}>
+                    <td style={{ ...s.td, ...s.tdCheck }} onClick={e => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={sel}
-                        onChange={() => toggleRow(id)}
+                        onChange={e => { e.stopPropagation(); toggleRow(id) }}
                         style={s.checkbox}
                       />
                     </td>

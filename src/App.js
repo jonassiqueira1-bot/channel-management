@@ -43,6 +43,7 @@ import SettingsLogs from './pages/settings/Logs'
 import SettingsAlertas from './pages/settings/Alertas'
 import MyAccount from './pages/MyAccount'
 import Produtos from './pages/Produtos'
+import TabelaPrecos from './pages/TabelaPrecos'
 import Questionarios from './pages/Questionarios'
 import Documentos from './pages/Documentos'
 import BranchSharing from './pages/settings/BranchSharing'
@@ -123,6 +124,7 @@ export default function App() {
               <Route path="habilitacoes" element={<SettingsHabilitacoes />} />
               <Route path="funis"        element={<Funis />} />
               <Route path="produtos"     element={<Produtos />} />
+              <Route path="tabela-precos" element={<TabelaPrecos />} />
               <Route path="comissoes"    element={<Comissoes />} />
               <Route path="tipos-acoes"  element={<SettingsTiposAcao />} />
               <Route path="integracoes"  element={<SettingsIntegracoes />} />

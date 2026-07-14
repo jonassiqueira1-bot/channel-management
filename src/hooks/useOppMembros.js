@@ -56,7 +56,7 @@ export function useOppMembros() {
     const { error } = await supabase.from('oportunidade_membros').insert({
       tenant_id:       tenantId,
       branch_id:       branchId || null,
-      opportunity_id:  novo.oportunidade_id,
+      oportunidade_id: novo.oportunidade_id,
       user_id:         novo.user_id,
       papel:           novo.papel,
       tipo_membro:     novo.tipo_membro,

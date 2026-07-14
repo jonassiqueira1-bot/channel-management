@@ -75,6 +75,7 @@ export function useParceiros() {
       telefone:     fields.telefone      || null,
       responsavel:  fields.responsavel   || null,
       responsavel_id: fields.responsavel_id || null,
+      equipe_id:    fields.equipe_id     || null,
       cidade:       fields.cidade        || null,
       uf:           estado               || fields.uf || null,   // form usa 'estado', DB usa 'uf'
       status:       situacao             || fields.status || 'ativo', // form usa 'situacao', DB usa 'status'

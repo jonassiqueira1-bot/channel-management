@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useBranches } from '../../hooks/useBranches'
 import { useBranchSharing } from '../../hooks/useBranchSharing'
+import { usePerfisAcesso } from '../../hooks/usePerfisAcesso'
+import { useUsuarios } from '../../hooks/useUsuarios'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 import { Share2, ArrowLeftRight } from 'lucide-react'
@@ -189,6 +191,8 @@ function SearchableMultiSelect({ options, value = [], onChange, placeholder = 'S
 export default function BranchSharing() {
   const { branches, loading: loadingFiliais } = useBranches()
   const { regras, loading: loadingRegras, save: saveRegra, remove: removeRegra } = useBranchSharing()
+  const { perfis } = usePerfisAcesso()
+  const { usuarios } = useUsuarios()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(EMPTY)
   const [busca, setBusca]       = useState('')
@@ -340,7 +344,7 @@ export default function BranchSharing() {
           {form.acesso === 'perfis' && (
             <FPEField label="Perfis com acesso" required>
               <SearchableMultiSelect
-                options={[]}
+                options={perfis.map(p => ({ value: String(p.id), label: p.nome }))}
                 value={form.perfil_ids}
                 onChange={ids => set('perfil_ids', ids)}
                 placeholder="Selecionar perfis…"
@@ -351,7 +355,7 @@ export default function BranchSharing() {
           {form.acesso === 'usuarios' && (
             <FPEField label="Usuários com acesso" required>
               <SearchableMultiSelect
-                options={[]}
+                options={usuarios.map(u => ({ value: String(u.id), label: u.nome }))}
                 value={form.usuario_ids}
                 onChange={ids => set('usuario_ids', ids)}
                 placeholder="Selecionar usuários…"
@@ -371,6 +375,7 @@ export default function BranchSharing() {
 
   return (
     <SettingsLayout
+      modulo="compartilhamento"
       title="Compartilhamento entre Filiais"
       description="Defina quais dados são compartilhados entre as filiais da organização."
       columns={[
