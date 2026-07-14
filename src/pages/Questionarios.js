@@ -144,7 +144,7 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
   function updateSection(secId, key, val) { updateSecoes(secoes.map(s => s.id === secId ? { ...s, [key]: val } : s)) }
   function addQuestion(secId) {
     updateSecoes(secoes.map(s => s.id === secId
-      ? { ...s, perguntas: [...(s.perguntas || []), { id: novoPId(), tipo: 'texto', label: 'Nova pergunta', obrigatorio: false, opcoes: [] }] }
+      ? { ...s, perguntas: [...(s.perguntas || []), { id: novoPId(), tipo: 'texto', label: 'Nova pergunta', obrigatorio: false, opcoes: [], peso: 10, pesos_opcoes: [] }] }
       : s))
   }
   function removeQuestion(secId, pId) {
@@ -157,7 +157,9 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
   }
   function addOption(secId, pId) {
     updateSecoes(secoes.map(s => s.id === secId
-      ? { ...s, perguntas: s.perguntas.map(p => p.id === pId ? { ...p, opcoes: [...(p.opcoes || []), ''] } : p) }
+      ? { ...s, perguntas: s.perguntas.map(p => p.id === pId
+          ? { ...p, opcoes: [...(p.opcoes || []), ''], pesos_opcoes: [...(p.pesos_opcoes || []), 10] }
+          : p) }
       : s))
   }
   function updateOption(secId, pId, idx, val) {
@@ -170,10 +172,20 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
         }) }
       : s))
   }
+  function updatePesoOpcao(secId, pId, idx, peso) {
+    updateSecoes(secoes.map(s => s.id === secId
+      ? { ...s, perguntas: s.perguntas.map(p => {
+          if (p.id !== pId) return p
+          const pesos = [...(p.pesos_opcoes || [])]
+          pesos[idx] = peso
+          return { ...p, pesos_opcoes: pesos }
+        }) }
+      : s))
+  }
   function removeOption(secId, pId, idx) {
     updateSecoes(secoes.map(s => s.id === secId
       ? { ...s, perguntas: s.perguntas.map(p => p.id === pId
-          ? { ...p, opcoes: p.opcoes.filter((_, i) => i !== idx) }
+          ? { ...p, opcoes: p.opcoes.filter((_, i) => i !== idx), pesos_opcoes: (p.pesos_opcoes || []).filter((_, i) => i !== idx) }
           : p) }
       : s))
   }
@@ -295,6 +307,15 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
                       style={{ accentColor: 'var(--accent)', cursor: 'pointer' }} />
                     Obrigatório
                   </label>
+                  {p.tipo !== 'multipla_escolha' && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11,
+                      color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }} title="Peso na Qualificação de Lead — contabilizado se a pergunta for respondida">
+                      Peso
+                      <input type="number" min={0} max={100} value={p.peso ?? 0}
+                        onChange={e => updateQuestion(sec.id, p.id, 'peso', Number(e.target.value))}
+                        style={{ width: 48, padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, textAlign: 'center' }} />
+                    </label>
+                  )}
                   <button onClick={() => removeQuestion(sec.id, p.id)}
                     style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
                       fontSize: 13, padding: '2px 5px', borderRadius: 5, lineHeight: 1, flexShrink: 0 }}
@@ -316,6 +337,10 @@ function EstruturaBuilder({ draft, onChange, errs = {}, setErrs }) {
                           placeholder={`Opção ${oi + 1}`}
                           onChange={e => updateOption(sec.id, p.id, oi, e.target.value)}
                         />
+                        <input type="number" min={0} max={100} value={(p.pesos_opcoes || [])[oi] ?? 0}
+                          onChange={e => updatePesoOpcao(sec.id, p.id, oi, Number(e.target.value))}
+                          title="Peso na Qualificação de Lead se esta opção for escolhida"
+                          style={{ width: 44, padding: '4px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 11, textAlign: 'center', flexShrink: 0 }} />
                         <button onClick={() => removeOption(sec.id, p.id, oi)}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
                             fontSize: 12, padding: '2px 4px', lineHeight: 1 }}>✕</button>

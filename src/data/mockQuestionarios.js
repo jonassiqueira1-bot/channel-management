@@ -3,11 +3,36 @@
 export const STORAGE_KEY_TEMPLATES    = 'questionarios:templates_v2'
 export const STORAGE_KEY_SUBMISSIONS  = 'questionarios:submissions_v2'
 
+// Score 0-100 de uma submissão, com base nos pesos configurados no template
+// (peso por pergunta pra texto/número, peso por opção pra múltipla escolha).
+// Usado no indicador de Qualificação combinado (Pipeline.js) pra templates
+// do tipo 'qualificacao_lead'.
+export function calcularScoreSubmission(template, respostas) {
+  const perguntas = (template?.estrutura_secoes?.secoes || []).flatMap(s => s.perguntas || [])
+  let obtido = 0, possivel = 0
+  for (const p of perguntas) {
+    const resp = respostas?.[p.id]
+    if (p.tipo === 'multipla_escolha') {
+      const pesos = p.pesos_opcoes || []
+      const max = pesos.length ? Math.max(...pesos.map(Number)) : 0
+      possivel += max
+      const idx = (p.opcoes || []).indexOf(resp)
+      if (idx >= 0) obtido += Number(pesos[idx] || 0)
+    } else {
+      const peso = Number(p.peso || 0)
+      possivel += peso
+      if (resp !== undefined && resp !== null && String(resp).trim() !== '') obtido += peso
+    }
+  }
+  return possivel > 0 ? Math.round((obtido / possivel) * 100) : 0
+}
+
 export const TIPO_CFG = {
-  pre_venda:       { label: 'Pré-Venda',       icon: '🎯', color: 'var(--accent)', bg: '#EEF2FF', text: '#3730A3' },
-  apoio_comercial: { label: 'Apoio Comercial',  icon: '🤝', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
-  diagnostico:     { label: 'Diagnóstico',      icon: '🔍', color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
-  onboarding:      { label: 'Onboarding',       icon: '🚀', color: '#3B82F6', bg: '#DBEAFE', text: '#1E3A5F' },
+  pre_venda:         { label: 'Pré-Venda',              icon: '🎯', color: 'var(--accent)', bg: '#EEF2FF', text: '#3730A3' },
+  apoio_comercial:   { label: 'Apoio Comercial',         icon: '🤝', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
+  diagnostico:       { label: 'Diagnóstico',             icon: '🔍', color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  onboarding:        { label: 'Onboarding',              icon: '🚀', color: '#3B82F6', bg: '#DBEAFE', text: '#1E3A5F' },
+  qualificacao_lead: { label: 'Qualificação de Lead',    icon: '📈', color: '#8B5CF6', bg: '#EDE9FE', text: '#5B21B6' },
 }
 
 export const STATUS_CFG = {

@@ -388,7 +388,7 @@ function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
 
 // ─── New / Edit Playbook SlideOver ───────────────────────────────────────────
 const EMPTY_PB = {
-  title: '', segment: 'Tecnologia / SaaS / ISV', description: '',
+  title: '', segment: 'Tecnologia', description: '',
   funil_ids: [], funil_id: '',
   produto_filtro_tipo: '', produto_ids: [], produto_categorias: [], produto_id: '',
   objecoes: [], tipo: 'vendas',
@@ -1304,7 +1304,6 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
   onAddResource, onEditResource, onDeleteResource, onUpdateObjecoes,
   onUpdateChecklist, onUpdateIcp }) {
   const [section, setSection] = useState('funnel')
-  const segColor = SEGMENT_COLORS[playbook.segment] || SEGMENT_COLORS['Outro']
 
   const isAdministrativo = playbook.tipo === 'administrativo'
 
@@ -1334,7 +1333,6 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
           <span>Playbooks</span>
         </button>
         <div style={dv.topCenter}>
-          <span style={{ ...dv.segBadge, background: segColor.bg, color: segColor.color }}>{playbook.segment}</span>
           <h1 style={dv.topTitle}>{playbook.title}</h1>
         </div>
         {isISV && (
@@ -1354,7 +1352,6 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
                 <button key={sec.id}
                   style={{ ...dv.sbItem, ...(section === sec.id ? dv.sbItemActive : {}) }}
                   onClick={() => setSection(sec.id)}>
-                  <span style={{ fontSize: 14 }}>{sec.icon}</span>
                   <span style={{ flex: 1, textAlign: 'left' }}>{sec.label}</span>
                   {count > 0 && (
                     <span style={{ ...dv.sbCount, ...(section === sec.id ? dv.sbCountActive : {}) }}>{count}</span>

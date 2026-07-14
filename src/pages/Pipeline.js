@@ -23,6 +23,7 @@ import {
   STORAGE_KEY_SUBMISSIONS as Q_STORAGE_SUBMISSIONS,
   TIPO_CFG as Q_TIPO_CFG,
   STATUS_CFG as Q_STATUS_CFG,
+  calcularScoreSubmission,
 } from '../data/mockQuestionarios'
 import {
   MOCK_DOCS,
@@ -3732,6 +3733,132 @@ function autoVincularPlaybooks(opp, playbooks, produtosById) {
   return [...ids]
 }
 
+// Indicador de Qualificação combinado: 0-100, média entre as fontes que têm
+// dado disponível (não penaliza a oportunidade por fonte não configurada):
+//   1) Checklist do(s) Playbook(s) vinculado(s) — % de peso marcado nas etapas
+//      já respondidas.
+//   2) ICP do(s) Playbook(s) — Segmento/Porte/Faturamento da Empresa batem com
+//      os critérios do ICP, ponderado pelos pesos de Segmento/Porte do Playbook.
+//   3) Questionário(s) de Qualificação de Lead vinculados a esta oportunidade
+//      (template.type === 'qualificacao_lead') — média dos scores das submissões.
+function calcularQualificacaoCompleta({ opp, playbooks, empresa, templates, submissions }) {
+  const linkedPlaybooks = (opp.playbook_ids || []).map(id => playbooks.find(p => p.id === id)).filter(Boolean)
+  const scores = []
+
+  let checklistObtido = 0, checklistPossivel = 0
+  for (const pb of linkedPlaybooks) {
+    const respostasPb = (opp.checklist_respostas || {})[pb.id] || {}
+    for (const [etapaKey, itens] of Object.entries(pb.checklist_etapas || {})) {
+      const respondida = respostasPb[etapaKey]
+      if (!respondida) continue
+      for (const item of itens) {
+        checklistPossivel += Number(item.peso) || 0
+        if (respondida[item.id]) checklistObtido += Number(item.peso) || 0
+      }
+    }
+  }
+  if (checklistPossivel > 0) scores.push((checklistObtido / checklistPossivel) * 100)
+
+  if (empresa && linkedPlaybooks.length) {
+    let icpObtido = 0, icpPossivel = 0
+    for (const pb of linkedPlaybooks) {
+      const icp = pb.icp || {}
+      if ((icp.segmentos || []).length) {
+        icpPossivel += 100
+        if (icp.segmentos.includes(empresa.segmento)) icpObtido += pb.segmento_pesos?.[empresa.segmento] ?? 50
+      }
+      if ((icp.portes || []).length) {
+        icpPossivel += 100
+        if (icp.portes.includes(empresa.porte)) icpObtido += pb.porte_pesos?.[empresa.porte] ?? 50
+      }
+      if ((icp.faturamento || []).length) {
+        icpPossivel += 100
+        if (icp.faturamento.includes(empresa.receita_faixa)) icpObtido += 50
+      }
+    }
+    if (icpPossivel > 0) scores.push((icpObtido / icpPossivel) * 100)
+  }
+
+  const qualifSubs = (submissions || []).filter(s =>
+    String(s.opportunity_id) === String(opp.id) &&
+    templates.find(t => t.id === s.template_id)?.type === 'qualificacao_lead'
+  )
+  if (qualifSubs.length) {
+    const media = qualifSubs.reduce((sum, s) => {
+      const tpl = templates.find(t => t.id === s.template_id)
+      return sum + calcularScoreSubmission(tpl, s.respostas || {})
+    }, 0) / qualifSubs.length
+    scores.push(media)
+  }
+
+  if (!scores.length) return 0
+  return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length)
+}
+
+// Reúne os itens de checklist de qualificação configurados pra uma etapa
+// específica, olhando todos os playbooks vinculados à oportunidade — usado
+// pelo popup bloqueante de transição de etapa.
+function getChecklistItensParaEtapa(playbookIds, playbooks, etapaId, etapas) {
+  const etapa = (etapas || []).find(e => e.id === etapaId)
+  const stage = etapa ? mapEtapaToStage(etapa.nome) : null
+  const itens = []
+  for (const pid of (playbookIds || [])) {
+    const pb = (playbooks || []).find(p => p.id === pid)
+    if (!pb) continue
+    const key = pb.funil_id ? etapaId : stage
+    const arr = (pb.checklist_etapas || {})[key] || []
+    itens.push(...arr.map(it => ({ ...it, playbookId: pid, checklistKey: key })))
+  }
+  return itens
+}
+
+// Aplica as respostas do popup (chave `${playbookId}:${itemId}` -> boolean)
+// na estrutura checklist_respostas já persistida da oportunidade.
+function aplicarRespostasChecklist(checklistRespostas, itens, respostas) {
+  const next = { ...(checklistRespostas || {}) }
+  for (const item of itens) {
+    const marcado = !!respostas[`${item.playbookId}:${item.id}`]
+    next[item.playbookId] = {
+      ...(next[item.playbookId] || {}),
+      [item.checklistKey]: { ...((next[item.playbookId] || {})[item.checklistKey] || {}), [item.id]: marcado },
+    }
+  }
+  return next
+}
+
+// ─── Popup bloqueante: checklist de qualificação da etapa de destino ────────
+function ChecklistGatePopup({ itens, onConfirm, onCancel }) {
+  const [respostas, setRespostas] = useState({})
+  const toggle = key => setRespostas(prev => ({ ...prev, [key]: !prev[key] }))
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.5)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:12 }}>
+      <div style={{ width:'100%', maxWidth:440, maxHeight:'80vh', background:'var(--surface)', borderRadius:14, border:'1px solid var(--border)', boxShadow:'0 20px 60px rgba(0,0,0,0.25)', display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div style={{ padding:'18px 22px', borderBottom:'1px solid var(--border)' }}>
+          <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>Checklist de Qualificação</div>
+          <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>Preencha antes de avançar a oportunidade para esta etapa.</div>
+        </div>
+        <div style={{ flex:1, overflowY:'auto', padding:'16px 22px', display:'flex', flexDirection:'column', gap:8 }}>
+          {itens.map(item => {
+            const key = `${item.playbookId}:${item.id}`
+            const marcado = !!respostas[key]
+            return (
+              <label key={key} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px', borderRadius:8, border:'1px solid var(--border2)', background: marcado ? 'var(--accent-glow)' : 'var(--surface2)', cursor:'pointer' }}>
+                <input type="checkbox" checked={marcado} onChange={() => toggle(key)} style={{ accentColor:'var(--accent)' }} />
+                <span style={{ flex:1, fontSize:13, color:'var(--text)' }}>{item.label}</span>
+                <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>peso {item.peso}</span>
+              </label>
+            )
+          })}
+        </div>
+        <div style={{ padding:'14px 22px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end', gap:10 }}>
+          <button onClick={onCancel} style={{ padding:'8px 18px', borderRadius:8, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+          <button onClick={() => onConfirm(respostas)} style={{ padding:'8px 22px', borderRadius:8, border:'none', background:'var(--accent)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>Confirmar e avançar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
 function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade, defaultResponsavel, isParceiro, partnerSellerId }) {
   const isEditing = !!initial
@@ -3806,6 +3933,37 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   }), [allCompanies, allContacts, allSellers, allProdutos, allUsuarios, allBranches, allParceiros])
   const [errs, setErrs] = useState({})
   function set(f, v) { setForm(prev => ({ ...prev, [f]: v })); if (errs[f]) setErrs(p => ({ ...p, [f]: '' })) }
+
+  // Transição de etapa gateada por checklist — usada pelo Stepper (aba Dados)
+  // e pela confirmação do popup "Mover para outro funil". Se a etapa de
+  // destino não tem checklist configurado em nenhum playbook vinculado, muda
+  // direto; senão abre o popup bloqueante e só aplica após confirmar.
+  const [stepGate, setStepGate] = useState(null)
+  function tentarMudarEtapa(novoEtapaId, etapasRef, extra = {}) {
+    const itens = getChecklistItensParaEtapa(initial?.playbook_ids, playbooks, novoEtapaId, etapasRef)
+    if (!itens.length) {
+      set('etapa_id', novoEtapaId)
+      Object.entries(extra).forEach(([k, v]) => set(k, v))
+      return
+    }
+    setStepGate({
+      itens,
+      onConfirm: (respostas) => {
+        const novasRespostas = aplicarRespostasChecklist(initial?.checklist_respostas, itens, respostas)
+        set('etapa_id', novoEtapaId)
+        set('checklist_respostas', novasRespostas)
+        Object.entries(extra).forEach(([k, v]) => set(k, v))
+        if (onSaveDireto && initial?.id) {
+          const empresa = allCompanies.find(c => String(c.id) === String(initial.empresa_id))
+          const oppAtualizada = { ...initial, ...form, etapa_id: novoEtapaId, checklist_respostas: novasRespostas, ...extra }
+          const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: allQuestionTemplates, submissions: allSubmissions })
+          onSaveDireto({ ...oppAtualizada, qualificacao_score: score })
+        }
+        setStepGate(null)
+      },
+      onCancel: () => setStepGate(null),
+    })
+  }
   // helper específico para custom_fields — atualiza o JSONB sem sobrescrever outras chaves
   function setCustomField(key, value) {
     setForm(prev => ({ ...prev, custom_fields: { ...prev.custom_fields, [key]: value } }))
@@ -3849,7 +4007,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
   const [allDocsOpp]      = useLocalState(DOC_STORAGE_KEY, [])
   const [allPropostas]    = useLocalState(STORAGE_KEY_OPP_PROPOSALS, MOCK_OPP_PROPOSALS)
-  const { submissions: allSubmissions } = useQuestionnaires()
+  const { templates: allQuestionTemplates, submissions: allSubmissions } = useQuestionnaires()
   const oppDocumentosCount   = allDocsOpp.filter(d => d.opp_id === initial?.id).length
   const oppPropostaCount     = allPropostas.filter(p => p.opp_id === String(initial?.id)).length
   const oppQuestionariosCount = allSubmissions.filter(s => String(s.opportunity_id) === String(initial?.id)).length
@@ -4014,7 +4172,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     <>
       {/* Etapa do funil — sempre fixo no topo */}
       <SectionLabel>Posição no funil</SectionLabel>
-      <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => set('etapa_id', id)} />
+      <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => tentarMudarEtapa(id, etapas)} />
 
       {/* Forecast — fora do DynamicFormLayout para evitar conflito com layout salvo */}
       <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
@@ -4127,8 +4285,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
                 <button
                   disabled={!moverFunilPopup.etapaId}
                   onClick={() => {
-                    set('funil_id', String(moverFunilPopup.novoFunil.id))
-                    set('etapa_id', moverFunilPopup.etapaId)
+                    tentarMudarEtapa(moverFunilPopup.etapaId, moverFunilPopup.novoFunil.etapas || [], { funil_id: String(moverFunilPopup.novoFunil.id) })
                     setMoverFunilPopup(null)
                   }}
                   style={{ padding:'8px 22px', borderRadius:8, border:'none', background:'var(--accent)',
@@ -4281,7 +4438,9 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       {tab==='playbook' && (
         <div style={{ display:'flex', flexDirection:'column', flex:1, overflow:'hidden', minHeight:0 }}>
           <div style={{ flex:1, overflowY:'auto', minHeight:0 }}>
-            <OppPlaybookTab opp={initial} etapaId={form.etapa_id} etapas={etapas} playbookId={form.playbook_id} onChangePlaybook={v => set('playbook_id', v || null)} onSaveOpp={onSaveDireto} />
+            <OppPlaybookTab opp={initial} etapaId={form.etapa_id} etapas={etapas} playbookId={form.playbook_id} onChangePlaybook={v => set('playbook_id', v || null)} onSaveOpp={onSaveDireto}
+              empresa={allCompanies.find(c => String(c.id) === String(initial?.empresa_id))}
+              templates={allQuestionTemplates} submissions={allSubmissions} />
           </div>
         </div>
       )}
@@ -4395,6 +4554,10 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
         {bodyContent}
       </SlideOver>
 
+      {stepGate && (
+        <ChecklistGatePopup itens={stepGate.itens} onConfirm={stepGate.onConfirm} onCancel={stepGate.onCancel} />
+      )}
+
       {/* Modal de pós-fechamento — geração de contrato e/ou projeto */}
     </>
   )
@@ -4412,7 +4575,7 @@ function mapEtapaToStage(etapaNome) {
   return null
 }
 
-function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, onSaveOpp }) {
+function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, onSaveOpp, empresa, templates, submissions }) {
   const { playbooks } = usePlaybooks()
 
   // playbookId vem do form (editável); cai de volta para opp.playbook_id se não passado
@@ -4466,15 +4629,9 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
         [checklistKey]: { ...respostasEtapa, [itemId]: novaResposta },
       },
     }
-    // Score = soma dos pesos marcados / soma total de pesos do checklist desta
-    // etapa, em %. Considera só os itens da etapa atual (é o que está visível
-    // e configurado — outras etapas contam quando a oportunidade chegar nelas).
-    const totalPeso   = checklistItens.reduce((s, it) => s + (Number(it.peso) || 0), 0)
-    const marcadoPeso  = checklistItens
-      .filter(it => (novasRespostas[effectiveId]?.[checklistKey] || {})[it.id])
-      .reduce((s, it) => s + (Number(it.peso) || 0), 0)
-    const score = totalPeso > 0 ? Math.round((marcadoPeso / totalPeso) * 100) : 0
-    onSaveOpp({ ...opp, checklist_respostas: novasRespostas, qualificacao_score: score })
+    const oppAtualizada = { ...opp, checklist_respostas: novasRespostas }
+    const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks, empresa, templates: templates || [], submissions: submissions || [] })
+    onSaveOpp({ ...oppAtualizada, qualificacao_score: score })
   }
 
   // ── Inline styles ──────────────────────────────────────────────────────────
@@ -6785,8 +6942,11 @@ export default function Pipeline() {
   }, [funilPadrao?.id])
 
   // ── dados via Supabase (com fallback mock automático) ────────────────────
-  const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage, bulkMoveToStage, importMany: importOpps } = useOpportunities()
+  const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage: moveToStageRaw, bulkMoveToStage, importMany: importOpps } = useOpportunities()
   const { companies, add: addCompany } = useCompanies()
+  const { playbooks: playbooksParaGate } = usePlaybooks()
+  const { templates: qTemplatesGate, submissions: qSubmissionsGate } = useQuestionnaires()
+  const [checklistGate, setChecklistGate] = useState(null) // { itens, onConfirm }
   const { registrar: log } = useAuditLog()
   // Corrige opps sem funil_id — atribui o funil padrão automaticamente
   useEffect(() => {
@@ -6820,6 +6980,28 @@ export default function Pipeline() {
 
   const funil  = FUNIS_ATIVOS.find(f => String(f.id) === String(funilAtivo))
   const etapas = funil?.etapas || []
+
+  // Intercepta a troca de etapa (drag no Kanban) — se a etapa de destino tem
+  // checklist configurado em algum playbook vinculado, abre popup bloqueante
+  // antes de persistir a mudança de verdade.
+  function moveToStage(id, etapaId) {
+    const opp = opps.find(o => o.id === id)
+    const itens = getChecklistItensParaEtapa(opp?.playbook_ids, playbooksParaGate, etapaId, etapas)
+    if (!itens.length) { moveToStageRaw(id, etapaId); return }
+    setChecklistGate({
+      itens,
+      onConfirm: (respostas) => {
+        const novasRespostas = aplicarRespostasChecklist(opp?.checklist_respostas, itens, respostas)
+        const empresa = companies.find(c => String(c.id) === String(opp?.empresa_id))
+        const oppAtualizada = { ...opp, etapa_id: etapaId, checklist_respostas: novasRespostas }
+        const score = calcularQualificacaoCompleta({ opp: oppAtualizada, playbooks: playbooksParaGate, empresa, templates: qTemplatesGate, submissions: qSubmissionsGate })
+        moveToStageRaw(id, etapaId)
+        saveOpp({ ...oppAtualizada, qualificacao_score: score })
+        setChecklistGate(null)
+      },
+      onCancel: () => setChecklistGate(null),
+    })
+  }
 
   // ── filtro + sort ────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
@@ -7270,6 +7452,10 @@ export default function Pipeline() {
           moveToStage={moveToStage}
           onForecastChange={(opp, cat) => saveOpp({ ...opp, categoria_forecast: cat })}
         />
+      )}
+
+      {checklistGate && (
+        <ChecklistGatePopup itens={checklistGate.itens} onConfirm={checklistGate.onConfirm} onCancel={checklistGate.onCancel} />
       )}
 
       {/* ── Modais ── */}
