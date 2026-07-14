@@ -4672,6 +4672,7 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
   // (form.playbook_id, escolhido manualmente no seletor abaixo).
   const linkedIds = (opp?.playbook_ids || []).filter(id => id !== activeId)
   const [viewingId, setViewingId] = useState(null)
+  const [selectorAberto, setSelectorAberto] = useState(false)
   const effectiveId = viewingId ?? activeId
   const playbook = useMemo(() => playbooks.find(p => p.id === effectiveId) || null, [playbooks, effectiveId])
   const etapa    = useMemo(() => etapas.find(e => e.id === etapaId), [etapas, etapaId])
@@ -4811,19 +4812,49 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
     )
   }
 
+  const todosVinculados = [...new Set([activeId, ...linkedIds].filter(Boolean))]
+
   const playbookSelector = (
-    <div style={{ padding:'16px 28px 0', borderBottom:'1px solid var(--border2)', paddingBottom:16 }}>
-      <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase',
-        letterSpacing:'0.07em', display:'block', marginBottom:6 }}>
-        Playbook <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, fontSize:10 }}>(opcional)</span>
-      </label>
-      <SearchSelect
-        options={playbooks.map(pb => ({ id: pb.id, label: pb.title, sublabel: pb.description || pb.segment || '', color: 'var(--accent)' }))}
-        value={activeId || null}
-        onChange={(id) => onChangePlaybook && onChangePlaybook(id)}
-        placeholder="Pesquisar playbook…"
-        noResults="Nenhum playbook encontrado"
-      />
+    <div style={{ padding:'12px 28px', borderBottom:'1px solid var(--border2)', display:'flex', flexDirection:'column', gap:8 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+        <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', flexShrink:0 }}>
+          Playbooks
+        </span>
+        {todosVinculados.length > 0 ? todosVinculados.map(id => {
+          const pb = playbooks.find(p => p.id === id)
+          if (!pb) return null
+          const isActive = id === effectiveId
+          const isPrincipal = id === activeId
+          return (
+            <button key={id} onClick={() => setViewingId(id === activeId ? null : id)}
+              title={isPrincipal ? 'Escolhido manualmente' : 'Vinculado automaticamente (Funil/Produto/Categoria)'}
+              style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:12, fontWeight:600, padding:'4px 11px', borderRadius:20, cursor:'pointer',
+                border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
+                background: isActive ? 'var(--accent-glow)' : 'var(--surface2)',
+                color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontFamily:'var(--font)' }}>
+              {isPrincipal && <span style={{ fontSize:10 }}>⭐</span>}
+              {pb.title}
+            </button>
+          )
+        }) : (
+          <span style={{ fontSize:12, color:'var(--text-muted)', fontStyle:'italic' }}>Nenhum vinculado ainda</span>
+        )}
+        <button type="button" onClick={() => setSelectorAberto(v => !v)}
+          title="Escolher playbook manualmente"
+          style={{ display:'flex', alignItems:'center', justifyContent:'center', width:24, height:24, borderRadius:'50%',
+            border:'1px dashed var(--border)', background:'none', color:'var(--text-muted)', cursor:'pointer', flexShrink:0, marginLeft:2 }}>
+          {selectorAberto ? '×' : '✎'}
+        </button>
+      </div>
+      {selectorAberto && (
+        <SearchSelect
+          options={playbooks.map(pb => ({ id: pb.id, label: pb.title, sublabel: pb.description || pb.segment || '', color: 'var(--accent)' }))}
+          value={activeId || null}
+          onChange={(id) => { onChangePlaybook && onChangePlaybook(id); setSelectorAberto(false) }}
+          placeholder="Pesquisar playbook…"
+          noResults="Nenhum playbook encontrado"
+        />
+      )}
     </div>
   )
 
@@ -4846,28 +4877,8 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
 
   return (
     <div style={S.root}>
-      {/* ── Seletor de playbook ── */}
+      {/* ── Seletor de playbook (compacto: pills de todos vinculados + editar manual) ── */}
       {playbookSelector}
-      {/* ── Outros playbooks vinculados automaticamente (Funil/Produto/Categoria) ── */}
-      {linkedIds.length > 0 && (
-        <div style={{ display:'flex', flexWrap:'wrap', gap:6, alignItems:'center' }}>
-          <span style={{ fontSize:11, color:'var(--text-muted)' }}>Também vinculados:</span>
-          {(activeId ? [activeId, ...linkedIds] : linkedIds).map(id => {
-            const pb = playbooks.find(p => p.id === id)
-            if (!pb) return null
-            const isActive = id === effectiveId
-            return (
-              <button key={id} onClick={() => setViewingId(id === activeId ? null : id)}
-                style={{ fontSize:11, fontWeight:600, padding:'3px 10px', borderRadius:20, cursor:'pointer',
-                  border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border)'}`,
-                  background: isActive ? 'var(--accent-glow)' : 'var(--surface2)',
-                  color: isActive ? 'var(--accent)' : 'var(--text-muted)', fontFamily:'var(--font)' }}>
-                {pb.title}
-              </button>
-            )
-          })}
-        </div>
-      )}
 
       {/* ── Playbook header ── */}
       <div style={S.header}>
