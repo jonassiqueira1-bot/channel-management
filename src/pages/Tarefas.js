@@ -372,6 +372,54 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
   )
 }
 
+// ─── Enviar ao Calendário (Google/Outlook) ────────────────────────────────────
+// Formata um datetime-local (YYYY-MM-DDTHH:mm, sem timezone) pro formato UTC
+// exigido pelo .ics e pela URL do Google Calendar (YYYYMMDDTHHMMSSZ).
+function toIcsUtc(dataInicioLocal, minutosDuracao = 60) {
+  const inicio = new Date(dataInicioLocal)
+  const fim    = new Date(inicio.getTime() + minutosDuracao * 60000)
+  const fmt = (d) => d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  return { inicio: fmt(inicio), fim: fmt(fim) }
+}
+
+function icsEscape(text) {
+  return String(text || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n')
+}
+
+function downloadIcs(tarefa) {
+  if (!tarefa?.data_inicio) return
+  const { inicio, fim } = toIcsUtc(tarefa.data_inicio)
+  const agora = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+  const ics = [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Boostly//Tarefas//PT-BR', 'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    `UID:tarefa-${tarefa.id}@boostly`,
+    `DTSTAMP:${agora}`,
+    `DTSTART:${inicio}`,
+    `DTEND:${fim}`,
+    `SUMMARY:${icsEscape(tarefa.titulo)}`,
+    tarefa.descricao ? `DESCRIPTION:${icsEscape(tarefa.descricao)}` : null,
+    'END:VEVENT', 'END:VCALENDAR',
+  ].filter(Boolean).join('\r\n')
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `tarefa-${(tarefa.titulo || 'sem-titulo').slice(0, 40).replace(/\s+/g, '-')}.ics`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function googleCalendarUrl(tarefa) {
+  const { inicio, fim } = toIcsUtc(tarefa.data_inicio)
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: tarefa.titulo || 'Tarefa',
+    dates: `${inicio}/${fim}`,
+    details: tarefa.descricao || '',
+  })
+  return `https://calendar.google.com/calendar/render?${params.toString()}`
+}
+
 // ─── Export helper ────────────────────────────────────────────────────────────
 function buildExportCsv(rows) {
   const headers = ['titulo','tipo','status','prioridade','prazo','responsavel','entidade_tipo','entidade_nome','criado']
@@ -625,11 +673,65 @@ const k = {
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+// Popup listando todas as tarefas de um dia — só abre automaticamente quando
+// o dia tem mais de 3 tarefas (senão os 3 chips já visíveis na célula bastam).
+function DiaTarefasPopup({ dataStr, tarefas, onEdit, onNew, onClose }) {
+  return (
+    <>
+      <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', zIndex:1199 }} onClick={onClose} />
+      <div style={{ position:'fixed', top:'50%', left:'50%', transform:'translate(-50%,-50%)',
+        zIndex:1200, width:480, maxWidth:'92vw', maxHeight:'80vh',
+        background:'var(--surface)', borderRadius:14, boxShadow:'0 24px 64px rgba(0,0,0,0.22)',
+        display:'flex', flexDirection:'column', overflow:'hidden' }}>
+        <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border)', flexShrink:0,
+          display:'flex', alignItems:'center', justifyContent:'space-between' }}>
+          <div>
+            <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>
+              {new Date(dataStr + 'T00:00:00').toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' })}
+            </div>
+            <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
+              {tarefas.length} tarefa{tarefas.length !== 1 ? 's' : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:18, color:'var(--text-muted)', lineHeight:1 }}>×</button>
+        </div>
+        <div style={{ overflowY:'auto', padding:'12px 20px', display:'flex', flexDirection:'column', gap:6 }}>
+          {tarefas.map(t => {
+            const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+            return (
+              <div key={t.id} onClick={() => { onEdit(t); onClose() }}
+                style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 12px',
+                  background:'var(--surface2)', borderRadius:8, cursor:'pointer',
+                  border:'1px solid var(--border2)', transition:'border-color .15s' }}
+                onMouseEnter={e => e.currentTarget.style.borderColor='var(--accent)'}
+                onMouseLeave={e => e.currentTarget.style.borderColor='var(--border2)'}>
+                <span style={{ fontSize:15 }}>{tipoIcon(t.tipo)}</span>
+                <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)' }}>{t.titulo}</span>
+                {t.responsavel_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
+                <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text, fontWeight:600 }}>{cfg.label}</span>
+                <PrioridadeBadge prioridade={t.prioridade}/>
+              </div>
+            )
+          })}
+        </div>
+        <div style={{ padding:'12px 20px', borderTop:'1px solid var(--border)', flexShrink:0 }}>
+          <button onClick={() => { onNew({ prazo: dataStr }); onClose() }}
+            style={{ width:'100%', padding:'8px 0', border:'1px dashed var(--border)', borderRadius:8,
+              background:'none', cursor:'pointer', fontSize:12, fontWeight:600, color:'var(--accent)', fontFamily:'var(--font)' }}>
+            + Nova tarefa neste dia
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
   const hoje = new Date()
   const [ano,  setAno]  = useState(hoje.getFullYear())
   const [mes,  setMes]  = useState(hoje.getMonth())
   const [meusFiltro, setMeusFiltro] = useState(true) // padrão: só as do usuário logado
+  const [diaPopup, setDiaPopup] = useState(null) // { dataStr, tarefas } | null
 
   const tarefasFiltradas = useMemo(() => {
     if (!meusFiltro || !sessao) return tarefas
@@ -753,7 +855,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
                   borderBottom:'1px solid var(--border2)',
                   background: isHoje ? 'var(--accent-glow)' : 'var(--surface)',
                   transition:'background .15s' }}
-                onClick={() => onNew({ prazo: dataStr })}
+                onClick={() => tarefasDia.length > 3 ? setDiaPopup({ dataStr, tarefas: tarefasDia }) : onNew({ prazo: dataStr })}
                 onMouseEnter={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface2)' }}
                 onMouseLeave={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface)' }}>
 
@@ -842,6 +944,11 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
             })}
           </div>
         </div>
+      )}
+
+      {diaPopup && (
+        <DiaTarefasPopup dataStr={diaPopup.dataStr} tarefas={diaPopup.tarefas}
+          onEdit={onEdit} onNew={onNew} onClose={() => setDiaPopup(null)} />
       )}
     </div>
   )
@@ -1038,6 +1145,22 @@ export default function Tarefas() {
       columns={2}
       onDelete={!isNew ? handleDelete : undefined}
       deleteConfirm="Excluir esta tarefa permanentemente?"
+      footerLeft={!isNew && form?.data_inicio ? (
+        <>
+          <button type="button" onClick={() => downloadIcs(form)} title="Baixar arquivo .ics (Outlook, Apple Calendar)"
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6,
+              border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-soft)',
+              fontSize:12, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer' }}>
+            📅 Baixar .ics
+          </button>
+          <a href={googleCalendarUrl(form)} target="_blank" rel="noreferrer"
+            style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:6,
+              border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-soft)',
+              fontSize:12, fontWeight:600, fontFamily:'var(--font)', cursor:'pointer', textDecoration:'none' }}>
+            📅 Google Calendar
+          </a>
+        </>
+      ) : undefined}
     >
       {form && <TarefaForm form={form} onChange={setForm} tiposTarefa={tiposTarefa}
         errs={errs} clearErr={k => setErrs(p => ({ ...p, [k]: '' }))} />}

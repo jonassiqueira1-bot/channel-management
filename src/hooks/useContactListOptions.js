@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
+import { captureError } from '../lib/sentry'
 
 export const CARGOS_DEFAULT = [
   'Diretor(a)', 'C-Level (CEO/CTO/CFO/COO)', 'Gerente', 'Coordenador(a)',
@@ -29,15 +30,21 @@ export function useContactListOptions(tipo, defaults) {
     if (!session?.user || !tenantId) { setLoading(false); return }
     const { data, error } = await supabase.from('contact_list_options').select('nome').eq('tenant_id', tenantId).eq('tipo', tipo).order('nome')
     if (error) { setLoading(false); return }
-    if (data && data.length > 0) {
-      setOpcoesState(data.map(r => r.nome))
-    } else {
-      const rows = defaults.map(nome => ({ tenant_id: tenantId, tipo, nome }))
-      const { data: seeded } = await supabase.from('contact_list_options').insert(rows).select('nome')
-      setOpcoesState((seeded || []).map(r => r.nome).length ? seeded.map(r => r.nome) : defaults)
+    const existentes = (data || []).map(r => r.nome)
+    // Semeia item a item (upsert idempotente) os defaults que ainda faltam —
+    // antes só semeava se a tabela estivesse 100% vazia, então um único item
+    // pré-existente (ou uma falha de insert nunca detectada, já que o erro
+    // não era checado) travava o catálogo incompleto pra sempre.
+    const faltando = defaults.filter(nome => !existentes.includes(nome))
+    if (faltando.length > 0) {
+      const rows = faltando.map(nome => ({ tenant_id: tenantId, tipo, nome }))
+      const { error: seedError } = await supabase.from('contact_list_options')
+        .upsert(rows, { onConflict: 'tenant_id,tipo,nome', ignoreDuplicates: true })
+      if (seedError) captureError('useContactListOptions:seed', seedError)
     }
+    setOpcoesState([...new Set([...existentes, ...defaults])])
     setLoading(false)
-  }, [session, tenantId, tipo])
+  }, [session, tenantId, tipo, defaults])
 
   useEffect(() => { load() }, [load])
 

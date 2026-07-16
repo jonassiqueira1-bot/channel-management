@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useProfile } from '../hooks/useProfile'
 import { useLocalState } from '../hooks/useLocalState'
@@ -10,6 +11,9 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useTiposAcao } from '../hooks/useTiposAcao'
 import { useTasks } from '../hooks/useTasks'
 import { useUsuarios } from '../hooks/useUsuarios'
+import { useDocuments } from '../hooks/useDocuments'
+import { CATEGORIA_CFG } from '../data/mockDocumentos'
+import { MultiSelect } from './Playbooks'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
 import Button from '../components/Button'
@@ -83,7 +87,7 @@ const EMPTY_ACAO = {
   tenant_id: 't1',
   custo_previsto: '',
   custos: [],
-  documentos: [],
+  documento_ids: [],
   anexos: [],
 }
 
@@ -399,15 +403,23 @@ function AcaoTarefasTab({ acao, tarefas, saveTarefa, deleteTarefa, tiposTarefa }
 function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, empresasOpts, responsaveisOpts, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
   const isNew = !initial?.id
   const [tab, setTab] = useState('dados')
-  const [form, setForm]   = useState(initial ? { ...EMPTY_ACAO, ...initial } : { ...EMPTY_ACAO })
+  // Custos sempre vêm recolhidos ao abrir a Ação, independente do que estava
+  // salvo (_open é só estado visual de UI, não deveria persistir aberto/fechado).
+  const [form, setForm]   = useState(initial
+    ? { ...EMPTY_ACAO, ...initial, custos: (initial.custos || []).map(c => ({ ...c, _open: false })) }
+    : { ...EMPTY_ACAO })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [uploadingAnexo, setUploadingAnexo] = useState(false)
   const [custosSelected, setCustosSelected] = useState([])
   const { profile, isAdmin } = useProfile()
+  const { docs: allDocs } = useDocuments()
 
   useMemo(() => {
-    setForm(initial ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '' } : { ...EMPTY_ACAO })
+    setForm(initial
+      ? { ...EMPTY_ACAO, ...initial, vagas: initial.vagas || '', empresa_id: initial.empresa_id || '',
+          custos: (initial.custos || []).map(c => ({ ...c, _open: false })) }
+      : { ...EMPTY_ACAO })
     setErrs({})
     setTab('dados')
   }, [initial])
@@ -443,7 +455,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const anexosBadge = (form.anexos || []).length || undefined
   const custosBadge = (form.custos || []).length || undefined
 
-  const docsBadge = (form.documentos || []).length || undefined
+  const docsBadge = (form.documento_ids || []).length || undefined
 
   const tabs = [
     { key:'dados',      label:'Dados' },
@@ -578,7 +590,10 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       {tab === 'custos' && (() => {
         const custos = form.custos || []
         const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
-        const addCusto    = () => set('custos', [...custos, { id: crypto.randomUUID(), descricao:'', valor_previsto:'', valor_realizado:'', executado: false, aprovacoes:[], _open: false }])
+        // Aprovar/Rejeitar custo é restrito a Admin e ao papel Financeiro —
+        // não é qualquer usuário com acesso à Ação que pode liberar orçamento.
+        const podeAprovarCusto = isAdmin || profile?.papel === 'financeiro'
+        const addCusto    = () => set('custos', [...custos, { id: crypto.randomUUID(), descricao:'', valor_previsto:'', valor_realizado:'', executado: false, aprovacoes:[], _open: true }])
         const updCusto    = (id, p) => set('custos', custos.map(c => c.id === id ? { ...c, ...p } : c))
         const remCusto    = (id) => { if (window.confirm('Remover?')) set('custos', custos.filter(c => c.id !== id)) }
         const aprovar     = (id, status) => {
@@ -636,7 +651,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
                 </span>
                 {selected.length > 0 && (
                   <>
-                    {isAdmin && (
+                    {podeAprovarCusto && (
                       <>
                         <button onClick={() => bulkAprovar('aprovado')}
                           style={{ padding:'3px 10px', borderRadius:5, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
@@ -666,7 +681,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
               const ultima = (c.aprovacoes||[]).slice(-1)[0]
               const cfgAp  = ultima ? (APROVACAO_CFG[ultima.status] || APROVACAO_CFG.aguardando) : null
               const aprovado = ultima?.status === 'aprovado'
-              const isOpen = c._open !== false
+              // Recolhida por padrão sempre que a aba carrega — só abre se o
+              // usuário explicitamente expandir (ou acabou de adicionar o item).
+              const isOpen = c._open === true
               return (
                 <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
                   {/* Linha de resumo (sempre visível) */}
@@ -745,7 +762,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
                             Solicitar aprovação
                           </button>
                         </div>
-                      ) : isAdmin && !aprovado ? (
+                      ) : podeAprovarCusto && !aprovado ? (
                         <div style={{ display:'flex', gap:6, padding:'0 10px 8px', alignItems:'center' }}>
                           <input className="so-field" value={c._obsInput||''} onChange={e => updCusto(c.id,{_obsInput:e.target.value})}
                             placeholder="Observação (opcional)…" style={{ flex:1, fontSize:11 }} />
@@ -758,8 +775,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
                             ✗ Rejeitar
                           </button>
                         </div>
-                      ) : !isAdmin && !aprovado ? (
-                        <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Aguardando aprovação do administrador.</div>
+                      ) : !podeAprovarCusto && !aprovado ? (
+                        <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Aguardando aprovação do administrador ou financeiro.</div>
                       ) : null}
                     </>
                   )}
@@ -774,47 +791,61 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       })()}
 
       {/* ── Aba Documentos ── */}
+      {/* Vincula registros reais do módulo Documentos (não é mais uma lista
+          de links soltos própria da Ação) — igual ao padrão usado em
+          Oportunidades pra Playbook/Questionário: a Ação guarda só os ids,
+          o conteúdo (título, categoria, arquivo/link) vem do módulo. */}
       {tab === 'documentos' && (() => {
-        const docs = form.documentos || []
-        const addDoc = () => set('documentos', [...docs, { id: crypto.randomUUID(), titulo:'', url:'', tipo:'externo', obs:'' }])
-        const updDoc = (id, p) => set('documentos', docs.map(d => d.id === id ? { ...d, ...p } : d))
-        const remDoc = (id) => set('documentos', docs.filter(d => d.id !== id))
+        const documentoIds = form.documento_ids || []
+        const vinculados = allDocs.filter(d => documentoIds.includes(d.id))
         return (
-          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-            {docs.length === 0 && (
-              <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'28px 0' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+            <div>
+              <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>
+                Documentos do módulo
+              </label>
+              <MultiSelect
+                options={allDocs.map(d => ({ value: d.id, label: d.title }))}
+                value={documentoIds}
+                onChange={v => set('documento_ids', v)}
+                placeholder="Selecionar documentos cadastrados…"
+              />
+              <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:4, display:'block' }}>
+                Não encontrou o documento? Cadastre em{' '}
+                <Link to="/documentos" style={{ color:'var(--accent)', fontWeight:600 }}>Documentos</Link> e volte pra vinculá-lo aqui.
+              </span>
+            </div>
+
+            {vinculados.length === 0 ? (
+              <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'20px 0' }}>
                 Nenhum documento vinculado ainda.
               </div>
-            )}
-            {docs.map(d => (
-              <div key={d.id} style={{ border:'1px solid var(--border)', borderRadius:8, padding:'10px 12px', display:'flex', flexDirection:'column', gap:8 }}>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 100px auto', gap:8, alignItems:'center' }}>
-                  <input className="so-field" value={d.titulo} onChange={e => updDoc(d.id,{titulo:e.target.value})} placeholder="Título / nome do documento…" style={{ width:'100%', boxSizing:'border-box' }} />
-                  <select className="so-field" value={d.tipo} onChange={e => updDoc(d.id,{tipo:e.target.value})}>
-                    <option value="externo">Link externo</option>
-                    <option value="contrato">Contrato</option>
-                    <option value="proposta">Proposta</option>
-                    <option value="ata">Ata</option>
-                    <option value="nf">Nota fiscal</option>
-                    <option value="outro">Outro</option>
-                  </select>
-                  <button onClick={() => remDoc(d.id)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1 }}>×</button>
-                </div>
-                <div style={{ display:'flex', gap:8, alignItems:'center' }}>
-                  <input className="so-field" value={d.url} onChange={e => updDoc(d.id,{url:e.target.value})} placeholder="https://… ou caminho do documento" style={{ flex:1, boxSizing:'border-box', fontFamily:'monospace', fontSize:11 }} />
-                  {d.url && (
-                    <a href={d.url} target="_blank" rel="noopener noreferrer"
-                      style={{ padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)', fontSize:11, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)' }}>
-                      ↗ Abrir
-                    </a>
-                  )}
-                </div>
-                <input className="so-field" value={d.obs||''} onChange={e => updDoc(d.id,{obs:e.target.value})} placeholder="Observação (opcional)…" style={{ width:'100%', boxSizing:'border-box', fontSize:11 }} />
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                {vinculados.map(d => {
+                  const cfgCat = CATEGORIA_CFG[d.categoria] || CATEGORIA_CFG.outro
+                  const link = d.file_url || d.link_externo
+                  return (
+                    <div key={d.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px',
+                      border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)' }}>
+                      <span style={{ fontSize:15, flexShrink:0 }}>{cfgCat.icon}</span>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{d.title}</div>
+                        <span style={{ fontSize:10, fontWeight:700, padding:'1px 7px', borderRadius:20, background:cfgCat.bg, color:cfgCat.color }}>{cfgCat.label}</span>
+                      </div>
+                      {link && (
+                        <a href={link} target="_blank" rel="noopener noreferrer"
+                          style={{ padding:'5px 10px', borderRadius:6, border:'1px solid var(--border)', fontSize:11, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)', flexShrink:0 }}>
+                          ↗ Abrir
+                        </a>
+                      )}
+                      <button onClick={() => set('documento_ids', documentoIds.filter(id => id !== d.id))}
+                        style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1, flexShrink:0 }}>×</button>
+                    </div>
+                  )
+                })}
               </div>
-            ))}
-            <button onClick={addDoc} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
-              + Adicionar documento / link
-            </button>
+            )}
           </div>
         )
       })()}

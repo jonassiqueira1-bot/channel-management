@@ -37,9 +37,6 @@ export default function AppLayout() {
       {/* ── Pendências: flutuante, presente em toda tela, fora da sidebar ── */}
       <AlertsInbox />
 
-      {/* ── Top bar (desktop/tablet) — mesma cor da sidebar, colada ao topo ── */}
-      {!isMobile && <div style={s.topBarDesktop} />}
-
       {/* ── Top bar (mobile only) ── */}
       {isMobile && (
         <header style={s.topBar}>
@@ -105,13 +102,6 @@ const s = {
     height: '100vh',
     overflow: 'hidden',
     backgroundColor: 'var(--bg)',
-  },
-
-  /* ── Top bar desktop/tablet: colada na borda superior, mesma cor da sidebar ── */
-  topBarDesktop: {
-    height: 11,
-    backgroundColor: 'var(--sb-bg)',
-    flexShrink: 0,
   },
 
   /* ── Top bar mobile ── */

@@ -316,10 +316,17 @@ const SYSTEM_RULE_DEFAULTS = {
   acoes_aprovacao_custos: {
     gatilho_nome: 'Ações aprovação de custos',
     origem: 'actions',
-    condicoes: [{ campo: 'custos_aguardando', valor: 'true', logico: 'E', operador: 'eq' }],
+    // custos_aguardando é uma contagem (não um boolean) — 'eq'/'true' nunca
+    // batia com nada (String(N) !== 'true'), então esse alerta jamais disparava.
+    condicoes: [{ campo: 'custos_aguardando', valor: '0', logico: 'E', operador: 'gt' }],
+    // Só Admin e Financeiro aprovam/rejeitam custo (Acoes.js), então só eles
+    // devem ser avisados — antes ia pro líder de equipe, sem relação com quem
+    // de fato tem permissão de agir.
     acoes: [
-      { tipo: 'notificar', destinatario_tipo: 'lider_equipe', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
-      { tipo: 'email', destinatario_tipo: 'lider_equipe', assunto: 'Ações com parceiros', mensagem: 'Uma ação está pendente de sua aprovação:\n{{descricao}}\n{{empresa_nome}}', papel: '', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '', destinatarios_extra: [] },
+      { tipo: 'notificar', destinatario_tipo: 'papel', papel: 'admin_isv', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '',
+        destinatarios_extra: [{ id: crypto.randomUUID(), tipo: 'papel', papel: 'financeiro', email_fixo: '', usuario_id: '' }] },
+      { tipo: 'email', destinatario_tipo: 'papel', papel: 'admin_isv', assunto: 'Custo aguardando aprovação', mensagem: 'Uma ação tem custo(s) pendente(s) de aprovação:\n{{descricao}}\n{{empresa_nome}}', email_fixo: '', prazo_dias: 3, usuario_id: '', titulo_tarefa: '',
+        destinatarios_extra: [{ id: crypto.randomUUID(), tipo: 'papel', papel: 'financeiro', email_fixo: '', usuario_id: '' }] },
     ],
     acoes_else: [], com_else: false,
   },
@@ -848,7 +855,7 @@ async function executarEngine(tenantId) {
           custos_aprovados:  custos.filter(c => ultimoStatus(c) === 'aprovado').length,
           custos_rejeitados: custos.filter(c => ultimoStatus(c) === 'rejeitado').length,
           custos_executados: custos.filter(c => c.executado).length,
-          n_documentos:      (cf.documentos || []).length,
+          n_documentos:      (cf.documento_ids || []).length,
           n_anexos:          (cf.anexos || []).length,
         }
       })

@@ -4207,7 +4207,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     ])]
     const empresaAtual = allCompanies.find(c => String(c.id) === String(form.empresa_id))
     const resultadoQualificacao = calcularQualificacaoCompleta({
-      opp: { ...form, playbook_ids: playbookIds }, playbooks, empresa: empresaAtual,
+      opp: { ...form, id: initial?.id, playbook_ids: playbookIds }, playbooks, empresa: empresaAtual,
       templates: allQuestionTemplates, submissions: allSubmissions,
     })
     const oppSalva = { ...form, valor_desconto: desconto, valor: liquido,
@@ -4350,10 +4350,10 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
     if (!isEditing) return []
     const empresaAtual = allCompanies.find(c => String(c.id) === String(form.empresa_id))
     return calcularQualificacaoCompleta({
-      opp: form, playbooks, empresa: empresaAtual,
+      opp: { ...form, id: initial?.id }, playbooks, empresa: empresaAtual,
       templates: allQuestionTemplates, submissions: allSubmissions,
     }).detalhes
-  }, [isEditing, form, allCompanies, playbooks, allQuestionTemplates, allSubmissions])
+  }, [isEditing, form, initial?.id, allCompanies, playbooks, allQuestionTemplates, allSubmissions])
 
   const errosCamposCustom = Object.entries(errs).filter(([k]) => k.startsWith('cf_')).map(([, v]) => v)
   const dadosFormBody = (
@@ -4881,18 +4881,17 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
   // Chave do checklist: id real da etapa (se o playbook tem funil vinculado)
   // ou a stage genérica (fallback), mesma lógica de PlaybookDetail/Playbooks.js.
   const checklistKey = playbook?.funil_id ? etapaId : stage
-  const checklistItens = (playbook?.checklist_etapas || {})[checklistKey] || []
   const respostasPlaybook = (opp?.checklist_respostas || {})[effectiveId] || {}
-  const respostasEtapa = respostasPlaybook[checklistKey] || {}
 
-  function toggleChecklistItem(itemId) {
+  function toggleChecklistItem(itemId, etapaKeyAlvo = checklistKey) {
     if (!opp?.id || !onSaveOpp) return
-    const novaResposta = !respostasEtapa[itemId]
+    const respostasEtapaAlvo = respostasPlaybook[etapaKeyAlvo] || {}
+    const novaResposta = !respostasEtapaAlvo[itemId]
     const novasRespostas = {
       ...(opp.checklist_respostas || {}),
       [effectiveId]: {
         ...respostasPlaybook,
-        [checklistKey]: { ...respostasEtapa, [itemId]: novaResposta },
+        [etapaKeyAlvo]: { ...respostasEtapaAlvo, [itemId]: novaResposta },
       },
     }
     const oppAtualizada = { ...opp, checklist_respostas: novasRespostas }
@@ -4900,6 +4899,29 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
     const patch = { checklist_respostas: novasRespostas, qualificacao_score: resultado.score, qualificacao_desqualificada: resultado.desqualificada }
     onUpdateFields && onUpdateFields(patch)
     onSaveOpp({ ...oppAtualizada, ...patch })
+  }
+
+  // Checklist de TODAS as etapas do playbook (não só a atual) — pra consulta
+  // e preenchimento retroativo/antecipado, recolhido por padrão exceto a
+  // etapa em que a oportunidade está agora.
+  const todasEtapasChecklist = useMemo(() => {
+    if (!playbook) return []
+    const fonte = playbook.funil_id
+      ? [...(etapas || [])].sort((a, b) => (a.ordem || 0) - (b.ordem || 0)).map(e => ({ key: e.id, label: e.nome }))
+      : Object.entries(STAGE_CFG).map(([key, cfg]) => ({ key, label: cfg.label }))
+    return fonte
+      .map(e => ({ ...e, itens: (playbook.checklist_etapas || {})[e.key] || [] }))
+      .filter(e => e.itens.length > 0)
+  }, [playbook, etapas])
+
+  const [stagesAbertas, setStagesAbertas] = useState(() => new Set())
+  const stageAberta = (key) => key === checklistKey || stagesAbertas.has(key)
+  function toggleStageAberta(key) {
+    setStagesAbertas(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
   }
 
   // ── Inline styles ──────────────────────────────────────────────────────────
@@ -5083,22 +5105,46 @@ function OppPlaybookTab({ opp, etapaId, etapas, playbookId, onChangePlaybook, on
         )}
       </div>
 
-      {/* ── Checklist de Avanço de Etapas da etapa atual ── */}
-      {checklistItens.length > 0 && (
+      {/* ── Checklist de Avanço de Etapas — todas as etapas, recolhidas exceto a atual ── */}
+      {todasEtapasChecklist.length > 0 && (
         <div style={S.section}>
           <SectionHeading icon="✅" label="Checklist de Avanço de Etapas" />
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {checklistItens.map(item => {
-              const marcado = !!respostasEtapa[item.id]
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {todasEtapasChecklist.map(et => {
+              const respostasEt = respostasPlaybook[et.key] || {}
+              const respondidos = et.itens.filter(i => respostasEt[i.id]).length
+              const aberta = stageAberta(et.key)
+              const isAtual = et.key === checklistKey
               return (
-                <label key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
-                  borderRadius:8, border:'1px solid var(--border2)', background: marcado ? 'var(--accent-glow)' : 'var(--surface2)',
-                  cursor: opp?.id ? 'pointer' : 'not-allowed', opacity: opp?.id ? 1 : 0.6 }}>
-                  <input type="checkbox" checked={marcado} disabled={!opp?.id}
-                    onChange={() => toggleChecklistItem(item.id)} style={{ accentColor:'var(--accent)' }} />
-                  <span style={{ flex:1, fontSize:13, color:'var(--text)' }}>{item.label}</span>
-                  <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>peso {item.peso}</span>
-                </label>
+                <div key={et.key} style={{ border:'1px solid var(--border2)', borderRadius:8, overflow:'hidden' }}>
+                  <button type="button" onClick={() => toggleStageAberta(et.key)}
+                    style={{ width:'100%', display:'flex', alignItems:'center', gap:8, padding:'8px 12px',
+                      background: isAtual ? 'var(--accent-glow)' : 'var(--surface2)', border:'none', cursor:'pointer',
+                      fontFamily:'var(--font)', textAlign:'left' }}>
+                    <span style={{ fontSize:11, color:'var(--text-muted)', transform: aberta ? 'rotate(90deg)' : 'none', transition:'transform 0.15s' }}>▶</span>
+                    <span style={{ flex:1, fontSize:13, fontWeight:600, color: isAtual ? 'var(--accent)' : 'var(--text)' }}>
+                      {et.label}{isAtual && ' (atual)'}
+                    </span>
+                    <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{respondidos}/{et.itens.length}</span>
+                  </button>
+                  {aberta && (
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, padding:'10px 12px' }}>
+                      {et.itens.map(item => {
+                        const marcado = !!respostasEt[item.id]
+                        return (
+                          <label key={item.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                            borderRadius:8, border:'1px solid var(--border2)', background: marcado ? 'var(--accent-glow)' : 'var(--surface)',
+                            cursor: opp?.id ? 'pointer' : 'not-allowed', opacity: opp?.id ? 1 : 0.6 }}>
+                            <input type="checkbox" checked={marcado} disabled={!opp?.id}
+                              onChange={() => toggleChecklistItem(item.id, et.key)} style={{ accentColor:'var(--accent)' }} />
+                            <span style={{ flex:1, fontSize:13, color:'var(--text)' }}>{item.label}</span>
+                            <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>peso {item.peso}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )
             })}
           </div>

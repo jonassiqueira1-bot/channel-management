@@ -471,13 +471,45 @@ async function processOportunidadesParadas(tenantId: string, rule: Rule) {
 
 // ─── Processador de regras dinâmicas (via builder de condições) ─────────────
 
+// Ações não guardam custos_aguardando/aprovados/etc. como coluna — são
+// contagens calculadas a partir de custom_fields.custos. A tela de
+// Configuração de Alertas (Alertas.js) já fazia esse cálculo pra preview,
+// mas só no cliente; o CRON de verdade (esta função) buscava a linha crua
+// via select('*') sem enriquecer, então a condição da regra padrão
+// "Ações aprovação de custos" nunca encontrava o campo e nunca disparava.
+function enriquecerAction(r: Record<string, unknown>): Record<string, unknown> {
+  const cf = (r.custom_fields as Record<string, unknown>) || {}
+  const custos = (cf.custos as Array<Record<string, unknown>>) || []
+  const ultimoStatus = (c: Record<string, unknown>) => {
+    const aprovs = (c.aprovacoes as Array<Record<string, unknown>>) || []
+    if (!aprovs.length) return 'pendente'
+    return aprovs[aprovs.length - 1].status || 'pendente'
+  }
+  const custosRealizadoTotal = custos.filter(c => c.executado).reduce((s, c) => s + (Number(c.valor_realizado) || 0), 0)
+  return {
+    ...r,
+    custo_previsto:    Number(cf.custo_previsto) || 0,
+    custo_realizado:   custosRealizadoTotal,
+    n_custos:          custos.length,
+    custos_aguardando: custos.filter(c => ultimoStatus(c) === 'aguardando').length,
+    custos_aprovados:  custos.filter(c => ultimoStatus(c) === 'aprovado').length,
+    custos_rejeitados: custos.filter(c => ultimoStatus(c) === 'rejeitado').length,
+    custos_executados: custos.filter(c => c.executado).length,
+    n_documentos:      ((cf.documento_ids as Array<unknown>) || []).length,
+    n_anexos:          ((cf.anexos as Array<unknown>) || []).length,
+  }
+}
+
 async function processRegraGenerica(tenantId: string, rule: Rule) {
   const cfg = ORIGEM_CONFIG[rule.origem]
   if (!cfg) return 0
 
-  const { data: registros } = await db.from(rule.origem).select(cfg.select).eq('tenant_id', tenantId)
+  const { data: registrosRaw } = await db.from(rule.origem).select(cfg.select).eq('tenant_id', tenantId)
+  const registros = rule.origem === 'actions'
+    ? (registrosRaw ?? []).map(r => enriquecerAction(r as Record<string, unknown>))
+    : (registrosRaw ?? [])
   let criados = 0
-  for (const r of registros ?? []) {
+  for (const r of registros) {
     if (!avaliarCondicoes(r as Record<string, unknown>, rule)) continue
     if (await alertExists(tenantId, rule.gatilho, r.id)) continue
     await executeAcoes(rule, r as Record<string, unknown>, {
