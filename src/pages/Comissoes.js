@@ -1672,16 +1672,10 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
 
   function markPago(id) { setPayments(prev => prev.map(p => p.id===id ? {...p, status:'pago', data_pagamento:today()} : p)) }
 
+  const groupsControlRef = useRef(null)
+
   const COLUMNS = [
-    { key: 'beneficiario_nome', label: 'Beneficiário', render: (val, row) => (
-      <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-        <Avatar nome={val} />
-        <div>
-          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{val || '—'}</div>
-          {row.descricao && <div style={{ fontSize:11, color:'var(--text-muted)', maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{row.descricao}</div>}
-        </div>
-      </div>
-    )},
+    { key: 'descricao', label: 'Descrição', render: (val, row) => row.descricao || <span style={{ color:'var(--text-muted)' }}>—</span> },
     { key: 'persona',      label: 'Persona',  render: val => <PersonaTag personaId={val} personas={personas} /> },
     { key: 'receita_tipo', label: 'Tipo',     render: val => <span style={{ fontSize:12, fontWeight:600, color:'var(--text-soft)', fontFamily:'var(--mono)' }}>{val}</span> },
     { key: 'valor_base', label: 'Base / %', render: (val, row) => (
@@ -1761,11 +1755,63 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
     )
   }
 
+  function renderGroupHeader({ groupKey, rows, expanded, onToggleExpand, allSelected, someSelected, onToggleGroupSelection }) {
+    const grupoTotal    = rows.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+    const grupoPendente = rows.filter(p => p.status === 'pendente').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+    const persona       = rows[0]?.persona
+    return (
+      <div
+        style={{ display:'grid', gridTemplateColumns:'32px 1fr auto', alignItems:'center', gap:8, padding:'8px 16px', background:'var(--surface2)', cursor:'pointer' }}
+        onClick={onToggleExpand}
+      >
+        <input type="checkbox" checked={allSelected}
+          ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
+          onChange={onToggleGroupSelection} onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
+        <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+          <ChevronRight size={14} strokeWidth={2} style={{ color:'var(--text-muted)', flexShrink:0, transition:'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }} />
+          <Avatar nome={groupKey} size={26} />
+          <div style={{ minWidth:0 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{groupKey}</span>
+              <span style={{ fontSize:10, color:'var(--text-muted)' }}>{rows.length} lanç.</span>
+              {persona && <PersonaTag personaId={persona} personas={personas} />}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:12 }} onClick={e => e.stopPropagation()}>
+          {grupoPendente > 0 && <span style={{ fontSize:11, color:'#F59E0B' }}>{fmt(grupoPendente)} pendente</span>}
+          <span style={{ fontSize:13, fontWeight:800, fontFamily:'var(--mono)', color:'var(--text)' }}>{fmt(grupoTotal)}</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <BrowseLayout
       modulo="comissoes"
       data={filtered}
       columns={COLUMNS}
+      groupBy={row => row.beneficiario_nome || 'Sem nome'}
+      renderGroupHeader={renderGroupHeader}
+      groupsControlRef={groupsControlRef}
+      secondaryActions={
+        <>
+          <button
+            type="button"
+            onClick={() => groupsControlRef.current?.expandAll()}
+            title="Expandir todos os grupos"
+            style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+            <ChevronDown size={12} strokeWidth={2} /> Expandir
+          </button>
+          <button
+            type="button"
+            onClick={() => groupsControlRef.current?.collapseAll()}
+            title="Recolher todos os grupos"
+            style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+            <ChevronRight size={12} strokeWidth={2} style={{ transform:'rotate(90deg)' }} /> Recolher
+          </button>
+        </>
+      }
       filters={FILTERS}
       activeFilters={activeFilters}
       onFilterChange={setActiveFilters}
