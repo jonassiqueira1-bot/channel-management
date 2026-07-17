@@ -16,7 +16,7 @@ import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 /* ─── Constants ─────────────────────────────────────────── */
 
-const IMPORT_COLS = ['name', 'objective', 'description', 'start_date', 'end_date', 'status', 'pontua_metas']
+const IMPORT_COLS = ['name', 'objective', 'description', 'start_date', 'end_date', 'status']
 
 /* ─── CSV helpers ────────────────────────────────────────── */
 function parseCSV(text) {
@@ -86,7 +86,7 @@ function ImportModal({ onClose, onImport, existingNames }) {
 
   function downloadTemplate() {
     const header  = IMPORT_COLS.join(';')
-    const example = 'Campanha Verão;Sazonal;Descrição aqui;2026-01-01;2026-03-31;draft;false'
+    const example = 'Campanha Verão;Sazonal;Descrição aqui;2026-01-01;2026-03-31;draft'
     downloadText(`${header}\n${example}`, 'template_campanhas.csv', 'text/csv')
   }
 
@@ -95,15 +95,13 @@ function ImportModal({ onClose, onImport, existingNames }) {
 
   function doImport() {
     onImport(okRows.map(r => ({
-      id: Math.random().toString(36).slice(2),
+      id: crypto.randomUUID(),
       name: r.name.trim(),
       objective: r.objective || '',
       description: r.description || '',
       start_date: r.start_date || '',
       end_date: r.end_date || '',
       status: VALID_STATUS.includes(r.status) ? r.status : 'draft',
-      pontua_metas: r.pontua_metas === 'true' || r.pontua_metas === '1',
-      materials: [''],
     })))
     onClose()
   }
@@ -142,7 +140,6 @@ function ImportModal({ onClose, onImport, existingNames }) {
               </div>
               <div style={{ fontSize:12, color:'var(--text-muted)', background:'var(--surface2)', borderRadius:8, padding:'10px 14px', lineHeight:1.6 }}>
                 <strong>status:</strong> draft, active, paused &nbsp;·&nbsp;
-                <strong>pontua_metas:</strong> true / false &nbsp;·&nbsp;
                 <strong>datas:</strong> AAAA-MM-DD
               </div>
             </div>
@@ -216,8 +213,6 @@ const EMPTY_FORM = {
   name: '',
   objective: '',
   description: '',
-  materials: [''],
-  pontua_metas: false,
   start_date: '',
   end_date: '',
   status: 'draft',
@@ -397,26 +392,6 @@ function StatusBadge({ value }) {
   )
 }
 
-/* ─── Toggle ─────────────────────────────────────────────── */
-function Toggle({ value, onChange }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!value)}
-      style={{
-        width: 40, height: 22, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0,
-        background: value ? 'var(--accent)' : 'var(--border2)', position: 'relative', transition: 'background 0.2s',
-      }}
-    >
-      <span style={{
-        position: 'absolute', top: 2, left: value ? 20 : 2, width: 18, height: 18,
-        borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-      }} />
-    </button>
-  )
-}
-
 /* ─── SearchMultiSelect — sem pílulas: fechado mostra resumo em texto ─────────
    ("3 selecionadas"), aberto mostra busca + checklist. Mesmo padrão da
    MultiSelectDropdown já usada em settings/Indicadores.js. ────────────────── */
@@ -532,10 +507,6 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
 
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(e => ({ ...e, [k]: '' })) }
 
-  function addMaterial() { set('materials', [...(form.materials || []), '']) }
-  function updateMaterial(i, v) { const n = [...form.materials]; n[i] = v; set('materials', n) }
-  function removeMaterial(i) { set('materials', form.materials.filter((_, idx) => idx !== i)) }
-
   function validate() {
     const e = {}
     if (!form.name.trim())   e.name = 'Informe o nome da campanha'
@@ -548,7 +519,7 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
   async function handleSave() {
     if (!validate()) return
     setSaving(true)
-    await onSave({ ...form, id: form.id || uid() })
+    await onSave({ ...form, id: form.id || crypto.randomUUID() })
     setSaving(false)
   }
 
@@ -635,9 +606,10 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
           <SearchMultiSelect options={segmentosOpts} selected={form.empresa_segmentos} onChange={v => set('empresa_segmentos', v)} placeholder="Todos os segmentos" />
         </FPEField>
         <FPEField label="Empresas — apenas ativas">
-          <div style={{ display: 'flex', alignItems: 'center', height: 36 }}>
-            <Toggle value={form.empresa_apenas_ativas} onChange={v => set('empresa_apenas_ativas', v)} />
-          </div>
+          <select value={form.empresa_apenas_ativas ? 'sim' : 'nao'} onChange={e => set('empresa_apenas_ativas', e.target.value === 'sim')} className="fpe-field">
+            <option value="nao">Todas (ativas e inativas)</option>
+            <option value="sim">Apenas ativas</option>
+          </select>
         </FPEField>
         <FPEField label="Empresas específicas" span={2}>
           <SearchMultiSelect options={empresasOpts} selected={form.empresa_ids} onChange={v => set('empresa_ids', v)} placeholder="Nenhuma — usar só segmento/status acima" />
@@ -647,30 +619,6 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
         </FPEField>
         <FPEField label="Funil">
           <SearchSelect options={funilOpts} value={form.funil_id} onChange={id => set('funil_id', id || null)} placeholder="Pesquisar funil…" noResults="Nenhum funil encontrado" />
-        </FPEField>
-      </FPESection>
-
-      <FPESection title="Materiais e Pontuação">
-        <FPEField label="Links de Materiais de Apoio" span={2}>
-          {form.materials.map((m, i) => (
-            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-              <input value={m} onChange={e => updateMaterial(i, e.target.value)} placeholder="https://drive.google.com/…" className="fpe-field" style={{ flex: 1 }} />
-              {form.materials.length > 1 && (
-                <button type="button" onClick={() => removeMaterial(i)}
-                  style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
-              )}
-            </div>
-          ))}
-          <button type="button" onClick={addMaterial}
-            style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '1px dashed var(--accent)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>
-            + Adicionar link
-          </button>
-        </FPEField>
-        <FPEField label="Pontuação especial nas Metas">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 36 }}>
-            <Toggle value={form.pontua_metas} onChange={v => set('pontua_metas', v)} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ações desta campanha pontuam diferenciado no ranking</span>
-          </div>
         </FPEField>
       </FPESection>
     </FullPageEdit>
@@ -683,13 +631,11 @@ const SEEDS = [
     id: 'c1', name: 'Campanha de Verão 2026', objective: 'Sazonal',
     description: 'Incentivo especial para captação de novos leads no período de verão.',
     start_date: '2026-01-01', end_date: '2026-02-28', status: 'active',
-    materials: ['https://drive.google.com/arts-verao'], pontua_metas: true,
   },
   {
     id: 'c2', name: 'Upgrade Pro Q1', objective: 'Upgrade de Módulo',
     description: 'Campanha para conversão de clientes Basic para plano Pro.',
     start_date: '2026-03-01', end_date: '2026-03-31', status: 'draft',
-    materials: [''], pontua_metas: false,
   },
 ]
 
@@ -724,17 +670,13 @@ export default function Campanhas() {
 
   function exportCSV() {
     const header = IMPORT_COLS.join(';')
-    const body   = filtered.map(c =>
-      IMPORT_COLS.map(col => toCSVValue(col === 'pontua_metas' ? String(c[col] ?? false) : (c[col] ?? ''))).join(';')
-    ).join('\n')
+    const body   = filtered.map(c => IMPORT_COLS.map(col => toCSVValue(c[col] ?? '')).join(';')).join('\n')
     downloadText(`${header}\n${body}`, 'campanhas.csv', 'text/csv')
   }
 
   function exportExcel() {
     const header = IMPORT_COLS.join('\t')
-    const body   = filtered.map(c =>
-      IMPORT_COLS.map(col => String(col === 'pontua_metas' ? (c[col] ?? false) : (c[col] ?? ''))).join('\t')
-    ).join('\n')
+    const body   = filtered.map(c => IMPORT_COLS.map(col => String(c[col] ?? '')).join('\t')).join('\n')
     downloadText(`${header}\n${body}`, 'campanhas.xls', 'application/vnd.ms-excel')
   }
 
@@ -788,14 +730,17 @@ export default function Campanhas() {
           },
           { key: 'status', label: 'Status', render: (v) => <StatusBadge value={v} /> },
           {
-            key: 'pontua_metas',
+            key: 'meta_valor',
             label: 'Metas',
             priority: 2,
-            render: (v) => (
-              <span style={{ fontSize: 11, color: v ? '#10B981' : 'var(--border2)', fontWeight: 700 }}>
-                {v ? '✓ Sim' : '—'}
-              </span>
-            ),
+            render: (v, row) => {
+              const hasMeta = Number(v) > 0 || Number(row.meta_oportunidades) > 0
+              return (
+                <span style={{ fontSize: 11, color: hasMeta ? 'var(--text-soft)' : 'var(--border2)', fontWeight: 600 }}>
+                  {hasMeta ? [Number(v) > 0 && fmtMoeda(v), Number(row.meta_oportunidades) > 0 && `${row.meta_oportunidades} oport.`].filter(Boolean).join(' · ') : '—'}
+                </span>
+              )
+            },
           },
         ]}
         data={filtered}
