@@ -38,6 +38,7 @@ import {
   STAGE_CFG, RESOURCE_CFG,
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
+import { useCampanhas } from '../hooks/useCampanhas'
 import { STORAGE_KEY as TIPOS_ACAO_KEY } from './settings/TiposAcao'
 import { useDocuments } from '../hooks/useDocuments'
 import { useOpportunities } from '../hooks/useOpportunities'
@@ -769,16 +770,14 @@ function MotivoPerdaField({ value, onChange }) {
   )
 }
 
-// ─── Campo de Campanha — lê da fonte única em settings:campanhas_v1 ──────────
-const CAMPANHAS_SETTINGS_DEFAULT = []
-
+// ─── Campo de Campanha — lê da fonte real (tabela campanhas via useCampanhas) ─
 function CampanhaField({ value, onChange }) {
-  const [campanhas] = useLocalState('settings:campanhas_v1', CAMPANHAS_SETTINGS_DEFAULT)
+  const { campanhas } = useCampanhas()
   const ativas = campanhas.filter(c => c.status === 'active' || c.status === 'draft')
   const opts = ativas.map(c => ({
     id: c.id,
-    label: c.name + (c.status === 'draft' ? ' (rascunho)' : ''),
-    sublabel: c.objetivo || '',
+    label: (c.name || c.nome) + (c.status === 'draft' ? ' (rascunho)' : ''),
+    sublabel: c.objective || c.objetivo || '',
     color: 'var(--accent)',
   }))
 
@@ -5870,7 +5869,7 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
 }
 
 function BulkOrigemCampanhaModal({ oppIds, opps, onClose, saveOpp }) {
-  const [campanhas] = useLocalState('settings:campanhas_v1', CAMPANHAS_SETTINGS_DEFAULT)
+  const { campanhas } = useCampanhas()
   const campanhasAtivas = campanhas.filter(c => c.status === 'active' || c.status === 'draft')
   const [origem, setOrigem]     = useState('')
   const [campanha, setCampanha] = useState('')
