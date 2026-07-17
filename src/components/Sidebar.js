@@ -420,6 +420,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                     <NavLink
                       to={item.path}
                       end
+                      draggable={false}
                       title={collapsed ? item.label : undefined}
                       onClick={isMobile ? onClose : undefined}
                       onMouseDown={e => e.preventDefault()}
