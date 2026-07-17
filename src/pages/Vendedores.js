@@ -9,8 +9,9 @@ import { useProfile } from '../hooks/useProfile'
 import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
 import { checkEmUso } from '../lib/checkUsage'
 import BrowseLayout from '../components/BrowseLayout'
-import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
+import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import Button from '../components/Button'
+import Badge from '../components/Badge'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCPF(v) {
@@ -215,6 +216,18 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
     setSaving(false)
   }
 
+  const maturidadeBadge = !isNew && (
+    scoreData ? (
+      <span title={`Calculado em ${new Date(scoreData.calculado_em).toLocaleDateString('pt-BR')}`}>
+        <Badge variant={scoreData.score_pct >= 70 ? 'success' : scoreData.score_pct >= 40 ? 'warning' : 'danger'}>
+          🎯 Maturidade {scoreData.score_pct}%
+        </Badge>
+      </span>
+    ) : (
+      <Badge variant="neutral">Maturidade ainda não calculada</Badge>
+    )
+  )
+
   return (
     <SlideOver
       open={open}
@@ -224,29 +237,24 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
       deleteConfirm="Excluir este contato? Esta ação não pode ser desfeita."
       saving={saving}
       title={isNew ? 'Novo Contato Canal' : form.nome || 'Editar Contato Canal'}
-      subtitle={isNew ? 'Preencha os dados do contato' : form.email}
+      subtitle={isNew ? 'Preencha os dados do contato' : ROLES[form.role]?.label}
       saveLabel={isNew ? 'Cadastrar contato' : 'Salvar alterações'}
-      columns={2}
-      headerActions={!isNew && (
-        scoreData ? (
-          <span title={`Calculado em ${new Date(scoreData.calculado_em).toLocaleDateString('pt-BR')}`}
-            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:8,
-              border:'1px solid var(--border)', background:'var(--surface2)' }}>
-            <span style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Maturidade</span>
-            <span style={{ fontSize:14, fontWeight:800, fontFamily:'var(--mono)',
-              color: scoreData.score_pct >= 70 ? '#065F46' : scoreData.score_pct >= 40 ? '#92400E' : '#991B1B' }}>
-              🎯 {scoreData.score_pct}%
-            </span>
-          </span>
-        ) : (
-          <span style={{ fontSize:11, color:'var(--text-muted)', padding:'6px 12px' }}>
-            Maturidade ainda não calculada
-          </span>
-        )
+      headerExtra={!isNew && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {form.email && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{form.email}</div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <Badge variant={form.status === 'ativo' ? 'success' : form.status === 'afastado' ? 'warning' : 'neutral'} dot>
+              {STATUS_CFG[form.status]?.label}
+            </Badge>
+            {maturidadeBadge}
+          </div>
+        </div>
       )}
     >
-      <FormGrid cols={2}>
-        <FormField label="Nome" required error={errs.nome} style={{ gridColumn: 'span 2' }}>
+      <FormSection label="Dados Pessoais">
+        <FormField label="Nome" required error={errs.nome} span={2}>
           <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo"
             style={{ borderColor: errs.nome ? '#DC2626' : '' }} />
         </FormField>
@@ -264,7 +272,9 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
           <input className="so-field" value={form.cpf} onChange={e => set('cpf', fmtCPF(e.target.value))} placeholder="000.000.000-00"
             style={{ borderColor: errs.cpf ? '#DC2626' : '' }} />
         </FormField>
+      </FormSection>
 
+      <FormSection label="Organização">
         <FormField label="Cargo / Papel">
           <select className="so-field" value={form.role} onChange={e => set('role', e.target.value)}>
             {Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
@@ -284,19 +294,6 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
           </select>
         </FormField>
 
-        <FormField label="Franquia / Equipe" style={{ gridColumn: 'span 2' }}>
-          <SearchSelect
-            value={form.franquia_id || ''}
-            onChange={(id, label) => setForm(f => ({ ...f, franquia_id: id || null, franquia_nome: label || '' }))}
-            options={franquiasOpts.map(o => ({ id: o.id, label: `${o.sublabel ? `[${o.sublabel}] ` : ''}${o.label}` }))}
-            placeholder="Buscar parceiro..."
-          />
-        </FormField>
-
-        <FormField label="Meta mensal (R$)">
-          <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
-        </FormField>
-
         <FormField label="Funil de acesso (Portal)">
           <select className="so-field" value={form.funil_id || ''} onChange={e => set('funil_id', e.target.value || null)}>
             <option value="">Todos os funis</option>
@@ -304,6 +301,23 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
           </select>
         </FormField>
 
+        <FormField label="Franquia / Equipe" span={2}>
+          <SearchSelect
+            value={form.franquia_id || ''}
+            onChange={(id, label) => setForm(f => ({ ...f, franquia_id: id || null, franquia_nome: label || '' }))}
+            options={franquiasOpts.map(o => ({ id: o.id, label: `${o.sublabel ? `[${o.sublabel}] ` : ''}${o.label}` }))}
+            placeholder="Buscar parceiro..."
+          />
+        </FormField>
+      </FormSection>
+
+      <FormSection label="Metas">
+        <FormField label="Meta mensal (R$)">
+          <input className="so-field" type="number" min="0" value={form.meta_mensal} onChange={e => set('meta_mensal', e.target.value)} placeholder="0" />
+        </FormField>
+      </FormSection>
+
+      <FormSection label="Canais de Contato">
         <FormField label="LinkedIn">
           <input className="so-field" value={form.linkedin_url} onChange={e => set('linkedin_url', e.target.value)} placeholder="https://linkedin.com/in/usuario" />
         </FormField>
@@ -311,17 +325,18 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
         <FormField label="WhatsApp">
           <input className="so-field" value={form.whatsapp} onChange={e => set('whatsapp', e.target.value)} placeholder="(00) 00000-0000" />
         </FormField>
+      </FormSection>
 
-        <FormField label="Observações internas" style={{ gridColumn: 'span 2' }}>
+      <FormSection label="Observações">
+        <FormField label="Observações internas" span={2}>
           <textarea className="so-field" rows={3} style={{ resize:'vertical' }} value={form.observacoes} onChange={e => set('observacoes', e.target.value)} placeholder="Notas internas…" />
         </FormField>
+      </FormSection>
 
-        {/* Acesso ao portal */}
-        {onInvite && (
-          <div style={{ gridColumn:'span 2', borderTop:'1px solid var(--border)', paddingTop:16, marginTop:4 }}>
-            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.08em', color:'var(--text-muted)', marginBottom:8 }}>
-              Acesso ao Portal
-            </div>
+      {/* Acesso ao portal */}
+      {onInvite && (
+        <FormSection label="Acesso ao Portal">
+          <div style={{ gridColumn: 'span 2' }}>
             {initial?.portal_invited_at ? (
               <div style={{ display:'flex', alignItems:'center', gap:10 }}>
                 <span style={{ fontSize:12, color:'#059669', fontWeight:600 }}>✓ Convite enviado</span>
@@ -346,8 +361,8 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
               </button>
             )}
           </div>
-        )}
-      </FormGrid>
+        </FormSection>
+      )}
     </SlideOver>
   )
 }

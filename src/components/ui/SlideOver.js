@@ -46,9 +46,9 @@ const SIZE_ORDER  = ['compact', 'default', 'fullscreen']
 
 // ── tokens internos ───────────────────────────────────────────────────────────
 const SO_BG         = '#FFFFFF'       // painel branco
-const SO_INPUT_BG   = '#F8FAFC'       // inputs ligeiramente acinzentados (inversão proposital)
-const SO_BORDER     = '#CBD5E1'       // zinc-300 equivalente — borda visível
-const SO_FOCUS_RING = '0 0 0 3px rgba(37,99,235,0.15)'
+const SO_INPUT_BG   = '#FFFFFF'       // campos brancos, definidos só pela borda (discreta)
+const SO_BORDER     = '#E2E6EC'       // borda sutil — sem o efeito "caixa" tradicional
+const SO_FOCUS_RING = '0 0 0 4px rgba(37,99,235,0.12)'
 const SO_FOCUS_BC   = '#2563EB'      // blue-600
 
 // ── SlideOver ─────────────────────────────────────────────────────────────────
@@ -128,7 +128,7 @@ export default function SlideOver({
           onClick={onClose}
           style={{
             position: 'fixed', inset: 0, zIndex: 200,
-            background: 'rgba(0,0,0,0.25)',
+            background: 'rgba(15,23,42,0.44)',
             animation: 'soFadeIn 0.18s ease',
           }}
         />
@@ -166,82 +166,97 @@ export default function SlideOver({
           /* ─── Inputs dentro do SlideOver ─────────────────────────── */
           .so-field {
             width: 100%;
-            height: 36px;
-            padding: 0 10px;
+            height: 40px;
+            padding: 0 14px;
             border: 1px solid ${SO_BORDER};
-            border-radius: var(--radius-md, 6px);
+            border-radius: 10px;
             background: ${SO_INPUT_BG};
             font-family: var(--font);
             font-size: var(--text-base, 13px);
             color: var(--text);
             outline: none;
             line-height: normal;
-            transition: border-color 0.15s, box-shadow 0.15s;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
             box-sizing: border-box;
             appearance: none;
           }
+          .so-field::placeholder { color: #B4B9C2; }
+          .so-field:hover:not(:focus):not(:disabled) {
+            border-color: #D3D8E0;
+          }
           .so-field:focus {
             border-color: ${SO_FOCUS_BC};
-            box-shadow: ${SO_FOCUS_RING}, inset 3px 0 0 ${SO_FOCUS_BC};
+            box-shadow: ${SO_FOCUS_RING};
           }
           .so-field:disabled {
-            background: #F1F5F9;
+            background: #FAFBFC;
             color: var(--text-muted);
             cursor: not-allowed;
           }
           textarea.so-field {
             height: auto;
-            min-height: 80px;
-            padding: 8px 10px;
+            min-height: 96px;
+            padding: 12px 14px;
             resize: vertical;
-            line-height: 1.55;
+            line-height: 1.6;
           }
           select.so-field {
-            padding-right: 28px;
+            padding-right: 32px;
+            cursor: pointer;
             background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath fill='%239A9590' d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
             background-repeat: no-repeat;
-            background-position: right 8px center;
-            background-size: 14px;
+            background-position: right 12px center;
+            background-size: 13px;
           }
           .so-label {
-            font-size: 11px;
-            font-weight: 700;
+            font-size: 10.5px;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.06em;
+            letter-spacing: 0.05em;
             color: var(--text-muted);
-            margin-bottom: 5px;
+            margin-bottom: 7px;
             display: block;
           }
-          .so-hint  { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
-          .so-error { font-size: 11px; color: var(--red, #DC2626); margin-top: 4px; }
+          .so-hint  { font-size: 11.5px; color: var(--text-muted); margin-top: 6px; line-height: 1.5; }
+          .so-error { font-size: 11.5px; color: var(--red, #DC2626); margin-top: 6px; line-height: 1.5; }
           .so-field-wrap { display: flex; flex-direction: column; }
+
+          /* ─── Ação destrutiva discreta (link, não botão) ─────────── */
+          .so-delete-link {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 8px 10px; border: none; background: none; border-radius: 8px;
+            color: #B42318; font-size: 12.5px; font-weight: 500;
+            font-family: var(--font); cursor: pointer;
+            transition: background 0.12s ease, color 0.12s ease;
+          }
+          .so-delete-link:hover { background: rgba(180,35,24,0.08); color: #941B0F; }
         `}</style>
 
         {/* ── Header sticky ─────────────────────────────────────────── */}
         <div style={{
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          padding: '14px 20px', flexShrink: 0,
-          borderBottom: hasTabs ? 'none' : '1px solid var(--border)',
-          borderTop: '3px solid var(--accent)',
+          padding: '22px 24px', flexShrink: 0,
+          borderBottom: hasTabs ? 'none' : '1px solid var(--border2)',
+          borderTop: '2px solid var(--accent)',
           background: SO_BG,
           position: 'sticky', top: 0, zIndex: 1,
         }}>
           <div style={{ minWidth: 0, flex: 1 }}>
-            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, letterSpacing: '-0.3px', color: 'var(--text)' }}>
+            <h2 style={{ margin: 0, fontSize: 19, fontWeight: 700, letterSpacing: '-0.4px', color: 'var(--text)', lineHeight: 1.3 }}>
               {title}
             </h2>
             {subtitle && (
-              <p style={{ margin: '2px 0 0', fontSize: 'var(--text-sm)', color: 'var(--text-muted)' }}>
+              <p style={{ margin: '3px 0 0', fontSize: 13, color: 'var(--text-soft)', fontWeight: 500 }}>
                 {subtitle}
               </p>
             )}
             {headerExtra && (
-              <div style={{ marginTop: 6 }}>
+              <div style={{ marginTop: 10 }}>
                 {headerExtra}
               </div>
             )}
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginLeft: 16 }}>
             {/* Custom header actions (e.g. log toggle button) */}
             {headerActions}
             {/* Expand / Minimize */}
@@ -252,9 +267,10 @@ export default function SlideOver({
               title={isFullscreen ? 'Reduzir' : 'Expandir'}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 30, height: 30, borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)', background: 'var(--surface)',
+                width: 32, height: 32, borderRadius: 9,
+                border: '1px solid var(--border2)', background: 'var(--surface)',
                 cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
+                transition: 'background 0.12s ease, border-color 0.12s ease',
               }}
             >
               {isFullscreen ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
@@ -266,9 +282,10 @@ export default function SlideOver({
               aria-label="Fechar"
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 30, height: 30, borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)', background: 'var(--surface)',
+                width: 32, height: 32, borderRadius: 9,
+                border: '1px solid var(--border2)', background: 'var(--surface)',
                 cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0,
+                transition: 'background 0.12s ease, border-color 0.12s ease',
               }}
             >
               <X size={14} />
@@ -337,15 +354,15 @@ export default function SlideOver({
             flex: 1, minHeight: 0, minWidth: 0,
             overflowY: hasTabs ? 'hidden' : 'auto',
             overflowX: 'hidden',
-            padding: hasTabs ? '0' : '20px',
-            display: 'flex', flexDirection: 'column', gap: hasTabs ? 0 : 20,
+            padding: hasTabs ? '0' : '28px 24px',
+            display: 'flex', flexDirection: 'column', gap: hasTabs ? 0 : 32,
           }}>
             {hasTabs ? (
               // With tabs: render children directly (each tab manages its own layout)
               <>
                 {children}
                 {extra && (
-                  <div style={{ borderTop: '1px solid var(--border)', padding: 20 }}>
+                  <div style={{ borderTop: '1px solid var(--border2)', padding: 24 }}>
                     {extra}
                   </div>
                 )}
@@ -356,14 +373,14 @@ export default function SlideOver({
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: gridCols,
-                  gap: '16px 20px',
+                  gap: '24px 24px',
                   alignItems: 'start',
                   paddingBottom: 8,
                 }}>
                   {children}
                 </div>
                 {extra && (
-                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                  <div style={{ borderTop: '1px solid var(--border2)', paddingTop: 24 }}>
                     {extra}
                   </div>
                 )}
@@ -392,24 +409,18 @@ export default function SlideOver({
         {showFooter && (
           <div style={{
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            gap: 8, padding: '12px 20px', flexShrink: 0,
-            borderTop: '1px solid var(--border)',
+            gap: 8, padding: '16px 24px', flexShrink: 0,
+            borderTop: '1px solid var(--border2)',
             background: SO_BG,
             position: 'sticky', bottom: 0, zIndex: 1,
           }}>
-            {/* Left slot: Excluir ou footerLeft customizado */}
+            {/* Left slot: Excluir (link discreto) ou footerLeft customizado */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {onDelete && (
                 <button
                   type="button"
+                  className="so-delete-link"
                   onClick={() => { if (window.confirm(deleteConfirm)) onDelete() }}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5,
-                    padding: '6px 12px', borderRadius: 'var(--radius-md, 6px)',
-                    border: '1px solid #FCA5A5', background: '#FFF5F5',
-                    color: '#DC2626', fontSize: 12, fontWeight: 600,
-                    fontFamily: 'var(--font)', cursor: 'pointer',
-                  }}
                 >
                   <Trash2 size={13} />
                   {deleteLabel}
@@ -417,8 +428,8 @@ export default function SlideOver({
               )}
               {footerLeft}
             </div>
-            {/* Right slot: Cancelar + Salvar */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {/* Right slot: Cancelar + Salvar (ação principal) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <Button variant="secondary" onClick={onClose}>
                 {cancelLabel}
               </Button>
@@ -444,7 +455,7 @@ export default function SlideOver({
  * <FormGrid cols={2}> ... </FormGrid>
  * Útil para forçar 2 colunas em uma seção específica dentro de um SlideOver de 1 coluna.
  */
-export function FormGrid({ cols = 2, gap = '16px 20px', children, style: extra = {} }) {
+export function FormGrid({ cols = 2, gap = '20px 24px', children, style: extra = {} }) {
   return (
     <div style={{
       display: 'grid',
@@ -463,33 +474,27 @@ export function FormGrid({ cols = 2, gap = '16px 20px', children, style: extra =
  * FormSection — título de seção dentro do formulário.
  * <FormSection label="Endereço" />
  */
-export function FormSection({ label, children }) {
+export function FormSection({ label, description, children }) {
   return (
-    <div style={{
-      gridColumn: '1 / -1',
-      border: '1px solid var(--border2)', borderRadius: 'var(--radius-lg)',
-      boxShadow: '0 1px 4px rgba(0,0,0,0.05)',
-    }}>
+    <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {label && (
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '9px 16px',
-          background: 'var(--surface2)', borderBottom: '1px solid var(--border2)',
-          borderRadius: 'var(--radius-lg) var(--radius-lg) 0 0',
-        }}>
-          <span style={{ width: 3, height: 14, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
-          <span style={{
+        <div>
+          <div style={{
             fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-            letterSpacing: '0.06em', color: 'var(--text-muted)',
+            letterSpacing: '0.07em', color: 'var(--accent)',
           }}>
             {label}
-          </span>
+          </div>
+          {description && (
+            <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+              {description}
+            </div>
+          )}
         </div>
       )}
       {children && (
         <div style={{
-          padding: 16,
-          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px 20px',
+          display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px 24px',
         }}>
           {children}
         </div>
