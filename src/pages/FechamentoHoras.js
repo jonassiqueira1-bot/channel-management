@@ -48,7 +48,10 @@ function StatusBadge({ status }) {
 export default function FechamentoHoras({ embedded = false, showKpis = true }) {
   const { profile } = useProfile()
   const { registrar: log } = useAuditLog()
-  const isGestor = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
+  // Sem profile (ainda carregando) NÃO assume admin — senão a tela pisca com
+  // acesso total antes de corrigir pro real (não-admin), com o agravante de
+  // já ficar clicável nesse instante.
+  const isGestor = !!profile && (profile.papel === 'admin_isv' || profile.role === 'admin_isv')
 
   // Período de referência
   const [periodo, setPeriodo] = useState(() => new Date().toISOString().slice(0, 7))

@@ -3857,9 +3857,9 @@ function calcularQualificacaoCompleta({ opp, playbooks, empresa, templates, subm
   if (qualifSubs.length) {
     const valor = qualifSubs.reduce((a, b) => a + b, 0) / qualifSubs.length
     scores.push(valor)
-    detalhes.push({ fonte: 'Questionário de Qualificação de Lead', valor: Math.round(valor), disponivel: true })
+    detalhes.push({ fonte: 'Questionário', valor: Math.round(valor), disponivel: true })
   } else {
-    detalhes.push({ fonte: 'Questionário de Qualificação de Lead', valor: null, disponivel: false, motivo: 'nenhum questionário desse tipo respondido' })
+    detalhes.push({ fonte: 'Questionário', valor: null, disponivel: false, motivo: 'nenhum questionário desse tipo respondido' })
   }
 
   if (motivosDesqualificacao.length) return { score: 0, desqualificada: true, motivos: motivosDesqualificacao, detalhes }

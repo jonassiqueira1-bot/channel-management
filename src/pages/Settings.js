@@ -139,7 +139,9 @@ export default function Settings() {
   const [collapsed, setCollapsed] = useLocalState('settings:collapsed', false)
   const { profile } = useProfile()
   const { can } = usePermissions()
-  const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
+  // Sem profile (ainda carregando) NÃO assume admin — senão o menu completo
+  // pisca (e fica clicável) antes de corrigir pro real (não-admin).
+  const isAdmin = !!profile && (profile.papel === 'admin_isv' || profile.role === 'admin_isv')
 
   const visibleSections = isAdmin
     ? SECTIONS

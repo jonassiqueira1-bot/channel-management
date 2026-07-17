@@ -1077,6 +1077,12 @@ export default function Empresas() {
   const [filterStatus, setFilterStatus] = useLocalState('empresas:filterStatus', '')
   const [filterTipo, setFilterTipo]     = useLocalState('empresas:filterTipo', '')
   const [filterSeg, setFilterSeg]       = useLocalState('empresas:filterSeg', '')
+  const [filterPorte, setFilterPorte]   = useLocalState('empresas:filterPorte', '')
+  const [filterReceita, setFilterReceita] = useLocalState('empresas:filterReceita', '')
+  const [filterUf, setFilterUf]         = useLocalState('empresas:filterUf', '')
+  const [filterOrigem, setFilterOrigem] = useLocalState('empresas:filterOrigem', '')
+  const [filterResp, setFilterResp]     = useLocalState('empresas:filterResp', '')
+  const [filterUnidade, setFilterUnidade] = useLocalState('empresas:filterUnidade', '')
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
@@ -1106,9 +1112,15 @@ export default function Empresas() {
         (e.cidade || '').toLowerCase().includes(q)
       )
     }
-    if (filterStatus) list = list.filter(e => e.status   === filterStatus)
-    if (filterTipo)   list = list.filter(e => e.tipo     === filterTipo)
-    if (filterSeg)    list = list.filter(e => e.segmento === filterSeg)
+    if (filterStatus)  list = list.filter(e => e.status   === filterStatus)
+    if (filterTipo)    list = list.filter(e => e.tipo     === filterTipo)
+    if (filterSeg)     list = list.filter(e => e.segmento === filterSeg)
+    if (filterPorte)   list = list.filter(e => e.porte    === filterPorte)
+    if (filterReceita) list = list.filter(e => e.receita_faixa === filterReceita)
+    if (filterUf)      list = list.filter(e => e.uf       === filterUf)
+    if (filterOrigem)  list = list.filter(e => e.origem   === filterOrigem)
+    if (filterResp)    list = list.filter(e => e.responsavel === filterResp)
+    if (filterUnidade) list = list.filter(e => (e.hierarquia_tipo || 'independente') === filterUnidade)
     return [...list].sort((a, b) => {
       if (sortBy === 'mrr_desc') return b.mrr - a.mrr
       if (sortBy === 'mrr_asc')  return a.mrr - b.mrr
@@ -1116,12 +1128,12 @@ export default function Empresas() {
       if (sortBy === 'razao_z')  return b.razao?.localeCompare?.(a.razao) ?? 0
       return a.razao?.localeCompare?.(b.razao) ?? 0
     })
-  }, [empresas, search, filterStatus, filterTipo, filterSeg, sortBy])
+  }, [empresas, search, filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade, sortBy])
 
 
   // ── Export ────────────────────────────────────────────────────────────────
   function handleExport() {
-    const scope = (search || filterStatus || filterTipo || filterSeg) ? 'filtrados' : 'todos'
+    const scope = (search || filterStatus || filterTipo || filterSeg || filterPorte || filterReceita || filterUf || filterOrigem || filterResp || filterUnidade) ? 'filtrados' : 'todos'
     const rows  = filtered
     const baseExportHeaders = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status','mrr','contratos']
     const headers = [...baseExportHeaders, ...getEntityCustomFieldKeys('companies')]
@@ -1135,7 +1147,7 @@ export default function Empresas() {
       total: rows.length,
       scope,
       status: 'concluido',
-      filters: { search, filterStatus, filterTipo, filterSeg, sortBy },
+      filters: { search, filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade, sortBy },
     }
 
     const csv = [
@@ -1243,22 +1255,49 @@ export default function Empresas() {
     }},
   ]
 
+  // Opções dinâmicas — derivadas dos valores realmente presentes no cadastro
+  // (não há vocabulário fechado pra UF/Origem/Responsável nesta tela).
+  const ufsDisponiveis   = [...new Set(empresas.map(e => e.uf).filter(Boolean))].sort()
+  const respDisponiveis  = [...new Set(empresas.map(e => e.responsavel).filter(Boolean))].sort()
+
   const FILTERS = [
-    { key: 'tipo',   label: 'Tipo',    options: TIPOS.map(t => ({ value: t.value, label: t.label })) },
-    { key: 'status', label: 'Status',  options: [{value:'ativo',label:'Ativo'},{value:'negociacao',label:'Negociação'},{value:'inativo',label:'Inativo'}] },
-    { key: 'seg',    label: 'Segmento', options: SEGMENTOS.map(s => ({ value: s, label: s })) },
+    { key: 'tipo',     label: 'Tipo',     options: TIPOS.map(t => ({ value: t.value, label: t.label })) },
+    { key: 'status',   label: 'Status',   options: [{value:'ativo',label:'Ativo'},{value:'negociacao',label:'Negociação'},{value:'inativo',label:'Inativo'}] },
+    { key: 'seg',      label: 'Segmento', options: SEGMENTOS.map(s => ({ value: s, label: s })) },
+    { key: 'porte',    label: 'Porte',    options: PORTES.filter(p => p.value) },
+    { key: 'receita',  label: 'Faixa de Receita', options: RECEITA_FAIXAS.filter(r => r.value) },
+    { key: 'uf',       label: 'UF',       options: ufsDisponiveis.map(uf => ({ value: uf, label: uf })) },
+    { key: 'origem',   label: 'Origem',   options: ORIGENS.map(o => ({ value: o, label: o })) },
+    { key: 'resp',     label: 'Responsável', options: respDisponiveis.map(r => ({ value: r, label: r })) },
+    { key: 'unidade',  label: 'Tipo de unidade', options: [
+      { value: 'independente', label: 'Independente' },
+      { value: 'matriz',       label: 'Matriz' },
+      { value: 'filial',       label: 'Filial' },
+    ] },
   ]
 
   const browseActiveFilters = {
-    tipo:   filterTipo   ? [filterTipo]   : [],
-    status: filterStatus ? [filterStatus] : [],
-    seg:    filterSeg    ? [filterSeg]    : [],
+    tipo:     filterTipo    ? [filterTipo]    : [],
+    status:   filterStatus  ? [filterStatus]  : [],
+    seg:      filterSeg     ? [filterSeg]     : [],
+    porte:    filterPorte   ? [filterPorte]   : [],
+    receita:  filterReceita ? [filterReceita] : [],
+    uf:       filterUf      ? [filterUf]      : [],
+    origem:   filterOrigem  ? [filterOrigem]  : [],
+    resp:     filterResp    ? [filterResp]    : [],
+    unidade:  filterUnidade ? [filterUnidade] : [],
   }
 
   function handleBrowseFilterChange(newFilters) {
-    setFilterTipo(  (newFilters.tipo   || [])[0] || '')
-    setFilterStatus((newFilters.status || [])[0] || '')
-    setFilterSeg(   (newFilters.seg    || [])[0] || '')
+    setFilterTipo(   (newFilters.tipo    || [])[0] || '')
+    setFilterStatus( (newFilters.status  || [])[0] || '')
+    setFilterSeg(    (newFilters.seg     || [])[0] || '')
+    setFilterPorte(  (newFilters.porte   || [])[0] || '')
+    setFilterReceita((newFilters.receita || [])[0] || '')
+    setFilterUf(     (newFilters.uf      || [])[0] || '')
+    setFilterOrigem( (newFilters.origem  || [])[0] || '')
+    setFilterResp(   (newFilters.resp    || [])[0] || '')
+    setFilterUnidade((newFilters.unidade || [])[0] || '')
   }
 
   return (

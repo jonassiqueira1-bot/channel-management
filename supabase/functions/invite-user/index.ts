@@ -65,7 +65,7 @@ serve(async (req) => {
     }
 
     const body = await req.json()
-    const { email, nome, papel, tipo_usuario, contact_id, branch_id } = body
+    const { email, nome, papel, tipo_usuario, contact_id, branch_id, branch_ids } = body
 
     if (!email) return json({ error: 'email é obrigatório' }, 400)
 
@@ -82,7 +82,11 @@ serve(async (req) => {
     // de cara — sem isso o usuário fica sem nenhuma permissão. O Papel e o Perfil
     // de Acesso são conceitos separados (não compartilham nome de propósito), daí
     // o mapeamento explícito em vez de comparar o texto diretamente.
-    const PERFIL_POR_PAPEL: Record<string, string> = { contato_canal: 'parceiro' }
+    const PERFIL_POR_PAPEL: Record<string, string> = {
+      contato_canal: 'parceiro',
+      admin_isv:     'master',
+      projetos:      'gestor_projetos',
+    }
     let perfilAcessoId: string | null = null
     if (papel) {
       const perfilSlug = PERFIL_POR_PAPEL[papel] || papel
@@ -174,6 +178,7 @@ serve(async (req) => {
         role:         papel || 'contato_canal',
         status:       'pendente',
         branch_id:    branch_id || null,
+        branch_ids:   Array.isArray(branch_ids) ? branch_ids : [],
         perfis_acesso_ids: perfilAcessoId ? [perfilAcessoId] : [],
       }, { onConflict: 'id' })
       if (profileErr) console.error('[invite-user] profile upsert:', profileErr.message)

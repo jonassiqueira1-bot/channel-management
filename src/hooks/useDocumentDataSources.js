@@ -243,6 +243,15 @@ export function useDocumentDataSources() {
           horas_exec: Number(cf.total_hours_executed  || 0),
           nome:       p.nome || '',
           created_at: p.created_at?.slice(0,10) || '',
+          // Financeiro (sincronizado pela aba Financeiro em Projetos.js, custom_fields.fin_*)
+          custo_hora:        Number(cf.fin_custo_hora || 0),
+          valor_contrato:    Number(cf.fin_valor_contrato || 0),
+          custo_realizado:   Number(cf.fin_custo_realizado || 0),
+          receita_faturada:  Number(cf.fin_receita_faturada || 0),
+          margem_bruta:      Number(cf.fin_margem_bruta || 0),
+          margem_pct:        Number(cf.fin_margem_pct || 0),
+          custo_forecast:    Number(cf.fin_custo_forecast || 0),
+          margem_forecast:   Number(cf.fin_margem_forecast || 0),
         }
       })
 
@@ -408,6 +417,14 @@ export function useDocumentDataSources() {
             { key:'horas_est',  label:'Horas estim.', type:'number' },
             { key:'horas_exec', label:'Horas exec.',  type:'number' },
             { key:'created_at', label:'Criado em',    type:'date'   },
+            { key:'custo_hora',       label:'Custo/hora (R$)',        type:'number' },
+            { key:'valor_contrato',   label:'Valor do contrato (R$)', type:'number' },
+            { key:'custo_realizado',  label:'Custo realizado (R$)',   type:'number' },
+            { key:'receita_faturada', label:'Receita faturada (R$)',  type:'number' },
+            { key:'margem_bruta',     label:'Margem bruta (R$)',      type:'number' },
+            { key:'margem_pct',       label:'Margem (%)',             type:'number' },
+            { key:'custo_forecast',   label:'Custo forecast (R$)',    type:'number' },
+            { key:'margem_forecast',  label:'Margem forecast (R$)',   type:'number' },
           ],
         },
         {

@@ -81,12 +81,20 @@ function filtrarPorSessao(perfis, sessao) {
 
 // ─── Modal de Convite ─────────────────────────────────────────────────────────
 function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
-  const [form, setForm] = useState({ nome: '', email: '', papel: 'vendedor', status: 'pendente' })
+  const [form, setForm] = useState({ nome: '', email: '', papel: 'vendedor', status: 'pendente', branch_ids: [] })
   const [erros, setErros] = useState({})
   const [saving, setSaving] = useState(false)
   const [erroGeral, setErroGeral] = useState('')
+  const { branches } = useBranches()
 
   function set(f, v) { setForm(p => ({ ...p, [f]: v })); setErros(e => ({ ...e, [f]: null })) }
+  function toggleBranch(id) {
+    setForm(f => {
+      const ids = f.branch_ids || []
+      return { ...f, branch_ids: ids.includes(id) ? ids.filter(x => x !== id) : [...ids, id] }
+    })
+    setErros(e => ({ ...e, branch_ids: null }))
+  }
 
   function validar() {
     const e = {}
@@ -95,6 +103,8 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'E-mail inválido'
     if (perfisExistentes.some(p => p.email?.toLowerCase() === form.email.toLowerCase()))
       e.email = 'Este e-mail já está cadastrado'
+    if (form.papel !== 'admin_isv' && (!form.branch_ids || form.branch_ids.length === 0))
+      e.branch_ids = 'Selecione pelo menos uma unidade'
     setErros(e)
     return Object.keys(e).length === 0
   }
@@ -111,6 +121,7 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
       avatar:       form.nome.trim().split(' ').slice(0,2).map(w => w[0]).join('').toUpperCase(),
       papel:        form.papel,
       tenant_id:    sessao?.tenant_id,
+      branch_ids:   form.branch_ids,
       status:       'pendente',
       criado_em:    new Date().toISOString(),
       ultimo_acesso: null,
@@ -153,6 +164,17 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
                 ))}
               </select>
             </Field>
+
+            {form.papel !== 'admin_isv' && (
+              <Field label="Unidade(s) com acesso *" error={erros.branch_ids}>
+                <SearchableMultiSelect
+                  options={branches.map(b => ({ value: b.id, label: b.name }))}
+                  value={form.branch_ids}
+                  onChange={ids => set('branch_ids', ids)}
+                  placeholder="Selecionar unidade(s)…"
+                />
+              </Field>
+            )}
 
             <div style={{ padding: '10px 14px', background: '#EEF2FF', borderRadius: 8,
               border: '1px solid #C7D2FE', fontSize: 12, color: '#3730A3', lineHeight: 1.5 }}>
@@ -535,7 +557,21 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       <FPESection title="Papel" description="Define quais módulos o usuário pode acessar.">
         <FPEField label="Papel do usuário" style={{ gridColumn:'1/-1' }}>
           <select className="fpe-field" value={form.papel} disabled={!podeEditar}
-            onChange={e => set('papel', e.target.value)}>
+            onChange={e => {
+              const novoPapel = e.target.value
+              // Auto-atribui o Perfil de Acesso nativo esperado pro Papel quando o
+              // usuário ainda não tem nenhum — sem isso, perfis_acesso_ids fica
+              // vazio (zero acesso a qualquer módulo, mesmo logado normalmente).
+              if (!form.perfis_acesso_ids || form.perfis_acesso_ids.length === 0) {
+                const slugEsperado = PAPEL_PERFIL_ESPERADO[novoPapel]
+                const perfilEsperado = slugEsperado && rolesStore.find(r => r.slug === slugEsperado)
+                if (perfilEsperado) {
+                  setForm(f => ({ ...f, papel: novoPapel, perfis_acesso_ids: [perfilEsperado.id] }))
+                  return
+                }
+              }
+              set('papel', novoPapel)
+            }}>
             {PAPEIS_OPTIONS.map(p => (
               <option key={p.value} value={p.value}>{p.label}</option>
             ))}
@@ -971,12 +1007,17 @@ export default function SettingsUsuarios() {
   const lista = [...perfisFiltradosSessao, ...inviteRows]
 
   async function salvarConvite(novo) {
+    // branch_id (singular, home branch) vem da 1ª unidade escolhida no convite —
+    // antes era sempre a filial ativa de QUEM convida, o que divergia da(s)
+    // unidade(s) de fato escolhida(s) pra esse usuário (branch_ids).
+    const branchIds = novo.branch_ids || []
     const res = await criarConvite({
       nome: novo.nome,
       email: novo.email,
       papel: novo.papel,
       tipo_usuario: novo.tipo_usuario || 'externo',
-      branch_id: activeBranchId || null,
+      branch_id: branchIds[0] || activeBranchId || null,
+      branch_ids: branchIds,
     })
     if (res.ok) log('criar', 'usuario', novo.email, { descricao: `Convite enviado para: ${novo.email}` })
     return res

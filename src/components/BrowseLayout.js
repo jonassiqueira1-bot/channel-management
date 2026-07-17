@@ -600,6 +600,12 @@ export default function BrowseLayout({
 
   // ── filter panel ─────────────────────────────────────────────────────────
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  // Grupos de filtro com muitas opções vêm recolhidos por padrão (senão um
+  // filtro de 20 opções obriga rolar bastante até chegar no próximo filtro),
+  // com busca interna pra navegação rápida quando expandido.
+  const FILTRO_LIMIAR_COLAPSAR = 8
+  const [gruposFiltroAbertos, setGruposFiltroAbertos] = useState({})
+  const [buscaFiltro, setBuscaFiltro] = useState({})
 
   // ── bulk edit ────────────────────────────────────────────────────────────
   const [bulkEditOpen,   setBulkEditOpen]   = useState(false)
@@ -1066,60 +1072,101 @@ export default function BrowseLayout({
               )}
               {filters.map(f => {
                 const vals = activeFilters[f.key] || []
+                const muitasOpcoes = f.options.length > FILTRO_LIMIAR_COLAPSAR
+                // Recolhido por padrão só se tiver muita opção e nenhuma selecionada
+                // ainda (se já tem filtro ativo nesse grupo, mantém aberto pra ver o quê).
+                const abertoExplicito = gruposFiltroAbertos[f.key]
+                const aberto = abertoExplicito !== undefined ? abertoExplicito : (!muitasOpcoes || vals.length > 0)
+                const busca = buscaFiltro[f.key] || ''
+                const opcoesFiltradas = busca
+                  ? f.options.filter(o => o.label.toLowerCase().includes(busca.toLowerCase()))
+                  : f.options
                 return (
                   <div key={f.key}>
-                    <div style={{
-                      fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                      letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 8,
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    }}>
-                      <span>{f.label}</span>
+                    <div
+                      onClick={() => muitasOpcoes && setGruposFiltroAbertos(p => ({ ...p, [f.key]: !aberto }))}
+                      style={{
+                        fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
+                        letterSpacing: '0.07em', color: 'var(--text-muted)', marginBottom: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                        cursor: muitasOpcoes ? 'pointer' : 'default',
+                      }}
+                    >
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {muitasOpcoes && (
+                          <span style={{ fontSize: 9, transform: aberto ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', display: 'inline-block' }}>▶</span>
+                        )}
+                        {f.label}
+                        {vals.length > 0 && (
+                          <span style={{ fontFamily: 'var(--mono)', color: 'var(--accent)', fontWeight: 700 }}>({vals.length})</span>
+                        )}
+                      </span>
                       {vals.length > 0 && (
                         <button
                           type="button"
-                          onClick={() => { onFilterChange?.({ ...activeFilters, [f.key]: [] }); setPage(1) }}
+                          onClick={e => { e.stopPropagation(); onFilterChange?.({ ...activeFilters, [f.key]: [] }); setPage(1) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, fontSize: 11 }}
                         >
                           <X size={11} />
                         </button>
                       )}
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                      {f.options.map(opt => {
-                        const checked = vals.includes(opt.value)
-                        return (
-                          <label
-                            key={opt.value}
+                    {aberto && (
+                      <>
+                        {muitasOpcoes && (
+                          <input
+                            value={busca}
+                            onChange={e => setBuscaFiltro(p => ({ ...p, [f.key]: e.target.value }))}
+                            placeholder={`Buscar em ${f.label.toLowerCase()}…`}
                             style={{
-                              display: 'flex', alignItems: 'center', gap: 9,
-                              padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
-                              background: checked ? 'var(--accent-lite, #EEF2FF)' : 'transparent',
-                              transition: 'background 0.1s',
+                              width: '100%', boxSizing: 'border-box', marginBottom: 6,
+                              padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                              background: 'var(--surface2)', color: 'var(--text)', fontSize: 12,
+                              fontFamily: 'var(--font)',
                             }}
-                          >
-                            <div
-                              style={{
-                                width: 15, height: 15, borderRadius: 3, flexShrink: 0,
-                                border: `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-                                background: checked ? 'var(--accent)' : 'var(--surface)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              }}
-                              onClick={e => {
-                                e.preventDefault()
-                                const next = checked ? vals.filter(v => v !== opt.value) : [...vals, opt.value]
-                                onFilterChange?.({ ...activeFilters, [f.key]: next })
-                                setPage(1)
-                              }}
-                            >
-                              {checked && <Check size={10} color="#fff" />}
-                            </div>
-                            <span style={{ fontSize: 13, color: checked ? 'var(--accent)' : 'var(--text)', fontWeight: checked ? 600 : 400 }}>
-                              {opt.label}
-                            </span>
-                          </label>
-                        )
-                      })}
-                    </div>
+                          />
+                        )}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: muitasOpcoes ? 260 : 'none', overflowY: muitasOpcoes ? 'auto' : 'visible' }}>
+                          {opcoesFiltradas.length === 0 && (
+                            <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: '4px 10px' }}>Sem resultados</div>
+                          )}
+                          {opcoesFiltradas.map(opt => {
+                            const checked = vals.includes(opt.value)
+                            return (
+                              <label
+                                key={opt.value}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 9,
+                                  padding: '7px 10px', borderRadius: 7, cursor: 'pointer',
+                                  background: checked ? 'var(--accent-lite, #EEF2FF)' : 'transparent',
+                                  transition: 'background 0.1s',
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    width: 15, height: 15, borderRadius: 3, flexShrink: 0,
+                                    border: `1.5px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
+                                    background: checked ? 'var(--accent)' : 'var(--surface)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  }}
+                                  onClick={e => {
+                                    e.preventDefault()
+                                    const next = checked ? vals.filter(v => v !== opt.value) : [...vals, opt.value]
+                                    onFilterChange?.({ ...activeFilters, [f.key]: next })
+                                    setPage(1)
+                                  }}
+                                >
+                                  {checked && <Check size={10} color="#fff" />}
+                                </div>
+                                <span style={{ fontSize: 13, color: checked ? 'var(--accent)' : 'var(--text)', fontWeight: checked ? 600 : 400 }}>
+                                  {opt.label}
+                                </span>
+                              </label>
+                            )
+                          })}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )
               })}

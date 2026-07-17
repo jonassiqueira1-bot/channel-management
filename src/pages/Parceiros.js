@@ -665,7 +665,7 @@ function ParceirSlideOver({ open, parceiro, scoreData, params, history, acoes, o
       onClose={onClose}
       title={parceiro.nome}
       subtitle={parceiro.segmento || parceiro.tipo || extractEstado(parceiro)}
-      width={660}
+      defaultWidth={920}
       tabs={TABS}
       activeTab={tab}
       onTabChange={setTab}

@@ -88,10 +88,17 @@ export const PAPEIS_ROTAS = {
   contato_canal: ['/pipeline', '/playbooks', '/documentos', '/settings'],
 }
 
-// Perfil de Acesso (perfis_acesso.slug) esperado por Papel — usado só pra alertar
-// quando o Perfil atribuído a um usuário diverge do que normalmente combina com
-// o Papel dele (mesmo mapeamento usado pela função invite-user no convite automático).
+// Perfil de Acesso (perfis_acesso.slug) esperado por Papel — usado tanto pra
+// auto-atribuir um Perfil de Acesso padrão quando o usuário ainda não tem
+// nenhum (evita ficar com perfis_acesso_ids vazio = zero acesso a qualquer
+// módulo, mesmo logado) quanto pra alertar quando o Perfil atribuído diverge
+// do que normalmente combina com o Papel. Mesmo mapeamento usado pela função
+// invite-user no convite automático (supabase/functions/invite-user).
 export const PAPEL_PERFIL_ESPERADO = {
+  admin_isv:     'master',
+  vendedor:      'vendedor',
+  financeiro:    'financeiro',
+  projetos:      'gestor_projetos',
   contato_canal: 'parceiro',
 }
 

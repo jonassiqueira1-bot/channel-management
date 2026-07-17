@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase, softDelete } from '../lib/supabase'
 import { useProfile } from './useProfile'
+import { RELATORIOS_SEED } from '../data/relatoriosSeed'
 
 function toRelatorio(row) {
   return {
@@ -39,13 +40,29 @@ export function useRelatorios(tipo = 'relatorio') {
       if (tenantId) q = q.eq('tenant_id', tenantId)
       const { data, error: err } = await q
       if (err) throw err
-      setRelatorios((data || []).map(toRelatorio))
+      let list = data || []
+
+      // Semeia os relatórios padrão do produto (ex: "Horas por Projeto") só na
+      // PRIMEIRA vez do tenant — se o usuário apagou de propósito, uma nova
+      // linha soft-deletada já existe e o count abaixo não fica zerado, então
+      // não volta a aparecer sozinho.
+      if (tipo === 'relatorio' && list.length === 0 && tenantId) {
+        const { count } = await supabase.from('relatorios').select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId).eq('tipo', 'relatorio')
+        if (!count) {
+          const rows = RELATORIOS_SEED.map(r => ({ ...r, tenant_id: tenantId, branch_id: branchId, owner_id: null }))
+          const { data: seeded } = await supabase.from('relatorios').insert(rows).select()
+          if (seeded?.length) list = seeded
+        }
+      }
+
+      setRelatorios(list.map(toRelatorio))
     } catch (e) {
       setError(e.message)
     } finally {
       setLoading(false)
     }
-  }, [tenantId, userId, tipo])
+  }, [tenantId, branchId, userId, tipo])
 
   useEffect(() => { load() }, [load])
 

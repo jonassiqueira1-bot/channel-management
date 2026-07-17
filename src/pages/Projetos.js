@@ -25,6 +25,7 @@ import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useTimeLogs } from '../hooks/useTimeLogs'
 import { useCustomerHealth } from '../hooks/useCustomerHealth'
+import { usePermissions } from '../hooks/usePermissions'
 
 const CanvasEditor = lazy(() => import('../components/ui/CanvasEditor'))
 
@@ -4794,13 +4795,25 @@ export default function Projetos() {
   const [tab,       setTab]       = useLocalState('projetos:tab', 'projetos')
   const [showKpis,  setShowKpis]  = useLocalState('projetos:showKpis', true)
   const [propostasEditing, setPropostasEditing] = useState(false)
+  const { can } = usePermissions()
+  // Cada aba do topo (Propostas/Recursos/Financeiro/Fechamento) é gateada por
+  // uma ação própria dentro do módulo 'projetos' — personas diferentes (ex:
+  // Gestor de Projetos x Financeiro) veem abas diferentes.
+  const TAB_ACAO = { propostas: 'ver_propostas', recursos: 'ver_recursos', financeiro: 'ver_financeiro', fechamento: 'ver_fechamento' }
+  const podeVerTab = t => !TAB_ACAO[t] || can('projetos', TAB_ACAO[t])
 
   // Handle ?tab=propostas URL param from Pipeline "Abrir em Projetos →" link
   useEffect(() => {
     const p = new URLSearchParams(window.location.search)
     const t = p.get('tab')
-    if (t && ['propostas','recursos','financeiro','fechamento'].includes(t)) setTab(t)
+    if (t && ['propostas','recursos','financeiro','fechamento'].includes(t) && podeVerTab(t)) setTab(t)
   }, []) // eslint-disable-line
+
+  // Se a aba atual (persistida de uma sessão anterior) não é mais permitida
+  // pro perfil logado, volta pra Projetos em vez de deixar a tela em branco.
+  useEffect(() => {
+    if (!podeVerTab(tab)) setTab('projetos')
+  }, [tab]) // eslint-disable-line
 
   const [search,    setSearch]    = useLocalState('projetos:search', '')
   const [sortBy,    setSortBy]    = useLocalState('projetos:sortBy', 'recente')
@@ -5139,7 +5152,7 @@ export default function Projetos() {
           zIndex: 200, display: 'flex', gap: 2,
           background: 'var(--surface)', borderRadius: '0 0 10px 10px', padding: '3px 3px 3px 3px',
           border: '1px solid var(--border)', borderTop: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-          {[{ id: 'projetos', label: 'Projetos' }, { id: 'propostas', label: 'Propostas' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].map(t => (
+          {[{ id: 'projetos', label: 'Projetos' }, { id: 'propostas', label: 'Propostas' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].filter(t => podeVerTab(t.id)).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
                 fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',

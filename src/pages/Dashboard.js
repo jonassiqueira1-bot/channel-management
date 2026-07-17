@@ -1295,7 +1295,9 @@ export default function Dashboard() {
   const isMobile = useIsMobile()
   const { profile, loading:profileLoading } = useProfile()
 
-  const isISV      = !profile || profile.role==='admin_isv' || profile.papel==='admin_isv'
+  // Sem profile (ainda carregando) NÃO assume admin — evita piscar conteúdo
+  // administrativo antes de corrigir pro real (não-admin).
+  const isISV      = !!profile && (profile.role==='admin_isv' || profile.papel==='admin_isv')
   const defaultSec = isISV ? DEFAULT_SECTIONS_ISV : DEFAULT_SECTIONS_FRANCHISE
   const catalog    = isISV ? WIDGET_CATALOG_ISV   : WIDGET_CATALOG_FRANCHISE
   const storageKey = `${SECTIONS_STORAGE_KEY}:${isISV?'isv':'fr'}`

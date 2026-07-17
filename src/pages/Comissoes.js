@@ -25,6 +25,7 @@ import { useProfile } from '../hooks/useProfile'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useCommissionApprovals } from '../hooks/useCommissionApprovals'
 import { useParceiros } from '../hooks/useParceiros'
+import { usePermissions } from '../hooks/usePermissions'
 import { InlineSearchSelect } from '../components/NotionDrawer'
 import Button from '../components/Button'
 
@@ -2513,7 +2514,13 @@ export default function Comissoes() {
   const { registrar } = useAuditLog()
   const { upsert: upsertAprovacao } = useCommissionApprovals()
   const nomeUsuarioGlobal = profile?.nome || profile?.full_name || profile?.email || 'Usuário'
-  const isAdmin = !profile || profile.papel === 'admin_isv' || profile.role === 'admin_isv'
+  // Sem profile (ainda carregando) NÃO assume admin — senão a aba "Regras"
+  // pisca liberada antes de corrigir pro real (não-admin).
+  const isAdmin = !!profile && (profile.papel === 'admin_isv' || profile.role === 'admin_isv')
+  const { can } = usePermissions()
+  // Aba "Regras de Configuração" tem persona própria (ex: Financeiro) — antes
+  // só admin via isAdmin, agora também libera por permissão granular.
+  const podeVerRegras = isAdmin || can('comissoes', 'ver_regras')
 
   const totalPendente = useMemo(() =>
     payments.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
@@ -2584,7 +2591,7 @@ export default function Comissoes() {
         </div>
         {/* Linha 2: abas fixas no topo */}
         <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', zIndex:200, display:'flex', gap:2, background:'var(--surface)', borderRadius:'0 0 10px 10px', padding:3, border:'1px solid var(--border)', borderTop:'none', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
-          {TABS.filter(t => t.id !== 'regras' || isAdmin).map(t => (
+          {TABS.filter(t => t.id !== 'regras' || podeVerRegras).map(t => (
             <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s', whiteSpace:'nowrap' }}>{t.label}</button>
           ))}
         </div>
@@ -2596,7 +2603,7 @@ export default function Comissoes() {
       {tab === 'aprovacao' && (
         <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} onOpenRepasse={openPayment} bulkSetPaymentStatus={bulkSetPaymentStatus} />
       )}
-      {tab === 'regras' && isAdmin && (
+      {tab === 'regras' && podeVerRegras && (
         <TabRegras rules={rules} setRules={setRules} personas={personas} setPersonas={setPersonas} onEditRule={openRule} usuarios={usuarios} parceiros={parceiros} onSavePersonas={persistPersonas} />
       )}
 

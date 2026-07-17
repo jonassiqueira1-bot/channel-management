@@ -156,6 +156,7 @@ const MODULOS = [
       { id: 'ver_equipe',   label: 'Ver da equipe',    icon: Users,      danger: false },
       { id: 'criar_editar', label: 'Lançar / Editar',  icon: Pencil,     danger: false },
       { id: 'ver_valores',  label: 'Ver valores',      icon: DollarSign, danger: false },
+      { id: 'ver_regras',   label: 'Ver regras de configuração', icon: Settings2, danger: false },
       ACAO_ESCOPO,
     ],
   },
@@ -163,9 +164,13 @@ const MODULOS = [
     id: 'projetos', label: 'Projetos', icon: FolderKanban, grupo: 'Pós-venda',
     desc: 'Gestão de projetos e implantações',
     acoes: [
-      { id: 'visualizar',   label: 'Visualizar',     icon: Eye,    danger: false },
-      { id: 'criar_editar', label: 'Criar / Editar', icon: Pencil, danger: false },
-      { id: 'excluir',      label: 'Excluir',        icon: Trash2, danger: true  },
+      { id: 'visualizar',     label: 'Visualizar',            icon: Eye,        danger: false },
+      { id: 'criar_editar',   label: 'Criar / Editar',        icon: Pencil,     danger: false },
+      { id: 'excluir',        label: 'Excluir',               icon: Trash2,     danger: true  },
+      { id: 'ver_propostas',  label: 'Aba Propostas',         icon: FileText,   danger: false },
+      { id: 'ver_recursos',   label: 'Aba Recursos',          icon: UsersRound, danger: false },
+      { id: 'ver_financeiro', label: 'Aba Financeiro',        icon: DollarSign, danger: false },
+      { id: 'ver_fechamento', label: 'Aba Fechamento (horas)', icon: ClipboardList, danger: false },
       ACAO_ESCOPO,
     ],
   },
@@ -324,7 +329,7 @@ const PALETA = [
   '#7C3AED','#EC4899','#14B8A6','#3B82F6','#84CC16',
 ]
 
-const ICON_MAP = { ShieldCheck, ShieldAlert, Users, Target, Shield }
+const ICON_MAP = { ShieldCheck, ShieldAlert, Users, Target, Shield, CreditCard, FolderKanban }
 
 function emptyPerms() {
   const p = {}

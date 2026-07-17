@@ -1,60 +1,64 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { AuthProvider } from './contexts/AuthContext'
 import { BranchProvider } from './contexts/BranchContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
-import Login from './pages/Login'
-import ForgotPassword from './pages/ForgotPassword'
-import ResetPassword from './pages/ResetPassword'
-import Signup from './pages/Signup'
-import AceitarConvite from './pages/AceitarConvite'
-import Dashboard from './pages/Dashboard'
-import Franquias from './pages/Franquias'
-import Unidades from './pages/Unidades'
-import Vendedores from './pages/Vendedores'
-import Habilitacoes from './pages/Habilitacoes'
-import Pipeline from './pages/Pipeline'
-import Acoes from './pages/Acoes'
-import Tarefas from './pages/Tarefas'
-import Metas from './pages/Metas'
-import Campanhas from './pages/Campanhas'
-import Empresas from './pages/Empresas'
-import Contatos from './pages/Contatos'
-import Contratos from './pages/Contratos'
-import Pagamentos from './pages/Pagamentos'
-import Projetos from './pages/Projetos'
-import Playbooks from './pages/Playbooks'
-import Comissoes from './pages/Comissoes'
-import CustomerSuccess from './pages/CustomerSuccess'
-import Settings, { SettingsPage } from './pages/Settings'
-import SettingsCampanhas from './pages/settings/Campanhas'
-import SettingsParceiros from './pages/settings/Franquias'
-import SettingsIndicadores from './pages/settings/Indicadores'
-import SettingsMetas from './pages/settings/Metas'
-import SettingsHabilitacoes from './pages/settings/Habilitacoes'
-import SettingsUsuarios from './pages/settings/Usuarios'
-import SettingsTiposAcao from './pages/settings/TiposAcao'
-import SettingsEmpresa from './pages/settings/Empresa'
-import SettingsPerfis from './pages/Perfis'
-import SettingsForms from './pages/settings/Forms'
-import SettingsIntegracoes from './pages/settings/Integracoes'
-import SettingsLogs from './pages/settings/Logs'
-import SettingsAlertas from './pages/settings/Alertas'
-import MyAccount from './pages/MyAccount'
-import Produtos from './pages/Produtos'
-import TabelaPrecos from './pages/TabelaPrecos'
-import Questionarios from './pages/Questionarios'
-import Documentos from './pages/Documentos'
-import BranchSharing from './pages/settings/BranchSharing'
-import SettingsEquipes from './pages/settings/Equipes'
-import Funis from './pages/Funis'
-import Relatorios from './pages/Relatorios'
-import FechamentoHoras from './pages/FechamentoHoras'
-import ParceirosPage from './pages/Parceiros'
-import SettingsMaturidade from './pages/settings/MaturidadeParceiros'
-import SettingsAssinatura from './pages/settings/Assinatura'
-import ConfirmarAssinatura from './pages/ConfirmarAssinatura'
+
+// Code-splitting por rota — antes todas as ~50 páginas eram importadas de
+// forma estática aqui, então o navegador baixava/parseava o bundle inteiro
+// do sistema (Pipeline.js e Projetos.js sozinhos passam de 5-7 mil linhas)
+// antes de exibir até a tela de login. Com lazy(), cada rota vira um chunk
+// próprio, buscado só quando o usuário de fato navega até ela.
+const Login               = lazy(() => import('./pages/Login'))
+const ForgotPassword      = lazy(() => import('./pages/ForgotPassword'))
+const ResetPassword       = lazy(() => import('./pages/ResetPassword'))
+const Signup              = lazy(() => import('./pages/Signup'))
+const AceitarConvite      = lazy(() => import('./pages/AceitarConvite'))
+const Dashboard           = lazy(() => import('./pages/Dashboard'))
+const Franquias           = lazy(() => import('./pages/Franquias'))
+const Vendedores          = lazy(() => import('./pages/Vendedores'))
+const Pipeline            = lazy(() => import('./pages/Pipeline'))
+const Acoes               = lazy(() => import('./pages/Acoes'))
+const Tarefas             = lazy(() => import('./pages/Tarefas'))
+const Metas               = lazy(() => import('./pages/Metas'))
+const Campanhas           = lazy(() => import('./pages/Campanhas'))
+const Empresas            = lazy(() => import('./pages/Empresas'))
+const Contatos            = lazy(() => import('./pages/Contatos'))
+const Contratos           = lazy(() => import('./pages/Contratos'))
+const Pagamentos          = lazy(() => import('./pages/Pagamentos'))
+const Projetos            = lazy(() => import('./pages/Projetos'))
+const Playbooks           = lazy(() => import('./pages/Playbooks'))
+const Comissoes           = lazy(() => import('./pages/Comissoes'))
+const CustomerSuccess     = lazy(() => import('./pages/CustomerSuccess'))
+const SettingsModule      = lazy(() => import('./pages/Settings'))
+const SettingsCampanhas   = lazy(() => import('./pages/settings/Campanhas'))
+const SettingsParceiros   = lazy(() => import('./pages/settings/Franquias'))
+const SettingsIndicadores = lazy(() => import('./pages/settings/Indicadores'))
+const SettingsMetas       = lazy(() => import('./pages/settings/Metas'))
+const SettingsHabilitacoes= lazy(() => import('./pages/settings/Habilitacoes'))
+const SettingsUsuarios    = lazy(() => import('./pages/settings/Usuarios'))
+const SettingsTiposAcao   = lazy(() => import('./pages/settings/TiposAcao'))
+const SettingsEmpresa     = lazy(() => import('./pages/settings/Empresa'))
+const SettingsPerfis      = lazy(() => import('./pages/Perfis'))
+const SettingsForms       = lazy(() => import('./pages/settings/Forms'))
+const SettingsIntegracoes = lazy(() => import('./pages/settings/Integracoes'))
+const SettingsLogs        = lazy(() => import('./pages/settings/Logs'))
+const SettingsAlertas     = lazy(() => import('./pages/settings/Alertas'))
+const MyAccount           = lazy(() => import('./pages/MyAccount'))
+const Produtos            = lazy(() => import('./pages/Produtos'))
+const TabelaPrecos        = lazy(() => import('./pages/TabelaPrecos'))
+const Questionarios       = lazy(() => import('./pages/Questionarios'))
+const Documentos          = lazy(() => import('./pages/Documentos'))
+const BranchSharing       = lazy(() => import('./pages/settings/BranchSharing'))
+const SettingsEquipes     = lazy(() => import('./pages/settings/Equipes'))
+const Funis               = lazy(() => import('./pages/Funis'))
+const Relatorios          = lazy(() => import('./pages/Relatorios'))
+const FechamentoHoras     = lazy(() => import('./pages/FechamentoHoras'))
+const ParceirosPage       = lazy(() => import('./pages/Parceiros'))
+const SettingsMaturidade  = lazy(() => import('./pages/settings/MaturidadeParceiros'))
+const SettingsAssinatura  = lazy(() => import('./pages/settings/Assinatura'))
+const ConfirmarAssinatura = lazy(() => import('./pages/ConfirmarAssinatura'))
 
 function CrispWidget() {
   useEffect(() => {
@@ -69,11 +73,18 @@ function CrispWidget() {
   return null
 }
 
+function RouteFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', background: 'var(--bg, #fff)' }} />
+  )
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <CrispWidget />
+        <Suspense fallback={<RouteFallback />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/confirmar-assinatura" element={<ConfirmarAssinatura />} />
@@ -116,7 +127,7 @@ export default function App() {
             <Route path="/my-account" element={<MyAccount />} />
 
             {/* ── Configurações ── */}
-            <Route path="/settings" element={<Settings />}>
+            <Route path="/settings" element={<SettingsModule />}>
               <Route path="empresa"      element={<SettingsEmpresa />} />
               <Route path="conta"        element={<MyAccount />} />
               <Route path="usuarios"     element={<SettingsUsuarios />} />
@@ -143,6 +154,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
+        </Suspense>
       </AuthProvider>
     </BrowserRouter>
   )
