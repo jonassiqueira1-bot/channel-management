@@ -730,13 +730,16 @@ export default function BrowseLayout({
                 </button>
               )
             ))}
-            <button
-              type="button"
-              style={{ ...s.bulkBtn, marginLeft: 'auto' }}
-              onClick={() => { setSelected(new Set()); setBulkEditOpen(false) }}
-            >
-              Cancelar seleção
-            </button>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+              {secondaryActions}
+              <button
+                type="button"
+                style={s.bulkBtn}
+                onClick={() => { setSelected(new Set()); setBulkEditOpen(false) }}
+              >
+                Cancelar seleção
+              </button>
+            </div>
           </div>
         ) : (
           <>
