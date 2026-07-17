@@ -52,7 +52,7 @@
 //   isRowDisabled (row) => boolean                             opcional — linha desabilitada (visual + sem clique)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '../hooks/usePermissions'
 import {
@@ -718,6 +718,9 @@ export default function BrowseLayout({
   modulo,                   // id do módulo (Perfis de Acesso) — controla exibição de importar/exportar
   density          = 'comfortable',
   isRowDisabled,
+  groupBy,                  // opcional: (row) => string — agrupa a tabela por essa chave
+  renderGroupHeader,        // ({ groupKey, rows, expanded, onToggleExpand, allSelected, someSelected, onToggleGroupSelection }) => ReactNode
+  groupsControlRef,         // ref preenchida com { collapseAll, expandAll } — mesmo padrão de bulkEditCloseRef
 }) {
   const { can } = usePermissions()
   const podeExportar = !modulo || can(modulo, 'exportar')
@@ -858,12 +861,58 @@ export default function BrowseLayout({
     return sortDir === 'asc' ? cmp : -cmp
   }), [data, sortKey, sortDir])
 
+  const hasGrouping = typeof groupBy === 'function'
+
   const total     = sorted.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const safePage  = Math.min(page, pageCount)
   const start     = (safePage - 1) * pageSize
   const end       = Math.min(start + pageSize, total)
-  const pageRows  = useMemo(() => sorted.slice(start, end), [sorted, start, end])
+  // Com agrupamento, paginar quebraria grupos ao meio — mostra tudo, sem paginação.
+  const pageRows  = useMemo(() => hasGrouping ? sorted : sorted.slice(start, end), [sorted, start, end, hasGrouping])
+
+  // ── agrupamento (opcional) ────────────────────────────────────────────────
+  const [collapsedGroups, setCollapsedGroups] = useState(() => {
+    try { const v = localStorage.getItem(storagePrefix + '_collapsed'); return v ? new Set(JSON.parse(v)) : new Set() } catch { return new Set() }
+  })
+  useEffect(() => {
+    if (!hasGrouping) return
+    try { localStorage.setItem(storagePrefix + '_collapsed', JSON.stringify([...collapsedGroups])) } catch {}
+  }, [storagePrefix, collapsedGroups, hasGrouping])
+
+  const groups = useMemo(() => {
+    if (!hasGrouping) return []
+    const map = new Map()
+    pageRows.forEach(row => {
+      const key = groupBy(row)
+      if (!map.has(key)) map.set(key, [])
+      map.get(key).push(row)
+    })
+    return [...map.entries()].map(([key, rows]) => ({ key, rows }))
+  }, [hasGrouping, pageRows, groupBy])
+
+  function toggleGroupCollapsed(key) {
+    setCollapsedGroups(prev => {
+      const next = new Set(prev)
+      next.has(key) ? next.delete(key) : next.add(key)
+      return next
+    })
+  }
+  if (groupsControlRef) {
+    groupsControlRef.current = {
+      collapseAll: () => setCollapsedGroups(new Set(groups.map(g => g.key))),
+      expandAll:   () => setCollapsedGroups(new Set()),
+    }
+  }
+  function toggleGroupSelection(rows) {
+    const ids = rows.map(r => r[keyField])
+    const allSel = ids.every(id => selected.has(id))
+    setSelected(prev => {
+      const next = new Set(prev)
+      ids.forEach(id => allSel ? next.delete(id) : next.add(id))
+      return next
+    })
+  }
 
   // ── seleção ──────────────────────────────────────────────────────────────
   const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r[keyField]))
@@ -1272,7 +1321,50 @@ export default function BrowseLayout({
               </tr>
             </thead>
             <tbody>
-              {pageRows.map(row => (
+              {hasGrouping ? groups.map(({ key, rows }) => {
+                const collapsed  = collapsedGroups.has(key)
+                const ids        = rows.map(r => r[keyField])
+                const allSel     = ids.length > 0 && ids.every(id => selected.has(id))
+                const someSel    = ids.some(id => selected.has(id))
+                return (
+                  <Fragment key={key}>
+                    <tr>
+                      <td colSpan={visibleColumns.length + 1} style={{ padding: 0 }}>
+                        {renderGroupHeader
+                          ? renderGroupHeader({
+                              groupKey: key, rows, expanded: !collapsed,
+                              onToggleExpand: () => toggleGroupCollapsed(key),
+                              allSelected: allSel, someSelected: someSel,
+                              onToggleGroupSelection: () => toggleGroupSelection(rows),
+                            })
+                          : (
+                            <div
+                              onClick={() => toggleGroupCollapsed(key)}
+                              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', background: 'var(--surface2)', borderBottom: '1px solid var(--border)', borderTop: '1px solid var(--border)', cursor: 'pointer', fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}
+                            >
+                              <ChevronDown size={13} style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }} />
+                              {key} <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>({rows.length})</span>
+                            </div>
+                          )}
+                      </td>
+                    </tr>
+                    {!collapsed && rows.map(row => (
+                      <TableRow
+                        key={row[keyField]}
+                        row={row}
+                        id={row[keyField]}
+                        columns={visibleColumns}
+                        selected={selected.has(row[keyField])}
+                        disabled={isRowDisabled?.(row)}
+                        onRowClick={onRowClick}
+                        onToggle={toggleRow}
+                        cellPadding={dens.cellPadding}
+                        fontSize={dens.fontSize}
+                      />
+                    ))}
+                  </Fragment>
+                )
+              }) : pageRows.map(row => (
                 <TableRow
                   key={row[keyField]}
                   row={row}
@@ -1667,40 +1759,44 @@ export default function BrowseLayout({
       {total > 0 && (
         <div style={s.footer}>
           <span style={s.footerCount}>
-            Exibindo {start + 1}–{end} de {total} registro{total !== 1 ? 's' : ''}
+            {hasGrouping
+              ? `${total} registro${total !== 1 ? 's' : ''} em ${groups.length} grupo${groups.length !== 1 ? 's' : ''}`
+              : `Exibindo ${start + 1}–${end} de ${total} registro${total !== 1 ? 's' : ''}`}
           </span>
 
-          <div style={s.footerRight}>
-            {/* Linhas por página — movido para o rodapé */}
-            <Dropdown
-              id="pagesize"
-              openId={openId}
-              setOpenId={setOpenId}
-              align="right"
-              trigger={
-                <button type="button" style={{ ...s.ghostBtn, height: 28, padding: '0 8px' }}>
-                  {pageSize} / pág <ChevronDown size={12} />
-                </button>
-              }
-            >
-              <div style={s.dropdownLabel}>Linhas por página</div>
-              {PAGE_SIZES.map(n => (
-                <div
-                  key={n}
-                  style={{ ...s.dropdownItem, fontWeight: n === pageSize ? 700 : 400 }}
-                  onClick={() => changePageSize(n)}
-                >
-                  {n === pageSize
-                    ? <Check size={12} style={s.checkMark} />
-                    : <span style={{ width: 12 }} />}
-                  {n} linhas
-                </div>
-              ))}
-            </Dropdown>
+          {!hasGrouping && (
+            <div style={s.footerRight}>
+              {/* Linhas por página — movido para o rodapé */}
+              <Dropdown
+                id="pagesize"
+                openId={openId}
+                setOpenId={setOpenId}
+                align="right"
+                trigger={
+                  <button type="button" style={{ ...s.ghostBtn, height: 28, padding: '0 8px' }}>
+                    {pageSize} / pág <ChevronDown size={12} />
+                  </button>
+                }
+              >
+                <div style={s.dropdownLabel}>Linhas por página</div>
+                {PAGE_SIZES.map(n => (
+                  <div
+                    key={n}
+                    style={{ ...s.dropdownItem, fontWeight: n === pageSize ? 700 : 400 }}
+                    onClick={() => changePageSize(n)}
+                  >
+                    {n === pageSize
+                      ? <Check size={12} style={s.checkMark} />
+                      : <span style={{ width: 12 }} />}
+                    {n} linhas
+                  </div>
+                ))}
+              </Dropdown>
 
-            {/* Paginação */}
-            <Pagination safePage={safePage} pageCount={pageCount} onPageChange={setPage} />
-          </div>
+              {/* Paginação */}
+              <Pagination safePage={safePage} pageCount={pageCount} onPageChange={setPage} />
+            </div>
+          )}
         </div>
       )}
     </div>

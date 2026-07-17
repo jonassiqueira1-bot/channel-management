@@ -1,5 +1,4 @@
-import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import {
   DollarSign, Percent, Calendar, Plus, ChevronDown, FileText,
@@ -48,7 +47,7 @@ const APROV_STATUS_CFG = {
 function AprovStatusBadge({ status }) {
   const cfg = APROV_STATUS_CFG[status] || APROV_STATUS_CFG.aberto
   return (
-    <span style={{ padding:'3px 10px', borderRadius:20, fontSize:11, fontWeight:700,
+    <span style={{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:700,
       color:cfg.color, background:cfg.bg, border:`1px solid ${cfg.border}` }}>
       {cfg.label}
     </span>
@@ -222,7 +221,7 @@ function PersonaTag({ personaId, personas }) {
 function StatusTag({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente
   const Icon = status === 'pago' ? CheckCircle2 : status === 'cancelado' ? XCircle : Clock
-  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:99, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={11} strokeWidth={2.5} />{cfg.label}</span>
+  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:6, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={11} strokeWidth={2.5} />{cfg.label}</span>
 }
 
 const TIPO_ICON = { cadeia_repasse: Link2, escalonado: BarChart2, split: GitMerge, override: Crown, draw: CreditCard, acelerador: Rocket }
@@ -1949,31 +1948,18 @@ function TabRegras({ rules, setRules, personas, setPersonas, onEditRule, usuario
 // ─── Página principal ─────────────────────────────────────────────────────────
 // ─── Aprovação de Lotes ───────────────────────────────────────────────────────
 function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bulkSetPaymentStatus }) {
-  const [periodo, setPeriodo]       = useState(() => new Date().toISOString().slice(0, 7))
-  const [busca, setBusca]           = useState('')
-  const [filtrosPanelOpen, setFiltrosPanelOpen] = useState(false)
-  const [filtros, setFiltros]       = useState({ statusAprov: [], statusPag: [] })
-  const [expandidos, setExpandidos] = useState(() => {
-    try { const v = localStorage.getItem('comissoes:aprov_expandidos'); return v ? new Set(JSON.parse(v)) : null } catch { return null }
-    // null = todos expandidos por padrão
-  })
+  const [periodo, setPeriodo] = useState(() => new Date().toISOString().slice(0, 7))
+  const [search, setSearch]   = useState('')
+  const [filtros, setFiltros] = useState({ statusAprov: [], statusPag: [] })
+  const [obsModal, setObsModal] = useState(null)
+  const groupsControlRef = useRef(null)
 
   const { aprovacoes, upsert: upsertAprovacao } = useCommissionApprovals()
   const { profile } = useProfile()
-  const [selected, setSelected] = useState(new Set())
-  const [obsModal, setObsModal] = useState(null)
 
   const fmtMes = p => { if (!p) return ''; const [y, m] = p.split('-'); const ns = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return `${ns[parseInt(m,10)-1]}/${y}` }
   const hoje = () => new Date().toISOString().slice(0, 10)
   const nomeUsuario = profile?.nome || profile?.full_name || profile?.email || 'Usuário'
-
-  // Persiste expandidos
-  useEffect(() => {
-    try {
-      if (expandidos === null) localStorage.removeItem('comissoes:aprov_expandidos')
-      else localStorage.setItem('comissoes:aprov_expandidos', JSON.stringify([...expandidos]))
-    } catch {}
-  }, [expandidos])
 
   const lancamentos = useMemo(() =>
     payments.filter(p => (p.data_competencia || p.data_vencimento || '').slice(0, 7) === periodo),
@@ -1983,6 +1969,8 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bu
     return aprovacoes.find(a => a.periodo === periodo && a.beneficiario_nome === nome) || null
   }
 
+  // Agrupado por beneficiário — usado pros KPIs e pra aplicar os filtros de
+  // status de aprovação/pagamento antes de achatar de volta pro BrowseLayout.
   const porBenef = useMemo(() => {
     const map = {}
     lancamentos.forEach(p => {
@@ -1992,57 +1980,30 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bu
     })
     let todos = Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-    // Filtro de busca
-    if (busca.trim()) {
-      const q = busca.toLowerCase()
-      todos = todos.filter(g =>
-        g.nome.toLowerCase().includes(q) ||
-        g.items.some(p =>
-          (p.contract_numero || p.custom_fields?.contract_numero || '').toLowerCase().includes(q) ||
-          (p.company_nome    || p.custom_fields?.company_nome    || '').toLowerCase().includes(q) ||
-          (p.observacoes     || '').toLowerCase().includes(q)
-        )
-      )
-    }
-
-    // Filtro de status de aprovação
     if (filtros.statusAprov.length > 0) {
-      todos = todos.filter(g => {
-        const s = getAprov(g.nome)?.status || 'aberto'
-        return filtros.statusAprov.includes(s)
-      })
+      todos = todos.filter(g => filtros.statusAprov.includes(getAprov(g.nome)?.status || 'aberto'))
     }
-
-    // Filtro de status do pagamento
     if (filtros.statusPag.length > 0) {
       todos = todos.map(g => ({
         ...g,
         items: g.items.filter(p => filtros.statusPag.includes(p.status || 'pendente')),
       })).filter(g => g.items.length > 0)
     }
-
     return todos
-  }, [lancamentos, busca, filtros, aprovacoes, periodo])
+  }, [lancamentos, filtros, aprovacoes, periodo]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isExpanded = useCallback((nome) => {
-    if (expandidos === null) return true  // todos expandidos por padrão
-    return expandidos.has(nome)
-  }, [expandidos])
-
-  const toggleExpanded = useCallback((nome) => {
-    setExpandidos(prev => {
-      // null = todos abertos; ao colapsar o primeiro, materializa o Set com todos menos esse
-      if (prev === null) {
-        const todos = porBenef.map(g => g.nome)
-        const n = new Set(todos)
-        n.delete(nome)
-        return n
-      }
-      const n = new Set(prev)
-      n.has(nome) ? n.delete(nome) : n.add(nome)
-      return n
-    })
-  }, [porBenef])
+  // Busca livre — beneficiário, contrato, empresa ou observações
+  const flatFiltered = useMemo(() => {
+    const all = porBenef.flatMap(g => g.items)
+    if (!search.trim()) return all
+    const q = search.toLowerCase()
+    return all.filter(p =>
+      (p.beneficiario_nome || '').toLowerCase().includes(q) ||
+      (p.contract_numero || p.custom_fields?.contract_numero || '').toLowerCase().includes(q) ||
+      (p.company_nome    || p.custom_fields?.company_nome    || '').toLowerCase().includes(q) ||
+      (p.observacoes     || '').toLowerCase().includes(q)
+    )
+  }, [porBenef, search])
 
   function upsert(nome, patch) {
     const existing = aprovacoes.find(a => a.periodo === periodo && a.beneficiario_nome === nome)
@@ -2056,7 +2017,7 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bu
     upsertAprovacao(record)
   }
 
-  // Aprova TODOS os itens do grupo
+  // Aprova TODOS os itens do grupo (botão no cabeçalho do grupo)
   function handleAprovar(nome) {
     upsert(nome, { status: 'aprovado', aprovado_em: hoje(), aprovado_por: nomeUsuario })
     const grupo = porBenef.find(g => g.nome === nome)
@@ -2076,321 +2037,212 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bu
     onLog?.('reabrir', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote reaberto: ${nome} — ${fmtMes(periodo)}` })
   }
 
-  // Seleção
-  const allIds = lancamentos.map(p => p.id)
-  const allSelected = allIds.length > 0 && allIds.every(id => selected.has(id))
-  const someSelected = allIds.some(id => selected.has(id))
-  function toggleAll() { setSelected(allSelected ? new Set() : new Set(allIds)) }
-  function toggleOne(id) { setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n }) }
-
-  // FIX: aprova apenas os IDs selecionados, não o grupo inteiro
-  function aprovarSelecionados() {
-    const selectedIds = new Set([...selected])
+  // Aprova apenas os IDs selecionados (ação em lote da toolbar) — não o grupo inteiro
+  function aprovarSelecionados(ids) {
+    const selectedIds = new Set(ids)
     const nomesAfetados = new Set()
     lancamentos.filter(p => selectedIds.has(p.id)).forEach(p => nomesAfetados.add(p.beneficiario_nome || 'Sem nome'))
     nomesAfetados.forEach(nome => {
       upsert(nome, { status: 'aprovado', aprovado_em: hoje(), aprovado_por: nomeUsuario })
       onLog?.('aprovar', 'comissao_aprovacao', `${periodo}_${nome}`, { descricao: `Lote aprovado (parcial): ${nome} — ${fmtMes(periodo)} por ${nomeUsuario}` })
     })
-    // Apenas marca como pago os IDs selecionados
     const hj = hoje()
     setPayments(prev => prev.map(p => selectedIds.has(p.id) ? { ...p, status: 'pago', data_pagamento: hj } : p))
-    setSelected(new Set())
   }
 
-  // KPIs
-  const totalPeriodo      = lancamentos.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-  const totalAprovado     = lancamentos.filter(p => getAprov(p.beneficiario_nome || 'Sem nome')?.status === 'aprovado').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-  const totalPendente     = totalPeriodo - totalAprovado
-  const benefAprovados    = porBenef.filter(g => getAprov(g.nome)?.status === 'aprovado').length
-  const countSelecionados = selected.size
-  const valorSelecionados = lancamentos.filter(p => selected.has(p.id)).reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-  const filtrosAtivos     = filtros.statusAprov.length + filtros.statusPag.length
-  const [pgtoDropdown, setPgtoDropdown] = useState(false)
-
-  async function marcarStatusPgto(status) {
-    setPgtoDropdown(false)
-    const ids = [...selected]
+  async function marcarStatusPgto(ids, status) {
     if (!ids.length) return
     if (bulkSetPaymentStatus) await bulkSetPaymentStatus(ids, status)
     else setPayments(prev => prev.map(p => ids.includes(p.id) ? { ...p, status } : p))
-    setSelected(new Set())
   }
 
-  function toggleFiltro(key, value) {
-    setFiltros(f => {
-      const arr = f[key] || []
-      return { ...f, [key]: arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value] }
-    })
-  }
+  // KPIs
+  const totalAprovado  = lancamentos.filter(p => getAprov(p.beneficiario_nome || 'Sem nome')?.status === 'aprovado').reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+  const benefAprovados = porBenef.filter(g => getAprov(g.nome)?.status === 'aprovado').length
 
-  // Grid das linhas: checkbox | descrição/contrato | empresa | competência | base | % | comissão | aprovação | ações
-  const COLS = '32px 1fr 130px 100px 90px 54px 110px 130px 80px'
-  const ROW = { display:'grid', gridTemplateColumns: COLS, alignItems:'center', gap:8, padding:'7px 12px', borderBottom:'1px solid var(--border)', fontSize:12 }
-  const TH  = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }
-
-  return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-
-      {/* ── KPIs ──────────────────────────────────────────────────────────── */}
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10 }}>
-        {[
-          { label:'Beneficiários',    value: porBenef.length,        color:'var(--accent)' },
-          { label:'Pendentes',        value: porBenef.filter(g => (getAprov(g.nome)?.status || 'aberto') !== 'aprovado').length, color:'#F59E0B' },
-          { label:'Aprovados',        value: benefAprovados,         color:'#10B981' },
-          { label:'Valor aprovado',   value: fmt(totalAprovado),     color:'#10B981' },
-        ].map(k => (
-          <div key={k.label} style={{ padding:'12px 16px', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, borderTop:`3px solid ${k.color}` }}>
-            <div style={{ fontSize:20, fontWeight:800, fontFamily:'var(--mono)', color:k.color }}>{k.value}</div>
-            <div style={{ fontSize:10, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'.05em', marginTop:3 }}>{k.label}</div>
+  const COLUMNS = [
+    { key: 'observacoes', label: 'Descrição / Contrato', render: (val, row) => {
+      const contratoNum = row.contract_numero || row.custom_fields?.contract_numero || ''
+      return (
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {row.observacoes || row.receita_tipo || row.custom_fields?.receita_tipo || '—'}
           </div>
-        ))}
-      </div>
-
-      {/* ── Barra de filtros ──────────────────────────────────────────────── */}
-      <div style={{ background:'var(--surface)', borderRadius:10, padding:'10px 14px', border:'1px solid var(--border2)', boxShadow:'var(--shadow)', display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-          <Calendar size={13} strokeWidth={1.75} style={{ color:'var(--text-muted)', flexShrink:0 }} />
-          <input type="month" value={periodo} onChange={e => { setPeriodo(e.target.value); setSelected(new Set()) }}
-            style={{ padding:'5px 9px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
+          {contratoNum && <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 600, marginTop: 1 }}>CTR {contratoNum}</div>}
         </div>
-        <div style={{ flex:1, minWidth:160, position:'relative' }}>
-          <Search size={12} strokeWidth={2} style={{ position:'absolute', left:9, top:'50%', transform:'translateY(-50%)', color:'var(--text-muted)', pointerEvents:'none' }} />
-          <input
-            value={busca} onChange={e => setBusca(e.target.value)}
-            placeholder="Buscar por beneficiário, contrato ou empresa…"
-            style={{ width:'100%', boxSizing:'border-box', padding:'6px 10px 6px 28px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)', outline:'none' }} />
-        </div>
-        <div style={{ fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap' }}>
-          {fmtMes(periodo)} · {lancamentos.length} lanç. · {fmt(totalPeriodo)} total · {fmt(totalPendente)} pendente
-        </div>
-        {/* Botão Filtros */}
+      )
+    }},
+    { key: 'company_nome', label: 'Empresa', render: (val, row) => row.company_nome || row.custom_fields?.company_nome || '—' },
+    { key: 'data_competencia', label: 'Competência', render: val => val ? fmtMes(val.slice(0, 7)) : '—' },
+    { key: 'valor_base', label: 'Base (R$)', render: (val, row) => {
+      const v = Number(row.valor_base || row.valor_bruto || 0)
+      return <div style={{ textAlign: 'right' }}>{v > 0 ? fmt(v) : '—'}</div>
+    }},
+    { key: 'percentual', label: '%', render: val => <div style={{ textAlign: 'right' }}>{Number(val || 0) > 0 ? `${val}%` : '—'}</div> },
+    { key: 'valor_comissao', label: 'Comissão', render: val => (
+      <div style={{ textAlign: 'right' }}><span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--mono)' }}>{fmt(val || 0)}</span></div>
+    )},
+    { key: 'beneficiario_nome', label: 'Aprovação', sortable: false, render: (val, row) => (
+      <AprovStatusBadge status={getAprov(row.beneficiario_nome || 'Sem nome')?.status || 'aberto'} />
+    )},
+    { key: 'status', label: 'Pgto', render: val => <StatusTag status={val} /> },
+    { key: 'id', label: '', sortable: false, render: (val, row) => onOpenRepasse && (
+      <div style={{ textAlign: 'right' }}>
         <button
-          type="button"
-          onClick={() => setFiltrosPanelOpen(o => !o)}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7,
-            border: filtrosAtivos > 0 ? '1px solid var(--accent)' : '1px solid var(--border)',
-            background: filtrosAtivos > 0 ? 'rgba(99,102,241,0.08)' : 'var(--surface2)',
-            color: filtrosAtivos > 0 ? 'var(--accent)' : 'var(--text-muted)',
-            fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', flexShrink:0 }}>
-          <Filter size={12} strokeWidth={2} />
-          Filtros
-          {filtrosAtivos > 0 && (
-            <span style={{ fontSize:10, fontWeight:700, background:'var(--accent)', color:'#fff', borderRadius:10, padding:'0 5px', marginLeft:2 }}>
-              {filtrosAtivos}
-            </span>
-          )}
-        </button>
-        {/* Recolher/Expandir todos */}
-        <button
-          type="button"
-          onClick={() => setExpandidos(expandidos === null ? new Set() : null)}
-          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 12px', borderRadius:7,
-            border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)',
-            fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', flexShrink:0 }}>
-          {expandidos !== null && [...expandidos].length === 0
-            ? <><ChevronRight size={12} strokeWidth={2} style={{ transform:'rotate(90deg)' }} /> Expandir todos</>
-            : <><ChevronDown size={12} strokeWidth={2} /> Recolher todos</>
-          }
+          onClick={e => {
+            e.stopPropagation()
+            const status = getAprov(row.beneficiario_nome || 'Sem nome')?.status || 'aberto'
+            const aprov  = getAprov(row.beneficiario_nome || 'Sem nome')
+            onOpenRepasse({ type: 'edit', data: { ...row, valor_base: row.valor_base || row.valor_bruto || 0, _status_aprovacao: status, _aprovado_por: aprov?.aprovado_por || '', _aprovado_em: aprov?.aprovado_em || '' } })
+          }}
+          style={{ padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}
+        >
+          Abrir
         </button>
       </div>
+    )},
+  ]
 
-      {/* ── Barra de ação em lote ─────────────────────────────────────────── */}
-      {countSelecionados > 0 && (
-        <div style={{ display:'flex', alignItems:'center', gap:12, padding:'8px 14px', background:'rgba(99,102,241,0.08)', border:'1px solid rgba(99,102,241,0.25)', borderRadius:9 }}>
-          <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)', flex:1 }}>
-            {countSelecionados} selecionado{countSelecionados !== 1 ? 's' : ''} · {fmt(valorSelecionados)}
-          </span>
-          {isAdmin && (
-            <button onClick={aprovarSelecionados}
-              style={{ padding:'5px 14px', borderRadius:7, border:'none', background:'#10B981', color:'#fff', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
-              <CheckCircle2 size={12} strokeWidth={2.5} /> Aprovar selecionados
-            </button>
-          )}
-          <div style={{ position:'relative' }}>
-            <button onClick={() => setPgtoDropdown(v => !v)}
-              style={{ padding:'5px 12px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface)', color:'var(--text)', fontSize:12, fontWeight:500, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:5 }}>
-              Status pgto <ChevronRight size={12} style={{ transform: pgtoDropdown ? 'rotate(90deg)' : 'rotate(0deg)', transition:'transform 0.15s' }} />
-            </button>
-            {pgtoDropdown && (
-              <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:300, background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow)', minWidth:160, overflow:'hidden' }}>
-                {[{v:'pendente',l:'Pendente',c:'#F59E0B'},{v:'pago',l:'Pago',c:'#10B981'},{v:'cancelado',l:'Cancelado',c:'#6B7280'}].map(o => (
-                  <button key={o.v} onClick={() => marcarStatusPgto(o.v)}
-                    style={{ display:'block', width:'100%', textAlign:'left', padding:'8px 14px', border:'none', background:'transparent', cursor:'pointer', fontFamily:'var(--font)', fontSize:12, color: o.c, fontWeight:600 }}>
-                    {o.l}
-                  </button>
-                ))}
-              </div>
+  const FILTER_DEFS = [
+    { key: 'statusAprov', label: 'Status de aprovação', options: [
+      { value: 'aberto', label: 'Aberto' }, { value: 'aprovado', label: 'Aprovado' }, { value: 'rejeitado', label: 'Rejeitado' },
+    ]},
+    { key: 'statusPag', label: 'Status do pagamento', options: [
+      { value: 'pendente', label: 'Pendente' }, { value: 'pago', label: 'Pago' }, { value: 'cancelado', label: 'Cancelado' },
+    ]},
+  ]
+
+  function renderGroupHeader({ groupKey, rows, expanded, onToggleExpand, allSelected, someSelected, onToggleGroupSelection }) {
+    const aprov    = getAprov(groupKey)
+    const status   = aprov?.status || 'aberto'
+    const isLocked = status === 'aprovado'
+    const grupoTotal = rows.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
+    return (
+      <div
+        style={{
+          display: 'grid', gridTemplateColumns: '32px 1fr auto', alignItems: 'center', gap: 8, padding: '8px 16px',
+          background: isLocked ? 'rgba(16,185,129,0.05)' : status === 'rejeitado' ? 'rgba(239,68,68,0.03)' : 'var(--surface2)',
+          cursor: 'pointer',
+        }}
+        onClick={onToggleExpand}
+      >
+        <input type="checkbox" checked={allSelected}
+          ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
+          onChange={onToggleGroupSelection} onClick={e => e.stopPropagation()} style={{ cursor: 'pointer', accentColor: 'var(--accent)' }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <ChevronRight size={14} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0, transition: 'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }} />
+          <div style={{ width: 26, height: 26, borderRadius: 6, background: isLocked ? 'rgba(16,185,129,0.15)' : 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 9, fontWeight: 700, color: isLocked ? '#10B981' : 'var(--accent)', flexShrink: 0 }}>
+            {groupKey.slice(0, 2).toUpperCase()}
+          </div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{groupKey}</span>
+              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{rows.length} lanç.</span>
+              <AprovStatusBadge status={status} />
+            </div>
+            {isLocked && aprov?.aprovado_por && (
+              <div style={{ fontSize: 10, color: '#10B981', marginTop: 1 }}>Aprovado por {aprov.aprovado_por} em {fmtDate(aprov.aprovado_em)}</div>
+            )}
+            {status === 'rejeitado' && aprov?.obs && (
+              <div style={{ fontSize: 10, color: '#EF4444', marginTop: 1 }}>Motivo: {aprov.obs}</div>
             )}
           </div>
-          <button onClick={() => setSelected(new Set())}
-            style={{ padding:'5px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-            Limpar
-          </button>
         </div>
-      )}
-
-      {/* ── Tabela ────────────────────────────────────────────────────────── */}
-      {lancamentos.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:13 }}>
-          <DollarSign size={32} strokeWidth={1} style={{ opacity:0.2, display:'block', margin:'0 auto 12px' }} />
-          Nenhum lançamento em {fmtMes(periodo)}.
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }} onClick={e => e.stopPropagation()}>
+          <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(grupoTotal)}</span>
+          {isAdmin && !isLocked && (
+            <button onClick={() => handleAprovar(groupKey)}
+              style={{ padding: '4px 12px', borderRadius: 7, border: 'none', background: '#10B981', color: '#fff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+              <CheckCircle2 size={11} strokeWidth={2.5} /> Aprovar lote
+            </button>
+          )}
+          {isAdmin && status === 'aberto' && (
+            <button onClick={() => setObsModal({ nome: groupKey, obs: '' })}
+              style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid #FCA5A5', background: 'rgba(239,68,68,0.06)', color: '#EF4444', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <XCircle size={11} strokeWidth={2.5} /> Rejeitar
+            </button>
+          )}
+          {(status === 'rejeitado' || isLocked) && (
+            <button onClick={() => handleReabrir(groupKey)}
+              style={{ padding: '4px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              Reabrir
+            </button>
+          )}
         </div>
-      ) : porBenef.length === 0 ? (
-        <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:13 }}>
-          Nenhum resultado para "{busca}".
-        </div>
-      ) : (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-          {/* Cabeçalho */}
-          <div style={{ ...ROW, background:'var(--surface2)', borderBottom:'2px solid var(--border)' }}>
-            <input type="checkbox" checked={allSelected} ref={el => { if (el) el.indeterminate = someSelected && !allSelected }}
-              onChange={toggleAll} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
-            <span style={TH}>Descrição / Contrato</span>
-            <span style={TH}>Empresa</span>
-            <span style={{ ...TH, textAlign:'center' }}>Competência</span>
-            <span style={{ ...TH, textAlign:'right' }}>Base (R$)</span>
-            <span style={{ ...TH, textAlign:'right' }}>%</span>
-            <span style={{ ...TH, textAlign:'right' }}>Comissão</span>
-            <span style={{ ...TH, textAlign:'center' }}>Aprovação</span>
-            <span style={{ ...TH, textAlign:'center' }}>Pgto</span>
-            <span style={{ ...TH, textAlign:'right' }}>Ações</span>
-          </div>
+      </div>
+    )
+  }
 
-          {/* Grupos por beneficiário */}
-          {porBenef.map(grupo => {
-            const aprov   = getAprov(grupo.nome)
-            const status  = aprov?.status || 'aberto'
-            const isLocked = status === 'aprovado'
-            const expanded  = isExpanded(grupo.nome)
-            const grupoTotal      = grupo.items.reduce((s, p) => s + Number(p.valor_comissao || 0), 0)
-            const grupoSelecionados = grupo.items.filter(p => selected.has(p.id)).length
-            const grupoAllSelected  = grupoSelecionados === grupo.items.length
-            const toggleGrupoSel = (e) => {
-              e.stopPropagation()
-              setSelected(prev => {
-                const n = new Set(prev)
-                grupoAllSelected ? grupo.items.forEach(p => n.delete(p.id)) : grupo.items.forEach(p => n.add(p.id))
-                return n
-              })
-            }
-
-            return (
-              <div key={grupo.nome}>
-                {/* Cabeçalho do grupo — clique no nome recolhe/expande */}
-                <div style={{ display:'grid', gridTemplateColumns:'32px 1fr auto', alignItems:'center', gap:8, padding:'8px 12px',
-                  background: isLocked ? 'rgba(16,185,129,0.05)' : status === 'rejeitado' ? 'rgba(239,68,68,0.03)' : 'var(--surface2)',
-                  borderBottom:'1px solid var(--border)', borderTop:'1px solid var(--border)', cursor:'pointer' }}
-                  onClick={() => toggleExpanded(grupo.nome)}>
-                  <input type="checkbox" checked={grupoAllSelected}
-                    ref={el => { if (el) el.indeterminate = grupoSelecionados > 0 && !grupoAllSelected }}
-                    onChange={toggleGrupoSel} onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
-                  <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
-                    {/* Chevron de expand/collapse */}
-                    <ChevronRight size={14} strokeWidth={2} style={{ color:'var(--text-muted)', flexShrink:0, transition:'transform 0.15s', transform: expanded ? 'rotate(90deg)' : 'none' }} />
-                    <div style={{ width:26, height:26, borderRadius:99, background: isLocked ? 'rgba(16,185,129,0.15)' : 'var(--accent-glow)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, fontWeight:700, color: isLocked ? '#10B981' : 'var(--accent)', flexShrink:0 }}>
-                      {grupo.nome.slice(0,2).toUpperCase()}
-                    </div>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                        <span style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{grupo.nome}</span>
-                        <span style={{ fontSize:10, color:'var(--text-muted)' }}>{grupo.items.length} lanç.</span>
-                        <AprovStatusBadge status={status} />
-                      </div>
-                      {isLocked && aprov?.aprovado_por && (
-                        <div style={{ fontSize:10, color:'#10B981', marginTop:1 }}>
-                          Aprovado por {aprov.aprovado_por} em {fmtDate(aprov.aprovado_em)}
-                        </div>
-                      )}
-                      {status === 'rejeitado' && aprov?.obs && (
-                        <div style={{ fontSize:10, color:'#EF4444', marginTop:1 }}>Motivo: {aprov.obs}</div>
-                      )}
-                    </div>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'center', gap:8 }} onClick={e => e.stopPropagation()}>
-                    <span style={{ fontSize:13, fontWeight:800, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)' }}>{fmt(grupoTotal)}</span>
-                    {isAdmin && !isLocked && (
-                      <button onClick={() => handleAprovar(grupo.nome)}
-                        style={{ padding:'4px 12px', borderRadius:7, border:'none', background:'#10B981', color:'#fff', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4, whiteSpace:'nowrap' }}>
-                        <CheckCircle2 size={11} strokeWidth={2.5} /> Aprovar lote
-                      </button>
-                    )}
-                    {isAdmin && status === 'aberto' && (
-                      <button onClick={() => setObsModal({ nome: grupo.nome, obs: '' })}
-                        style={{ padding:'4px 10px', borderRadius:7, border:'1px solid #FCA5A5', background:'rgba(239,68,68,0.06)', color:'#EF4444', fontSize:11, cursor:'pointer', fontFamily:'var(--font)', display:'flex', alignItems:'center', gap:4 }}>
-                        <XCircle size={11} strokeWidth={2.5} /> Rejeitar
-                      </button>
-                    )}
-                    {(status === 'rejeitado' || isLocked) && (
-                      <button onClick={() => handleReabrir(grupo.nome)}
-                        style={{ padding:'4px 10px', borderRadius:7, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                        Reabrir
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Linhas dos lançamentos — recolhíveis */}
-                {expanded && grupo.items.map((p, i) => {
-                  const isSel = selected.has(p.id)
-                  const contratoNum = p.contract_numero || p.custom_fields?.contract_numero || ''
-                  const empresaNome = p.company_nome    || p.custom_fields?.company_nome    || ''
-                  const valorBase   = Number(p.valor_base || p.valor_bruto || 0)
-                  const pct         = Number(p.percentual || 0)
-                  return (
-                    <div key={p.id} onClick={() => toggleOne(p.id)}
-                      style={{ ...ROW, cursor:'pointer', background: isSel ? 'rgba(99,102,241,0.06)' : i % 2 === 0 ? 'transparent' : 'rgba(0,0,0,0.01)', transition:'background 0.1s' }}>
-                      <input type="checkbox" checked={isSel} onChange={() => toggleOne(p.id)}
-                        onClick={e => e.stopPropagation()} style={{ cursor:'pointer', accentColor:'var(--accent)' }} />
-                      <div style={{ minWidth:0 }}>
-                        <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                          {p.observacoes || p.receita_tipo || p.custom_fields?.receita_tipo || '—'}
-                        </div>
-                        {contratoNum && <div style={{ fontSize:10, color:'var(--accent)', fontWeight:600, marginTop:1 }}>CTR {contratoNum}</div>}
-                      </div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{empresaNome || '—'}</div>
-                      <div style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center' }}>
-                        {p.data_competencia ? fmtMes(p.data_competencia.slice(0,7)) : '—'}
-                      </div>
-                      <div style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textAlign:'right' }}>
-                        {valorBase > 0 ? fmt(valorBase) : '—'}
-                      </div>
-                      <div style={{ fontSize:11, fontFamily:'var(--mono)', color:'var(--text-muted)', textAlign:'right' }}>
-                        {pct > 0 ? `${pct}%` : '—'}
-                      </div>
-                      <div style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color: isLocked ? '#10B981' : 'var(--text)', textAlign:'right' }}>
-                        {fmt(p.valor_comissao || 0)}
-                      </div>
-                      <div style={{ textAlign:'center' }}>
-                        {/* status de aprovação do lote (herdado do grupo) */}
-                        <span style={{
-                          display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:700,
-                          padding:'2px 8px', borderRadius:99,
-                          background: status === 'aprovado' ? 'rgba(16,185,129,0.1)' : status === 'rejeitado' ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
-                          color: status === 'aprovado' ? '#10B981' : status === 'rejeitado' ? '#EF4444' : '#F59E0B',
-                        }}>
-                          {status === 'aprovado' ? 'Aprovado' : status === 'rejeitado' ? 'Rejeitado' : 'Pendente'}
-                        </span>
-                      </div>
-                      <div style={{ textAlign:'center' }}>
-                        <StatusTag status={p.status} />
-                      </div>
-                      <div style={{ textAlign:'right' }}>
-                        {onOpenRepasse && (
-                          <button onClick={e => { e.stopPropagation(); onOpenRepasse({ type:'edit', data:{ ...p, valor_base: p.valor_base || p.valor_bruto || 0, _status_aprovacao: status, _aprovado_por: aprov?.aprovado_por || '', _aprovado_em: aprov?.aprovado_em || '' } }) }}
-                            style={{ padding:'3px 9px', borderRadius:6, border:'1px solid var(--border)', background:'var(--surface2)', color:'var(--text-muted)', fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                            Abrir
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+  return (
+    <>
+      <BrowseLayout
+        modulo="comissoes"
+        data={flatFiltered}
+        columns={COLUMNS}
+        keyField="id"
+        storageKey="comissoes_aprovacao"
+        groupBy={row => row.beneficiario_nome || 'Sem nome'}
+        renderGroupHeader={renderGroupHeader}
+        groupsControlRef={groupsControlRef}
+        search={search}
+        onSearchChange={setSearch}
+        filters={FILTER_DEFS}
+        activeFilters={filtros}
+        onFilterChange={setFiltros}
+        onRowClick={undefined}
+        kpis={() => (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 10 }}>
+            {[
+              { label: 'Beneficiários',  value: porBenef.length, color: 'var(--accent)' },
+              { label: 'Pendentes',      value: porBenef.filter(g => (getAprov(g.nome)?.status || 'aberto') !== 'aprovado').length, color: '#F59E0B' },
+              { label: 'Aprovados',      value: benefAprovados,   color: '#10B981' },
+              { label: 'Valor aprovado', value: fmt(totalAprovado), color: '#10B981' },
+            ].map(k => (
+              <div key={k.label} style={{ padding: '12px 16px', background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, borderTop: `3px solid ${k.color}` }}>
+                <div style={{ fontSize: 20, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 3 }}>{k.label}</div>
               </div>
-            )
-          })}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+        secondaryActions={
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Calendar size={13} strokeWidth={1.75} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              <input type="month" value={periodo} onChange={e => setPeriodo(e.target.value)}
+                style={{ padding: '5px 9px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font)', outline: 'none' }} />
+            </div>
+            <button
+              type="button"
+              onClick={() => groupsControlRef.current?.expandAll()}
+              title="Expandir todos os grupos"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 32, padding: '0 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <ChevronDown size={12} strokeWidth={2} /> Expandir
+            </button>
+            <button
+              type="button"
+              onClick={() => groupsControlRef.current?.collapseAll()}
+              title="Recolher todos os grupos"
+              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 32, padding: '0 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-muted)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+              <ChevronRight size={12} strokeWidth={2} style={{ transform: 'rotate(90deg)' }} /> Recolher
+            </button>
+          </>
+        }
+        bulkActions={isAdmin ? [
+          { label: 'Aprovar selecionados', icon: <CheckCircle2 size={13} strokeWidth={2.5} />, onClick: aprovarSelecionados },
+          { type: 'dropdown', label: 'Status pgto', options: [
+            { label: 'Pendente',  onClick: ids => marcarStatusPgto(ids, 'pendente') },
+            { label: 'Pago',      onClick: ids => marcarStatusPgto(ids, 'pago') },
+            { label: 'Cancelado', onClick: ids => marcarStatusPgto(ids, 'cancelado') },
+          ]},
+        ] : []}
+        emptyState={
+          <div style={{ textAlign: 'center', padding: '48px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
+            <DollarSign size={32} strokeWidth={1} style={{ opacity: 0.2, display: 'block', margin: '0 auto 12px' }} />
+            Nenhum lançamento em {fmtMes(periodo)}.
+          </div>
+        }
+      />
 
       {/* Modal de rejeição */}
       {obsModal && (
@@ -2410,88 +2262,7 @@ function TabAprovacao({ payments, setPayments, isAdmin, onLog, onOpenRepasse, bu
           </div>
         </div>
       )}
-
-      {/* ── Painel de Filtros lateral ─────────────────────────────────────── */}
-      {filtrosPanelOpen && createPortal(
-        <>
-          <div onClick={() => setFiltrosPanelOpen(false)}
-            style={{ position:'fixed', inset:0, zIndex:80, background:'rgba(0,0,0,0.18)' }} />
-          <div style={{ position:'fixed', top:0, right:0, bottom:0, width:320, zIndex:81,
-            background:'var(--surface)', borderLeft:'1px solid var(--border)',
-            boxShadow:'-8px 0 32px rgba(0,0,0,0.10)', display:'flex', flexDirection:'column', fontFamily:'var(--font)' }}>
-            {/* Header */}
-            <div style={{ display:'flex', alignItems:'center', gap:10, padding:'16px 20px', borderBottom:'1px solid var(--border)', borderTop:'3px solid var(--accent)', flexShrink:0 }}>
-              <Filter size={15} color="var(--accent)" />
-              <span style={{ flex:1, fontSize:14, fontWeight:700, color:'var(--text)' }}>Filtros</span>
-              {filtrosAtivos > 0 && (
-                <button type="button" onClick={() => setFiltros({ statusAprov:[], statusPag:[] })}
-                  style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline', padding:0 }}>
-                  Limpar todos
-                </button>
-              )}
-              <button type="button" onClick={() => setFiltrosPanelOpen(false)}
-                style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:4 }}>
-                <X size={15} />
-              </button>
-            </div>
-            {/* Conteúdo */}
-            <div style={{ flex:1, overflowY:'auto', padding:'16px 20px', display:'flex', flexDirection:'column', gap:20 }}>
-              {/* Status de aprovação */}
-              <div>
-                <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span>Status de aprovação</span>
-                  {filtros.statusAprov.length > 0 && (
-                    <button type="button" onClick={() => setFiltros(f => ({ ...f, statusAprov:[] }))}
-                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}><X size={11} /></button>
-                  )}
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-                  {[
-                    { value:'aberto',    label:'Aberto',    color:'var(--text-muted)' },
-                    { value:'aprovado',  label:'Aprovado',  color:'#10B981' },
-                    { value:'rejeitado', label:'Rejeitado', color:'#EF4444' },
-                  ].map(opt => (
-                    <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7, cursor:'pointer',
-                      background: filtros.statusAprov.includes(opt.value) ? 'rgba(99,102,241,0.08)' : 'transparent',
-                      border: filtros.statusAprov.includes(opt.value) ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent' }}>
-                      <input type="checkbox" checked={filtros.statusAprov.includes(opt.value)} onChange={() => toggleFiltro('statusAprov', opt.value)}
-                        style={{ accentColor:'var(--accent)', flexShrink:0 }} />
-                      <span style={{ fontSize:13, color:opt.color, fontWeight:600 }}>{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-              {/* Status do pagamento */}
-              <div>
-                <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:8, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                  <span>Status do pagamento</span>
-                  {filtros.statusPag.length > 0 && (
-                    <button type="button" onClick={() => setFiltros(f => ({ ...f, statusPag:[] }))}
-                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', padding:0 }}><X size={11} /></button>
-                  )}
-                </div>
-                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-                  {[
-                    { value:'pendente',   label:'Pendente' },
-                    { value:'pago',       label:'Pago' },
-                    { value:'cancelado',  label:'Cancelado' },
-                  ].map(opt => (
-                    <label key={opt.value} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px', borderRadius:7, cursor:'pointer',
-                      background: filtros.statusPag.includes(opt.value) ? 'rgba(99,102,241,0.08)' : 'transparent',
-                      border: filtros.statusPag.includes(opt.value) ? '1px solid rgba(99,102,241,0.25)' : '1px solid transparent' }}>
-                      <input type="checkbox" checked={filtros.statusPag.includes(opt.value)} onChange={() => toggleFiltro('statusPag', opt.value)}
-                        style={{ accentColor:'var(--accent)', flexShrink:0 }} />
-                      <span style={{ fontSize:13, color:'var(--text)' }}>{opt.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </>,
-        document.body
-      )}
-    </div>
+    </>
   )
 }
 
