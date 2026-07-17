@@ -11,6 +11,8 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useTiposAcao } from '../hooks/useTiposAcao'
 import { useTasks } from '../hooks/useTasks'
 import { useUsuarios } from '../hooks/useUsuarios'
+import { useSellers } from '../hooks/useSellers'
+import { useAcaoMembros } from '../hooks/useAcaoMembros'
 import { useDocuments } from '../hooks/useDocuments'
 import { CATEGORIA_CFG } from '../data/mockDocumentos'
 import { MultiSelect } from './Playbooks'
@@ -399,6 +401,166 @@ function AcaoTarefasTab({ acao, tarefas, saveTarefa, deleteTarefa, tiposTarefa }
   )
 }
 
+// ─── Aba Participantes (Contatos Canal) — bench: OppEquipeTab em Pipeline.js ──
+const PAPEL_PARTICIPANTE = [
+  { value: 'participante', label: 'Participante' },
+  { value: 'responsavel',  label: 'Responsável'  },
+]
+
+function AcaoParticipantesTab({ acaoId }) {
+  const { membros, add: addMembro, remove: removeMembro } = useAcaoMembros()
+  const { usuarios } = useUsuarios()
+  const { sellers }  = useSellers()
+  const [busca, setBusca] = useState('')
+  const [selUser, setSelUser] = useState(null)
+  const [papel, setPapel] = useState('participante')
+  const [dropOpen, setDropOpen] = useState(false)
+  const dropRef = useRef(null)
+
+  // Pool: usuários com acesso à plataforma vinculados a Contatos Canais
+  // (profiles com papel='contato_canal'), enriquecido com o cadastro de
+  // Vendedores via contact_id — mesmo modelo de poolCanais em OppEquipeTab.
+  const pool = useMemo(() =>
+    usuarios
+      .filter(u => u.status !== 'inativo' && u.papel === 'contato_canal')
+      .map(u => {
+        const seller = sellers.find(s => s.id === u.contact_id)
+        return {
+          id: u.id, nome: u.nome, cargo: seller?.cargo || seller?.role || '',
+          email: u.email || seller?.email || '', franquia: seller?.franquia_nome || '',
+        }
+      }),
+  [usuarios, sellers])
+
+  const participantes = useMemo(() =>
+    membros.filter(m => m.acao_id === acaoId)
+      .map(m => ({ ...m, usuario: pool.find(u => u.id === m.user_id) }))
+      .filter(m => m.usuario),
+  [membros, acaoId, pool])
+
+  const jaAdicionados = useMemo(() => new Set(participantes.map(m => m.user_id)), [participantes])
+
+  const sugestoes = useMemo(() => {
+    const q = busca.toLowerCase()
+    return pool.filter(u =>
+      !jaAdicionados.has(u.id) &&
+      ((u.nome || '').toLowerCase().includes(q) || (u.cargo || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
+    ).slice(0, 8)
+  }, [busca, jaAdicionados, pool])
+
+  async function handleAdd() {
+    if (!selUser) return
+    await addMembro({ acao_id: acaoId, user_id: selUser.id, papel })
+    setSelUser(null); setBusca(''); setPapel('participante'); setDropOpen(false)
+  }
+
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14, paddingTop:8 }}>
+      <div style={{ fontSize:12, color:'var(--text-muted)' }}>
+        Contatos Canal (vendedores) que participaram desta Ação — usado também no cálculo de maturidade.
+      </div>
+
+      {/* ── Form de adicionar ── */}
+      <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:12 }}>
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 160px auto', gap:8, alignItems:'flex-end' }}>
+          <div ref={dropRef} style={{ position:'relative' }}>
+            <label style={lbl}>Contato Canal</label>
+            {selUser ? (
+              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px',
+                background:'var(--surface)', border:'1px solid var(--accent)', borderRadius:6 }}>
+                <div style={{ width:24, height:24, borderRadius:'50%', background:'var(--accent-glow)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:10,
+                  fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)', flexShrink:0 }}>
+                  {(selUser.nome || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{selUser.nome}</div>
+                  {selUser.franquia && <div style={{ fontSize:10, color:'var(--text-muted)' }}>{selUser.franquia}</div>}
+                </div>
+                <button type="button" onClick={() => { setSelUser(null); setBusca('') }}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 2px' }}>✕</button>
+              </div>
+            ) : (
+              <input className="so-field" placeholder="Nome, cargo ou e-mail…" value={busca} style={{ width:'100%', boxSizing:'border-box' }}
+                onChange={e => { setBusca(e.target.value); setDropOpen(true) }}
+                onFocus={() => setDropOpen(true)} />
+            )}
+            {!selUser && dropOpen && sugestoes.length > 0 && (
+              <div style={{ position:'absolute', top:'100%', left:0, right:0, marginTop:4,
+                background:'var(--surface)', border:'1px solid var(--border)', borderRadius:8,
+                boxShadow:'0 8px 24px rgba(0,0,0,.12)', zIndex:300, maxHeight:220, overflowY:'auto' }}>
+                {sugestoes.map(u => (
+                  <div key={u.id} onMouseDown={() => { setSelUser(u); setBusca(''); setDropOpen(false) }}
+                    style={{ padding:'8px 12px', cursor:'pointer', fontSize:13, color:'var(--text)' }}
+                    onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
+                    onMouseLeave={e => e.currentTarget.style.background='none'}>
+                    <div style={{ fontWeight:600 }}>{u.nome}</div>
+                    {(u.cargo || u.franquia) && (
+                      <div style={{ fontSize:11, color:'var(--text-muted)' }}>{[u.cargo, u.franquia].filter(Boolean).join(' · ')}</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div>
+            <label style={lbl}>Função</label>
+            <select className="so-field" value={papel} onChange={e => setPapel(e.target.value)}>
+              {PAPEL_PARTICIPANTE.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+            </select>
+          </div>
+          <button onClick={handleAdd} disabled={!selUser}
+            style={{ height:36, padding:'0 16px', borderRadius:7, border:'none',
+              background: selUser ? 'var(--accent)' : 'var(--border)', color:'#fff', fontWeight:700, fontSize:12,
+              cursor: selUser ? 'pointer' : 'not-allowed', fontFamily:'var(--font)' }}>
+            + Adicionar
+          </button>
+        </div>
+      </div>
+
+      {/* ── Lista ── */}
+      {participantes.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:13 }}>
+          Nenhum Contato Canal adicionado a esta Ação ainda.
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+          {participantes.map(mb => {
+            const u = mb.usuario
+            const cfg = PAPEL_PARTICIPANTE.find(p => p.value === mb.papel) || PAPEL_PARTICIPANTE[0]
+            return (
+              <div key={mb.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px',
+                border:'1px solid var(--border2)', borderRadius:8 }}>
+                <div style={{ width:30, height:30, borderRadius:'50%', flexShrink:0, background:'var(--accent-glow)',
+                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:11,
+                  fontWeight:800, color:'var(--accent)', fontFamily:'var(--mono)' }}>
+                  {(u.nome || '?').slice(0, 2).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)' }}>
+                    {[u.cargo, u.franquia].filter(Boolean).join(' · ')}
+                  </div>
+                </div>
+                <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+                  background:'var(--surface2)', color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                  {cfg.label}
+                </span>
+                <button onClick={() => removeMembro(mb.id)}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px' }}
+                  onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                  onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── SlideOver de cadastro ────────────────────────────────────────────────────
 function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, empresasOpts, responsaveisOpts, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
   const isNew = !initial?.id
@@ -460,6 +622,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
   const tabs = [
     { key:'dados',      label:'Dados' },
     { key:'tarefas',    label:'Tarefas',    badge: tarefasBadge },
+    { key:'participantes', label:'Participantes' },
     { key:'custos',     label:'Custos',     badge: custosBadge },
     { key:'documentos', label:'Documentos', badge: docsBadge },
     { key:'anexos',     label:'Anexos',     badge: anexosBadge },
@@ -893,6 +1056,17 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
           <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
           <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar tarefas.</div>
+        </div>
+      )}
+
+      {/* ── Aba Participantes ── */}
+      {tab === 'participantes' && !isNew && (
+        <AcaoParticipantesTab acaoId={initial.id} />
+      )}
+      {tab === 'participantes' && isNew && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
+          <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar participantes.</div>
         </div>
       )}
     </SlideOver>

@@ -52,6 +52,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:T, criar_editar:T },
       assinatura:          { acessar:T },
       maturidade_parceiros:{ acessar:T, criar_editar:T },
+      maturidade_vendedores:{ acessar:T, criar_editar:T },
     },
     native_gestor: {
       dashboard:       { visualizar:T, ver_financeiro:T, exportar:T, apenas_proprios:F },
@@ -90,6 +91,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:T, criar_editar:F },
       assinatura:          { acessar:F },
       maturidade_parceiros:{ acessar:T, criar_editar:T },
+      maturidade_vendedores:{ acessar:T, criar_editar:T },
     },
     native_vendedor: {
       dashboard:       { visualizar:T, ver_financeiro:F, exportar:F, apenas_proprios:T },
@@ -128,6 +130,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:F, criar_editar:F },
       assinatura:          { acessar:F },
       maturidade_parceiros:{ acessar:F, criar_editar:F },
+      maturidade_vendedores:{ acessar:F, criar_editar:F },
     },
     native_parceiro: {
       dashboard:       { visualizar:F, ver_financeiro:F, exportar:F, apenas_proprios:T },
@@ -166,6 +169,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:F, criar_editar:F },
       assinatura:          { acessar:F },
       maturidade_parceiros:{ acessar:F, criar_editar:F },
+      maturidade_vendedores:{ acessar:F, criar_editar:F },
     },
     native_financeiro: {
       dashboard:       { visualizar:T, ver_financeiro:T, exportar:T, apenas_proprios:F },
@@ -205,6 +209,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:F, criar_editar:F },
       assinatura:          { acessar:F },
       maturidade_parceiros:{ acessar:F, criar_editar:F },
+      maturidade_vendedores:{ acessar:F, criar_editar:F },
     },
     native_gestor_projetos: {
       dashboard:       { visualizar:T, ver_financeiro:F, exportar:F, apenas_proprios:F },
@@ -244,6 +249,7 @@ export function buildSeedPerms() {
       compartilhamento:    { acessar:F, criar_editar:F },
       assinatura:          { acessar:F },
       maturidade_parceiros:{ acessar:F, criar_editar:F },
+      maturidade_vendedores:{ acessar:F, criar_editar:F },
     },
   }
 }

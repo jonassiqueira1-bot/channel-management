@@ -18,6 +18,7 @@ const SECTIONS = [
       { path: '/settings/assinatura',  label: 'Assinatura',       Icon: DollarSign, adminOnly: true },
       { path: '/settings/franquias',             label: 'Parceiros',            Icon: Store    },
       { path: '/settings/maturidade-parceiros', label: 'Maturidade Parceiros', Icon: Network  },
+      { path: '/settings/maturidade-vendedores', label: 'Maturidade Vendedores', Icon: Network  },
     ],
   },
   {
@@ -36,7 +37,7 @@ const SECTIONS = [
       { path: '/settings/tabela-precos', label: 'Tabela de Preços',       Icon: Receipt     },
       { path: '/settings/funis',        label: 'Funis de Vendas',         Icon: Filter      },
       { path: '/settings/tipos-acoes',  label: 'Tipos de Ações',          Icon: Activity    },
-      { path: '/settings/campanhas',    label: 'Campanhas de Incentivo',  Icon: Megaphone   },
+      { path: '/settings/campanhas',    label: 'Campanhas',  Icon: Megaphone   },
       { path: '/settings/indicadores',  label: 'Indicadores',             Icon: TrendingUp  },
       { path: '/settings/metas',        label: 'Metas e KPIs',            Icon: BarChart2   },
     ],

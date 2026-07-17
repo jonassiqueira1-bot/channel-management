@@ -19,6 +19,7 @@ function rowToMembro(row) {
     user_id:         row.user_id,
     papel:           row.papel || 'vendedor',
     tipo_membro:     row.tipo_membro || 'interno',
+    franquia_id_na_epoca: row.franquia_id_na_epoca || null,
     adicionado_em:   row.created_at?.slice(0, 10) || '',
   }
 }
@@ -53,13 +54,24 @@ export function useOppMembros() {
     const novo = { ...membro, id: membro.id || (Date.now() + Math.floor(Math.random() * 999)) }
     setMembros(prev => [...prev, novo])
     if (isMockMode.current) return { ok: true }
+
+    // Snapshot da franquia do Contato Canal NO MOMENTO em que ele entra na
+    // Oportunidade — sem isso, se o vendedor trocar de franquia depois, o
+    // histórico inteiro "migraria" retroativamente pra franquia nova.
+    let franquiaIdNaEpoca = null
+    if (novo.tipo_membro === 'canal') {
+      const { data: seller } = await supabase.from('sellers').select('parceiro_id').eq('id', novo.user_id).single()
+      franquiaIdNaEpoca = seller?.parceiro_id || null
+    }
+
     const { error } = await supabase.from('oportunidade_membros').insert({
-      tenant_id:       tenantId,
-      branch_id:       branchId || null,
-      oportunidade_id: novo.oportunidade_id,
-      user_id:         novo.user_id,
-      papel:           novo.papel,
-      tipo_membro:     novo.tipo_membro,
+      tenant_id:             tenantId,
+      branch_id:             branchId || null,
+      oportunidade_id:       novo.oportunidade_id,
+      user_id:               novo.user_id,
+      papel:                 novo.papel,
+      tipo_membro:           novo.tipo_membro,
+      franquia_id_na_epoca:  franquiaIdNaEpoca,
     })
     if (error) console.warn('[useOppMembros] insert error:', error.message)
     return { ok: !error }

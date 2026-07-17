@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
+import { useSellerMaturity, useSellerScores } from '../hooks/useSellerMaturity'
 import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProfile } from '../hooks/useProfile'
@@ -177,7 +178,7 @@ function RoleBadge({ role }) {
 }
 
 // ─── SlideOver de Cadastro ────────────────────────────────────────────────────
-function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInvite, franquiasOpts = [], todos = [] }) {
+function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInvite, franquiasOpts = [], todos = [], scoreData = null }) {
   const isNew = !initial?.id
   const { funis } = useFunnels()
   const funisAtivos = funis.filter(f => f.status === 'ativo')
@@ -225,6 +226,23 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
       subtitle={isNew ? 'Preencha os dados do contato' : form.email}
       saveLabel={isNew ? 'Cadastrar contato' : 'Salvar alterações'}
       columns={2}
+      headerActions={!isNew && (
+        scoreData ? (
+          <span title={`Calculado em ${new Date(scoreData.calculado_em).toLocaleDateString('pt-BR')}`}
+            style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:8,
+              border:'1px solid var(--border)', background:'var(--surface2)' }}>
+            <span style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Maturidade</span>
+            <span style={{ fontSize:14, fontWeight:800, fontFamily:'var(--mono)',
+              color: scoreData.score_pct >= 70 ? '#065F46' : scoreData.score_pct >= 40 ? '#92400E' : '#991B1B' }}>
+              🎯 {scoreData.score_pct}%
+            </span>
+          </span>
+        ) : (
+          <span style={{ fontSize:11, color:'var(--text-muted)', padding:'6px 12px' }}>
+            Maturidade ainda não calculada
+          </span>
+        )
+      )}
     >
       <FormGrid cols={2}>
         <FormField label="Nome" required error={errs.nome} style={{ gridColumn: 'span 2' }}>
@@ -475,6 +493,9 @@ export default function Vendedores() {
   const { profile } = useProfile()
   const tenantId = profile?.tenant_id
 
+  const { params: maturityParams } = useSellerMaturity()
+  const { scores, calculating, calculate } = useSellerScores(sellers, maturityParams)
+
   const franquiasMap = useMemo(
     () => Object.fromEntries((parceiros || []).map(p => [String(p.id), p])),
     [parceiros]
@@ -608,6 +629,21 @@ export default function Vendedores() {
       render: (val) => <span style={{ fontSize:12, color:'var(--text-soft)' }}>{val || '—'}</span>,
     },
     {
+      key: 'id',
+      label: 'Maturidade',
+      render: (val) => {
+        const s = scores[val]
+        if (s == null) return <span style={{ fontSize:11, color:'var(--text-muted)' }}>—</span>
+        const color = s.score_pct >= 70 ? '#065F46' : s.score_pct >= 40 ? '#92400E' : '#991B1B'
+        const bg    = s.score_pct >= 70 ? '#D1FAE5' : s.score_pct >= 40 ? '#FEF3C7' : '#FEE2E2'
+        return (
+          <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:20, background:bg, color }}>
+            {s.score_pct}%
+          </span>
+        )
+      },
+    },
+    {
       key: 'status',
       label: 'Status',
       render: (val) => <StatusBadge status={val} />,
@@ -699,6 +735,11 @@ export default function Vendedores() {
         filters={filters}
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
+        secondaryActions={
+          <Button size="sm" variant="outline" loading={calculating} onClick={calculate}>
+            {calculating ? 'Calculando…' : '↻ Calcular maturidade'}
+          </Button>
+        }
         bulkActions={bulkActions}
         bulkEditFields={[
           { key: 'role', label: 'Perfil', type: 'select',
@@ -726,6 +767,7 @@ export default function Vendedores() {
         onDelete={handleDelete}
         onInvite={editing ? () => handleInvite(editing) : undefined}
         franquiasOpts={franquiasOpts}
+        scoreData={editing ? scores[editing.id] : null}
       />
 
       <ImportSlideOver

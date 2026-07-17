@@ -21,7 +21,7 @@ import { useUsuarios } from '../hooks/useUsuarios'
 import { useGoals } from '../hooks/useGoals'
 import { useProducts } from '../hooks/useProducts'
 import { useContracts } from '../hooks/useContracts'
-import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus } from 'lucide-react'
+import { Target, X, ChevronDown, SlidersHorizontal, CalendarDays, Users, Plus, Download } from 'lucide-react'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
 import Button from '../components/Button'
 import { useAuditLog } from '../hooks/useAuditLog'
@@ -1193,6 +1193,43 @@ export default function Metas() {
     return result
   }, [deMes, deAno, ateMes, ateAno])
 
+  const TIPO_ALVO_LABEL = { vendedor: 'Vendedor', unidade: 'Unidade', categoria: 'Categoria', produto: 'Produto', parceiro: 'Parceiro', equipe: 'Equipe' }
+
+  // Exporta a visualização atual (já filtrada por período/atribuição/responsável)
+  // pra um .xlsx organizado — uma linha por entidade, colunas de Meta/Realizado/%
+  // por mês do intervalo selecionado, mais os totais do período.
+  async function exportarExcel() {
+    const XLSX = await import('xlsx')
+    const header = ['Tipo', 'Nome', 'Contexto']
+    months.forEach(m => {
+      const label = `${MESES[m.mes - 1].slice(0, 3)}/${m.ano}`
+      header.push(`${label} — Meta`, `${label} — Realizado`, `${label} — %`)
+    })
+    header.push('Total Meta', 'Total Realizado', 'Total %')
+
+    const linhas = matrixRows.map(row => {
+      const linha = [TIPO_ALVO_LABEL[row.tipo_alvo] || row.tipo_alvo, row.nome_ref, row.sub_ref || '']
+      let totalMeta = 0, totalRealizado = 0
+      months.forEach(m => {
+        const g = row.goals[`${m.ano}-${m.mes}`]
+        const meta = Number(g?.valor_alvo || 0)
+        const realizado = Number(g?.valor_atual || 0)
+        totalMeta += meta
+        totalRealizado += realizado
+        linha.push(meta, realizado, meta > 0 ? Math.round((realizado / meta) * 1000) / 10 : 0)
+      })
+      linha.push(totalMeta, totalRealizado, totalMeta > 0 ? Math.round((totalRealizado / totalMeta) * 1000) / 10 : 0)
+      return linha
+    })
+
+    const ws = XLSX.utils.aoa_to_sheet([header, ...linhas])
+    ws['!cols'] = header.map((_, i) => ({ wch: i < 3 ? 22 : 14 }))
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Metas')
+    const periodo = `${MESES[Number(deMes) - 1].slice(0, 3)}${deAno}-${MESES[Number(ateMes) - 1].slice(0, 3)}${ateAno}`
+    XLSX.writeFile(wb, `metas_${periodo}.xlsx`)
+  }
+
   // ── Linhas da matriz ────────────────────────────────────────────────────
   const matrixRows = useMemo(() => {
     const deDate  = Number(deAno)  * 12 + Number(deMes)
@@ -1422,6 +1459,12 @@ export default function Metas() {
           <span style={{ fontSize:12, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
             {matrixRows.length} linha{matrixRows.length!==1?'s':''} · {months.length} {months.length===1?'mês':'meses'}
           </span>
+
+          {/* Exportar visualização atual */}
+          <Button variant="secondary" icon={<Download size={14} />} onClick={exportarExcel}
+            disabled={matrixRows.length === 0}>
+            Exportar Excel
+          </Button>
 
           {/* Nova meta */}
           <Button icon={<Plus size={14} />} onClick={() => setModal({ mode:'new' })}>Nova meta</Button>

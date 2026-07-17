@@ -1,9 +1,18 @@
-import { useState, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef, useMemo } from 'react'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import { useCampanhas } from '../../hooks/useCampanhas'
 import { useProfile } from '../../hooks/useProfile'
+import { useParceiros } from '../../hooks/useParceiros'
+import { useSellers } from '../../hooks/useSellers'
+import { useContacts } from '../../hooks/useContacts'
+import { useCompanies } from '../../hooks/useCompanies'
+import { usePlaybooks } from '../../hooks/usePlaybooks'
+import { useFunnels } from '../../hooks/useFunnels'
+import { SEGMENTOS_PADRAO } from '../../data/segmentos'
 import { checkEmUso } from '../../lib/checkUsage'
 import SettingsLayout from '../../components/ui/SettingsLayout'
+import SearchSelect from '../../components/SearchSelect'
+import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 /* ─── Constants ─────────────────────────────────────────── */
 
@@ -107,7 +116,7 @@ function ImportModal({ onClose, onImport, existingNames }) {
       <div style={modal}>
         <div style={{ padding:'20px 24px 14px', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center', flexShrink:0 }}>
           <div>
-            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Campanhas de Incentivo</div>
+            <div style={{ fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em', color:'var(--text-muted)', marginBottom:2 }}>Campanhas</div>
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)' }}>{step === 'upload' ? 'Importar dados' : `${rows.length} linha${rows.length !== 1 ? 's' : ''} encontrada${rows.length !== 1 ? 's' : ''}`}</div>
           </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:'var(--text-muted)', lineHeight:1 }}>×</button>
@@ -212,13 +221,16 @@ const EMPTY_FORM = {
   start_date: '',
   end_date: '',
   status: 'draft',
+  franquia_modo: 'todas',
+  franquia_ids: [],
+  contato_canal_ids: [],
+  contato_ids: [],
+  empresa_ids: [],
+  empresa_segmentos: [],
+  empresa_apenas_ativas: false,
+  playbook_id: null,
+  funil_id: null,
 }
-
-const STEPS = [
-  { label: 'Identificação',       desc: 'Nome, objetivo e descrição' },
-  { label: 'Materiais e Regras',  desc: 'Links e configurações' },
-  { label: 'Período e Ativação',  desc: 'Datas e status inicial' },
-]
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
 
@@ -241,199 +253,6 @@ function StatusBadge({ value }) {
   )
 }
 
-/* ─── Progress bar ───────────────────────────────────────── */
-function WizardProgress({ step }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 0, padding: '24px 32px 0', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' }}>
-      {STEPS.map((s, i) => {
-        const done    = i < step
-        const current = i === step
-        const last    = i === STEPS.length - 1
-        return (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', flex: last ? 0 : 1 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, paddingBottom: 16 }}>
-              <div style={{
-                width: 28, height: 28, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 11, fontWeight: 800, flexShrink: 0,
-                background: done ? ACCENT : current ? ACCENT : 'var(--surface3)',
-                color: done || current ? '#fff' : 'var(--text-muted)',
-                border: current ? `2px solid ${ACCENT}` : done ? `2px solid ${ACCENT}` : '2px solid var(--border2)',
-                transition: 'all 0.2s',
-              }}>
-                {done ? '✓' : i + 1}
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 11.5, fontWeight: 700, color: current ? ACCENT : done ? 'var(--text)' : 'var(--text-muted)', whiteSpace: 'nowrap' }}>{s.label}</div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap', marginTop: 1 }}>{s.desc}</div>
-              </div>
-            </div>
-            {!last && (
-              <div style={{
-                flex: 1, height: 2, marginTop: 13, marginLeft: 8, marginRight: 8,
-                background: done ? ACCENT : 'var(--border2)',
-                transition: 'background 0.3s',
-              }} />
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-/* ─── Step 1 — Identificação ─────────────────────────────── */
-function Step1({ form, onChange, errors }) {
-  return (
-    <div style={wz.body}>
-      <div style={wz.fieldGroup}>
-        <Label text="Nome da Campanha" required />
-        <input
-          value={form.name}
-          onChange={e => onChange('name', e.target.value)}
-          placeholder="Ex: Campanha de Verão 2026"
-          style={{ ...wz.input, ...(errors.name ? { border: '1px solid var(--red)' } : {}) }}
-        />
-        {errors.name && <span style={wz.err}>{errors.name}</span>}
-      </div>
-
-      <div style={wz.fieldGroup}>
-        <Label text="Objetivo" required />
-        <select
-          value={form.objective}
-          onChange={e => onChange('objective', e.target.value)}
-          style={{ ...wz.input, ...(errors.objective ? { border: '1px solid var(--red)' } : {}) }}
-        >
-          <option value="">Selecione o objetivo...</option>
-          {OBJETIVOS.map(o => <option key={o} value={o}>{o}</option>)}
-        </select>
-        {errors.objective && <span style={wz.err}>{errors.objective}</span>}
-      </div>
-
-      <div style={wz.fieldGroup}>
-        <Label text="Descrição" />
-        <textarea
-          value={form.description}
-          onChange={e => onChange('description', e.target.value)}
-          placeholder="Descreva brevemente o objetivo desta campanha para os canais parceiros..."
-          rows={4}
-          style={{ ...wz.input, resize: 'vertical', fontFamily: 'var(--font)', lineHeight: 1.6 }}
-        />
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{form.description.length} / 500 caracteres</span>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Step 2 — Materiais e Regras ────────────────────────── */
-function Step2({ form, onChange }) {
-  function addMaterial() { onChange('materials', [...form.materials, '']) }
-  function updateMaterial(i, v) {
-    const next = [...form.materials]
-    next[i] = v
-    onChange('materials', next)
-  }
-  function removeMaterial(i) {
-    onChange('materials', form.materials.filter((_, idx) => idx !== i))
-  }
-
-  return (
-    <div style={wz.body}>
-      <div style={wz.fieldGroup}>
-        <Label text="Links de Materiais de Apoio" />
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
-          Adicione URLs de arquivos, pastas compartilhadas ou assets da campanha (PDFs, artes, apresentações).
-        </p>
-        {form.materials.map((m, i) => (
-          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-            <input
-              value={m}
-              onChange={e => updateMaterial(i, e.target.value)}
-              placeholder="https://drive.google.com/..."
-              style={{ ...wz.input, flex: 1, marginBottom: 0 }}
-            />
-            {form.materials.length > 1 && (
-              <button type="button" onClick={() => removeMaterial(i)} style={wz.btnRemove}>✕</button>
-            )}
-          </div>
-        ))}
-        <button type="button" onClick={addMaterial} style={wz.btnAdd}>+ Adicionar link</button>
-      </div>
-
-      <div style={{ ...wz.fieldGroup, marginTop: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10 }}>
-          <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Pontuação Especial nas Metas</div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-              Ativar para que ações desta campanha pontuem de forma diferenciada no ranking de metas.
-            </div>
-          </div>
-          <Toggle value={form.pontua_metas} onChange={v => onChange('pontua_metas', v)} />
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ─── Step 3 — Período e Ativação ────────────────────────── */
-function Step3({ form, onChange, errors }) {
-  return (
-    <div style={wz.body}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <div style={wz.fieldGroup}>
-          <Label text="Data de Início" required />
-          <input
-            type="date"
-            value={form.start_date}
-            onChange={e => onChange('start_date', e.target.value)}
-            style={{ ...wz.input, ...(errors.start_date ? { border: '1px solid var(--red)' } : {}) }}
-          />
-          {errors.start_date && <span style={wz.err}>{errors.start_date}</span>}
-        </div>
-        <div style={wz.fieldGroup}>
-          <Label text="Data de Término" />
-          <input
-            type="date"
-            value={form.end_date}
-            onChange={e => onChange('end_date', e.target.value)}
-            min={form.start_date || undefined}
-            style={wz.input}
-          />
-        </div>
-      </div>
-
-      <div style={{ ...wz.fieldGroup, marginTop: 24 }}>
-        <Label text="Status Inicial" />
-        <div style={{ display: 'flex', gap: 12, marginTop: 4 }}>
-          {STATUS_OPTIONS.map(opt => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onChange('status', opt.value)}
-              style={{
-                flex: 1, padding: '14px 12px', borderRadius: 10, cursor: 'pointer',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
-                border: form.status === opt.value ? `2px solid ${opt.color}` : '2px solid var(--border)',
-                background: form.status === opt.value ? opt.bg : 'var(--surface)',
-                transition: 'all 0.15s',
-              }}
-            >
-              <span style={{ width: 10, height: 10, borderRadius: '50%', background: opt.color }} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: form.status === opt.value ? opt.color : 'var(--text-muted)' }}>
-                {opt.label}
-              </span>
-              <span style={{ fontSize: 10, color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.4 }}>
-                {opt.value === 'draft'  && 'Salvar sem publicar ainda'}
-                {opt.value === 'active' && 'Publicar imediatamente'}
-                {opt.value === 'paused' && 'Criar já pausada'}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ─── Toggle ─────────────────────────────────────────────── */
 function Toggle({ value, onChange }) {
   return (
@@ -441,12 +260,12 @@ function Toggle({ value, onChange }) {
       type="button"
       onClick={() => onChange(!value)}
       style={{
-        width: 44, height: 24, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0,
-        background: value ? ACCENT : 'var(--border2)', position: 'relative', transition: 'background 0.2s',
+        width: 40, height: 22, borderRadius: 12, border: 'none', cursor: 'pointer', flexShrink: 0,
+        background: value ? 'var(--accent)' : 'var(--border2)', position: 'relative', transition: 'background 0.2s',
       }}
     >
       <span style={{
-        position: 'absolute', top: 3, left: value ? 22 : 3, width: 18, height: 18,
+        position: 'absolute', top: 2, left: value ? 20 : 2, width: 18, height: 18,
         borderRadius: '50%', background: '#fff', transition: 'left 0.2s',
         boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
       }} />
@@ -454,97 +273,243 @@ function Toggle({ value, onChange }) {
   )
 }
 
-/* ─── Label ──────────────────────────────────────────────── */
-function Label({ text, required }) {
+/* ─── SearchMultiSelect — sem pílulas: fechado mostra resumo em texto ─────────
+   ("3 selecionadas"), aberto mostra busca + checklist. Mesmo padrão da
+   MultiSelectDropdown já usada em settings/Indicadores.js. ────────────────── */
+function SearchMultiSelect({ options = [], selected = [], onChange, placeholder = 'Todos' }) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ]       = useState('')
+  const ref             = useRef(null)
+
+  const sel = (selected || []).map(String)
+
+  function toggle(id) {
+    const sid = String(id)
+    onChange(sel.includes(sid) ? sel.filter(x => x !== sid) : [...sel, sid])
+  }
+
+  const visible = options.filter(o => !q || o.label.toLowerCase().includes(q.toLowerCase()))
+  const selectedLabels = options.filter(o => sel.includes(String(o.id))).map(o => o.label)
+  const summary = selectedLabels.length === 0
+    ? placeholder
+    : selectedLabels.length <= 2
+      ? selectedLabels.join(', ')
+      : `${selectedLabels.length} selecionados`
+
   return (
-    <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
-      {text}{required && <span style={{ color: 'var(--red)', marginLeft: 3 }}>*</span>}
-    </label>
+    <div ref={ref} style={{ position: 'relative' }}
+      onBlur={e => { if (!e.currentTarget.contains(e.relatedTarget)) setOpen(false) }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="fpe-field"
+        style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: selectedLabels.length ? 'var(--text)' : 'var(--text-muted)' }}>
+          {summary}
+        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 300,
+          background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8,
+          boxShadow: '0 8px 24px rgba(0,0,0,0.12)', overflow: 'hidden',
+        }}>
+          <div style={{ padding: '8px 8px 6px' }}>
+            <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Pesquisar…"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)',
+                background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5, fontFamily: 'var(--font)', outline: 'none' }} />
+          </div>
+          <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+            {visible.length === 0 && <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)' }}>Nenhum resultado</div>}
+            {visible.map(o => {
+              const checked = sel.includes(String(o.id))
+              return (
+                <label key={o.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 12px', cursor: 'pointer',
+                  background: checked ? 'var(--accent-glow)' : 'transparent' }}>
+                  <input type="checkbox" checked={checked} onChange={() => toggle(o.id)} style={{ accentColor: 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, color: 'var(--text)', fontWeight: checked ? 600 : 400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{o.label}</span>
+                </label>
+              )
+            })}
+          </div>
+          {sel.length > 0 && (
+            <div style={{ padding: '5px 12px 8px', borderTop: '1px solid var(--border2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{sel.length} selecionado{sel.length !== 1 ? 's' : ''}</span>
+              <button type="button" onClick={() => onChange([])} style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Limpar</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
-/* ─── Wizard modal ───────────────────────────────────────── */
-function CampanhaWizard({ initial, onClose, onSave }) {
-  const [step, setStep]   = useState(0)
-  const [form, setForm]   = useState(initial || { ...EMPTY_FORM })
-  const [errors, setErrs] = useState({})
+/* ─── Tela de edição (full page, uma única tela) — bench: Produtos/Parceiros/
+   Maturidade de Vendedores em Configurações ─────────────────────────────── */
+function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
+  const isNew = !initial?.id
+  const [form, setForm] = useState(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
+  const [errs, setErrs] = useState({})
+  const [saving, setSaving] = useState(false)
 
-  const update = useCallback((k, v) => setForm(f => ({ ...f, [k]: v })), [])
+  const { parceiros } = useParceiros()
+  const { sellers }   = useSellers()
+  const { contacts }  = useContacts()
+  const { companies } = useCompanies()
+  const { playbooks }  = usePlaybooks()
+  const { funis }      = useFunnels()
+
+  const franquiasOpts = useMemo(() =>
+    (parceiros || []).filter(p => p.classificacao !== 'unidade' && p.situacao !== 'inativo')
+      .map(p => ({ id: String(p.id), label: p.codigo ? `[${p.codigo}] ${p.nome}` : p.nome })),
+  [parceiros])
+
+  const contatosCanalOpts = useMemo(() =>
+    (sellers || []).filter(s => s.status !== 'inativo').map(s => ({ id: String(s.id), label: s.nome })),
+  [sellers])
+
+  const contatosOpts = useMemo(() =>
+    (contacts || []).map(c => ({ id: String(c.id), label: c.nome || c.email || 'Sem nome' })),
+  [contacts])
+
+  const empresasOpts = useMemo(() =>
+    (companies || []).map(c => ({ id: String(c.id), label: c.fantasia || c.razao || 'Sem nome' })),
+  [companies])
+
+  const segmentosOpts = useMemo(() => SEGMENTOS_PADRAO.map(s => ({ id: s, label: s })), [])
+
+  const playbookOpts = useMemo(() =>
+    (playbooks || []).map(p => ({ id: p.id, label: p.title || p.titulo })),
+  [playbooks])
+
+  const funilOpts = useMemo(() =>
+    (funis || []).map(f => ({ id: f.id, label: f.nome })),
+  [funis])
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(e => ({ ...e, [k]: '' })) }
+
+  function addMaterial() { set('materials', [...(form.materials || []), '']) }
+  function updateMaterial(i, v) { const n = [...form.materials]; n[i] = v; set('materials', n) }
+  function removeMaterial(i) { set('materials', form.materials.filter((_, idx) => idx !== i)) }
 
   function validate() {
     const e = {}
-    if (step === 0) {
-      if (!form.name.trim())     e.name      = 'Informe o nome da campanha'
-      if (!form.objective)       e.objective  = 'Selecione um objetivo'
-    }
-    if (step === 2) {
-      if (!form.start_date)      e.start_date = 'Informe a data de início'
-    }
+    if (!form.name.trim())   e.name = 'Informe o nome da campanha'
+    if (!form.objective)     e.objective = 'Selecione um objetivo'
+    if (!form.start_date)    e.start_date = 'Informe a data de início'
     setErrs(e)
     return Object.keys(e).length === 0
   }
 
-  function next() {
+  async function handleSave() {
     if (!validate()) return
-    setStep(s => Math.min(s + 1, STEPS.length - 1))
-    setErrs({})
+    setSaving(true)
+    await onSave({ ...form, id: form.id || uid() })
+    setSaving(false)
   }
-  function back() { setStep(s => Math.max(s - 1, 0)); setErrs({}) }
-
-  function handleSave(status) {
-    if (!validate()) return
-    onSave({ ...form, status, id: form.id || uid() })
-  }
-
-  const isLast = step === STEPS.length - 1
 
   return (
-    <div style={wz.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
-      <div style={wz.modal}>
+    <FullPageEdit
+      title={isNew ? 'Nova Campanha' : form.name}
+      subtitle={isNew ? 'Nova campanha' : 'Editando campanha'}
+      breadcrumb={[{ label: 'Campanhas', onClick: onCancel }]}
+      onCancel={onCancel}
+      onSave={handleSave}
+      saving={saving}
+      onDelete={!isNew ? onDelete : undefined}
+      columns={2}
+    >
+      <FPESection title="Identificação">
+        <FPEField label="Nome da Campanha *" error={errs.name} span={2}>
+          <input value={form.name} onChange={e => set('name', e.target.value)}
+            placeholder="Ex: Campanha de Verão 2026" className="fpe-field" />
+        </FPEField>
+        <FPEField label="Objetivo *" error={errs.objective}>
+          <select value={form.objective} onChange={e => set('objective', e.target.value)} className="fpe-field">
+            <option value="">Selecione…</option>
+            {OBJETIVOS.map(o => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </FPEField>
+        <FPEField label="Status">
+          <select value={form.status} onChange={e => set('status', e.target.value)} className="fpe-field">
+            {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        </FPEField>
+        <FPEField label="Descrição" span={2}>
+          <textarea value={form.description} onChange={e => set('description', e.target.value)}
+            placeholder="Descreva brevemente o objetivo desta campanha para os canais parceiros…"
+            rows={3} className="fpe-field" style={{ resize: 'vertical', fontFamily: 'var(--font)' }} />
+        </FPEField>
+      </FPESection>
 
-        {/* Header */}
-        <div style={wz.header}>
-          <div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text)' }}>
-              {initial ? 'Editar Campanha' : 'Nova Campanha'}
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-              Passo {step + 1} de {STEPS.length} — {STEPS[step].label}
-            </div>
+      <FPESection title="Vigência">
+        <FPEField label="Data de Início *" error={errs.start_date}>
+          <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} className="fpe-field" />
+        </FPEField>
+        <FPEField label="Data de Término">
+          <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} min={form.start_date || undefined} className="fpe-field" />
+        </FPEField>
+      </FPESection>
+
+      <FPESection title="Relacionamentos" description="Todos opcionais — deixe em branco pra não restringir por esse critério.">
+        <FPEField label="Franquias">
+          <select value={form.franquia_modo} onChange={e => set('franquia_modo', e.target.value)} className="fpe-field">
+            <option value="todas">Todas as franquias</option>
+            <option value="algumas">Franquias específicas</option>
+          </select>
+        </FPEField>
+        {form.franquia_modo === 'algumas' && (
+          <FPEField label="Quais franquias">
+            <SearchMultiSelect options={franquiasOpts} selected={form.franquia_ids} onChange={v => set('franquia_ids', v)} placeholder="Selecionar franquias…" />
+          </FPEField>
+        )}
+        <FPEField label="Contatos Canal (vendedores)">
+          <SearchMultiSelect options={contatosCanalOpts} selected={form.contato_canal_ids} onChange={v => set('contato_canal_ids', v)} placeholder="Todos os contatos canal" />
+        </FPEField>
+        <FPEField label="Contatos">
+          <SearchMultiSelect options={contatosOpts} selected={form.contato_ids} onChange={v => set('contato_ids', v)} placeholder="Todos os contatos" />
+        </FPEField>
+        <FPEField label="Empresas — Segmento(s)">
+          <SearchMultiSelect options={segmentosOpts} selected={form.empresa_segmentos} onChange={v => set('empresa_segmentos', v)} placeholder="Todos os segmentos" />
+        </FPEField>
+        <FPEField label="Empresas — apenas ativas">
+          <div style={{ display: 'flex', alignItems: 'center', height: 36 }}>
+            <Toggle value={form.empresa_apenas_ativas} onChange={v => set('empresa_apenas_ativas', v)} />
           </div>
-          <button onClick={onClose} style={wz.closeBtn}>✕</button>
-        </div>
+        </FPEField>
+        <FPEField label="Empresas específicas" span={2}>
+          <SearchMultiSelect options={empresasOpts} selected={form.empresa_ids} onChange={v => set('empresa_ids', v)} placeholder="Nenhuma — usar só segmento/status acima" />
+        </FPEField>
+        <FPEField label="Playbook">
+          <SearchSelect options={playbookOpts} value={form.playbook_id} onChange={id => set('playbook_id', id || null)} placeholder="Pesquisar playbook…" noResults="Nenhum playbook encontrado" />
+        </FPEField>
+        <FPEField label="Funil">
+          <SearchSelect options={funilOpts} value={form.funil_id} onChange={id => set('funil_id', id || null)} placeholder="Pesquisar funil…" noResults="Nenhum funil encontrado" />
+        </FPEField>
+      </FPESection>
 
-        {/* Progress */}
-        <WizardProgress step={step} />
-
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: 'auto' }}>
-          {step === 0 && <Step1 form={form} onChange={update} errors={errors} />}
-          {step === 1 && <Step2 form={form} onChange={update} />}
-          {step === 2 && <Step3 form={form} onChange={update} errors={errors} />}
-        </div>
-
-        {/* Footer */}
-        <div style={wz.footer}>
-          <button type="button" onClick={() => handleSave('draft')} style={wz.btnDraft}>
-            Salvar como Rascunho
+      <FPESection title="Materiais e Pontuação">
+        <FPEField label="Links de Materiais de Apoio" span={2}>
+          {form.materials.map((m, i) => (
+            <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <input value={m} onChange={e => updateMaterial(i, e.target.value)} placeholder="https://drive.google.com/…" className="fpe-field" style={{ flex: 1 }} />
+              {form.materials.length > 1 && (
+                <button type="button" onClick={() => removeMaterial(i)}
+                  style={{ fontSize: 13, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 }}>✕</button>
+              )}
+            </div>
+          ))}
+          <button type="button" onClick={addMaterial}
+            style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent)', background: 'none', border: '1px dashed var(--accent)', borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+            + Adicionar link
           </button>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {step > 0 && (
-              <button type="button" onClick={back} style={wz.btnBack}>← Voltar</button>
-            )}
-            {!isLast ? (
-              <button type="button" onClick={next} style={wz.btnPrimary}>Próximo →</button>
-            ) : (
-              <button type="button" onClick={() => handleSave(form.status)} style={{ ...wz.btnPrimary, background: '#10B981' }}>
-                ✓ Publicar Campanha
-              </button>
-            )}
+        </FPEField>
+        <FPEField label="Pontuação especial nas Metas">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, height: 36 }}>
+            <Toggle value={form.pontua_metas} onChange={v => set('pontua_metas', v)} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Ações desta campanha pontuam diferenciado no ranking</span>
           </div>
-        </div>
-      </div>
-    </div>
+        </FPEField>
+      </FPESection>
+    </FullPageEdit>
   )
 }
 
@@ -569,23 +534,24 @@ export default function Campanhas() {
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
   const tenantId = profile?.tenant_id
-  const [wizard, setWizard]       = useState(null)
+  const [editing, setEditing]     = useState(null) // null | 'new' | campanha
   const [search, setSearch]       = useState('')
   const [importModal, setImportModal] = useState(false)
 
-  function handleSave(c) {
+  async function handleSave(c) {
     const isNew = !campanhas.find(x => x.id === c.id)
-    saveCampanha(c)
-    log(isNew ? 'criar' : 'editar', 'campanha', c.id, { descricao: `Campanha ${isNew ? 'criada' : 'editada'}: ${c.nome || c.titulo || ''}` })
-    setWizard(null)
+    await saveCampanha(c)
+    log(isNew ? 'criar' : 'editar', 'campanha', c.id, { descricao: `Campanha ${isNew ? 'criada' : 'editada'}: ${c.name || ''}` })
+    setEditing(null)
   }
 
   async function handleDelete(id) {
     const c = campanhas.find(x => x.id === id)
-    const bloqueio = await checkEmUso('campanha', String(id), c?.nome || c?.titulo || id, tenantId)
+    const bloqueio = await checkEmUso('campanha', String(id), c?.name || id, tenantId)
     if (bloqueio) { alert(bloqueio); return }
     removeCampanha(id)
-    log('excluir', 'campanha', id, { descricao: `Campanha excluída: ${c?.nome || c?.titulo || id}` })
+    log('excluir', 'campanha', id, { descricao: `Campanha excluída: ${c?.name || id}` })
+    setEditing(null)
   }
 
   function handleImport(rows) {
@@ -609,15 +575,26 @@ export default function Campanhas() {
   }
 
   const filtered = campanhas.filter(c =>
-    c.name.toLowerCase().includes(search.toLowerCase()) ||
-    c.objective.toLowerCase().includes(search.toLowerCase())
+    (c.name || '').toLowerCase().includes(search.toLowerCase()) ||
+    (c.objective || '').toLowerCase().includes(search.toLowerCase())
   )
+
+  if (editing) {
+    return (
+      <CampanhaEdit
+        initial={editing === 'new' ? null : editing}
+        onCancel={() => setEditing(null)}
+        onSave={handleSave}
+        onDelete={editing !== 'new' ? () => handleDelete(editing.id) : undefined}
+      />
+    )
+  }
 
   return (
     <>
       <SettingsLayout
         modulo="campanhas"
-        title="Campanhas de Incentivo"
+        title="Campanhas"
         description="Crie e gerencie campanhas para motivar e engajar seus canais parceiros."
         columns={[
           {
@@ -658,11 +635,11 @@ export default function Campanhas() {
           },
         ]}
         data={filtered}
-        onNew={() => setWizard('new')}
+        onNew={() => setEditing('new')}
         newLabel="Nova Campanha"
-        onRowClick={row => setWizard(row)}
+        onRowClick={row => setEditing(row)}
         rowActions={[
-          { label: 'Editar', onClick: row => setWizard(row) },
+          { label: 'Editar', onClick: row => setEditing(row) },
           { label: 'Excluir', danger: true, onClick: row => handleDelete(row.id) },
         ]}
         emptyLabel="Nenhuma campanha cadastrada ainda."
@@ -701,87 +678,9 @@ export default function Campanhas() {
         <ImportModal
           onClose={() => setImportModal(false)}
           onImport={handleImport}
-          existingNames={campanhas.map(c => c.name.toLowerCase())}
-        />
-      )}
-
-      {wizard && (
-        <CampanhaWizard
-          initial={wizard === 'new' ? null : wizard}
-          onClose={() => setWizard(null)}
-          onSave={handleSave}
+          existingNames={campanhas.map(c => (c.name || '').toLowerCase())}
         />
       )}
     </>
   )
-}
-
-/* ─── Styles ─────────────────────────────────────────────── */
-
-const ACCENT = 'var(--accent)'
-
-const pg = {
-  header: {
-    display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-    padding: '28px 32px 16px', borderBottom: '1px solid var(--border)',
-  },
-  title: { fontSize: 18, fontWeight: 700, color: 'var(--text)', margin: 0, letterSpacing: '-0.3px' },
-  desc:  { fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 0' },
-  btnNew: {
-    background: ACCENT, color: '#fff', border: 'none', borderRadius: 8,
-    padding: '8px 16px', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-    fontFamily: 'var(--font)', whiteSpace: 'nowrap', flexShrink: 0,
-  },
-  toolbar: {
-    display: 'flex', alignItems: 'center', gap: 12, padding: '14px 32px',
-    borderBottom: '1px solid var(--border)', background: 'var(--surface)',
-  },
-  search: {
-    padding: '7px 12px', fontSize: 12.5, borderRadius: 8,
-    border: '1px solid var(--border)', background: 'var(--surface2)',
-    color: 'var(--text)', fontFamily: 'var(--font)', width: 240,
-    outline: 'none',
-  },
-  table: { width: '100%', borderCollapse: 'collapse', marginTop: 8 },
-  th: { padding: '8px 12px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', textAlign: 'left', borderBottom: '1px solid var(--border)' },
-  td: { padding: '10px 12px', fontSize: 12.5, verticalAlign: 'middle' },
-  empty: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, minHeight: 240, background: 'var(--surface2)', borderRadius: 12, border: '1px dashed var(--border2)', marginTop: 16 },
-  btnAction: { fontSize: 11.5, fontWeight: 600, color: ACCENT, background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontFamily: 'var(--font)' },
-}
-
-const wz = {
-  overlay: {
-    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    zIndex: 500, backdropFilter: 'blur(2px)',
-  },
-  modal: {
-    background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 640,
-    maxHeight: '90vh', display: 'flex', flexDirection: 'column',
-    boxShadow: '0 24px 80px rgba(0,0,0,0.25)',
-    overflow: 'hidden',
-  },
-  header: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '20px 24px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0,
-  },
-  closeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 16, cursor: 'pointer', padding: '4px 8px', borderRadius: 6 },
-  body:     { padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: 20 },
-  fieldGroup: { display: 'flex', flexDirection: 'column' },
-  input: {
-    padding: '8px 12px', fontSize: 13, borderRadius: 8, border: '1px solid var(--border)',
-    background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)',
-    outline: 'none', width: '100%', boxSizing: 'border-box',
-  },
-  err:      { fontSize: 11, color: 'var(--red)', marginTop: 4 },
-  footer: {
-    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '14px 24px', borderTop: '1px solid var(--border)',
-    background: 'var(--surface2)', flexShrink: 0,
-  },
-  btnDraft:   { fontSize: 12.5, fontWeight: 600, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontFamily: 'var(--font)' },
-  btnBack:    { fontSize: 12.5, fontWeight: 600, color: 'var(--text-soft)',  background: 'none', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 14px', cursor: 'pointer', fontFamily: 'var(--font)' },
-  btnPrimary: { fontSize: 13, fontWeight: 700, color: '#fff', background: ACCENT, border: 'none', borderRadius: 8, padding: '8px 18px', cursor: 'pointer', fontFamily: 'var(--font)' },
-  btnAdd:     { fontSize: 12, fontWeight: 600, color: ACCENT, background: 'none', border: `1px dashed ${ACCENT}55`, borderRadius: 7, padding: '6px 12px', cursor: 'pointer', fontFamily: 'var(--font)', marginTop: 4 },
-  btnRemove:  { fontSize: 13, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 10px', cursor: 'pointer', flexShrink: 0 },
 }

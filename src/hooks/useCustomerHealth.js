@@ -3,6 +3,7 @@ import { supabase, softDelete } from '../lib/supabase'
 import { useAuth } from '../contexts/AuthContext'
 import { useProfile } from './useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
+import { captureError } from '../lib/sentry'
 import { MOCK_CUSTOMER_HEALTH, STORAGE_KEY as MOCK_KEY } from '../data/mockCustomerSuccess'
 
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : null } catch { return null } }
@@ -30,8 +31,11 @@ export function useCustomerHealth() {
     let _q = supabase.from('customer_health').select('*')
     const { data, error } = await _q.order('company_name')
     if (error) {
-      isMock.current = true
-      setRecords(load() ?? MOCK_CUSTOMER_HEALTH)
+      // Erro real de backend (RLS, rede, etc.) — não troca por dados fictícios
+      // (mascarava o problema mostrando clientes falsos como se fossem reais).
+      captureError('useCustomerHealth', error)
+      isMock.current = false
+      setRecords([])
     } else {
       isMock.current = false
       setRecords(data || [])

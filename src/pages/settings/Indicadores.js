@@ -116,6 +116,7 @@ export const MODULOS = [
   { value: 'cs',         label: 'Sucesso do Cliente' },
   { value: 'pagamentos', label: 'Pagamentos' },
   { value: 'comissoes',  label: 'Comissões' },
+  { value: 'vendedores', label: 'Vendedores (Contatos Canais)' },
 ]
 
 function etapasDosFunis(funis, funil_ids) {
@@ -725,6 +726,50 @@ export const FONTES_INDICADOR = [
         : 30
       return Math.round((abertas.length * taxaConversao * ticketMedio) / ciclo)
     },
+  },
+  {
+    value: 'vendedores_maturidade_media',
+    label: 'Vendedores — Maturidade média (%)',
+    tipo: 'amount',
+    modulos: ['vendedores'],
+    storageKey: 'vendedores:maturidade_v1',
+    fn: (dados) => {
+      const comScore = (dados || []).filter(v => v.score_pct != null)
+      if (!comScore.length) return 0
+      return Math.round(comScore.reduce((s, v) => s + v.score_pct, 0) / comScore.length)
+    },
+  },
+  {
+    value: 'vendedores_qtd_maduros',
+    label: 'Vendedores — Qtd. com maturidade alta (≥ 70%)',
+    tipo: 'count',
+    modulos: ['vendedores'],
+    storageKey: 'vendedores:maturidade_v1',
+    fn: (dados) => (dados || []).filter(v => v.score_pct != null && v.score_pct >= 70).length,
+  },
+  {
+    value: 'vendedores_qtd_baixa_maturidade',
+    label: 'Vendedores — Qtd. com maturidade baixa (< 40%)',
+    tipo: 'count',
+    modulos: ['vendedores'],
+    storageKey: 'vendedores:maturidade_v1',
+    fn: (dados) => (dados || []).filter(v => v.score_pct != null && v.score_pct < 40).length,
+  },
+  {
+    value: 'vendedores_qtd_sem_score',
+    label: 'Vendedores — Qtd. sem maturidade calculada',
+    tipo: 'count',
+    modulos: ['vendedores'],
+    storageKey: 'vendedores:maturidade_v1',
+    fn: (dados) => (dados || []).filter(v => v.score_pct == null).length,
+  },
+  {
+    value: 'vendedores_qtd_ativos',
+    label: 'Vendedores — Qtd. ativos',
+    tipo: 'count',
+    modulos: ['vendedores'],
+    storageKey: 'vendedores:maturidade_v1',
+    fn: (dados) => (dados || []).filter(v => v.status === 'ativo').length,
   },
 ]
 

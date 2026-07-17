@@ -57,6 +57,7 @@ const Relatorios          = lazy(() => import('./pages/Relatorios'))
 const FechamentoHoras     = lazy(() => import('./pages/FechamentoHoras'))
 const ParceirosPage       = lazy(() => import('./pages/Parceiros'))
 const SettingsMaturidade  = lazy(() => import('./pages/settings/MaturidadeParceiros'))
+const SettingsMaturidadeVendedores = lazy(() => import('./pages/settings/MaturidadeVendedores'))
 const SettingsAssinatura  = lazy(() => import('./pages/settings/Assinatura'))
 const ConfirmarAssinatura = lazy(() => import('./pages/ConfirmarAssinatura'))
 
@@ -145,6 +146,7 @@ export default function App() {
               <Route path="campanhas"    element={<SettingsCampanhas />} />
               <Route path="franquias"    element={<SettingsParceiros />} />
               <Route path="maturidade-parceiros" element={<SettingsMaturidade />} />
+              <Route path="maturidade-vendedores" element={<SettingsMaturidadeVendedores />} />
               <Route path="indicadores"  element={<SettingsIndicadores />} />
               <Route path="metas"        element={<SettingsMetas />} />
               <Route path="compartilhamento" element={<BranchSharing />} />

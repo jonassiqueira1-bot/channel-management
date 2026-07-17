@@ -44,7 +44,16 @@ export function useCampanhas(seeds = []) {
         description: r.description || r.descricao || '',
         start_date:  r.start_date  || r.inicio    || '',
         end_date:    r.end_date    || r.fim        || '',
-        materials:   r.materials   || (r.extra ? JSON.parse(r.extra) : []),
+        materials:   Array.isArray(r.materials) && r.materials.length ? r.materials : [''],
+        franquia_modo:         r.franquia_modo || 'todas',
+        franquia_ids:          r.franquia_ids || [],
+        contato_canal_ids:     r.contato_canal_ids || [],
+        contato_ids:           r.contato_ids || [],
+        empresa_ids:           r.empresa_ids || [],
+        empresa_segmentos:     r.empresa_segmentos || [],
+        empresa_apenas_ativas: r.empresa_apenas_ativas || false,
+        playbook_id:           r.playbook_id || null,
+        funil_id:              r.funil_id || null,
       }))
       setCampanhas(mapped)
     }
@@ -76,7 +85,16 @@ export function useCampanhas(seeds = []) {
       fim:          record.end_date  || record.fim       || null,
       status:       record.status    || 'rascunho',
       pontua_metas: record.pontua_metas ?? false,
-      extra:        record.materials  ? record.materials : (record.extra || null),
+      materials:    (record.materials || []).filter(Boolean),
+      franquia_modo:         record.franquia_modo || 'todas',
+      franquia_ids:          record.franquia_ids || [],
+      contato_canal_ids:     record.contato_canal_ids || [],
+      contato_ids:           record.contato_ids || [],
+      empresa_ids:           record.empresa_ids || [],
+      empresa_segmentos:     record.empresa_segmentos || [],
+      empresa_apenas_ativas: record.empresa_apenas_ativas || false,
+      playbook_id:           record.playbook_id || null,
+      funil_id:              record.funil_id || null,
       updated_at:   new Date().toISOString(),
     }
     const { error } = await supabase.from('campanhas').upsert(row, { onConflict: 'id' })
