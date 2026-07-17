@@ -6,6 +6,7 @@ import { useSellerMaturity, useSellerScores } from '../hooks/useSellerMaturity'
 import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProfile } from '../hooks/useProfile'
+import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
 import { checkEmUso } from '../lib/checkUsage'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -352,122 +353,305 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
 }
 
 // ─── Import SlideOver ─────────────────────────────────────────────────────────
-function ImportSlideOver({ open, onClose, existingContacts, onImport }) {
-  const [file, setFile] = useState(null)
-  const [preview, setPreview] = useState([])
-  const [errors, setErrors] = useState([])
-  const [importing, setImporting] = useState(false)
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n')
+  if (lines.length < 2) return { headers: [], rows: [] }
+  const sep = lines[0].includes(';') ? ';' : ','
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''))
+  const rows = lines.slice(1).filter(l => l.trim()).map(line => {
+    const cells = []
+    let cur = '', inQ = false
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === sep && !inQ) { cells.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    cells.push(cur.trim())
+    return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']))
+  })
+  return { headers, rows }
+}
 
-  function parseCSV(text) {
-    const lines = text.split(/\r?\n/).filter(l => l.trim())
-    const headers = lines[0].split(';').map(h => h.trim().replace(/^"|"$/g, ''))
-    return lines.slice(1).map((line, i) => {
-      const vals = line.split(';').map(v => v.trim().replace(/^"|"$/g, ''))
-      const row = {}
-      headers.forEach((h, hi) => { row[h] = vals[hi] || '' })
-      return { row, idx: i + 2 }
-    })
+const IMPORT_COLS_BASE = ['nome','email','telefone','cpf','role','regiao','status','franquia_nome','meta_mensal','linkedin_url','whatsapp']
+
+function normEmail(v)    { return (v || '').trim().toLowerCase() }
+function normDigits(v)   { return (v || '').replace(/\D/g, '') }
+function normLinkedin(v) { return (v || '').trim().toLowerCase().replace(/\/+$/, '').replace(/^https?:\/\/(www\.)?/, '') }
+
+// Identidade de duplicidade: e-mail, CPF, LinkedIn ou WhatsApp já cadastrados
+// não podem gerar um segundo registro — nem entre si nem dentro do próprio arquivo.
+function validateImportRow(row, existingContacts, imported) {
+  const errors = []
+  if (!row.nome?.trim()) errors.push('Nome é obrigatório')
+  if (row.role && !Object.keys(ROLES).includes(row.role))
+    errors.push(`Perfil inválido: "${row.role}". Use: ${Object.keys(ROLES).join(', ')}`)
+  if (row.status && !Object.keys(STATUS_CFG).includes(row.status))
+    errors.push(`Status inválido: "${row.status}". Use: ${Object.keys(STATUS_CFG).join(', ')}`)
+
+  const email    = normEmail(row.email)
+  const cpf      = normDigits(row.cpf)
+  const linkedin = normLinkedin(row.linkedin_url)
+  const whatsapp = normDigits(row.whatsapp)
+
+  if (email) {
+    if (existingContacts.some(c => normEmail(c.email) === email)) errors.push(`E-mail já cadastrado: ${row.email}`)
+    else if (imported.some(r => normEmail(r.email) === email)) errors.push('E-mail duplicado no arquivo')
   }
+  if (cpf) {
+    if (existingContacts.some(c => normDigits(c.cpf) === cpf)) errors.push(`CPF já cadastrado: ${row.cpf}`)
+    else if (imported.some(r => normDigits(r.cpf) === cpf)) errors.push('CPF duplicado no arquivo')
+  }
+  if (linkedin) {
+    if (existingContacts.some(c => normLinkedin(c.linkedin_url) === linkedin)) errors.push('LinkedIn já cadastrado para outro contato')
+    else if (imported.some(r => normLinkedin(r.linkedin_url) === linkedin)) errors.push('LinkedIn duplicado no arquivo')
+  }
+  if (whatsapp) {
+    if (existingContacts.some(c => normDigits(c.whatsapp) === whatsapp)) errors.push('WhatsApp já cadastrado para outro contato')
+    else if (imported.some(r => normDigits(r.whatsapp) === whatsapp)) errors.push('WhatsApp duplicado no arquivo')
+  }
+  return errors
+}
 
-  function handleFile(f) {
-    if (!f) return
-    setFile(f)
+function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImport }) {
+  const customFieldsDef = useEntityCustomFields('sellers')
+  const allCols = useMemo(() => [...IMPORT_COLS_BASE, ...customFieldsDef.map(f => f.field_key)], [customFieldsDef])
+
+  const [step, setStep] = useState('upload') // upload | preview | importing | done
+  const [parsed, setParsed] = useState(null)
+  const [dragging, setDragging] = useState(false)
+  const [progress, setProgress] = useState({ current: 0, total: 0, franquiasCriadas: 0, label: '' })
+  const fileRef = useRef(null)
+
+  function processFile(file) {
+    if (!file) return
     const reader = new FileReader()
     reader.onload = e => {
-      const rows = parseCSV(e.target.result)
-      const errs = []
-      rows.forEach(({ row, idx }) => {
-        if (!row.nome?.trim()) errs.push(`Linha ${idx}: nome obrigatório`)
+      const { rows } = parseCSV(e.target.result)
+      const validatedRows = []
+      const rowResults = rows.map((row, i) => {
+        const errors = validateImportRow(row, existingContacts, validatedRows)
+        const ok = errors.length === 0
+        if (ok) validatedRows.push(row)
+        return { row, errors, ok, line: i + 2 }
       })
-      setErrors(errs)
-      setPreview(rows.slice(0, 5).map(r => r.row))
+      setParsed({ fileName: file.name, rowResults })
+      setStep('preview')
     }
-    reader.readAsText(f, 'UTF-8')
+    reader.readAsText(file, 'UTF-8')
   }
 
   function handleDownloadTemplate() {
-    const headers = ['nome','email','telefone','cpf','role','regiao','status','meta_mensal']
-    const example = ['João da Silva','joao@empresa.com','(11) 99999-0000','123.456.789-00','seller','Sudeste','ativo','15000']
-    const csv = [headers.join(';'), example.join(';')].join('\n')
-    const blob = new Blob(['﻿' + csv], { type:'text/csv;charset=utf-8;' })
+    const example = ['João da Silva','joao@empresa.com','(11) 99999-0000','123.456.789-00','seller','Sudeste','ativo','Franquia Exemplo','15000','','', ...customFieldsDef.map(() => '')]
+    const csv = [allCols.join(';'), example.join(';')].join('\n')
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a'); a.href=url; a.download='template_contatos_canais.csv'; a.click(); URL.revokeObjectURL(url)
+    const a = document.createElement('a'); a.href = url; a.download = 'template_contatos_canais.csv'; a.click(); URL.revokeObjectURL(url)
   }
 
-  async function handleImport() {
-    setImporting(true)
-    await new Promise(r => setTimeout(r, 600))
-    const rows = parseCSV(await file.text())
-    const existing = new Set(existingContacts.map(v => v.email?.toLowerCase()))
-    const newRows = [], skipped = []
-    rows.forEach(({ row }) => {
-      if (!row.nome?.trim()) return
-      if (existing.has(row.email?.toLowerCase())) { skipped.push(row.nome); return }
-      newRows.push({ ...EMPTY_FORM, ...row, id: uid(), criado: new Date().toISOString().slice(0,10), status: row.status || 'ativo', role: row.role || 'seller' })
-    })
-    onImport(newRows)
-    setImporting(false)
-    onClose()
+  async function handleConfirmImport() {
+    const okRows = parsed.rowResults.filter(r => r.ok)
+    const total = okRows.length
+    setProgress({ current: 0, total, franquiasCriadas: 0, label: 'Preparando…' })
+    setStep('importing')
+
+    const franquiasByNome = {}
+    ;(parceiros || []).forEach(p => { if (p.nome) franquiasByNome[p.nome.trim().toLowerCase()] = p })
+    const franquiasByCodigo = {}
+    ;(parceiros || []).forEach(p => { if (p.codigo) franquiasByCodigo[p.codigo.trim().toLowerCase()] = p })
+    const createdCache = {}
+    let franquiasCriadas = 0
+
+    // Franquia/Unidade não cadastrada ainda: cria como rascunho pra não travar
+    // a importação — o admin completa o cadastro depois em Parceiros.
+    async function resolveFranquia(nome) {
+      if (!nome?.trim()) return { id: null, nome: '' }
+      const key = nome.trim().toLowerCase()
+      if (franquiasByCodigo[key]) return { id: franquiasByCodigo[key].id, nome: franquiasByCodigo[key].nome }
+      if (franquiasByNome[key])   return { id: franquiasByNome[key].id, nome: franquiasByNome[key].nome }
+      if (createdCache[key]) return createdCache[key]
+      const result = await saveParceiro({ nome: nome.trim(), classificacao: 'franquia', situacao: 'rascunho' })
+      if (result?.ok && result?.data?.id) {
+        const ref = { id: result.data.id, nome: result.data.nome || nome.trim() }
+        createdCache[key] = ref
+        franquiasCriadas++
+        return ref
+      }
+      return { id: null, nome: nome.trim() }
+    }
+
+    const newRows = []
+    for (let i = 0; i < okRows.length; i++) {
+      const { row } = okRows[i]
+      setProgress({ current: i + 1, total, franquiasCriadas, label: row.nome || `Linha ${i + 2}` })
+      const franquia = await resolveFranquia(row.franquia_nome)
+      const custom_fields = {}
+      customFieldsDef.forEach(f => { if (row[f.field_key] !== undefined && row[f.field_key] !== '') custom_fields[f.field_key] = row[f.field_key] })
+      newRows.push({
+        ...EMPTY_FORM, ...row,
+        id: uid(),
+        criado: new Date().toISOString().slice(0, 10),
+        status: row.status || 'ativo',
+        role: row.role || 'seller',
+        franquia_id: franquia.id,
+        franquia_nome: franquia.nome,
+        custom_fields,
+      })
+    }
+
+    setProgress(p => ({ ...p, current: total, franquiasCriadas, label: 'Salvando contatos…' }))
+    await onImport(newRows)
+    setStep('done')
+    setProgress(p => ({ ...p, franquiasCriadas, label: 'Concluído!' }))
   }
+
+  const okCount  = parsed?.rowResults.filter(r => r.ok).length ?? 0
+  const errCount = parsed?.rowResults.filter(r => !r.ok).length ?? 0
 
   return (
-    <SlideOver
-      open={open}
-      onClose={onClose}
-      onSave={handleImport}
-      saving={importing}
-      saveLabel="Importar"
-      title="Importar Contatos Canais"
-      subtitle="Arquivo CSV separado por ponto-e-vírgula (;)"
-      columns={1}
-    >
-      <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
-        <Button variant="secondary" onClick={handleDownloadTemplate}>
-          ↓ Baixar template CSV
-        </Button>
-
-        <div
-          style={{ border:'2px dashed var(--border)', borderRadius:10, padding:24, textAlign:'center', cursor:'pointer' }}
-          onClick={() => document.getElementById('import-csv-input').click()}
-          onDragOver={e => e.preventDefault()}
-          onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }}>
-          <input id="import-csv-input" type="file" accept=".csv" style={{ display:'none' }}
-            onChange={e => handleFile(e.target.files[0])} />
-          <div style={{ fontSize:13, color:'var(--text-muted)' }}>
-            {file
-              ? <span style={{ color:'var(--accent)', fontWeight:600 }}>{file.name}</span>
-              : 'Arraste ou clique para selecionar o CSV'}
+    <div style={m.overlay} onClick={e => { if (e.target === e.currentTarget && step !== 'importing') onClose() }}>
+      <div style={{ ...m.modal, maxWidth: 700 }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Importar Contatos Canais</div>
+            <div style={m.subtitle}>Arquivo CSV com separador ponto-e-vírgula (;) — UTF-8</div>
           </div>
+          {step !== 'importing' && <button style={m.closeBtn} onClick={onClose}>✕</button>}
         </div>
 
-        {errors.length > 0 && (
-          <div style={{ background:'rgba(239,68,68,0.07)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:8, padding:'10px 14px' }}>
-            {errors.map((e, i) => <div key={i} style={{ fontSize:12, color:'var(--red)', fontFamily:'var(--mono)' }}>{e}</div>)}
+        {step === 'upload' && (
+          <div style={{ padding: 24 }}>
+            <div style={imp.templateBox}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Template CSV</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {allCols.length} colunas — inclui linha de exemplo{customFieldsDef.length > 0 ? ` + ${customFieldsDef.length} campo(s) personalizado(s)` : ''}
+                </div>
+              </div>
+              <button style={imp.templateBtn} onClick={handleDownloadTemplate}>↓ Baixar template</button>
+            </div>
+            <div
+              style={{ ...imp.dropzone, ...(dragging ? imp.dropzoneActive : {}) }}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={e => { e.preventDefault(); setDragging(false); processFile(e.dataTransfer.files[0]) }}
+              onClick={() => fileRef.current?.click()}>
+              <span style={{ fontSize: 28 }}>📂</span>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>Arraste o arquivo aqui ou clique para selecionar</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Apenas arquivos .csv</div>
+              <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => processFile(e.target.files[0])} />
+            </div>
+            <div style={imp.colsBox}>
+              <div style={imp.colsLabel}>Colunas esperadas</div>
+              <div style={imp.colsList}>
+                {IMPORT_COLS_BASE.map(c => <span key={c} style={imp.colTag}>{c}</span>)}
+                {customFieldsDef.map(f => <span key={f.field_key} style={{ ...imp.colTag, background: 'var(--accent)22', color: 'var(--accent)', borderColor: 'var(--accent)44' }}>{f.field_key}{f.is_required ? ' *' : ''}</span>)}
+              </div>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>
+              Se a <strong>Franquia/Unidade</strong> informada ainda não existir, ela é criada automaticamente com status <strong>rascunho</strong> em Parceiros. Contatos com e-mail, CPF, LinkedIn ou WhatsApp já cadastrados são ignorados (sem duplicar).
+            </div>
           </div>
         )}
 
-        {preview.length > 0 && (
-          <div>
-            <div style={{ fontSize:11, fontWeight:700, textTransform:'uppercase', color:'var(--text-muted)', marginBottom:6 }}>
-              Pré-visualização ({preview.length} linhas)
+        {step === 'preview' && parsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            <div style={imp.summary}>
+              <div style={imp.summaryItem}><span style={imp.summaryVal}>{parsed.rowResults.length}</span><span style={imp.summaryLbl}>linhas</span></div>
+              <div style={imp.summaryItem}><span style={{ ...imp.summaryVal, color: 'var(--green)' }}>{okCount}</span><span style={imp.summaryLbl}>prontas</span></div>
+              <div style={imp.summaryItem}><span style={{ ...imp.summaryVal, color: errCount > 0 ? 'var(--red)' : 'var(--text-muted)' }}>{errCount}</span><span style={imp.summaryLbl}>com erro</span></div>
+              <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{parsed.fileName}</div>
             </div>
-            <div style={{ overflowX:'auto' }}>
-              <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12 }}>
-                <thead>
-                  <tr>{Object.keys(preview[0]).map(k => <th key={k} style={{ padding:'6px 10px', textAlign:'left', background:'var(--surface2)', fontSize:10, color:'var(--text-muted)', fontWeight:700, textTransform:'uppercase' }}>{k}</th>)}</tr>
-                </thead>
+            <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px' }}>
+              <table style={{ ...p.table, marginBottom: 0 }}>
+                <thead><tr>
+                  {['Linha','Nome','E-mail','Perfil','Franquia/Unidade','Resultado'].map(h => <th key={h} style={p.th}>{h}</th>)}
+                </tr></thead>
                 <tbody>
-                  {preview.map((row, i) => (
-                    <tr key={i}>{Object.values(row).map((v, j) => <td key={j} style={{ padding:'6px 10px', borderBottom:'1px solid var(--border2)', fontFamily:'var(--mono)', fontSize:11 }}>{v || '—'}</td>)}</tr>
+                  {parsed.rowResults.map(({ row, errors, ok, line }) => (
+                    <tr key={line} style={{ ...p.tr, background: ok ? undefined : 'rgba(220,38,38,0.03)' }}>
+                      <td style={{ ...p.td, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)', width: 50 }}>{line}</td>
+                      <td style={{ ...p.td, fontSize: 12 }}>{row.nome || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td style={{ ...p.td, fontSize: 12 }}>{row.email || '—'}</td>
+                      <td style={{ ...p.td, fontSize: 11 }}>{ROLES[row.role]?.label || row.role || '—'}</td>
+                      <td style={{ ...p.td, fontSize: 11 }}>{row.franquia_nome || '—'}</td>
+                      <td style={p.td}>
+                        {ok
+                          ? <span style={{ color: 'var(--green)', fontSize: 11, fontWeight: 600 }}>✓ OK</span>
+                          : <div>{errors.map((e, i) => <div key={i} style={{ color: 'var(--red)', fontSize: 11 }}>✕ {e}</div>)}</div>}
+                      </td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            <div style={m.footer}>
+              <Button variant="secondary" onClick={() => setStep('upload')}>← Voltar</Button>
+              <div style={{ flex: 1 }} />
+              {errCount > 0 && okCount > 0 && <span style={{ fontSize: 12, color: 'var(--yellow-text)' }}>{errCount} linha{errCount > 1 ? 's' : ''} serão ignoradas</span>}
+              <Button disabled={okCount === 0} onClick={handleConfirmImport}>
+                {`Importar ${okCount} contato${okCount !== 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {(step === 'importing' || step === 'done') && (
+          <div style={{ padding: '32px 28px', display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center' }}>
+            {step === 'importing' ? (
+              <><div style={{ fontSize: 32 }}>⏳</div><div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Importando…</div></>
+            ) : (
+              <><div style={{ fontSize: 40 }}>✅</div><div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)' }}>Importação concluída!</div></>
+            )}
+            <div style={{ width: '100%', maxWidth: 440 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{progress.label}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{progress.current}/{progress.total}</span>
+              </div>
+              <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 99, transition: 'width 0.2s ease', background: step === 'done' ? '#10B981' : 'var(--accent)', width: progress.total ? `${Math.round((progress.current / progress.total) * 100)}%` : '0%' }} />
+              </div>
+              <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
+                <span>✓ <strong>{progress.current}</strong> contato{progress.current !== 1 ? 's' : ''} processado{progress.current !== 1 ? 's' : ''}</span>
+                {progress.franquiasCriadas > 0 && <span>🏢 <strong>{progress.franquiasCriadas}</strong> franquia{progress.franquiasCriadas !== 1 ? 's' : ''} criada{progress.franquiasCriadas !== 1 ? 's' : ''} (rascunho)</span>}
+              </div>
+            </div>
+            {step === 'done' && <Button onClick={onClose}>Fechar</Button>}
           </div>
         )}
       </div>
-    </SlideOver>
+    </div>
   )
+}
+
+// ─── Import styles ────────────────────────────────────────────────────────────
+const imp = {
+  templateBox:    { display:'flex', alignItems:'center', justifyContent:'space-between', padding:'12px 16px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', marginBottom:16 },
+  templateBtn:    { padding:'7px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' },
+  dropzone:       { border:'2px dashed var(--border)', borderRadius:10, padding:'40px 24px', textAlign:'center', cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', gap:10, marginBottom:16, transition:'all 0.15s', background:'var(--surface2)' },
+  dropzoneActive: { borderColor:'var(--accent)', background:'var(--accent-glow)' },
+  colsBox:        { background:'var(--surface2)', borderRadius:8, padding:'12px 14px', border:'1px solid var(--border)' },
+  colsLabel:      { fontSize:11, fontWeight:600, color:'var(--text-muted)', fontFamily:'var(--mono)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 },
+  colsList:       { display:'flex', flexWrap:'wrap', gap:5 },
+  colTag:         { padding:'2px 8px', background:'var(--surface3)', border:'1px solid var(--border)', borderRadius:4, fontSize:11, fontFamily:'var(--mono)', color:'var(--text-soft)' },
+  summary:        { display:'flex', alignItems:'center', gap:20, padding:'12px 24px', borderBottom:'1px solid var(--border2)', background:'var(--surface2)' },
+  summaryItem:    { display:'flex', flexDirection:'column', alignItems:'center', gap:2 },
+  summaryVal:     { fontSize:22, fontWeight:700, fontFamily:'var(--mono)', lineHeight:1 },
+  summaryLbl:     { fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' },
+}
+const p = {
+  table: { width:'100%', borderCollapse:'collapse' },
+  th:    { padding:'8px 12px', textAlign:'left', fontSize:10.5, fontWeight:600, color:'var(--text-muted)', fontFamily:'var(--mono)', textTransform:'uppercase', letterSpacing:'0.06em', background:'var(--surface2)', borderBottom:'1px solid var(--border)' },
+  tr:    { borderBottom:'1px solid var(--border2)' },
+  td:    { padding:'9px 12px', fontSize:12.5, verticalAlign:'middle' },
+}
+const m = {
+  overlay:  { position:'fixed', inset:0, background:'rgba(0,0,0,0.45)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:24 },
+  modal:    { background:'var(--surface)', borderRadius:14, width:'100%', maxWidth:680, boxShadow:'0 20px 60px rgba(0,0,0,0.18)', display:'flex', flexDirection:'column', maxHeight:'90vh' },
+  header:   { display:'flex', alignItems:'flex-start', justifyContent:'space-between', padding:'20px 24px 16px', borderBottom:'1px solid var(--border2)' },
+  title:    { fontSize:16, fontWeight:700, color:'var(--text)', margin:0 },
+  subtitle: { fontSize:13, color:'var(--text-muted)', marginTop:3 },
+  closeBtn: { background:'none', border:'none', color:'var(--text-muted)', fontSize:16, cursor:'pointer', padding:4, lineHeight:1 },
+  footer:   { display:'flex', alignItems:'center', gap:10, padding:'14px 24px', borderTop:'1px solid var(--border2)', flexShrink:0 },
 }
 
 // ─── Avatar cell ──────────────────────────────────────────────────────────────
@@ -487,7 +671,7 @@ function AvatarCell({ nome, email }) {
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 export default function Vendedores() {
-  const { parceiros }                                                        = useParceiros()
+  const { parceiros, save: saveParceiro }                                    = useParceiros()
   const { sellers, save: saveSeller, remove: deleteSeller, bulkSetStatus, importMany, inviteToPortal } = useSellers()
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
@@ -770,12 +954,15 @@ export default function Vendedores() {
         scoreData={editing ? scores[editing.id] : null}
       />
 
-      <ImportSlideOver
-        open={importOpen}
-        onClose={() => setImportOpen(false)}
-        existingContacts={sellers}
-        onImport={rows => { importMany(rows); setImportOpen(false) }}
-      />
+      {importOpen && (
+        <ImportModal
+          onClose={() => setImportOpen(false)}
+          existingContacts={sellers}
+          parceiros={parceiros}
+          saveParceiro={saveParceiro}
+          onImport={async rows => { await importMany(rows) }}
+        />
+      )}
     </>
   )
 }

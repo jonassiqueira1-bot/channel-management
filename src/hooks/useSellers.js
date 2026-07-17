@@ -40,6 +40,7 @@ function rowToSeller(row) {
     whatsapp:           cf.whatsapp || '',
     portal_invited_at:  row.portal_invited_at || null,
     funil_id:           row.funil_id || null,
+    custom_fields:      cf,
   }
 }
 
@@ -60,6 +61,7 @@ function sellerToRow(s, tenantId, branchId) {
     observacoes:   s.observacoes || null,
     funil_id:      s.funil_id ? String(s.funil_id) : null,
     custom_fields: {
+      ...(s.custom_fields || {}),
       role:          s.role,
       franquia_nome: s.franquia_nome,
       linkedin_url:  s.linkedin_url || '',

@@ -52,13 +52,14 @@ export function useParceiros() {
 
   const save = useCallback(async (record) => {
     if (isMock.current) {
+      const withId = record.id ? record : { ...record, id: crypto.randomUUID() }
       setParceiros(prev => {
-        const idx = prev.findIndex(p => p.id === record.id)
-        const next = idx >= 0 ? prev.map(p => p.id === record.id ? record : p) : [...prev, record]
+        const idx = prev.findIndex(p => p.id === withId.id)
+        const next = idx >= 0 ? prev.map(p => p.id === withId.id ? withId : p) : [...prev, withId]
         persist(next)
         return next
       })
-      return { ok: true }
+      return { ok: true, data: withId }
     }
     const { id, situacao, estado, ...fields } = record
     // Mapeamento de campos do form → colunas do DB
@@ -86,12 +87,12 @@ export function useParceiros() {
       ? await supabase.from('parceiros').update(row).eq('id', id).select().single()
       : await supabase.from('parceiros').insert(row).select().single()
     if (error) return { ok: false, message: error.message }
+    const mapped = saved ? rowToParceiro(saved) : record
     setParceiros(prev => {
-      const idx = prev.findIndex(p => p.id === (saved?.id || id))
-      const mapped = saved ? rowToParceiro(saved) : record
+      const idx = prev.findIndex(p => p.id === mapped.id)
       return idx >= 0 ? prev.map(p => p.id === mapped.id ? { ...p, ...mapped } : p) : [...prev, mapped]
     })
-    return { ok: true }
+    return { ok: true, data: mapped }
   }, [])
 
   const remove = useCallback(async (id) => {
