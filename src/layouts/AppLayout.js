@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import AlertsInbox from '../components/AlertsInbox'
+import ImportProgressWidget from '../components/ImportProgressWidget'
 
 function useBreakpoint() {
   const [bp, setBp] = useState(() => getBreakpoint(window.innerWidth))
@@ -36,6 +37,9 @@ export default function AppLayout() {
 
       {/* ── Pendências: flutuante, presente em toda tela, fora da sidebar ── */}
       <AlertsInbox />
+
+      {/* ── Progresso de importações: sobrevive à troca de tela ── */}
+      <ImportProgressWidget />
 
       {/* ── Top bar (mobile only) ── */}
       {isMobile && (

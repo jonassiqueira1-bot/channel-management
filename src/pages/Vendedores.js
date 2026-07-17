@@ -7,6 +7,7 @@ import { useFunnels } from '../hooks/useFunnels'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProfile } from '../hooks/useProfile'
 import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
+import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 import { checkEmUso } from '../lib/checkUsage'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
@@ -434,7 +435,10 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
   const [step, setStep] = useState('upload') // upload | preview | importing | done
   const [parsed, setParsed] = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState({ current: 0, total: 0, franquiasCriadas: 0, label: '' })
+  const [jobId, setJobId] = useState(null)
+  const [franquiasCriadas, setFranquiasCriadas] = useState(0)
+  const jobs = useImportJobs()
+  const job = jobs.find(j => j.id === jobId)
   const fileRef = useRef(null)
 
   function processFile(file) {
@@ -466,7 +470,9 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
   async function handleConfirmImport() {
     const okRows = parsed.rowResults.filter(r => r.ok)
     const total = okRows.length
-    setProgress({ current: 0, total, franquiasCriadas: 0, label: 'Preparando…' })
+    const id = startImportJob({ label: 'Contatos Canais', total })
+    updateImportJob(id, { subLabel: 'Preparando…' })
+    setJobId(id)
     setStep('importing')
 
     const franquiasByNome = {}
@@ -474,7 +480,7 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
     const franquiasByCodigo = {}
     ;(parceiros || []).forEach(p => { if (p.codigo) franquiasByCodigo[p.codigo.trim().toLowerCase()] = p })
     const createdCache = {}
-    let franquiasCriadas = 0
+    let franquiasCriadasCount = 0
 
     // Franquia/Unidade não cadastrada ainda: cria como rascunho pra não travar
     // a importação — o admin completa o cadastro depois em Parceiros.
@@ -488,7 +494,7 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
       if (result?.ok && result?.data?.id) {
         const ref = { id: result.data.id, nome: result.data.nome || nome.trim() }
         createdCache[key] = ref
-        franquiasCriadas++
+        franquiasCriadasCount++
         return ref
       }
       return { id: null, nome: nome.trim() }
@@ -497,7 +503,8 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
     const newRows = []
     for (let i = 0; i < okRows.length; i++) {
       const { row } = okRows[i]
-      setProgress({ current: i + 1, total, franquiasCriadas, label: row.nome || `Linha ${i + 2}` })
+      updateImportJob(id, { current: i + 1, subLabel: row.nome || `Linha ${i + 2}` })
+      setFranquiasCriadas(franquiasCriadasCount)
       const franquia = await resolveFranquia(row.franquia_nome)
       const custom_fields = {}
       customFieldsDef.forEach(f => { if (row[f.field_key] !== undefined && row[f.field_key] !== '') custom_fields[f.field_key] = row[f.field_key] })
@@ -513,24 +520,25 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
       })
     }
 
-    setProgress(p => ({ ...p, current: total, franquiasCriadas, label: 'Salvando contatos…' }))
+    updateImportJob(id, { current: total, subLabel: 'Salvando contatos…' })
     await onImport(newRows)
+    setFranquiasCriadas(franquiasCriadasCount)
     setStep('done')
-    setProgress(p => ({ ...p, franquiasCriadas, label: 'Concluído!' }))
+    finishImportJob(id, { subLabel: `Concluído!${franquiasCriadasCount > 0 ? ` (${franquiasCriadasCount} franquia${franquiasCriadasCount !== 1 ? 's' : ''} criada${franquiasCriadasCount !== 1 ? 's' : ''})` : ''}` })
   }
 
   const okCount  = parsed?.rowResults.filter(r => r.ok).length ?? 0
   const errCount = parsed?.rowResults.filter(r => !r.ok).length ?? 0
 
   return (
-    <div style={m.overlay} onClick={e => { if (e.target === e.currentTarget && step !== 'importing') onClose() }}>
+    <div style={m.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
       <div style={{ ...m.modal, maxWidth: 700 }}>
         <div style={m.header}>
           <div>
             <div style={m.title}>Importar Contatos Canais</div>
             <div style={m.subtitle}>Arquivo CSV com separador ponto-e-vírgula (;) — UTF-8</div>
           </div>
-          {step !== 'importing' && <button style={m.closeBtn} onClick={onClose}>✕</button>}
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         {step === 'upload' && (
@@ -619,15 +627,18 @@ function ImportModal({ onClose, existingContacts, parceiros, saveParceiro, onImp
             )}
             <div style={{ width: '100%', maxWidth: 440 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{progress.label}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{progress.current}/{progress.total}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job?.subLabel}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', fontFamily: 'var(--mono)', flexShrink: 0 }}>{job?.current ?? 0}/{job?.total ?? 0}</span>
               </div>
               <div style={{ height: 8, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 99, transition: 'width 0.2s ease', background: step === 'done' ? '#10B981' : 'var(--accent)', width: progress.total ? `${Math.round((progress.current / progress.total) * 100)}%` : '0%' }} />
+                <div style={{ height: '100%', borderRadius: 99, transition: 'width 0.2s ease', background: step === 'done' ? '#10B981' : 'var(--accent)', width: job?.total ? `${Math.round(((job.current || 0) / job.total) * 100)}%` : '0%' }} />
               </div>
               <div style={{ marginTop: 6, fontSize: 11, color: 'var(--text-muted)', display: 'flex', gap: 16 }}>
-                <span>✓ <strong>{progress.current}</strong> contato{progress.current !== 1 ? 's' : ''} processado{progress.current !== 1 ? 's' : ''}</span>
-                {progress.franquiasCriadas > 0 && <span>🏢 <strong>{progress.franquiasCriadas}</strong> franquia{progress.franquiasCriadas !== 1 ? 's' : ''} criada{progress.franquiasCriadas !== 1 ? 's' : ''} (rascunho)</span>}
+                <span>✓ <strong>{job?.current ?? 0}</strong> contato{(job?.current ?? 0) !== 1 ? 's' : ''} processado{(job?.current ?? 0) !== 1 ? 's' : ''}</span>
+                {franquiasCriadas > 0 && <span>🏢 <strong>{franquiasCriadas}</strong> franquia{franquiasCriadas !== 1 ? 's' : ''} criada{franquiasCriadas !== 1 ? 's' : ''} (rascunho)</span>}
+              </div>
+              <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+                Pode fechar esta janela ou trocar de tela — o progresso continua visível no canto inferior direito.
               </div>
             </div>
             {step === 'done' && <Button onClick={onClose}>Fechar</Button>}

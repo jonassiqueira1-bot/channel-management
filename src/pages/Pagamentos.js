@@ -26,6 +26,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useCompanies } from '../hooks/useCompanies'
 import TabProvisoes from './TabProvisoes'
 import { useProvisoes } from '../hooks/useProvisoes'
+import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
 const TABS_PAG = [
   { id: 'pagamentos', label: 'Pagamentos' },
@@ -251,7 +252,11 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
   const [step, setStep]           = useState('upload')  // upload|preview|importing|reconciliation|done
   const [parsed, setParsed]       = useState(null)
   const [dragging, setDragging]   = useState(false)
-  const [progress, setProgress]   = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, label:'' })
+  const [jobId, setJobId] = useState(null)
+  const [empresasCriadas, setEmpresasCriadas] = useState(0)
+  const [contratosCriados, setContratosCriados] = useState(0)
+  const jobs = useImportJobs()
+  const job = jobs.find(j => j.id === jobId)
   const [reconcData, setReconcData] = useState(null)    // { matched, unmatched, months }
   const [reconciling, setReconciling] = useState(false)
   const fileRef = useRef(null)
@@ -290,7 +295,9 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
   async function handleConfirmImport() {
     const okRows = parsed.rowResults.filter(r=>r.ok)
     const total  = okRows.length
-    setProgress({ current:0, total, empresasCriadas:0, contratosCriados:0, label:'Preparando…' })
+    const id = startImportJob({ label: 'Pagamentos', total })
+    updateImportJob(id, { subLabel: 'Preparando…' })
+    setJobId(id)
     setStep('importing')
 
     const compByName = {}; const compByCnpj = {}
@@ -301,7 +308,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     const ctrByNum = {}
     ;(contratos||[]).forEach(c => { if(c.numero) ctrByNum[c.numero.toLowerCase()]=c })
     const createdComp = {}; const createdCtr = {}
-    let empresasCriadas=0, contratosCriados=0
+    let empresasCriadasCount=0, contratosCriadosCount=0
 
     async function resolveEmpresa(nome, cnpj) {
       const key = nome.toLowerCase()
@@ -311,7 +318,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       if(createdComp[key]) return createdComp[key]
       const result = await addCompany({ razao:nome, fantasia:nome, cnpj:cnpj||'', tipo:'rascunho' })
       if(result?.ok && result?.data?.id) {
-        createdComp[key]=result.data.id; empresasCriadas++; return result.data.id
+        createdComp[key]=result.data.id; empresasCriadasCount++; return result.data.id
       }
       return null
     }
@@ -327,7 +334,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       })
       if(result?.ok) {
         const id = result?.data?.id || key
-        createdCtr[key]=id; contratosCriados++; return id
+        createdCtr[key]=id; contratosCriadosCount++; return id
       }
       return null
     }
@@ -336,7 +343,9 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     const importRows = []
     for (let i=0; i<okRows.length; i++) {
       const { row } = okRows[i]
-      setProgress({ current:i+1, total, empresasCriadas, contratosCriados, label:`${row.company_nome} — ${row.contract_numero}` })
+      updateImportJob(id, { current:i+1, subLabel:`${row.company_nome} — ${row.contract_numero}` })
+      setEmpresasCriadas(empresasCriadasCount)
+      setContratosCriados(contratosCriadosCount)
       const empresa_id     = await resolveEmpresa(row.company_nome, row.company_cnpj)
       const contract_id    = await resolveContrato(row.contract_numero, empresa_id, row.company_nome)
       const custom_fields  = {}
@@ -360,7 +369,9 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       })
     }
 
-    setProgress(p=>({...p, current:total, empresasCriadas, contratosCriados, label:'Conciliando provisões…'}))
+    updateImportJob(id, { current:total, subLabel:'Conciliando provisões…' })
+    setEmpresasCriadas(empresasCriadasCount)
+    setContratosCriados(contratosCriadosCount)
 
     // ── Reconciliação de Provisões ──────────────────────────────────────────
     // Identifica meses cobertos pelo arquivo importado
@@ -380,7 +391,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       errors:parsed.rowResults.filter(r=>!r.ok && !r.isDup).length,
       duplicados:parsed.rowResults.filter(r=>r.isDup).length,
       rowResults:parsed.rowResults,
-      empresasCriadas, contratosCriados,
+      empresasCriadas: empresasCriadasCount, contratosCriados: contratosCriadosCount,
       provisoesReconciliadas: matched.length,
       provisoesSemPagamento:  unmatched.length,
       meses: Array.from(mesesImportados).sort(),
@@ -391,12 +402,14 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
     }
     await onImport(importRows, log)
     setReconcData({ matched, unmatched, months: Array.from(mesesImportados).sort() })
+    updateImportJob(id, { subLabel: 'Aguardando conciliação de provisões…' })
     setStep('reconciliation')
   }
 
   async function handleConfirmReconciliation() {
     if (!reconcData || !saveProvisao) return
     setReconciling(true)
+    if (jobId) updateImportJob(jobId, { subLabel: 'Conciliando provisões…' })
     const hoje = new Date().toISOString().slice(0, 10)
     // Provisões com pagamento → status pago
     for (const p of reconcData.matched) {
@@ -407,6 +420,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       await saveProvisao({ ...p, inconsistencia_status: 'inconsistencia_pendente', inconsistencia: true })
     }
     setReconciling(false)
+    if (jobId) finishImportJob(jobId, { subLabel: `Concluído!${empresasCriadas > 0 ? ` · ${empresasCriadas} empresa(s) criada(s)` : ''}${contratosCriados > 0 ? ` · ${contratosCriados} contrato(s) criado(s)` : ''}` })
     setStep('done')
   }
 
@@ -430,7 +444,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
               {step==='upload'    && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
               {step==='preview'   && `${parsed?.fileName} — ${okCount} válidos${dupCount>0?`, ${dupCount} duplicados`:''}${errCount>0?`, ${errCount} com erro`:''}`}
-              {step==='importing' && `Processando ${progress.current} de ${progress.total}…`}
+              {step==='importing' && `Processando ${job?.current ?? 0} de ${job?.total ?? 0}…`}
               {step==='done'      && 'Importação concluída'}
             </div>
           </div>
@@ -517,22 +531,25 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
         {step==='importing' && (
           <div style={{ padding:32, textAlign:'center' }}>
             <div style={{ fontSize:32, marginBottom:12 }}>⚙️</div>
-            <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:6 }}>{progress.label}</div>
+            <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:6 }}>{job?.subLabel}</div>
             <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:20 }}>
-              {progress.current} / {progress.total} registros
+              {job?.current ?? 0} / {job?.total ?? 0} registros
             </div>
             <div style={{ height:6, background:'var(--border)', borderRadius:3, overflow:'hidden', marginBottom:10 }}>
               <div style={{ height:'100%', background:'var(--accent)', borderRadius:3,
-                width:`${progress.total>0?Math.round(progress.current/progress.total*100):0}%`,
+                width:`${job?.total>0?Math.round((job.current||0)/job.total*100):0}%`,
                 transition:'width 0.3s ease' }} />
             </div>
-            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
+            {(empresasCriadas>0||contratosCriados>0) && (
               <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>
-                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa${progress.empresasCriadas>1?'s':''} criada${progress.empresasCriadas>1?'s':''}`}
-                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
-                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato${progress.contratosCriados>1?'s':''} criado${progress.contratosCriados>1?'s':''}`}
+                {empresasCriadas>0 && `${empresasCriadas} empresa${empresasCriadas>1?'s':''} criada${empresasCriadas>1?'s':''}`}
+                {empresasCriadas>0 && contratosCriados>0 && ' · '}
+                {contratosCriados>0 && `${contratosCriados} contrato${contratosCriados>1?'s':''} criado${contratosCriados>1?'s':''}`}
               </div>
             )}
+            <div style={{ marginTop:12, fontSize:11, color:'var(--text-muted)' }}>
+              Pode fechar esta janela ou trocar de tela — o progresso continua visível no canto inferior direito.
+            </div>
           </div>
         )}
 
@@ -580,13 +597,13 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
           <div style={{ padding:32, textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
-              {progress.current} pagamento{progress.current!==1?'s':''} importado{progress.current!==1?'s':''}
+              {job?.current ?? 0} pagamento{(job?.current ?? 0)!==1?'s':''} importado{(job?.current ?? 0)!==1?'s':''}
             </div>
-            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
+            {(empresasCriadas>0||contratosCriados>0) && (
               <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>
-                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa${progress.empresasCriadas>1?'s':''} criada${progress.empresasCriadas>1?'s':''}`}
-                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
-                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato${progress.contratosCriados>1?'s':''} criado${progress.contratosCriados>1?'s':''}`}
+                {empresasCriadas>0 && `${empresasCriadas} empresa${empresasCriadas>1?'s':''} criada${empresasCriadas>1?'s':''}`}
+                {empresasCriadas>0 && contratosCriados>0 && ' · '}
+                {contratosCriados>0 && `${contratosCriados} contrato${contratosCriados>1?'s':''} criado${contratosCriados>1?'s':''}`}
               </div>
             )}
             {reconcData && (reconcData.matched.length > 0 || reconcData.unmatched.length > 0) && (

@@ -39,6 +39,7 @@ import {
 } from '../data/mockPlaybooks'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCampanhas } from '../hooks/useCampanhas'
+import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 import { STORAGE_KEY as TIPOS_ACAO_KEY } from './settings/TiposAcao'
 import { useDocuments } from '../hooks/useDocuments'
 import { useOpportunities } from '../hooks/useOpportunities'
@@ -6131,7 +6132,10 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
   }, [fieldById])
 
   const [step, setStep]     = useState('upload')
-  const [progress, setProgress] = useState({ current: 0, total: 0, empresasCriadas: 0, label: '' })
+  const [jobId, setJobId] = useState(null)
+  const [empresasCriadas, setEmpresasCriadas] = useState(0)
+  const jobs = useImportJobs()
+  const job = jobs.find(j => j.id === jobId)
   const [parsed, setParsed] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -6170,7 +6174,9 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
   async function handleConfirmImport() {
     const okRows = parsed.rowResults.filter(r => r.ok)
     const total  = okRows.length
-    setProgress({ current: 0, total, empresasCriadas: 0, label: 'Preparando…' })
+    const id = startImportJob({ label: 'Oportunidades', total })
+    updateImportJob(id, { subLabel: 'Preparando…' })
+    setJobId(id)
     setStep('importing')
 
     const companiesByName = {}
@@ -6181,7 +6187,7 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
     const companiesByCnpj = {}
     ;(companies || []).forEach(c => { if (c.cnpj) companiesByCnpj[c.cnpj.replace(/\D/g,'')] = c })
     const createdCache = {}
-    let empresasCriadas = 0
+    let empresasCriadasCount = 0
 
     async function resolveEmpresa(nome, cnpj) {
       const key = nome.toLowerCase()
@@ -6192,7 +6198,7 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
       const result = await addCompany({ razao: nome, fantasia: nome, cnpj: cnpj || '', tipo: 'rascunho' })
       if (result?.ok && result?.data?.id) {
         createdCache[key] = result.data.id
-        empresasCriadas++
+        empresasCriadasCount++
         return result.data.id
       }
       return null
@@ -6201,7 +6207,8 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
     const importRows = []
     for (let i = 0; i < okRows.length; i++) {
       const { row } = okRows[i]
-      setProgress({ current: i + 1, total, empresasCriadas, label: row.titulo || row.empresa_nome || `Linha ${i + 2}` })
+      updateImportJob(id, { current: i + 1, subLabel: row.titulo || row.empresa_nome || `Linha ${i + 2}` })
+      setEmpresasCriadas(empresasCriadasCount)
       const etapa = etapas.find(e => e.nome.toLowerCase()===row.etapa_nome?.toLowerCase()) || etapas[0]
       const custom_fields = {}
       customFormFields.forEach(f => { if (row[f.key] !== undefined) custom_fields[f.key] = row[f.key] })
@@ -6223,15 +6230,16 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
       })
     }
 
-    setProgress(p => ({ ...p, current: total, empresasCriadas, label: 'Salvando oportunidades…' }))
+    updateImportJob(id, { current: total, subLabel: 'Salvando oportunidades…' })
     const log = {
       id:Date.now(), fileName:parsed.fileName, date:new Date().toLocaleString('pt-BR'),
       total:parsed.rowResults.length, imported:importRows.length,
       errors:parsed.rowResults.filter(r=>!r.ok).length, rows:parsed.rowResults, scope:'importados',
     }
     await onImport(importRows, log)
+    setEmpresasCriadas(empresasCriadasCount)
     setStep('done')
-    setProgress(p => ({ ...p, empresasCriadas, label: 'Concluído!' }))
+    finishImportJob(id, { subLabel: `Concluído!${empresasCriadasCount > 0 ? ` (${empresasCriadasCount} empresa${empresasCriadasCount !== 1 ? 's' : ''} criada${empresasCriadasCount !== 1 ? 's' : ''})` : ''}` })
   }
 
   const okCount  = parsed?.rowResults.filter(r=>r.ok).length ?? 0
@@ -6335,24 +6343,27 @@ function ImportModal({ onClose, funilAtivo, etapas, onImport, companies, addComp
             <div style={{ width:'100%', maxWidth:440 }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:6 }}>
                 <span style={{ fontSize:12, color:'var(--text-muted)', maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                  {progress.label}
+                  {job?.subLabel}
                 </span>
                 <span style={{ fontSize:12, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)', flexShrink:0 }}>
-                  {progress.current}/{progress.total}
+                  {job?.current ?? 0}/{job?.total ?? 0}
                 </span>
               </div>
               <div style={{ height:8, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
                 <div style={{
                   height:'100%', borderRadius:99, transition:'width 0.2s ease',
                   background: step==='done' ? '#10B981' : 'var(--accent)',
-                  width: progress.total ? `${Math.round((progress.current/progress.total)*100)}%` : '0%',
+                  width: job?.total ? `${Math.round(((job.current || 0)/job.total)*100)}%` : '0%',
                 }} />
               </div>
               <div style={{ marginTop:6, fontSize:11, color:'var(--text-muted)', display:'flex', gap:16 }}>
-                <span>✓ <strong>{progress.current}</strong> oportunidade{progress.current!==1?'s':''} processada{progress.current!==1?'s':''}</span>
-                {progress.empresasCriadas > 0 && (
-                  <span>🏢 <strong>{progress.empresasCriadas}</strong> empresa{progress.empresasCriadas!==1?'s':''} criada{progress.empresasCriadas!==1?'s':''}</span>
+                <span>✓ <strong>{job?.current ?? 0}</strong> oportunidade{(job?.current ?? 0)!==1?'s':''} processada{(job?.current ?? 0)!==1?'s':''}</span>
+                {empresasCriadas > 0 && (
+                  <span>🏢 <strong>{empresasCriadas}</strong> empresa{empresasCriadas!==1?'s':''} criada{empresasCriadas!==1?'s':''}</span>
                 )}
+              </div>
+              <div style={{ marginTop:10, fontSize:11, color:'var(--text-muted)' }}>
+                Pode fechar esta janela ou trocar de tela — o progresso continua visível no canto inferior direito.
               </div>
             </div>
 
