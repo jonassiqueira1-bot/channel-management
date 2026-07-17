@@ -13,7 +13,7 @@ export default function Badge({
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
       fontSize: 'var(--text-xs)', fontWeight: 500,
-      padding: '2px 8px', borderRadius: 999,
+      padding: '2px 8px', borderRadius: 6,
       background: bg, color, border,
       whiteSpace: 'nowrap', lineHeight: 1.6,
       ...extra,

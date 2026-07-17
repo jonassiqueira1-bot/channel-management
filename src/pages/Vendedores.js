@@ -155,7 +155,7 @@ const EMPTY_FORM = {
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.inativo
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block' }} />
       {cfg.label}
     </span>
@@ -173,7 +173,7 @@ function RoleBadge({ role }) {
   const cfg = ROLE_COLORS[role] || { bg:'#F1F5F9', text:'#475569' }
   const label = ROLES[role]?.label || role
   return (
-    <span style={{ display:'inline-block', padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+    <span style={{ display:'inline-block', padding:'2px 8px', borderRadius:6, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
       {label}
     </span>
   )
@@ -836,7 +836,7 @@ export default function Vendedores() {
         const color = s.score_pct >= 70 ? '#065F46' : s.score_pct >= 40 ? '#92400E' : '#991B1B'
         const bg    = s.score_pct >= 70 ? '#D1FAE5' : s.score_pct >= 40 ? '#FEF3C7' : '#FEE2E2'
         return (
-          <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:20, background:bg, color }}>
+          <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:6, background:bg, color }}>
             {s.score_pct}%
           </span>
         )
