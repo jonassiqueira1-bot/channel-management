@@ -246,7 +246,7 @@ const s = {
   bulkCount: {
     fontSize: 'var(--text-sm)', fontWeight: 700, color: '#fff',
     background: 'rgba(255,255,255,0.25)', padding: '2px 10px',
-    borderRadius: 99, marginRight: 4,
+    borderRadius: 'var(--radius-md)', marginRight: 4,
   },
   bulkBtn: {
     display: 'flex', alignItems: 'center', gap: 5,
@@ -1109,7 +1109,7 @@ export default function BrowseLayout({
                     <span style={{
                       fontSize: 10, fontWeight: 700,
                       background: 'var(--accent)', color: '#fff',
-                      borderRadius: 10, padding: '0 5px', marginLeft: 2,
+                      borderRadius: 'var(--radius-sm)', padding: '0 5px', marginLeft: 2,
                     }}>
                       {activeFilterCount}
                     </span>
