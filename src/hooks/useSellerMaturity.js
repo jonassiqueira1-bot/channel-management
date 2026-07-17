@@ -9,6 +9,7 @@ export const ORIGENS = [
   { value: 'oportunidades',        label: 'Oportunidades (membro canal)'        },
   { value: 'oportunidades_ganhas', label: 'Oportunidades ganhas (membro canal)' },
   { value: 'contracts',            label: 'Contratos ativos das empresas envolvidas' },
+  { value: 'acoes',                label: 'Ações participadas' },
 ]
 
 export const CONDICOES = [
@@ -112,17 +113,19 @@ export function useSellerScores(sellers, params) {
     // é profiles.id (usuário com papel='contato_canal'), não sellers.id
     // diretamente — o elo real é profiles.contact_id -> sellers.id (mesmo
     // modelo de OppEquipeTab/poolCanais em Pipeline.js).
-    const [membrosRes, oppsRes, contractsRes, profilesRes] = await Promise.all([
+    const [membrosRes, oppsRes, contractsRes, profilesRes, acaoMembrosRes] = await Promise.all([
       supabase.from('oportunidade_membros').select('oportunidade_id, user_id, tipo_membro'),
       supabase.from('oportunidades').select('id, company_id, situacao, created_at'),
       supabase.from('contracts').select('id, company_id, status'),
-      supabase.from('profiles').select('id, contact_id').eq('papel', 'contato_canal'),
+      supabase.from('profiles').select('id, contact_id').eq('role', 'contato_canal'),
+      supabase.from('acao_membros').select('acao_id, user_id, created_at'),
     ])
 
-    const membros   = (membrosRes.data   || []).filter(m => m.tipo_membro === 'canal')
-    const opps      = oppsRes.data      || []
-    const contracts = contractsRes.data || []
-    const oppById   = Object.fromEntries(opps.map(o => [o.id, o]))
+    const membros     = (membrosRes.data   || []).filter(m => m.tipo_membro === 'canal')
+    const opps        = oppsRes.data      || []
+    const contracts   = contractsRes.data || []
+    const acaoMembros = acaoMembrosRes.data || [] // user_id aqui já é sellers.id direto
+    const oppById     = Object.fromEntries(opps.map(o => [o.id, o]))
 
     // seller.id -> Set<profiles.id> (um vendedor pode, na teoria, ter mais de
     // um usuário de plataforma vinculado ao mesmo contact_id)
@@ -160,6 +163,14 @@ export function useSellerScores(sellers, params) {
         case 'contracts': {
           const companyIds = new Set(minhasOpps.map(o => String(o.company_id)))
           return contracts.filter(c => companyIds.has(String(c.company_id)) && c.status === 'ativo').length
+        }
+        case 'acoes': {
+          let list = acaoMembros.filter(m => String(m.user_id) === String(seller_id))
+          if (param.janela_dias) {
+            const cutoff = new Date(now - param.janela_dias * 86400000)
+            list = list.filter(m => new Date(m.created_at) >= cutoff)
+          }
+          return list.length
         }
         default:
           return 0

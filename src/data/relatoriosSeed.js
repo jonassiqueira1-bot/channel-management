@@ -34,4 +34,39 @@ export const RELATORIO_HORAS_PROJETO = {
   ],
 }
 
-export const RELATORIOS_SEED = [RELATORIO_HORAS_PROJETO]
+export const RELATORIO_PERFORMANCE_CAMPANHAS = {
+  titulo: 'Performance de Campanhas — Meta x Realizado',
+  tipo: 'relatorio',
+  acesso: 'equipe',
+  papeis_permitidos: ['admin_isv', 'marketing', 'vendas'],
+  status: 'publicado',
+  config: {
+    tamanhoPagina: 'A4',
+    margens: { top: 76, right: 76, bottom: 76, left: 76 },
+    fundoPagina: { tipo: 'cor', cor: '#ffffff' },
+    cabecalho: { ativo: true, tipoFundo: 'cor', corFundo: '#1E3A5F', titulo: 'Performance de Campanhas', subtitulo: 'Meta x Realizado' },
+    rodape: { ativo: true, texto: '', paginacao: true },
+  },
+  elementos: [
+    { id: 'el_seed_1', tipo: 'kpi', x: 0, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'campanhas', titulo: 'Meta de Valor (R$, total)', metrica: 'SUM', campoY: 'meta_valor', cor: '#2563EB' } },
+    { id: 'el_seed_2', tipo: 'kpi', x: 218, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'campanhas', titulo: 'Valor Realizado (R$, total)', metrica: 'SUM', campoY: 'valor_realizado', cor: '#10B981' } },
+    { id: 'el_seed_3', tipo: 'kpi', x: 436, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'campanhas', titulo: 'Oportunidades Ganhas (total)', metrica: 'SUM', campoY: 'oportunidades_ganhas', cor: '#F59E0B' } },
+    { id: 'el_seed_4', tipo: 'tabela_dinamica', x: 0, y: 108, w: 642, h: 320,
+      dados: {
+        sourceId: 'campanhas', titulo: 'Campanhas — Meta x Realizado', campoAgrupador: 'nome',
+        colunas: [
+          { id: 'c1', tipo: 'sum', campo: 'meta_valor', label: 'Meta de Valor (R$)' },
+          { id: 'c2', tipo: 'sum', campo: 'valor_realizado', label: 'Realizado (R$)' },
+          { id: 'c3', tipo: 'sum', campo: 'atingimento_valor_pct', label: 'Atingimento (%)' },
+          { id: 'c4', tipo: 'sum', campo: 'meta_oportunidades', label: 'Meta Oport.' },
+          { id: 'c5', tipo: 'sum', campo: 'oportunidades_ganhas', label: 'Oport. Ganhas' },
+        ],
+        ordenar: 'valor_desc', limite: 50,
+      } },
+  ],
+}
+
+export const RELATORIOS_SEED = [RELATORIO_HORAS_PROJETO, RELATORIO_PERFORMANCE_CAMPANHAS]

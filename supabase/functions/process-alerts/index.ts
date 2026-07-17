@@ -405,6 +405,11 @@ const ORIGEM_CONFIG: Record<string, { select: string; entidade_tipo: string; lin
     entidade_tipo: 'customer_success', link: '/customer-success',
     titulo: r => `Sucesso do Cliente · ${r.company_name || r.id}`,
   },
+  campanhas: {
+    select: '*',
+    entidade_tipo: 'campanha', link: '/settings/campanhas',
+    titulo: r => `Campanha · ${r.nome}`,
+  },
 }
 
 // ─── Processadores legados (mantidos para compatibilidade) ─────────────────────

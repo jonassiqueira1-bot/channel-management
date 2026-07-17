@@ -26,7 +26,8 @@ export function useDocumentDataSources() {
 
         // Campanhas
         supabase.from('campanhas')
-          .select('id, nome').eq('tenant_id', tenantId).limit(500),
+          .select('id, nome, status, inicio, fim, meta, meta_oportunidades, custos')
+          .eq('tenant_id', tenantId).limit(500),
 
         // Projetos
         supabase.from('projects')
@@ -206,7 +207,9 @@ export function useDocumentDataSources() {
         responsavel:  o.responsavel || '',
         valor:        (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0),
         origem:       o.origem || 'Não informado',
-        campanha:     'Sem campanha',
+        // Bug antigo: sempre voltava 'Sem campanha' fixo, nunca resolvia via
+        // custom_fields.campanha_id (mesmo com o vínculo persistido de verdade).
+        campanha:     o.custom_fields?.campanha_id ? (campanhaMap[o.custom_fields.campanha_id] || 'Campanha removida') : 'Sem campanha',
         // Tarefas
         proxima_tarefa_data:     tm.proxima_tarefa_data     || '',
         proxima_tarefa_hora:     tm.proxima_tarefa_hora     || '',
@@ -252,6 +255,34 @@ export function useDocumentDataSources() {
           margem_pct:        Number(cf.fin_margem_pct || 0),
           custo_forecast:    Number(cf.fin_custo_forecast || 0),
           margem_forecast:   Number(cf.fin_margem_forecast || 0),
+        }
+      })
+
+      // Campanhas — meta x realizado. Realizado vem das Oportunidades vinculadas
+      // via custom_fields.campanha_id (mesmo campo usado pra resolver o nome
+      // da campanha acima) — sem query extra, já está no oppsData carregado.
+      const campanhas = campanhasData.map(c => {
+        const oppsDaCampanha = oppsData.filter(o => String(o.custom_fields?.campanha_id || '') === String(c.id))
+        const ganhas = oppsDaCampanha.filter(o => o.situacao === 'ganha')
+        const valorRealizado = ganhas.reduce((s, o) => s + (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0), 0)
+        const metaValor = Number(c.meta || 0)
+        const metaOportunidades = Number(c.meta_oportunidades || 0)
+        const custoRealizado = (c.custos || []).reduce((s, cc) => s + (cc.executado ? (Number(cc.valor_realizado)||0) : 0), 0)
+        const custoPrevisto  = (c.custos || []).reduce((s, cc) => s + (Number(cc.valor_previsto)||0), 0)
+        return {
+          nome:   c.nome || '',
+          status: c.status || 'rascunho',
+          inicio: c.inicio || '',
+          fim:    c.fim || '',
+          meta_valor:              metaValor,
+          meta_oportunidades:      metaOportunidades,
+          oportunidades_qtd:       oppsDaCampanha.length,
+          oportunidades_ganhas:    ganhas.length,
+          valor_realizado:         valorRealizado,
+          atingimento_valor_pct:      metaValor > 0 ? Math.round((valorRealizado / metaValor) * 1000) / 10 : 0,
+          atingimento_oport_pct:      metaOportunidades > 0 ? Math.round((ganhas.length / metaOportunidades) * 1000) / 10 : 0,
+          custo_previsto:  custoPrevisto,
+          custo_realizado: custoRealizado,
         }
       })
 
@@ -425,6 +456,25 @@ export function useDocumentDataSources() {
             { key:'margem_pct',       label:'Margem (%)',             type:'number' },
             { key:'custo_forecast',   label:'Custo forecast (R$)',    type:'number' },
             { key:'margem_forecast',  label:'Margem forecast (R$)',   type:'number' },
+          ],
+        },
+        {
+          id: 'campanhas', label: 'Campanhas', icon: '📣',
+          registros: campanhas,
+          fields: [
+            { key:'nome',   label:'Nome',   type:'text' },
+            { key:'status', label:'Status', type:'text' },
+            { key:'inicio', label:'Início', type:'date' },
+            { key:'fim',    label:'Fim',    type:'date' },
+            { key:'meta_valor',           label:'Meta de valor (R$)',        type:'number' },
+            { key:'valor_realizado',      label:'Valor realizado (R$)',      type:'number' },
+            { key:'atingimento_valor_pct',label:'Atingimento de valor (%)',  type:'number' },
+            { key:'meta_oportunidades',   label:'Meta de oportunidades',     type:'number' },
+            { key:'oportunidades_ganhas', label:'Oportunidades ganhas',      type:'number' },
+            { key:'oportunidades_qtd',    label:'Oportunidades (total)',     type:'number' },
+            { key:'atingimento_oport_pct',label:'Atingimento de oport. (%)', type:'number' },
+            { key:'custo_previsto',       label:'Custo previsto (R$)',       type:'number' },
+            { key:'custo_realizado',      label:'Custo realizado (R$)',      type:'number' },
           ],
         },
         {

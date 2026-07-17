@@ -80,6 +80,7 @@ const RESPONSAVEIS = [
 
 const EMPTY_ACAO = {
   empresa_id: '', empresa_nome: '',
+  franquias_adicionais_ids: [],
   tipo: 'treinamento',
   titulo: '', descricao: '',
   data_inicio: '', data_fim: '',
@@ -407,46 +408,59 @@ const PAPEL_PARTICIPANTE = [
   { value: 'responsavel',  label: 'Responsável'  },
 ]
 
-function AcaoParticipantesTab({ acaoId }) {
+function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
   const { membros, add: addMembro, remove: removeMembro } = useAcaoMembros()
-  const { usuarios } = useUsuarios()
   const { sellers }  = useSellers()
+  const { parceiros } = useParceiros()
   const [busca, setBusca] = useState('')
   const [selUser, setSelUser] = useState(null)
   const [papel, setPapel] = useState('participante')
   const [dropOpen, setDropOpen] = useState(false)
   const dropRef = useRef(null)
 
-  // Pool: usuários com acesso à plataforma vinculados a Contatos Canais
-  // (profiles com papel='contato_canal'), enriquecido com o cadastro de
-  // Vendedores via contact_id — mesmo modelo de poolCanais em OppEquipeTab.
-  const pool = useMemo(() =>
-    usuarios
-      .filter(u => u.status !== 'inativo' && u.papel === 'contato_canal')
-      .map(u => {
-        const seller = sellers.find(s => s.id === u.contact_id)
-        return {
-          id: u.id, nome: u.nome, cargo: seller?.cargo || seller?.role || '',
-          email: u.email || seller?.email || '', franquia: seller?.franquia_nome || '',
-        }
-      }),
-  [usuarios, sellers])
+  const franquiasMap = useMemo(
+    () => Object.fromEntries((parceiros || []).map(p => [String(p.id), p])),
+    [parceiros]
+  )
+
+  // Pool completo: TODOS os Contatos Canais cadastrados (/vendedores), com ou
+  // sem login na plataforma — não só os que têm profiles.role='contato_canal'
+  // (essa exigência deixava o pool vazio sempre que o vendedor era só
+  // cadastro, sem convite aceito). Usado pra resolver quem já foi adicionado,
+  // mesmo que a franquia dele tenha sido removida da Ação depois.
+  const poolCompleto = useMemo(() =>
+    sellers
+      .filter(s => s.status !== 'inativo')
+      .map(s => ({
+        id: s.id, nome: s.nome, cargo: s.cargo || s.role || '',
+        email: s.email || '', franquia: franquiasMap[String(s.franquia_id)]?.nome || '',
+        franquia_id: String(s.franquia_id || ''),
+      })),
+  [sellers, franquiasMap])
+
+  const franquiaIdsSet = useMemo(() => new Set(franquiaIds.map(String)), [franquiaIds])
+
+  // Pool pra adicionar: só Contatos Canais da(s) unidade(s)/franquia(s)
+  // envolvida(s) nesta Ação (Unidade/Franquia + Outras unidades envolvidas).
+  const poolParaAdicionar = useMemo(() =>
+    franquiaIdsSet.size === 0 ? poolCompleto : poolCompleto.filter(u => franquiaIdsSet.has(u.franquia_id)),
+  [poolCompleto, franquiaIdsSet])
 
   const participantes = useMemo(() =>
     membros.filter(m => m.acao_id === acaoId)
-      .map(m => ({ ...m, usuario: pool.find(u => u.id === m.user_id) }))
+      .map(m => ({ ...m, usuario: poolCompleto.find(u => u.id === m.user_id) }))
       .filter(m => m.usuario),
-  [membros, acaoId, pool])
+  [membros, acaoId, poolCompleto])
 
   const jaAdicionados = useMemo(() => new Set(participantes.map(m => m.user_id)), [participantes])
 
   const sugestoes = useMemo(() => {
     const q = busca.toLowerCase()
-    return pool.filter(u =>
+    return poolParaAdicionar.filter(u =>
       !jaAdicionados.has(u.id) &&
       ((u.nome || '').toLowerCase().includes(q) || (u.cargo || '').toLowerCase().includes(q) || (u.email || '').toLowerCase().includes(q))
     ).slice(0, 8)
-  }, [busca, jaAdicionados, pool])
+  }, [busca, jaAdicionados, poolParaAdicionar])
 
   async function handleAdd() {
     if (!selUser) return
@@ -460,6 +474,7 @@ function AcaoParticipantesTab({ acaoId }) {
     <div style={{ display:'flex', flexDirection:'column', gap:14, paddingTop:8 }}>
       <div style={{ fontSize:12, color:'var(--text-muted)' }}>
         Contatos Canal (vendedores) que participaram desta Ação — usado também no cálculo de maturidade.
+        {franquiaIdsSet.size > 0 && ' Só aparecem contatos das unidades/franquias envolvidas nesta Ação.'}
       </div>
 
       {/* ── Form de adicionar ── */}
@@ -707,6 +722,15 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
               <option value="">— Selecione —</option>
               {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
             </select>
+          </FormField>
+
+          <FormField label="Outras unidades/franquias envolvidas (opcional)" style={{ gridColumn: 'span 2' }}>
+            <MultiSelect
+              options={empresasOpts.filter(e => String(e.id) !== String(form.empresa_id)).map(e => ({ value: e.id, label: e.nome }))}
+              value={form.franquias_adicionais_ids || []}
+              onChange={v => set('franquias_adicionais_ids', v)}
+              placeholder="Selecionar unidades adicionais…"
+            />
           </FormField>
 
           <FormField label="Responsável (ISV)">
@@ -1061,7 +1085,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
 
       {/* ── Aba Participantes ── */}
       {tab === 'participantes' && !isNew && (
-        <AcaoParticipantesTab acaoId={initial.id} />
+        <AcaoParticipantesTab acaoId={initial.id}
+          franquiaIds={[String(initial.empresa_id), ...(initial.franquias_adicionais_ids || []).map(String)].filter(Boolean)} />
       )}
       {tab === 'participantes' && isNew && (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>

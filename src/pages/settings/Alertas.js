@@ -23,6 +23,7 @@ const ORIGENS = [
   { key: 'contacts',           label: 'Contatos Canais', table: 'contacts'    },
   { key: 'customer_health',   label: 'Sucesso do Cliente (CS)', table: 'customer_health' },
   { key: 'provisoes',         label: 'Provisões',               table: 'provisoes'        },
+  { key: 'campanhas',         label: 'Campanhas',               table: 'campanhas'        },
 ]
 
 // ─── Campos por origem ────────────────────────────────────────────────────────
@@ -233,6 +234,17 @@ const CAMPOS_PADRAO = {
     { key: 'parcela',           label: 'Parcela',               tipo: 'text'   },
     { key: 'origin_type',       label: 'Tipo de origem',        tipo: 'text'   },
     { key: 'notes',             label: 'Observações',           tipo: 'text'   },
+  ],
+  campanhas: [
+    { key: 'inicio',              label: 'Início da campanha',       tipo: 'date'   },
+    { key: 'fim',                 label: 'Fim da campanha',          tipo: 'date'   },
+    { key: 'created_at',          label: 'Data de cadastro',         tipo: 'date'   },
+    { key: 'updated_at',          label: 'Última atualização',       tipo: 'date'   },
+    { key: 'status',              label: 'Status', tipo: 'enum', opts: ['rascunho','ativa','pausada','encerrada'] },
+    { key: 'nome',                label: 'Nome',                      tipo: 'text'   },
+    { key: 'objetivo',             label: 'Objetivo',                  tipo: 'text'   },
+    { key: 'meta',                label: 'Meta de valor (R$)',        tipo: 'money'  },
+    { key: 'meta_oportunidades',  label: 'Meta de oportunidades',     tipo: 'number' },
   ],
   customer_health: [
     { key: 'renewal_date',   label: 'Data de renovação',        tipo: 'date'   },

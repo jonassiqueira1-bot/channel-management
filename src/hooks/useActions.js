@@ -10,6 +10,7 @@ function rowToAcao(row) {
     id:                row.id,
     empresa_id:        row.company_id || cf.empresa_id || null,
     empresa_nome:      row.companies?.nome_fantasia || row.companies?.razao_social || cf.empresa_nome || '',
+    franquias_adicionais_ids: cf.franquias_adicionais_ids || [],
     tipo:              row.tipo || cf.tipo || 'outros',
     titulo:            row.titulo,
     descricao:         row.descricao || '',
@@ -48,6 +49,7 @@ function acaoToRow(a, tenantId, branchId) {
     custom_fields: {
       empresa_id:       a.empresa_id,
       empresa_nome:     a.empresa_nome,
+      franquias_adicionais_ids: a.franquias_adicionais_ids || [],
       responsavel_nome: a.responsavel_nome,
       local:            a.local,
       vagas:            a.vagas,

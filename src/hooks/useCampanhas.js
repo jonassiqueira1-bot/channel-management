@@ -8,6 +8,29 @@ const MOCK_KEY = 'settings:campanhas_v1'
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : null } catch { return null } }
 function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(list)) } catch {} }
 
+// Chave de cache lida pelo motor de Indicadores (settings/Indicadores.js) —
+// mesmo padrão de vendedores:maturidade_v1 (useSellerMaturity.js): meta x
+// realizado (Oportunidades ganhas vinculadas via custom_fields.campanha_id).
+const INDICADORES_CACHE_KEY = 'campanhas:performance_v1'
+
+async function persistParaIndicadores(campanhas) {
+  try {
+    const { data: opps } = await supabase.from('oportunidades')
+      .select('situacao, valor_cdu, valor_sms, valor_servico, custom_fields')
+    const rows = campanhas.map(c => {
+      const daCampanha = (opps || []).filter(o => String(o.custom_fields?.campanha_id || '') === String(c.id))
+      const ganhas = daCampanha.filter(o => o.situacao === 'ganha')
+      const valorRealizado = ganhas.reduce((s, o) => s + (Number(o.valor_cdu)||0) + (Number(o.valor_sms)||0) + (Number(o.valor_servico)||0), 0)
+      return {
+        id: c.id, nome: c.name || c.nome, status: c.status,
+        meta_valor: Number(c.meta_valor || 0), meta_oportunidades: Number(c.meta_oportunidades || 0),
+        valor_realizado: valorRealizado, oportunidades_ganhas: ganhas.length, oportunidades_qtd: daCampanha.length,
+      }
+    })
+    localStorage.setItem(INDICADORES_CACHE_KEY, JSON.stringify(rows))
+  } catch {}
+}
+
 export function useCampanhas(seeds = []) {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -54,8 +77,12 @@ export function useCampanhas(seeds = []) {
         empresa_apenas_ativas: r.empresa_apenas_ativas || false,
         playbook_id:           r.playbook_id || null,
         funil_id:              r.funil_id || null,
+        meta_valor:            Number(r.meta || 0),
+        meta_oportunidades:    Number(r.meta_oportunidades || 0),
+        custos:                (r.custos || []).map(c => ({ ...c, _open: false })),
       }))
       setCampanhas(mapped)
+      persistParaIndicadores(mapped)
     }
     setLoading(false)
   }, [session, activeBranchId]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -95,6 +122,9 @@ export function useCampanhas(seeds = []) {
       empresa_apenas_ativas: record.empresa_apenas_ativas || false,
       playbook_id:           record.playbook_id || null,
       funil_id:              record.funil_id || null,
+      meta:                  Number(record.meta_valor || 0),
+      meta_oportunidades:    Number(record.meta_oportunidades || 0),
+      custos:                (record.custos || []).map(({ _obsInput, _open, ...rest }) => rest),
       updated_at:   new Date().toISOString(),
     }
     const { error } = await supabase.from('campanhas').upsert(row, { onConflict: 'id' })

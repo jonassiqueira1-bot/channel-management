@@ -230,9 +230,153 @@ const EMPTY_FORM = {
   empresa_apenas_ativas: false,
   playbook_id: null,
   funil_id: null,
+  meta_valor: '',
+  meta_oportunidades: '',
+  custos: [],
+}
+
+const APROVACAO_CFG = {
+  aguardando: { label: 'Aguardando aprovação', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
+  aprovado:   { label: 'Aprovado',             color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  rejeitado:  { label: 'Rejeitado',            color: '#EF4444', bg: '#FEE2E2', text: '#991B1B' },
 }
 
 function uid() { return Math.random().toString(36).slice(2, 10) }
+
+function fmtMoeda(v) {
+  if (v === '' || v === null || v === undefined) return '—'
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+/* ─── Custos — mesmo padrão de Ações (descrição/previsto/realizado/aprovação) ─
+   recolhido por padrão, Aprovar/Rejeitar liberado pra admin_isv e financeiro ── */
+function CustosSection({ custos, onChange, isAdmin, papel, nomeUsuario }) {
+  const podeAprovar = isAdmin || papel === 'financeiro'
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:3 }
+
+  function addCusto() {
+    onChange([...custos, { id: uid(), descricao:'', valor_previsto:'', valor_realizado:'', executado:false, aprovacoes:[], _open:true }])
+  }
+  function updCusto(id, p) { onChange(custos.map(c => c.id === id ? { ...c, ...p } : c)) }
+  function remCusto(id) { if (window.confirm('Remover?')) onChange(custos.filter(c => c.id !== id)) }
+  function solicitarAprovacao(id) {
+    const entrada = { id: uid(), status:'aguardando', obs:'', por: nomeUsuario, em: new Date().toISOString() }
+    onChange(custos.map(c => c.id === id ? { ...c, aprovacoes:[entrada] } : c))
+  }
+  function aprovar(id, status) {
+    const obs = custos.find(c => c.id === id)?._obsInput || ''
+    const entrada = { id: uid(), status, obs, por: nomeUsuario, em: new Date().toISOString() }
+    onChange(custos.map(c => c.id === id ? { ...c, aprovacoes:[...(c.aprovacoes||[]), entrada], _obsInput:'' } : c))
+  }
+
+  const totalPrev = custos.reduce((s,c) => s + (Number(c.valor_previsto)||0), 0)
+  const totalExec = custos.reduce((s,c) => s + (c.executado ? (Number(c.valor_realizado)||0) : 0), 0)
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+      {custos.length > 0 && (
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:4 }}>
+          {[['Total previsto', fmtMoeda(totalPrev), false],['Total executado', fmtMoeda(totalExec), totalExec > totalPrev]].map(([l,val,red]) => (
+            <div key={l} style={{ padding:'8px 12px', background:'var(--surface2)', borderRadius:7, border:'1px solid var(--border)' }}>
+              <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{l}</div>
+              <div style={{ fontSize:14, fontWeight:700, color: red?'#EF4444':'var(--text)', marginTop:2 }}>{val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {custos.map((c, idx) => {
+        const ultima = (c.aprovacoes||[]).slice(-1)[0]
+        const cfgAp  = ultima ? (APROVACAO_CFG[ultima.status] || APROVACAO_CFG.aguardando) : null
+        const aprovado = ultima?.status === 'aprovado'
+        const isOpen = c._open === true
+        return (
+          <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', background:'var(--surface2)', cursor:'pointer' }}
+              onClick={() => updCusto(c.id, { _open: !isOpen })}>
+              <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', flexShrink:0 }}>#{idx+1}</span>
+              <span style={{ fontSize:12, fontWeight:600, color:'var(--text)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                {c.descricao || <span style={{ color:'var(--text-muted)', fontStyle:'italic' }}>Sem descrição</span>}
+              </span>
+              <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{fmtMoeda(c.valor_previsto)}</span>
+              {cfgAp && (
+                <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700, flexShrink:0 }}>
+                  <span style={{ width:4, height:4, borderRadius:'50%', background:cfgAp.color }} />{cfgAp.label}
+                </span>
+              )}
+              <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{isOpen ? '▲' : '▼'}</span>
+              <button onClick={e => { e.stopPropagation(); remCusto(c.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'0 2px', lineHeight:1, flexShrink:0 }}>×</button>
+            </div>
+            {isOpen && (
+              <>
+                <div style={{ padding:'8px 10px', display:'grid', gridTemplateColumns:'1fr 100px 100px', gap:8 }}>
+                  <div>
+                    <label style={lbl}>Descrição</label>
+                    <input className="fpe-field" value={c.descricao} onChange={e => updCusto(c.id,{descricao:e.target.value})} placeholder="Finalidade do custo…" style={{ width:'100%', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Previsto (R$)</label>
+                    <input className="fpe-field" type="number" min="0" step="0.01" value={c.valor_previsto} onChange={e => updCusto(c.id,{valor_previsto:e.target.value})} style={{ width:'100%', boxSizing:'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={lbl}>Realizado (R$)</label>
+                    <input className="fpe-field" type="number" min="0" step="0.01" value={c.valor_realizado} onChange={e => updCusto(c.id,{valor_realizado:e.target.value})} style={{ width:'100%', boxSizing:'border-box' }} />
+                  </div>
+                </div>
+                {aprovado && (
+                  <div style={{ padding:'0 10px 8px', display:'flex', alignItems:'center', gap:8 }}>
+                    <input type="checkbox" id={`exec-${c.id}`} checked={!!c.executado} onChange={e => updCusto(c.id, { executado: e.target.checked })} style={{ cursor:'pointer' }} />
+                    <label htmlFor={`exec-${c.id}`} style={{ fontSize:12, fontWeight:600, color: c.executado ? '#5B21B6' : 'var(--text)', cursor:'pointer' }}>
+                      {c.executado ? 'Custo executado' : 'Marcar como executado'}
+                    </label>
+                  </div>
+                )}
+                {(c.aprovacoes||[]).length > 0 && (
+                  <div style={{ margin:'0 10px 6px', background:'var(--surface2)', borderRadius:6, padding:'6px 8px' }}>
+                    {(c.aprovacoes||[]).map(ap => {
+                      const ac = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
+                      return (
+                        <div key={ap.id} style={{ display:'flex', gap:6, fontSize:10, marginBottom:2, color:'var(--text-muted)' }}>
+                          <span style={{ color:ac.color, fontWeight:700 }}>{ap.status==='aprovado'?'✓':ap.status==='rejeitado'?'✗':'⏳'}</span>
+                          <span><b style={{ color:'var(--text)' }}>{ac.label}</b> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}{ap.obs ? ` — ${ap.obs}` : ''}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                {(c.aprovacoes||[]).length === 0 ? (
+                  <div style={{ padding:'0 10px 8px' }}>
+                    <button onClick={() => solicitarAprovacao(c.id)}
+                      style={{ padding:'5px 12px', borderRadius:6, border:'1px solid var(--accent)', background:'none', color:'var(--accent)', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
+                      Solicitar aprovação
+                    </button>
+                  </div>
+                ) : podeAprovar && !aprovado ? (
+                  <div style={{ display:'flex', gap:6, padding:'0 10px 8px', alignItems:'center' }}>
+                    <input className="fpe-field" value={c._obsInput||''} onChange={e => updCusto(c.id,{_obsInput:e.target.value})}
+                      placeholder="Observação (opcional)…" style={{ flex:1, fontSize:11 }} />
+                    <button onClick={() => aprovar(c.id,'aprovado')}
+                      style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                      ✓ Aprovar
+                    </button>
+                    <button onClick={() => aprovar(c.id,'rejeitado')}
+                      style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+                      ✗ Rejeitar
+                    </button>
+                  </div>
+                ) : !podeAprovar && !aprovado ? (
+                  <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Aguardando aprovação (admin ou financeiro).</div>
+                ) : null}
+              </>
+            )}
+          </div>
+        )
+      })}
+      <button onClick={addCusto} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
+        + Adicionar item de custo
+      </button>
+    </div>
+  )
+}
 
 function fmtDate(d) {
   if (!d) return '—'
@@ -356,6 +500,8 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
   const { companies } = useCompanies()
   const { playbooks }  = usePlaybooks()
   const { funis }      = useFunnels()
+  const { profile, isAdmin } = useProfile()
+  const nomeUsuario = profile?.full_name || profile?.nome || profile?.email || 'Usuário'
 
   const franquiasOpts = useMemo(() =>
     (parceiros || []).filter(p => p.classificacao !== 'unidade' && p.situacao !== 'inativo')
@@ -446,6 +592,24 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
         </FPEField>
         <FPEField label="Data de Término">
           <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} min={form.start_date || undefined} className="fpe-field" />
+        </FPEField>
+      </FPESection>
+
+      <FPESection title="Metas" description="Alvos comparados ao realizado (Oportunidades ganhas vinculadas a esta campanha) no relatório de performance.">
+        <FPEField label="Meta de Valor (R$)">
+          <input type="number" min="0" step="0.01" value={form.meta_valor} onChange={e => set('meta_valor', e.target.value)}
+            placeholder="0,00" className="fpe-field" />
+        </FPEField>
+        <FPEField label="Meta de Oportunidades (qtd.)">
+          <input type="number" min="0" step="1" value={form.meta_oportunidades} onChange={e => set('meta_oportunidades', e.target.value)}
+            placeholder="0" className="fpe-field" />
+        </FPEField>
+      </FPESection>
+
+      <FPESection title="Custos">
+        <FPEField label="" span={2}>
+          <CustosSection custos={form.custos || []} onChange={v => set('custos', v)}
+            isAdmin={isAdmin} papel={profile?.papel} nomeUsuario={nomeUsuario} />
         </FPEField>
       </FPESection>
 

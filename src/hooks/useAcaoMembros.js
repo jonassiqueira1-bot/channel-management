@@ -15,7 +15,9 @@ function rowToMembro(row) {
   }
 }
 
-// Participantes de Ações (Contatos Canal) — mesmo padrão de useOppMembros.js.
+// Participantes de Ações (Contatos Canal) — user_id é sellers.id diretamente
+// (todos os Contatos Canais cadastrados em /vendedores, com ou sem login na
+// plataforma; diferente de oportunidade_membros, que usa profiles.id).
 export function useAcaoMembros() {
   const { session } = useAuth()
   const { profile } = useProfile()
@@ -43,14 +45,11 @@ export function useAcaoMembros() {
     if (isMockMode.current) return { ok: false }
 
     // Snapshot da franquia do Contato Canal no momento em que participa da
-    // Ação — profiles.contact_id -> sellers.parceiro_id (mesmo raciocínio de
-    // useOppMembros.add, adaptado pro modelo real onde user_id é profiles.id).
+    // Ação — aqui user_id é sellers.id diretamente (pool = todos os
+    // Contatos Canais cadastrados, com ou sem login na plataforma).
     let franquiaIdNaEpoca = null
-    const { data: prof } = await supabase.from('profiles').select('contact_id').eq('id', membro.user_id).single()
-    if (prof?.contact_id) {
-      const { data: seller } = await supabase.from('sellers').select('parceiro_id').eq('id', prof.contact_id).single()
-      franquiaIdNaEpoca = seller?.parceiro_id || null
-    }
+    const { data: seller } = await supabase.from('sellers').select('parceiro_id').eq('id', membro.user_id).single()
+    franquiaIdNaEpoca = seller?.parceiro_id || null
 
     const { data, error } = await supabase.from('acao_membros').insert({
       tenant_id:            tenantId,

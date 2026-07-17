@@ -117,6 +117,7 @@ export const MODULOS = [
   { value: 'pagamentos', label: 'Pagamentos' },
   { value: 'comissoes',  label: 'Comissões' },
   { value: 'vendedores', label: 'Vendedores (Contatos Canais)' },
+  { value: 'campanhas',  label: 'Campanhas' },
 ]
 
 function etapasDosFunis(funis, funil_ids) {
@@ -770,6 +771,51 @@ export const FONTES_INDICADOR = [
     modulos: ['vendedores'],
     storageKey: 'vendedores:maturidade_v1',
     fn: (dados) => (dados || []).filter(v => v.status === 'ativo').length,
+  },
+  {
+    value: 'campanhas_valor_realizado',
+    label: 'Campanhas — Valor realizado (R$, total)',
+    tipo: 'amount',
+    modulos: ['campanhas'],
+    storageKey: 'campanhas:performance_v1',
+    fn: (dados) => (dados || []).reduce((s, c) => s + (Number(c.valor_realizado)||0), 0),
+  },
+  {
+    value: 'campanhas_atingimento_valor_medio',
+    label: 'Campanhas — Atingimento médio de Valor (%)',
+    tipo: 'amount',
+    modulos: ['campanhas'],
+    storageKey: 'campanhas:performance_v1',
+    fn: (dados) => {
+      const comMeta = (dados || []).filter(c => Number(c.meta_valor) > 0)
+      if (!comMeta.length) return 0
+      const soma = comMeta.reduce((s, c) => s + (Number(c.valor_realizado)||0) / Number(c.meta_valor) * 100, 0)
+      return Math.round(soma / comMeta.length)
+    },
+  },
+  {
+    value: 'campanhas_oportunidades_ganhas',
+    label: 'Campanhas — Oportunidades ganhas (total)',
+    tipo: 'count',
+    modulos: ['campanhas'],
+    storageKey: 'campanhas:performance_v1',
+    fn: (dados) => (dados || []).reduce((s, c) => s + (Number(c.oportunidades_ganhas)||0), 0),
+  },
+  {
+    value: 'campanhas_qtd_ativas',
+    label: 'Campanhas — Qtd. ativas',
+    tipo: 'count',
+    modulos: ['campanhas'],
+    storageKey: 'campanhas:performance_v1',
+    fn: (dados) => (dados || []).filter(c => c.status === 'active' || c.status === 'ativa').length,
+  },
+  {
+    value: 'campanhas_qtd_meta_batida',
+    label: 'Campanhas — Qtd. com meta de valor batida (≥ 100%)',
+    tipo: 'count',
+    modulos: ['campanhas'],
+    storageKey: 'campanhas:performance_v1',
+    fn: (dados) => (dados || []).filter(c => Number(c.meta_valor) > 0 && (Number(c.valor_realizado)||0) >= Number(c.meta_valor)).length,
   },
 ]
 
