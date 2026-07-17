@@ -1,6 +1,35 @@
 // src/components/BrowseLayout.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Layout genérico de listagem para Pipeline, Projetos e demais entidades.
+// Layout genérico de listagem — padrão visual para todas as telas de listagem
+// do Boostly (Pipeline, Projetos, Empresas, Vendedores, etc).
+//
+// Arquitetura (todas as partes vivem neste arquivo, mas são unidades
+// independentes — cada uma pode ser extraída para arquivo próprio no futuro
+// sem tocar na API pública do BrowseLayout):
+//
+//   BrowseLayout               orquestra estado (seleção, ordenação, paginação,
+//                              colunas, filtros) e monta as partes abaixo
+//   ├── MetricsHeader          barra de indicadores recolhível (prop `kpis`)
+//   ├── BrowseToolbar          busca · colunas · filtros · visualização · ações
+//   │     └── ToolbarButton    botão ghost/ícone padronizado da toolbar
+//   ├── ActiveFiltersBar       chips dos filtros ativos, visíveis sem abrir o painel
+//   │     └── FilterChip
+//   ├── BulkActionBar          barra de ações em lote (some quando não há seleção)
+//   ├── DataTable (list view)  cabeçalho sticky + linhas com estados hover/seleção/foco
+//   ├── CardGrid (card view)   grade de cards (view alternativa já suportada)
+//   ├── FilterPanel            painel lateral com todos os filtros disponíveis
+//   ├── BulkEditPanel          painel lateral de edição em lote
+//   ├── EmptyState
+//   └── Pagination
+//
+// `view` já é um enum extensível ('list' | 'card' hoje) — Kanban/Calendário
+// entrariam como novos valores de `view` + um novo bloco de render condicional,
+// sem alterar toolbar, filtros, seleção ou paginação.
+//
+// Componentes exportados para reuso fora do BrowseLayout (badges/avatares
+// usados nas colunas das telas que consomem este layout):
+//   TableBadge    badge padronizado (status/prioridade/relacionamento)
+//   AvatarGroup   avatar (ou iniciais) de 1+ participantes, com overflow "+N"
 //
 // Props:
 //   columns      {key, label, sortable?, width?, render?}[]   definição das colunas
@@ -19,16 +48,18 @@
 //   renderCard   (row) => ReactNode                           view em card (opcional)
 //   storageKey   string                                        chave localStorage
 //   emptyState   ReactNode
+//   density      'compact' | 'comfortable'                    densidade da tabela (default: 'comfortable')
+//   isRowDisabled (row) => boolean                             opcional — linha desabilitada (visual + sem clique)
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '../hooks/usePermissions'
 import {
-  Search, SlidersHorizontal, LayoutList, LayoutGrid,
+  Search, LayoutList, LayoutGrid,
   ChevronDown, ChevronUp, MoreHorizontal,
   ChevronsUpDown, ArrowUp, ArrowDown, Check,
-  Columns, GripVertical, PencilLine, X, Filter,
+  Columns, GripVertical, PencilLine, X, Filter, Plus,
   Download,
 } from 'lucide-react'
 
@@ -125,6 +156,14 @@ function BulkDropdown({ label, options, selected, setSelected }) {
 // ── constantes ────────────────────────────────────────────────────────────────
 const PAGE_SIZES = [20, 50, 100]
 const STORAGE_NS = 'browse_layout_'
+
+// Densidade da tabela — hoje só 'comfortable' é usado por padrão (mantém o
+// espaçamento atual, zero mudança pra quem não passar a prop), mas a estrutura
+// já suporta 'compact' para telas com muitas colunas/linhas.
+const DENSITY = {
+  compact:     { cellPadding: '6px 12px',  fontSize: 'var(--text-sm)' },
+  comfortable: { cellPadding: '10px 12px', fontSize: 'var(--text-sm)' },
+}
 
 // ── estilos base ──────────────────────────────────────────────────────────────
 const s = {
@@ -251,7 +290,8 @@ const s = {
   // Table
   tableWrap: { flex: 1, overflowY: 'auto', overflowX: 'auto', minHeight: 0 },
   table: { width: '100%', borderCollapse: 'collapse', fontFamily: 'var(--font)', fontSize: 'var(--text-sm)' },
-  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '2px solid var(--border)' },
+  thead: { position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface2)', borderBottom: '1px solid var(--border)', transition: 'box-shadow 0.15s ease' },
+  theadScrolled: { boxShadow: '0 2px 8px rgba(0,0,0,0.08)' },
   th: {
     padding: '9px 12px', textAlign: 'left', fontWeight: 700,
     fontSize: 'var(--text-xs)', textTransform: 'uppercase', letterSpacing: '0.06em',
@@ -260,11 +300,8 @@ const s = {
   thSortable: { cursor: 'pointer' },
   thInner: { display: 'flex', alignItems: 'center', gap: 4 },
   thCheck: { width: 40, paddingLeft: 16 },
-  tr: { borderBottom: '1px solid var(--border2)', transition: 'background 0.1s' },
-  trHover: { background: 'var(--surface2)', boxShadow: 'inset 3px 0 0 var(--accent)' },
-  trSelected: { background: 'var(--accent-lite)', boxShadow: 'inset 3px 0 0 var(--accent)' },
-  td: { padding: '10px 12px', color: 'var(--text)', verticalAlign: 'middle' },
   tdCheck: { width: 40, paddingLeft: 16 },
+  td: { color: 'var(--text)', verticalAlign: 'middle' },
   checkbox: { width: 15, height: 15, accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 },
 
   // Card grid
@@ -310,6 +347,262 @@ const s = {
   },
   gripHandle: { color: 'var(--text-muted)', cursor: 'grab', flexShrink: 0 },
 }
+
+// ── Estados de linha (hover/seleção/foco/desabilitado) via CSS ────────────────
+// Injetado uma única vez no <head> (mesmo padrão usado em SlideOver.js) —
+// evita mutação imperativa de estilo em onMouseEnter/onMouseLeave por linha.
+const ROW_STYLE_ID = 'browse-layout-row-styles'
+function injectRowStyles() {
+  if (typeof document === 'undefined' || document.getElementById(ROW_STYLE_ID)) return
+  const el = document.createElement('style')
+  el.id = ROW_STYLE_ID
+  el.textContent = `
+    .bl-tr { border-bottom: 1px solid var(--border2); transition: background 0.12s ease, box-shadow 0.12s ease; }
+    .bl-tr--clickable { cursor: pointer; }
+    .bl-tr--clickable:hover:not(.bl-tr--selected):not(.bl-tr--disabled) {
+      background: var(--surface2); box-shadow: inset 3px 0 0 var(--accent);
+    }
+    .bl-tr--selected { background: var(--accent-lite); box-shadow: inset 3px 0 0 var(--accent); }
+    .bl-tr--disabled { opacity: 0.5; cursor: not-allowed; }
+    .bl-tr:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .bl-card--clickable:hover:not(.bl-card--selected) {
+      border-color: var(--accent) !important; box-shadow: 0 4px 16px rgba(37,99,235,0.12);
+    }
+  `
+  document.head.appendChild(el)
+}
+
+// ── FilterChip — usado pela ActiveFiltersBar ──────────────────────────────────
+function FilterChip({ label, onRemove }) {
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6,
+      height: 26, padding: '0 6px 0 10px', borderRadius: 'var(--radius-md)',
+      background: 'var(--accent-lite, #EEF2FF)', border: '1px solid var(--accent-mid, rgba(37,99,235,0.18))',
+      fontSize: 'var(--text-sm)', color: 'var(--accent)', fontWeight: 500,
+      whiteSpace: 'nowrap',
+    }}>
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remover filtro ${label}`}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 16, height: 16, borderRadius: '50%', border: 'none',
+          background: 'transparent', color: 'var(--accent)', cursor: 'pointer', padding: 0,
+        }}
+      >
+        <X size={11} />
+      </button>
+    </span>
+  )
+}
+
+// ── ActiveFiltersBar — chips dos filtros ativos, visíveis sem abrir o painel ──
+function ActiveFiltersBar({ filters, activeFilters, onFilterChange, onOpenPanel }) {
+  const chips = []
+  filters.forEach(f => {
+    const vals = activeFilters[f.key] || []
+    vals.forEach(v => {
+      const opt = f.options.find(o => o.value === v)
+      chips.push({ filterKey: f.key, value: v, label: `${f.label}: ${opt?.label ?? v}` })
+    })
+  })
+  if (chips.length === 0) return null
+
+  function removeChip(filterKey, value) {
+    const next = (activeFilters[filterKey] || []).filter(v => v !== value)
+    onFilterChange?.({ ...activeFilters, [filterKey]: next })
+  }
+
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6,
+      padding: '8px 20px', borderBottom: '1px solid var(--border)',
+      background: 'var(--surface)', flexShrink: 0,
+    }}>
+      {chips.map(c => (
+        <FilterChip key={`${c.filterKey}:${c.value}`} label={c.label} onRemove={() => removeChip(c.filterKey, c.value)} />
+      ))}
+      <button
+        type="button"
+        onClick={onOpenPanel}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 4,
+          height: 26, padding: '0 10px', borderRadius: 'var(--radius-md)',
+          border: '1px dashed var(--border-med, var(--border))', background: 'none',
+          color: 'var(--text-muted)', fontSize: 'var(--text-sm)', cursor: 'pointer', fontFamily: 'var(--font)',
+        }}
+      >
+        <Plus size={12} /> Adicionar filtro
+      </button>
+      {chips.length > 1 && (
+        <button
+          type="button"
+          onClick={() => onFilterChange?.({})}
+          style={{
+            marginLeft: 4, fontSize: 'var(--text-xs)', color: 'var(--text-muted)',
+            background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
+            textDecoration: 'underline',
+          }}
+        >
+          Limpar todos
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── TableBadge — badge padronizado (status/prioridade/relacionamento) ────────
+// Export reutilizável para as colunas das telas que consomem o BrowseLayout —
+// unifica a linguagem visual (mesmo radius/tipografia usados no resto do app).
+const BADGE_TONES = {
+  neutral: { bg: 'var(--surface3)',    color: 'var(--text-soft)' },
+  success: { bg: '#D1FAE5',            color: '#065F46' },
+  warning: { bg: '#FEF3C7',            color: '#92400E' },
+  danger:  { bg: '#FEE2E2',            color: '#991B1B' },
+  info:    { bg: '#DBEAFE',            color: '#1E40AF' },
+  accent:  { bg: 'var(--accent-lite)', color: 'var(--accent)' },
+}
+export function TableBadge({ label, tone = 'neutral', dot = false }) {
+  const t = BADGE_TONES[tone] || BADGE_TONES.neutral
+  return (
+    <span style={{
+      display: 'inline-flex', alignItems: 'center', gap: 5,
+      padding: '2px 8px', borderRadius: 'var(--radius-md, 6px)',
+      background: t.bg, color: t.color,
+      fontSize: 'var(--text-xs)', fontWeight: 600, whiteSpace: 'nowrap',
+    }}>
+      {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.color, flexShrink: 0 }} />}
+      {label}
+    </span>
+  )
+}
+
+// ── AvatarGroup — participantes (avatar ou iniciais), com overflow "+N" ──────
+function initialsOf(name) {
+  if (!name) return '?'
+  return name.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+export function AvatarGroup({ people = [], max = 3, size = 24 }) {
+  const shown = people.slice(0, max)
+  const extra = people.length - shown.length
+  const circle = (content, key, title) => (
+    <div key={key} title={title} style={{
+      width: size, height: size, borderRadius: '50%',
+      background: 'var(--accent-glow, var(--accent-lite))', color: 'var(--accent)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      fontSize: size * 0.42, fontWeight: 700, fontFamily: 'var(--mono)',
+      border: '2px solid var(--surface)', marginLeft: key === 0 ? 0 : -8,
+      flexShrink: 0, overflow: 'hidden',
+    }}>
+      {content}
+    </div>
+  )
+  if (people.length === 0) return <span style={{ color: 'var(--text-muted)', fontSize: 'var(--text-sm)' }}>—</span>
+  return (
+    <div style={{ display: 'flex', alignItems: 'center' }}>
+      {shown.map((p, i) => circle(
+        p.avatarUrl ? <img src={p.avatarUrl} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initialsOf(p.name),
+        i, p.name
+      ))}
+      {extra > 0 && circle(`+${extra}`, 'extra', `${extra} mais`)}
+    </div>
+  )
+}
+
+// ── Pagination — rodapé de navegação de páginas ───────────────────────────────
+function Pagination({ safePage, pageCount, onPageChange }) {
+  function visiblePages() {
+    const pages = []
+    const delta = 1
+    for (let i = 1; i <= pageCount; i++) {
+      if (i === 1 || i === pageCount || (i >= safePage - delta && i <= safePage + delta)) {
+        pages.push(i)
+      } else if (pages[pages.length - 1] !== '…') {
+        pages.push('…')
+      }
+    }
+    return pages
+  }
+  return (
+    <div style={s.footerPages}>
+      <button
+        type="button"
+        style={{ ...s.pageBtn, ...(safePage === 1 ? s.pageBtnDisabled : {}) }}
+        onClick={() => onPageChange(Math.max(1, safePage - 1))}
+        disabled={safePage === 1}
+      >
+        ‹
+      </button>
+      {visiblePages().map((p, i) =>
+        p === '…' ? (
+          <span key={`e-${i}`} style={{ ...s.pageBtn, border: 'none', cursor: 'default' }}>…</span>
+        ) : (
+          <button
+            key={p}
+            type="button"
+            style={{ ...s.pageBtn, ...(p === safePage ? s.pageBtnActive : {}) }}
+            onClick={() => onPageChange(p)}
+          >
+            {p}
+          </button>
+        )
+      )}
+      <button
+        type="button"
+        style={{ ...s.pageBtn, ...(safePage === pageCount ? s.pageBtnDisabled : {}) }}
+        onClick={() => onPageChange(Math.min(pageCount, safePage + 1))}
+        disabled={safePage === pageCount}
+      >
+        ›
+      </button>
+    </div>
+  )
+}
+
+// ── EmptyState ─────────────────────────────────────────────────────────────
+function EmptyState({ children }) {
+  return (
+    <div style={s.emptyState}>
+      {children ?? (
+        <>
+          <Search size={32} style={{ opacity: 0.25 }} />
+          <span style={{ fontSize: 'var(--text-sm)' }}>Nenhum registro encontrado.</span>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ── TableRow — memoizada: só re-renderiza quando a linha/seleção/hover mudam ─
+const TableRow = memo(function TableRow({ row, id, columns, selected, disabled, onRowClick, onToggle, cellPadding, fontSize }) {
+  return (
+    <tr
+      className={`bl-tr ${onRowClick ? 'bl-tr--clickable' : ''} ${selected ? 'bl-tr--selected' : ''} ${disabled ? 'bl-tr--disabled' : ''}`}
+      tabIndex={onRowClick && !disabled ? 0 : undefined}
+      onClick={onRowClick && !disabled ? () => onRowClick(row) : undefined}
+      onKeyDown={onRowClick && !disabled ? (e) => { if (e.key === 'Enter') onRowClick(row) } : undefined}
+      onContextMenu={onRowClick && !disabled ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
+    >
+      <td style={{ ...s.td, ...s.tdCheck, padding: cellPadding }} onClick={e => e.stopPropagation()}>
+        <input
+          type="checkbox"
+          checked={selected}
+          disabled={disabled}
+          onChange={e => { e.stopPropagation(); onToggle(id) }}
+          style={s.checkbox}
+        />
+      </td>
+      {columns.map(col => (
+        <td key={col.key} style={{ ...s.td, padding: cellPadding, fontSize }}>
+          {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
+        </td>
+      ))}
+    </tr>
+  )
+})
 
 // ── Utilitário: fechar dropdown ao clicar fora ────────────────────────────────
 function useClickOutside(ref, onClose) {
@@ -423,12 +716,17 @@ export default function BrowseLayout({
   secondaryActions,
   onRowClick,
   modulo,                   // id do módulo (Perfis de Acesso) — controla exibição de importar/exportar
+  density          = 'comfortable',
+  isRowDisabled,
 }) {
   const { can } = usePermissions()
   const podeExportar = !modulo || can(modulo, 'exportar')
   const podeImportar  = !modulo || can(modulo, 'importar')
   const podeCriarEditar = !modulo || can(modulo, 'criar_editar')
   const storagePrefix = STORAGE_NS + storageKey
+  const dens = DENSITY[density] || DENSITY.comfortable
+
+  useEffect(() => { injectRowStyles() }, [])
 
   // ── breakpoint ────────────────────────────────────────────────────────────
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
@@ -510,6 +808,13 @@ export default function BrowseLayout({
 
   const searchRef = useRef(null)
 
+  // ── sombra discreta no cabeçalho sticky ao rolar a tabela ────────────────
+  const tableWrapRef = useRef(null)
+  const [theadScrolled, setTheadScrolled] = useState(false)
+  const handleTableScroll = useCallback((e) => {
+    setTheadScrolled(e.currentTarget.scrollTop > 0)
+  }, [])
+
   // ── Ctrl+K → foca busca ──────────────────────────────────────────────────
   useEffect(() => {
     function handle(e) {
@@ -545,20 +850,20 @@ export default function BrowseLayout({
     setPage(1)
   }, [])
 
-  // ── dados ordenados e paginados ──────────────────────────────────────────
-  const sorted = [...data].sort((a, b) => {
+  // ── dados ordenados e paginados (memoizado — evita re-ordenar em todo render) ──
+  const sorted = useMemo(() => [...data].sort((a, b) => {
     if (!sortKey) return 0
     const av = a[sortKey] ?? '', bv = b[sortKey] ?? ''
     const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true })
     return sortDir === 'asc' ? cmp : -cmp
-  })
+  }), [data, sortKey, sortDir])
 
   const total     = sorted.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const safePage  = Math.min(page, pageCount)
   const start     = (safePage - 1) * pageSize
   const end       = Math.min(start + pageSize, total)
-  const pageRows  = sorted.slice(start, end)
+  const pageRows  = useMemo(() => sorted.slice(start, end), [sorted, start, end])
 
   // ── seleção ──────────────────────────────────────────────────────────────
   const allPageSelected = pageRows.length > 0 && pageRows.every(r => selected.has(r[keyField]))
@@ -583,20 +888,6 @@ export default function BrowseLayout({
 
   // ── contagem de filtros ativos ────────────────────────────────────────────
   const activeFilterCount = Object.values(activeFilters).flat().filter(Boolean).length
-
-  // ── páginas visíveis ─────────────────────────────────────────────────────
-  function visiblePages() {
-    const pages = []
-    const delta = 1
-    for (let i = 1; i <= pageCount; i++) {
-      if (i === 1 || i === pageCount || (i >= safePage - delta && i <= safePage + delta)) {
-        pages.push(i)
-      } else if (pages[pages.length - 1] !== '…') {
-        pages.push('…')
-      }
-    }
-    return pages
-  }
 
   // ── filter panel ─────────────────────────────────────────────────────────
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
@@ -899,49 +1190,44 @@ export default function BrowseLayout({
         )}
       </div>
 
+      {/* ── Chips de filtros ativos ──────────────────────────────────────── */}
+      {filters.length > 0 && (
+        <ActiveFiltersBar
+          filters={filters}
+          activeFilters={activeFilters}
+          onFilterChange={v => { onFilterChange?.(v); setPage(1) }}
+          onOpenPanel={() => setFilterPanelOpen(true)}
+        />
+      )}
+
       {/* ── Conteúdo: tabela ou cards ────────────────────────────────────── */}
       {total === 0 ? (
-        <div style={s.emptyState}>
-          {emptyState ?? (
-            <>
-              <Search size={32} style={{ opacity: 0.25 }} />
-              <span style={{ fontSize: 'var(--text-sm)' }}>Nenhum registro encontrado.</span>
-            </>
-          )}
-        </div>
+        <EmptyState>{emptyState}</EmptyState>
       ) : view === 'card' && renderCard ? (
         <div style={{ ...s.cardGrid, ...(isMobile ? { gridTemplateColumns: '1fr', padding: '12px' } : {}) }}>
           {pageRows.map(row => {
             const sel = selected.has(row[keyField])
+            const disabled = isRowDisabled?.(row)
             return (
               <div
                 key={row[keyField]}
+                className={`${onRowClick ? 'bl-card--clickable' : ''} ${sel ? 'bl-card--selected' : ''}`}
                 style={{
-                  position: 'relative', cursor: 'pointer',
+                  position: 'relative', cursor: disabled ? 'not-allowed' : (onRowClick ? 'pointer' : 'default'),
+                  opacity: disabled ? 0.5 : 1,
                   border: `1.5px solid ${sel ? 'var(--accent)' : 'var(--border)'}`,
                   borderRadius: 'var(--radius-lg, 10px)',
                   background: sel ? 'var(--accent-lite, #EEF2FF)' : 'var(--surface)',
                   transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
                   overflow: 'hidden',
                 }}
-                onClick={onRowClick ? () => onRowClick(row) : undefined}
-                onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
-                onMouseEnter={e => {
-                  if (!sel) {
-                    e.currentTarget.style.borderColor = 'var(--accent)'
-                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(37,99,235,0.12)'
-                  }
-                }}
-                onMouseLeave={e => {
-                  if (!sel) {
-                    e.currentTarget.style.borderColor = 'var(--border)'
-                    e.currentTarget.style.boxShadow = 'none'
-                  }
-                }}
+                onClick={onRowClick && !disabled ? () => onRowClick(row) : undefined}
+                onContextMenu={onRowClick && !disabled ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
               >
                 <input
                   type="checkbox"
                   checked={sel}
+                  disabled={disabled}
                   onChange={e => { e.stopPropagation(); toggleRow(row[keyField]) }}
                   onClick={e => e.stopPropagation()}
                   style={{ ...s.checkbox, position: 'absolute', top: 10, right: 10, zIndex: 1 }}
@@ -952,9 +1238,9 @@ export default function BrowseLayout({
           })}
         </div>
       ) : (
-        <div style={s.tableWrap}>
+        <div style={s.tableWrap} ref={tableWrapRef} onScroll={handleTableScroll}>
           <table style={s.table}>
-            <thead style={s.thead}>
+            <thead style={{ ...s.thead, ...(theadScrolled ? s.theadScrolled : {}) }}>
               <tr>
                 <th style={{ ...s.th, ...s.thCheck }}>
                   <input
@@ -986,34 +1272,20 @@ export default function BrowseLayout({
               </tr>
             </thead>
             <tbody>
-              {pageRows.map(row => {
-                const id  = row[keyField]
-                const sel = selected.has(id)
-                return (
-                  <tr
-                    key={id}
-                    style={{ ...s.tr, ...(sel ? s.trSelected : {}), ...(onRowClick ? { cursor: 'pointer' } : {}) }}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
-                    onMouseEnter={e => { if (!sel) { e.currentTarget.style.background = 'var(--surface2)'; e.currentTarget.style.boxShadow = 'inset 3px 0 0 var(--accent)' } }}
-                    onMouseLeave={e => { if (!sel) { e.currentTarget.style.background = ''; e.currentTarget.style.boxShadow = '' } }}
-                  >
-                    <td style={{ ...s.td, ...s.tdCheck }} onClick={e => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={sel}
-                        onChange={e => { e.stopPropagation(); toggleRow(id) }}
-                        style={s.checkbox}
-                      />
-                    </td>
-                    {visibleColumns.map(col => (
-                      <td key={col.key} style={s.td}>
-                        {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              })}
+              {pageRows.map(row => (
+                <TableRow
+                  key={row[keyField]}
+                  row={row}
+                  id={row[keyField]}
+                  columns={visibleColumns}
+                  selected={selected.has(row[keyField])}
+                  disabled={isRowDisabled?.(row)}
+                  onRowClick={onRowClick}
+                  onToggle={toggleRow}
+                  cellPadding={dens.cellPadding}
+                  fontSize={dens.fontSize}
+                />
+              ))}
             </tbody>
           </table>
         </div>
@@ -1427,38 +1699,7 @@ export default function BrowseLayout({
             </Dropdown>
 
             {/* Paginação */}
-            <div style={s.footerPages}>
-              <button
-                type="button"
-                style={{ ...s.pageBtn, ...(safePage === 1 ? s.pageBtnDisabled : {}) }}
-                onClick={() => setPage(p => Math.max(1, p - 1))}
-                disabled={safePage === 1}
-              >
-                ‹
-              </button>
-              {visiblePages().map((p, i) =>
-                p === '…' ? (
-                  <span key={`e-${i}`} style={{ ...s.pageBtn, border: 'none', cursor: 'default' }}>…</span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    style={{ ...s.pageBtn, ...(p === safePage ? s.pageBtnActive : {}) }}
-                    onClick={() => setPage(p)}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-              <button
-                type="button"
-                style={{ ...s.pageBtn, ...(safePage === pageCount ? s.pageBtnDisabled : {}) }}
-                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-                disabled={safePage === pageCount}
-              >
-                ›
-              </button>
-            </div>
+            <Pagination safePage={safePage} pageCount={pageCount} onPageChange={setPage} />
           </div>
         </div>
       )}
