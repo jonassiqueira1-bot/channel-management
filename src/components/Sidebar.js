@@ -148,6 +148,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const [editingGroup, setEditingGroup] = useState(null)
   const [editValue,    setEditValue]    = useState('')
   const [hoveredGroup, setHoveredGroup] = useState(null)
+  const [hoveredItem,  setHoveredItem]  = useState(null)
   const editInputRef = useRef(null)
 
   const [dragSrc,  setDragSrc]  = useState(null)
@@ -382,13 +383,19 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
               )}
 
               {/* ── Itens do grupo ── */}
-              {(collapsed || open) && group.items.filter(item =>
-                rotasPermitidas === null || rotasPermitidas.includes(item.path)
-              ).map((item, iIdx) => {
+              {/* Mapeia pro índice real em group.items ANTES de filtrar por
+                  permissão — senão o iIdx usado no drag é o índice da lista
+                  filtrada, e moveItem() faz splice no array completo errado
+                  (só não dava pra notar com admin_isv, que nunca filtra nada). */}
+              {(collapsed || open) && group.items
+                .map((item, realIdx) => ({ item, realIdx }))
+                .filter(({ item }) => rotasPermitidas === null || rotasPermitidas.includes(item.path))
+                .map(({ item, realIdx: iIdx }) => {
                 const Icon            = ICON_MAP[item.iconKey]
                 const isBeingDragged  = dragSrc?.type === 'item' && dragSrc?.gIdx === gIdx && dragSrc?.iIdx === iIdx
                 const isDragOverItem  = dragOver?.zone === 'item' && dragOver?.gIdx === gIdx && dragOver?.iIdx === iIdx
                 const isSettings      = item.path === '/settings'
+                const isItemHovered   = hoveredItem === item.path
 
                 return (
                   <div
@@ -398,6 +405,8 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                     onDragOver={e => onDragOverItem(e, gIdx, iIdx)}
                     onDrop={e => onDropOnItem(e, gIdx, iIdx)}
                     onDragEnd={cleanup}
+                    onMouseEnter={() => setHoveredItem(item.path)}
+                    onMouseLeave={() => setHoveredItem(null)}
                     style={{
                       position: 'relative',
                       opacity: isBeingDragged ? 0.35 : 1,
@@ -422,7 +431,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                       })}
                     >
                       {!collapsed && (
-                        <span style={s.grip}>
+                        <span style={{ ...s.grip, visibility: isItemHovered ? 'visible' : 'hidden' }}>
                           <GripVertical size={11} strokeWidth={1.5} />
                         </span>
                       )}
