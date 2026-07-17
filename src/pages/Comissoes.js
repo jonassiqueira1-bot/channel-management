@@ -166,7 +166,7 @@ function MultiSearchSelect({ values = [], onChange, options = [], placeholder = 
       {selected.length > 0 && (
         <div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>
           {selected.map(o => (
-            <span key={o.value} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 8px 3px 10px', borderRadius:99, fontSize:12, fontWeight:600, background:'rgba(245,158,11,0.1)', color:'#B45309', border:'1px solid rgba(245,158,11,0.3)' }}>
+            <span key={o.value} style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 8px 3px 10px', borderRadius:6, fontSize:12, fontWeight:600, background:'rgba(245,158,11,0.1)', color:'#B45309', border:'1px solid rgba(245,158,11,0.3)' }}>
               {o.label}
               <button type="button" onClick={() => toggle(o.value)} style={{ background:'none', border:'none', cursor:'pointer', color:'#B45309', display:'flex', alignItems:'center', padding:0, lineHeight:1, fontSize:12 }}>×</button>
             </span>
@@ -212,7 +212,7 @@ function PersonaTag({ personaId, personas }) {
   const p = personas.find(x => x.id === personaId || x.slug === personaId)
   if (!p) return <span style={{ fontSize:11, color:'var(--text-muted)' }}>{personaId}</span>
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:99, fontSize:11, fontWeight:600, color:p.cor, background:p.cor + '22' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:600, color:p.cor, background:p.cor + '22' }}>
       {p.label}
     </span>
   )
@@ -228,7 +228,7 @@ const TIPO_ICON = { cadeia_repasse: Link2, escalonado: BarChart2, split: GitMerg
 function TipoBadge({ tipoId }) {
   const cfg = TIPO_CALCULO_CFG[tipoId] || TIPO_CALCULO_CFG.percentual_fixo
   const Icon = TIPO_ICON[tipoId] || Percent
-  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:99, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={10} strokeWidth={2.5} />{cfg.label}</span>
+  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={10} strokeWidth={2.5} />{cfg.label}</span>
 }
 
 // ─── PeriodPopover ────────────────────────────────────────────────────────────
@@ -1043,7 +1043,7 @@ function ComissaoMultiSelect({ options, value = [], onChange, placeholder = 'Sel
         {selected.length === 0
           ? <span style={{ color:'var(--text-muted)', fontSize:13, flex:1 }}>{placeholder}</span>
           : selected.map(o => (
-            <span key={o.value} style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:20, background:'var(--accent)20', color:'var(--accent)', display:'inline-flex', alignItems:'center', gap:3 }}>
+            <span key={o.value} style={{ fontSize:11, fontWeight:600, padding:'2px 7px', borderRadius:6, background:'var(--accent)20', color:'var(--accent)', display:'inline-flex', alignItems:'center', gap:3 }}>
               {o.label}
               <span onClick={e => { e.stopPropagation(); toggle(o.value) }} style={{ cursor:'pointer', opacity:0.7 }}>×</span>
             </span>
@@ -1167,18 +1167,26 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
   const isCadeia = comb.tipo_calculo === 'cadeia_repasse'
   const isEscal  = comb.tipo_calculo === 'escalonado'
 
+  const TipoIcon = TIPO_ICON[comb.tipo_calculo] || Percent
+  const tipoColor = TIPO_CALCULO_CFG[comb.tipo_calculo]?.color || 'var(--accent)'
+
+  const SubLabel = ({ children }) => (
+    <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:2 }}>{children}</div>
+  )
+
   return (
-    <div style={{ border:'2px solid var(--accent)', borderRadius:12, overflow:'hidden', boxShadow:'0 2px 8px rgba(0,0,0,0.08)' }}>
-      {/* Header */}
-      <div onClick={() => setOpen(o => !o)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', cursor:'pointer', background:'var(--surface2)', userSelect:'none' }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px' }}>#{index+1}</span>
-          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{prodLabel}</span>
-          <span style={{ fontSize:11, color:'var(--text-muted)' }}>×</span>
-          <span style={{ fontSize:12, fontWeight:600, color:'var(--accent)' }}>{tipoLabel}</span>
-          {produtosMensais && comb.prazo_meses && <span style={{ fontSize:11, color:'#10B981', background:'#D1FAE5', borderRadius:4, padding:'1px 6px' }}>{comb.prazo_meses}m</span>}
+    <div style={{ border:'1.5px solid var(--border2)', borderRadius:10, overflow:'hidden' }}>
+      {/* Header — resumo escaneável, clique recolhe/expande */}
+      <div onClick={() => setOpen(o => !o)} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'9px 12px', cursor:'pointer', background:'var(--surface2)', userSelect:'none', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, minWidth:0 }}>
+          <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:4, padding:'1px 6px', flexShrink:0 }}>#{index+1}</span>
+          <TipoIcon size={14} strokeWidth={2} style={{ color:tipoColor, flexShrink:0 }} />
+          <span style={{ fontSize:13, fontWeight:600, color:'var(--text)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{prodLabel}</span>
+          <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>×</span>
+          <span style={{ fontSize:12, fontWeight:600, color:tipoColor, whiteSpace:'nowrap' }}>{tipoLabel}</span>
+          {produtosMensais && comb.prazo_meses && <span style={{ fontSize:11, color:'#10B981', background:'#D1FAE5', borderRadius:4, padding:'1px 6px', flexShrink:0 }}>{comb.prazo_meses}m</span>}
         </div>
-        <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
           <button type="button" onClick={e=>{e.stopPropagation();onRemove()}}
             style={{ background:'none', border:'none', cursor:'pointer', color:'#EF4444', padding:2, display:'flex', alignItems:'center' }}>
             <Trash2 size={13} strokeWidth={2} />
@@ -1188,136 +1196,147 @@ function CombinacaoItem({ comb, onChange, onRemove, produtos, personas, usuarios
       </div>
 
       {open && (
-        <div style={{ padding:'14px', display:'flex', flexDirection:'column', gap:12 }}>
-          {/* Produto / Tipo em linha */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            <FormField label="Produto / Categoria">
-              <ComissaoSearchSelect
-                options={[
-                  { value:'',         label:'Todos',     sub:'Sem restrição' },
-                  { value:'produto',  label:'Produto',   sub:'Produto específico' },
-                  { value:'categoria',label:'Categoria', sub:'Categoria de produtos' },
-                ]}
-                value={comb.produto_filtro_tipo || ''}
-                onChange={val => setComb('produto_filtro_tipo', val || null)}
-              />
-            </FormField>
-            <FormField label="Tipo de Cálculo">
-              <ComissaoSearchSelect
-                options={Object.entries(TIPO_CALCULO_CFG).map(([id,cfg])=>({ value:id, label:cfg.label, sub:cfg.desc }))}
-                value={comb.tipo_calculo || 'percentual_fixo'}
-                onChange={val => setComb('tipo_calculo', val || 'percentual_fixo')}
-              />
-            </FormField>
-          </div>
+        <div style={{ padding:'14px', display:'flex', flexDirection:'column', gap:16 }}>
 
-          {/* Seletor de produtos */}
-          {comb.produto_filtro_tipo === 'produto' && (
-            <FormField label="Produtos">
-              <MultiSearchSelect values={comb.produto_ids||[]} onChange={ids=>setComb('produto_ids',ids)}
-                options={produtos.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo||''} · ${p.categoria||''}` }))}
-                placeholder="Buscar produto…" />
-            </FormField>
-          )}
-          {comb.produto_filtro_tipo === 'categoria' && (
-            <FormField label="Categorias">
-              <MultiSearchSelect values={comb.produto_categorias||[]} onChange={cats=>setComb('produto_categorias',cats)}
-                options={[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
-                placeholder="Buscar categoria…" />
-            </FormField>
-          )}
-
-          {/* Prazo meses — só quando produto mensal */}
-          {produtosMensais && (
-            <FormField label="Prazo de comissão (meses)" hint="Produto com cobrança mensal">
-              <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                <input type="number" min={1} max={120} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 12" style={{ maxWidth:120 }} />
-                <span style={{ fontSize:12, color:'var(--text-muted)' }}>meses</span>
-              </div>
-            </FormField>
-          )}
-
-          {/* Percentual Fixo: tabela persona × produto */}
-          {isFixo && (
-            <div>
-              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:6 }}>Percentuais por Persona</div>
-              <PercTable percCols={percCols} personas={personas} usuarios={usuarios}
-                percs={comb.persona_percentuais||[]}
-                onChange={pp => setComb('persona_percentuais', pp)} />
-            </div>
-          )}
-
-          {/* Cadeia de repasse */}
-          {isCadeia && (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
-                {[
-                  { key:'repasse_origem_pct',  label:'Repasse dist. (%)',     placeholder:'50' },
-                  { key:'base_calculo_pct',    label:'Base s/ líquido NG (%)',placeholder:'39' },
-                  { key:'percentual_comissao', label:'% sobre a base',        placeholder:'5'  },
-                ].map(f => (
-                  <FormField key={f.key} label={f.label}>
-                    <input type="number" min={0} max={100} step={0.5} className="so-field" value={comb[f.key]??''} onChange={e=>setComb(f.key,e.target.value)} placeholder={f.placeholder} />
-                  </FormField>
-                ))}
-              </div>
-              <FormulaPreview repasse={comb.repasse_origem_pct} base={comb.base_calculo_pct} pct={comb.percentual_comissao} />
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
-                <FormField label="Recorrência">
-                  <select className="so-field" value={comb.tipo_recorrencia||'indefinida'} onChange={e=>setComb('tipo_recorrencia',e.target.value)}>
-                    {Object.entries(TIPO_RECORRENCIA_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-                  </select>
-                </FormField>
-                {comb.tipo_recorrencia === 'prazo_fixo' && (
-                  <FormField label="Prazo (meses)">
-                    <input type="number" min={1} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 18" />
-                  </FormField>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Escalonado */}
-          {isEscal && (
-            <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Escala Individual</div>
-              <EscalaEditor rows={comb.escala_individual||DEFAULT_ESCALA_INDIVIDUAL} onChange={v=>setComb('escala_individual',v)} valueKey="comissao_pct" valueLabel="Comissão (%)" accentColor="#F59E0B" />
-              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>Bônus de Equipe</div>
-              <EscalaEditor rows={comb.escala_equipe||DEFAULT_ESCALA_EQUIPE} onChange={v=>setComb('escala_equipe',v)} valueKey="bonus_pct" valueLabel="Bônus (%)" accentColor="#10B981" />
-              <FormField label="Condição bônus equipe">
-                <input className="so-field" value={comb.condicao_bonus_equipe||''} onChange={e=>setComb('condicao_bonus_equipe',e.target.value)} placeholder="Ex: Exige meta individual atingida" />
+          {/* ── O que calcular ──────────────────────────────────────── */}
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <SubLabel>O que calcular</SubLabel>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+              <FormField label="Produto / Categoria">
+                <ComissaoSearchSelect
+                  options={[
+                    { value:'',         label:'Todos',     sub:'Sem restrição' },
+                    { value:'produto',  label:'Produto',   sub:'Produto específico' },
+                    { value:'categoria',label:'Categoria', sub:'Categoria de produtos' },
+                  ]}
+                  value={comb.produto_filtro_tipo || ''}
+                  onChange={val => setComb('produto_filtro_tipo', val || null)}
+                />
+              </FormField>
+              <FormField label="Tipo de Cálculo">
+                <ComissaoSearchSelect
+                  options={Object.entries(TIPO_CALCULO_CFG).map(([id,cfg])=>({ value:id, label:cfg.label, sub:cfg.desc }))}
+                  value={comb.tipo_calculo || 'percentual_fixo'}
+                  onChange={val => setComb('tipo_calculo', val || 'percentual_fixo')}
+                />
               </FormField>
             </div>
+
+            {comb.produto_filtro_tipo === 'produto' && (
+              <FormField label="Produtos">
+                <MultiSearchSelect values={comb.produto_ids||[]} onChange={ids=>setComb('produto_ids',ids)}
+                  options={produtos.filter(p=>p.status==='ativo').map(p=>({ value:String(p.id), label:p.nome, sublabel:`${p.codigo||''} · ${p.categoria||''}` }))}
+                  placeholder="Buscar produto…" />
+              </FormField>
+            )}
+            {comb.produto_filtro_tipo === 'categoria' && (
+              <FormField label="Categorias">
+                <MultiSearchSelect values={comb.produto_categorias||[]} onChange={cats=>setComb('produto_categorias',cats)}
+                  options={[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort().map(c=>({ value:c, label:c }))}
+                  placeholder="Buscar categoria…" />
+              </FormField>
+            )}
+
+            {produtosMensais && (
+              <FormField label="Prazo de comissão (meses)" hint="Produto com cobrança mensal">
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <input type="number" min={1} max={120} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 12" style={{ maxWidth:120 }} />
+                  <span style={{ fontSize:12, color:'var(--text-muted)' }}>meses</span>
+                </div>
+              </FormField>
+            )}
+          </div>
+
+          {/* ── Como calcular ────────────────────────────────────────── */}
+          {(isFixo || isCadeia || isEscal) && (
+            <div style={{ display:'flex', flexDirection:'column', gap:10, borderTop:'1px solid var(--border2)', paddingTop:14 }}>
+              <SubLabel>Como calcular</SubLabel>
+
+              {isFixo && (
+                <div>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-soft)', marginBottom:6 }}>Percentuais por Persona</div>
+                  <PercTable percCols={percCols} personas={personas} usuarios={usuarios}
+                    percs={comb.persona_percentuais||[]}
+                    onChange={pp => setComb('persona_percentuais', pp)} />
+                </div>
+              )}
+
+              {isCadeia && (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:8 }}>
+                    {[
+                      { key:'repasse_origem_pct',  label:'Repasse dist. (%)',     placeholder:'50' },
+                      { key:'base_calculo_pct',    label:'Base s/ líquido NG (%)',placeholder:'39' },
+                      { key:'percentual_comissao', label:'% sobre a base',        placeholder:'5'  },
+                    ].map(f => (
+                      <FormField key={f.key} label={f.label}>
+                        <input type="number" min={0} max={100} step={0.5} className="so-field" value={comb[f.key]??''} onChange={e=>setComb(f.key,e.target.value)} placeholder={f.placeholder} />
+                      </FormField>
+                    ))}
+                  </div>
+                  <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                    <FormField label="Recorrência">
+                      <select className="so-field" value={comb.tipo_recorrencia||'indefinida'} onChange={e=>setComb('tipo_recorrencia',e.target.value)}>
+                        {Object.entries(TIPO_RECORRENCIA_CFG).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
+                      </select>
+                    </FormField>
+                    {comb.tipo_recorrencia === 'prazo_fixo' && (
+                      <FormField label="Prazo (meses)">
+                        <input type="number" min={1} className="so-field" value={comb.prazo_meses||''} onChange={e=>setComb('prazo_meses',parseInt(e.target.value)||null)} placeholder="Ex: 18" />
+                      </FormField>
+                    )}
+                  </div>
+
+                  {/* Resultado da simulação */}
+                  <div>
+                    <SubLabel>Resultado da simulação</SubLabel>
+                    <FormulaPreview repasse={comb.repasse_origem_pct} base={comb.base_calculo_pct} pct={comb.percentual_comissao} />
+                  </div>
+                </div>
+              )}
+
+              {isEscal && (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-soft)' }}>Escala Individual</div>
+                  <EscalaEditor rows={comb.escala_individual||DEFAULT_ESCALA_INDIVIDUAL} onChange={v=>setComb('escala_individual',v)} valueKey="comissao_pct" valueLabel="Comissão (%)" accentColor="#F59E0B" />
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-soft)' }}>Bônus de Equipe</div>
+                  <EscalaEditor rows={comb.escala_equipe||DEFAULT_ESCALA_EQUIPE} onChange={v=>setComb('escala_equipe',v)} valueKey="bonus_pct" valueLabel="Bônus (%)" accentColor="#10B981" />
+                  <FormField label="Condição bônus equipe">
+                    <input className="so-field" value={comb.condicao_bonus_equipe||''} onChange={e=>setComb('condicao_bonus_equipe',e.target.value)} placeholder="Ex: Exige meta individual atingida" />
+                  </FormField>
+                </div>
+              )}
+            </div>
           )}
 
-          {/* Participação na venda — sempre visível por combinação */}
-          <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
+          {/* ── Regras adicionais ────────────────────────────────────── */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, borderTop:'1px solid var(--border2)', paddingTop:14 }}>
+            <SubLabel>Regras adicionais</SubLabel>
             <Toggle
               value={comb.exige_participacao_venda || false}
               onChange={v => setComb('exige_participacao_venda', v)}
               label="Exige participação na venda para esta combinação"
             />
-          </div>
 
-          {/* Elegibilidade específica por combinação (opcional) */}
-          {elegibilidadePorCombinacao && (
-            <div style={{ borderTop:'1px solid var(--border)', paddingTop:10 }}>
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
-                <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', flex:1 }}>Elegibilidade avançada</div>
-                <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--text-soft)', cursor:'pointer' }}>
-                  <input type="checkbox" checked={comb.elegibilidade_propria||false} onChange={e=>setComb('elegibilidade_propria',e.target.checked)} />
-                  Específica
-                </label>
+            {elegibilidadePorCombinacao && (
+              <div style={{ borderTop:'1px solid var(--border2)', paddingTop:10 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:8 }}>
+                  <div style={{ fontSize:11, fontWeight:600, color:'var(--text-soft)', flex:1 }}>Elegibilidade avançada</div>
+                  <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:11, color:'var(--text-soft)', cursor:'pointer' }}>
+                    <input type="checkbox" checked={comb.elegibilidade_propria||false} onChange={e=>setComb('elegibilidade_propria',e.target.checked)} />
+                    Específica
+                  </label>
+                </div>
+                {comb.elegibilidade_propria && (
+                  <ElegibilidadeFields
+                    form={{ exige_participacao_venda: comb.exige_participacao_venda, cessa_no_cancelamento: comb.cessa_no_cancelamento??true, notas_elegibilidade: comb.notas_elegibilidade }}
+                    set={(k,v) => setComb(k, v)}
+                  />
+                )}
+                {!comb.elegibilidade_propria && <div style={{ fontSize:11, color:'var(--text-muted)' }}>Herda elegibilidade global da regra.</div>}
               </div>
-              {comb.elegibilidade_propria && (
-                <ElegibilidadeFields
-                  form={{ exige_participacao_venda: comb.exige_participacao_venda, cessa_no_cancelamento: comb.cessa_no_cancelamento??true, notas_elegibilidade: comb.notas_elegibilidade }}
-                  set={(k,v) => setComb(k, v)}
-                />
-              )}
-              {!comb.elegibilidade_propria && <div style={{ fontSize:11, color:'var(--text-muted)' }}>Herda elegibilidade global da regra.</div>}
-            </div>
-          )}
+            )}
+          </div>
         </div>
       )}
     </div>
@@ -1380,16 +1399,22 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
   return (
     <div style={{ display:'flex', flexDirection:'column', gap:20 }}>
 
-      {/* ── Identificação ──────────────────────────────────────────────── */}
-      <FormSection label="Identificação">
-        <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-          <FormField label="Nome" required style={{ gridColumn:'1/-1' }}>
-            <input className="so-field" value={form.nome||''} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
-          </FormField>
-          <FormField label="Descrição">
-            <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Resumo em uma linha" />
-          </FormField>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+      {/* ── Sobre a regra (identificação, compacta) ───────────────────── */}
+      <FormSection label="Sobre a regra">
+        <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr auto', gap:10, alignItems:'end' }}>
+            <FormField label="Nome" required>
+              <input className="so-field" value={form.nome||''} onChange={e=>set('nome',e.target.value)} placeholder="Ex: Recorrente Quírons — Inside Sales Sênior" />
+            </FormField>
+            <div style={{ display:'flex', gap:16, alignItems:'center', height:38, whiteSpace:'nowrap' }}>
+              <Toggle value={form.ativo}         onChange={v=>set('ativo',v)}         label="Ativa" />
+              <Toggle value={form.revisao_anual} onChange={v=>set('revisao_anual',v)} label="Revisão anual" />
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'2fr 1fr 1fr', gap:10 }}>
+            <FormField label="Descrição">
+              <input className="so-field" value={form.descricao||''} onChange={e=>set('descricao',e.target.value)} placeholder="Resumo em uma linha" />
+            </FormField>
             <FormField label="Vigência início">
               <input type="date" className="so-field" value={form.vigencia_inicio||''} onChange={e=>set('vigencia_inicio',e.target.value||null)} />
             </FormField>
@@ -1397,15 +1422,11 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
               <input type="date" className="so-field" value={form.vigencia_fim||''} onChange={e=>set('vigencia_fim',e.target.value||null)} />
             </FormField>
           </div>
-          <div style={{ gridColumn:'1/-1', display:'flex', gap:20, alignItems:'center' }}>
-            <Toggle value={form.ativo}         onChange={v=>set('ativo',v)}         label="Ativa" />
-            <Toggle value={form.revisao_anual} onChange={v=>set('revisao_anual',v)} label="Revisão anual" />
-          </div>
         </div>
       </FormSection>
 
-      {/* ── Escopo ─────────────────────────────────────────────────────── */}
-      <FormSection label="Escopo">
+      {/* ── Para quem vale (escopo) ────────────────────────────────────── */}
+      <FormSection label="Para quem vale">
         <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
           <ComissaoMultiSelect
             options={[
@@ -1477,8 +1498,8 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         </div>
       </FormSection>
 
-      {/* ── Combinações Produto × Tipo de Cálculo ──────────────────────── */}
-      <FormSection label="Combinações">
+      {/* ── Como calcular a comissão (combinações produto × tipo) ───────── */}
+      <FormSection label="Como calcular a comissão" description="Cada combinação define um produto/categoria e a fórmula de cálculo aplicada a ele.">
         <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:8 }}>
           {combinacoes.length === 0 && (
             <div style={{ fontSize:12, color:'var(--text-muted)', padding:'8px 0' }}>
@@ -1584,8 +1605,8 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
         </FormSection>
       )}
 
-      {/* ── Elegibilidade global ───────────────────────────────────────── */}
-      <FormSection label="Elegibilidade">
+      {/* ── Quando a comissão é paga (elegibilidade global) ─────────────── */}
+      <FormSection label="Quando a comissão é paga">
         <div style={{ gridColumn:'1/-1', display:'flex', flexDirection:'column', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
             <span style={{ fontSize:12, color:'var(--text-muted)', flex:1 }}>A comissão só é paga quando as condições forem atendidas.</span>
