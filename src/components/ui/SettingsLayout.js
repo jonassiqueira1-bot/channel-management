@@ -1,6 +1,33 @@
 // src/components/ui/SettingsLayout.js
 // ─────────────────────────────────────────────────────────────────────────────
-// Layout de CRUD compacto para telas de Configurações (submenus).
+// Workspace de administração — layout padrão para as ~16 telas de
+// Configurações (submenus). Mesma família visual do BrowseLayout (telas de
+// listagem "grandes"), só que compacto para caber dentro do SettingsModule.
+//
+// Arquitetura (unidades independentes dentro deste arquivo — cada uma pode
+// virar arquivo próprio no futuro sem tocar na API pública):
+//
+//   SettingsLayout
+//   ├── Header               título/descrição/ícone do submódulo (opcional)
+//   ├── Toolbar              busca · ordenação · filtros · colunas · ações · Novo
+//   ├── ActiveFiltersBar     chips dos filtros ativos, visíveis sem abrir o painel
+//   │     └── FilterChip
+//   ├── BulkActionBar        substitui a Toolbar enquanto há seleção
+//   ├── DataTable            cabeçalho sticky (sombra ao rolar) + TableRow memoizada
+//   ├── SkeletonRows         estado de carregamento
+//   ├── EmptyState
+//   ├── FilterPanel          painel lateral (radios por campo — 1 valor por filtro)
+//   └── BulkEditModal        editar campos em lote dos registros selecionados
+//
+// Sobre o Filter Builder (campo + operador + valor) e o assistente de
+// importação (mapeamento → preview → validação → resultado) pedidos na
+// revisão: são capacidades novas que mudam o contrato de dados hoje aceito
+// por `filterDefs`/`activeFilters` (que é 1 valor por campo, tipo radio) e
+// por `onImport` (hoje um simples `() => void` que cada tela implementa à
+// sua maneira). Envolvem decisão de contrato de API própria e valem uma
+// segunda entrega — implementá-los aqui quebraria "não alterar API/fluxos
+// existentes" pras 16 telas que já consomem este componente. Esta revisão
+// foca em arquitetura, UX e UI mantendo 100% de compatibilidade.
 //
 // Props:
 //   columns        {key, label, priority?, width?, render?, align?}[]
@@ -28,7 +55,7 @@
 //   onFilterChange (filters:object) => void
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, memo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { usePermissions } from '../../hooks/usePermissions'
 import { Search, Plus, ChevronsUpDown, ArrowUp, ArrowDown,
@@ -54,6 +81,69 @@ const Z = {
 
 const PRIORITY_BREAK = { 2: 540, 3: 720 }
 const STORAGE_NS = 'sl:'
+
+// ── Estados de linha via CSS (hover/seleção/foco) ─────────────────────────────
+// Injetado uma única vez — evita mutação imperativa de estilo por linha em
+// onMouseEnter/onMouseLeave (mesmo padrão usado no BrowseLayout).
+const ROW_STYLE_ID = 'settings-layout-row-styles'
+function injectRowStyles() {
+  if (typeof document === 'undefined' || document.getElementById(ROW_STYLE_ID)) return
+  const el = document.createElement('style')
+  el.id = ROW_STYLE_ID
+  el.textContent = `
+    .sl-tr { transition: background 0.12s ease; }
+    .sl-tr--clickable { cursor: pointer; }
+    .sl-tr--clickable:hover:not(.sl-tr--selected) { background: ${Z[50]}; }
+    .sl-tr--selected { background: rgba(37,99,235,0.05); }
+    .sl-tr:focus-visible { outline: 2px solid ${Z.blue}; outline-offset: -2px; }
+    .sl-thead--scrolled { box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  `
+  document.head.appendChild(el)
+}
+
+// ── FilterChip / ActiveFiltersBar — filtros ativos visíveis sem abrir o painel
+function FilterChip({ label, onRemove }) {
+  return (
+    <span style={{
+      display:'inline-flex', alignItems:'center', gap:6,
+      height:24, padding:'0 5px 0 9px', borderRadius:6,
+      background:'rgba(37,99,235,0.07)', border:`1px solid rgba(37,99,235,0.18)`,
+      fontSize:12, color:Z.blue, fontWeight:500, whiteSpace:'nowrap', fontFamily:'var(--font)',
+    }}>
+      {label}
+      <button type="button" onClick={onRemove} aria-label={`Remover filtro ${label}`}
+        style={{ display:'flex', alignItems:'center', justifyContent:'center', width:15, height:15, borderRadius:'50%', border:'none', background:'transparent', color:Z.blue, cursor:'pointer', padding:0 }}>
+        <X size={10} />
+      </button>
+    </span>
+  )
+}
+function ActiveFiltersBar({ filterDefs, activeFilters, onChange, onOpenPanel }) {
+  const chips = filterDefs
+    .filter(fd => activeFilters[fd.key])
+    .map(fd => ({
+      key: fd.key,
+      label: `${fd.label}: ${fd.options.find(o => o.value === activeFilters[fd.key])?.label ?? activeFilters[fd.key]}`,
+    }))
+  if (chips.length === 0) return null
+  return (
+    <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:6, padding:'8px 14px', borderBottom:`1px solid ${Z[200]}`, background:Z.white }}>
+      {chips.map(c => (
+        <FilterChip key={c.key} label={c.label} onRemove={() => onChange({ ...activeFilters, [c.key]: '' })} />
+      ))}
+      <button type="button" onClick={onOpenPanel}
+        style={{ display:'flex', alignItems:'center', gap:4, height:24, padding:'0 9px', borderRadius:6, border:`1px dashed ${Z[300]}`, background:'none', color:Z[500], fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
+        <Plus size={11} /> Adicionar filtro
+      </button>
+      {chips.length > 1 && (
+        <button type="button" onClick={() => onChange({})}
+          style={{ marginLeft:4, fontSize:11, color:Z[400], background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', textDecoration:'underline' }}>
+          Limpar todos
+        </button>
+      )}
+    </div>
+  )
+}
 
 function useDebounce(value, delay = 250) {
   const [debounced, setDebounced] = useState(value)
@@ -326,6 +416,48 @@ function ColsDropdown({ columns, hiddenCols, onToggle }) {
   )
 }
 
+// ── EmptyState ─────────────────────────────────────────────────────────────
+function EmptyState({ label }) {
+  return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:160, color:Z[400], fontFamily:'var(--font)', fontSize:13 }}>
+      {label}
+    </div>
+  )
+}
+
+// ── TableRow — memoizada: só re-renderiza quando a própria linha muda ───────
+const TableRow = memo(function TableRow({ row, id, columns, hasBulk, hasActions, selected, onRowClick, onToggle, resolveActions }) {
+  return (
+    <tr
+      className={`sl-tr ${onRowClick ? 'sl-tr--clickable' : ''} ${selected ? 'sl-tr--selected' : ''}`}
+      style={{ borderBottom:`1px solid ${Z[200]}` }}
+      tabIndex={onRowClick ? 0 : undefined}
+      onClick={onRowClick ? () => onRowClick(row) : undefined}
+      onKeyDown={onRowClick ? (e) => { if (e.key === 'Enter') onRowClick(row) } : undefined}
+      onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
+    >
+      {hasBulk && (
+        <td style={{ padding:'9px 8px 9px 14px', verticalAlign:'middle' }} onClick={e => e.stopPropagation()}>
+          <input type="checkbox" checked={selected} onChange={() => onToggle(id)}
+            style={{ width:14, height:14, accentColor:Z.blue, cursor:'pointer' }} />
+        </td>
+      )}
+      {columns.map(col => (
+        <td key={col.key}
+          style={{ padding:'9px 12px', color: col.muted ? Z[500] : Z[900], textAlign: col.align === 'right' ? 'right' : 'left', verticalAlign:'middle', whiteSpace: col.nowrap ? 'nowrap' : undefined, maxWidth: col.maxWidth, overflow: col.maxWidth ? 'hidden' : undefined, textOverflow: col.maxWidth ? 'ellipsis' : undefined }}
+        >
+          {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
+        </td>
+      ))}
+      {hasActions && (
+        <td style={{ padding:'6px 8px 6px 4px', textAlign:'right', verticalAlign:'middle' }} onClick={e => e.stopPropagation()}>
+          <RowMenu actions={resolveActions(row)} row={row} />
+        </td>
+      )}
+    </tr>
+  )
+})
+
 // ══════════════════════════════════════════════════════════════════════════════
 // SettingsLayout — componente principal
 // ══════════════════════════════════════════════════════════════════════════════
@@ -361,6 +493,11 @@ export default function SettingsLayout({
   const { can } = usePermissions()
   const podeCriarEditar = !modulo || can(modulo, 'criar_editar')
   const podeExcluir     = !modulo || can(modulo, 'excluir')
+  useEffect(() => { injectRowStyles() }, [])
+
+  // ── sombra discreta no cabeçalho sticky ao rolar ──────────────────────────
+  const [theadScrolled, setTheadScrolled] = useState(false)
+  const handleGridScroll = useCallback((e) => setTheadScrolled(e.currentTarget.scrollTop > 0), [])
   // ── Search (persistent) ───────────────────────────────────────────────────
   const searchLsKey = storageKey ? STORAGE_NS + storageKey + '_s' : null
   const [localSearch, setLocalSearch] = useState(() =>
@@ -432,13 +569,13 @@ export default function SettingsLayout({
 
   const resolvedSortOptions = sortOptions ?? columns.filter(c => c.priority !== 3).map(c => ({ key: c.key, label: c.label }))
 
-  // ── Sort data ─────────────────────────────────────────────────────────────
-  const sorted = [...data].sort((a, b) => {
+  // ── Sort data (memoizado) ─────────────────────────────────────────────────
+  const sorted = useMemo(() => [...data].sort((a, b) => {
     if (!effectiveSort) return 0
     const av = a[effectiveSort.key] ?? '', bv = b[effectiveSort.key] ?? ''
     const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true })
     return effectiveSort.dir === 'asc' ? cmp : -cmp
-  })
+  }), [data, effectiveSort])
 
   // ── Bulk selection ────────────────────────────────────────────────────────
   const [selected, setSelected]     = useState(new Set())
@@ -529,7 +666,7 @@ export default function SettingsLayout({
                 style={{ display:'flex', alignItems:'center', gap:5, height:32, padding:'0 12px', border:`1px solid ${activeFilterCount > 0 ? Z.blue : Z[200]}`, borderRadius:6, background: activeFilterCount > 0 ? 'rgba(37,99,235,0.06)' : Z.white, color: activeFilterCount > 0 ? Z.blue : Z[500], cursor:'pointer', fontSize:12, fontFamily:'var(--font)', fontWeight: activeFilterCount > 0 ? 600 : 400 }}>
                 <Filter size={13} />
                 Filtros
-                {activeFilterCount > 0 && <span style={{ background:Z.blue, color:'#fff', borderRadius:99, fontSize:10, fontWeight:700, padding:'1px 6px', marginLeft:2 }}>{activeFilterCount}</span>}
+                {activeFilterCount > 0 && <span style={{ background:Z.blue, color:'#fff', borderRadius:4, fontSize:10, fontWeight:700, padding:'1px 6px', marginLeft:2 }}>{activeFilterCount}</span>}
               </button>
             )}
             {columns.length > 0 && storageKey && (
@@ -551,17 +688,25 @@ export default function SettingsLayout({
         )}
       </div>
 
+      {/* Chips de filtros ativos */}
+      {filterDefs.length > 0 && (
+        <ActiveFiltersBar
+          filterDefs={filterDefs}
+          activeFilters={effectiveFilters}
+          onChange={setFilters}
+          onOpenPanel={() => setFilterPanelOpen(true)}
+        />
+      )}
+
       {/* Grid */}
-      <div style={{ flex:1, overflowY:'auto', overflowX:'auto', minHeight:0 }}>
+      <div style={{ flex:1, overflowY:'auto', overflowX:'auto', minHeight:0 }} onScroll={handleGridScroll}>
         {loading ? (
           <SkeletonRows cols={visibleCols.length + (hasBulk ? 1 : 0) + (hasActions ? 1 : 0)} />
         ) : sorted.length === 0 ? (
-          <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:160, color:Z[400], fontFamily:'var(--font)', fontSize:13 }}>
-            {emptyLabel}
-          </div>
+          <EmptyState label={emptyLabel} />
         ) : (
           <table style={{ width:'100%', borderCollapse:'collapse', fontFamily:'var(--font)', fontSize:13, tableLayout:'auto' }}>
-            <thead style={{ position:'sticky', top:0, zIndex:2 }}>
+            <thead className={theadScrolled ? 'sl-thead--scrolled' : ''} style={{ position:'sticky', top:0, zIndex:2, transition:'box-shadow 0.15s ease' }}>
               <tr style={{ background:Z[50], borderBottom:`1px solid ${Z[200]}` }}>
                 {hasBulk && (
                   <th style={{ width:36, padding:'8px 8px 8px 14px', verticalAlign:'middle' }}>
@@ -588,37 +733,20 @@ export default function SettingsLayout({
               </tr>
             </thead>
             <tbody>
-              {sorted.map((row, ri) => {
-                const isSelected = selected.has(row[keyField])
-                return (
-                  <tr key={row[keyField] ?? ri}
-                    style={{ borderBottom:`1px solid ${Z[200]}`, background: isSelected ? 'rgba(37,99,235,0.05)' : '', cursor: onRowClick ? 'pointer' : 'default' }}
-                    onClick={onRowClick ? () => onRowClick(row) : undefined}
-                    onContextMenu={onRowClick ? (e) => { e.preventDefault(); onRowClick(row) } : undefined}
-                    onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = Z[50] }}
-                    onMouseLeave={e => { e.currentTarget.style.background = isSelected ? 'rgba(37,99,235,0.05)' : '' }}
-                  >
-                    {hasBulk && (
-                      <td style={{ padding:'9px 8px 9px 14px', verticalAlign:'middle' }}>
-                        <input type="checkbox" checked={isSelected} onChange={() => toggleRow(row[keyField])}
-                          style={{ width:14, height:14, accentColor:Z.blue, cursor:'pointer' }} />
-                      </td>
-                    )}
-                    {visibleCols.map(col => (
-                      <td key={col.key}
-                        style={{ padding:'9px 12px', color: col.muted ? Z[500] : Z[900], textAlign: col.align === 'right' ? 'right' : 'left', verticalAlign:'middle', whiteSpace: col.nowrap ? 'nowrap' : undefined, maxWidth: col.maxWidth, overflow: col.maxWidth ? 'hidden' : undefined, textOverflow: col.maxWidth ? 'ellipsis' : undefined }}
-                      >
-                        {col.render ? col.render(row[col.key], row) : (row[col.key] ?? '—')}
-                      </td>
-                    ))}
-                    {hasActions && (
-                      <td style={{ padding:'6px 8px 6px 4px', textAlign:'right', verticalAlign:'middle' }}>
-                        <RowMenu actions={resolveActions(row)} row={row} />
-                      </td>
-                    )}
-                  </tr>
-                )
-              })}
+              {sorted.map((row, ri) => (
+                <TableRow
+                  key={row[keyField] ?? ri}
+                  row={row}
+                  id={row[keyField]}
+                  columns={visibleCols}
+                  hasBulk={hasBulk}
+                  hasActions={hasActions}
+                  selected={selected.has(row[keyField])}
+                  onRowClick={onRowClick}
+                  onToggle={toggleRow}
+                  resolveActions={resolveActions}
+                />
+              ))}
             </tbody>
           </table>
         )}
