@@ -89,9 +89,12 @@ export default function PageHeader({
           </button>
         )}
 
-        {/* Navegação entre funcionalidades do módulo — tabs com indicador inferior */}
+        {/* Navegação entre funcionalidades do módulo — tabs com indicador inferior.
+            Altura fixa + centralização via flex (em vez de padding vertical) garante que
+            o peso da fonte (600 na aba ativa vs 500 nas demais) não desloque o texto —
+            variações de métrica de negrito/regular não afetam uma caixa de altura fixa. */}
         {hasTabs && (
-          <div style={{ display: 'flex', gap: 24 }}>
+          <div style={{ display: 'flex', gap: 24, alignItems: 'flex-end' }}>
             {tabs.map(t => {
               const active = activeTab === t.id
               return (
@@ -99,12 +102,14 @@ export default function PageHeader({
                   key={t.id}
                   onClick={() => onTabChange?.(t.id)}
                   style={{
-                    padding: '10px 2px', marginBottom: -1,
+                    display: 'flex', alignItems: 'center',
+                    height: 36, marginBottom: -1, padding: '0 2px',
                     background: 'none', border: 'none',
                     borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
                     color: active ? 'var(--text)' : 'var(--text-muted)',
-                    fontSize: 13, fontWeight: active ? 600 : 500,
+                    fontSize: 13, fontWeight: active ? 600 : 500, lineHeight: 1,
                     fontFamily: 'var(--font)', cursor: 'pointer', whiteSpace: 'nowrap',
+                    boxSizing: 'border-box',
                     transition: 'color 0.15s, border-color 0.15s',
                   }}
                   onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
