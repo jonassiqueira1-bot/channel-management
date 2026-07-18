@@ -843,7 +843,7 @@ function TarefaStatusBadge({ status }) {
 }
 
 // ─── Aba de Tarefas da Oportunidade ──────────────────────────────────────────
-function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }) {
+function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus, openTarefaId, onOpenedTarefa, openNewForm, onOpenedNewForm }) {
   const { usuarios } = useUsuarios()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState(null)
@@ -862,6 +862,25 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
       }),
     [tarefas, oppId]
   )
+
+  // Abre a tarefa em edição quando chega um pedido vindo de fora (ex.: clique
+  // num item da linha do tempo em Histórico) — consumido uma única vez.
+  useEffect(() => {
+    if (!openTarefaId) return
+    const t = oppTarefas.find(t => String(t.id) === String(openTarefaId))
+    if (t) openEdit(t)
+    onOpenedTarefa && onOpenedTarefa()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openTarefaId])
+
+  useEffect(() => {
+    if (!openNewForm) return
+    setQuickForm({ ...EMPTY_TAREFA })
+    setEditingId(null)
+    setShowForm(true)
+    onOpenedNewForm && onOpenedNewForm()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openNewForm])
 
   function qset(f,v) { setQuickForm(prev=>({ ...prev,[f]:v })) }
 
@@ -1426,7 +1445,7 @@ function NotasPanel({ oppId, atividades, onAddNota }) {
 }
 
 // ─── Coluna 3: Histórico de alterações automáticas (retrátil) ────────────────
-function HistoricoPanel({ oppId, logs }) {
+function HistoricoPanel({ oppId, logs, onOpenTarefa, onToggleTarefa }) {
   const oppLogs = useMemo(() =>
     (logs || [])
       .filter(l => l.opp_id === oppId)
@@ -1443,8 +1462,9 @@ function HistoricoPanel({ oppId, logs }) {
         </div>
       )}
       {oppLogs.map((log, idx) => {
-        const cfg    = EVENTO_CFG[log.evento] || EVENTO_CFG.editado
-        const isLast = idx === oppLogs.length - 1
+        const cfg      = EVENTO_CFG[log.evento] || EVENTO_CFG.editado
+        const isLast   = idx === oppLogs.length - 1
+        const clickavel = !!(log.tarefa_id && onOpenTarefa)
         return (
           <div key={log.id} style={{ display:'flex', gap:9, paddingBottom: isLast ? 0 : 13, position:'relative' }}>
             {!isLast && <div style={{ position:'absolute', left:13, top:27, bottom:0, width:1, background:'var(--border)' }} />}
@@ -1454,8 +1474,24 @@ function HistoricoPanel({ oppId, logs }) {
               color:cfg.color, fontWeight:700, zIndex:1 }}>
               {cfg.icon}
             </div>
-            <div style={{ flex:1, minWidth:0, paddingTop:3 }}>
-              <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', marginBottom:3 }}>{cfg.label}</div>
+            <div
+              onClick={clickavel ? () => onOpenTarefa(log.tarefa_id) : undefined}
+              style={{ flex:1, minWidth:0, paddingTop:3, cursor: clickavel ? 'pointer' : 'default',
+                borderRadius:6, margin:'-3px -6px', padding:'3px 6px', transition:'background 0.12s' }}
+              onMouseEnter={clickavel ? e => { e.currentTarget.style.background = 'var(--surface2)' } : undefined}
+              onMouseLeave={clickavel ? e => { e.currentTarget.style.background = 'transparent' } : undefined}
+            >
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:3 }}>
+                <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{cfg.label}</div>
+                {log.evento === 'tarefa_proxima' && onToggleTarefa && (
+                  <button type="button"
+                    title="Marcar como concluída"
+                    onClick={e => { e.stopPropagation(); onToggleTarefa(log.tarefa_id, 'concluida') }}
+                    style={{ width:16, height:16, borderRadius:4, border:'2px solid var(--border)',
+                      background:'none', flexShrink:0, cursor:'pointer', padding:0 }}
+                  />
+                )}
+              </div>
               {log.detalhe && (
                 <div style={{ fontSize:11, color:'var(--text-soft)', marginBottom:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
                   {log.detalhe}
@@ -3938,6 +3974,10 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const [tab, setTab]       = useState('dados')
   const [qualifDetalheAberto, setQualifDetalheAberto] = useState(false)
   const [logOpen, setLogOpen] = useState(false)
+  // Pedido de abrir uma tarefa específica em edição, ou o formulário de nova
+  // tarefa, vindo do painel de Histórico — a aba Tarefas consome e limpa depois.
+  const [pendingTarefaId, setPendingTarefaId] = useState(null)
+  const [novaTarefaPendente, setNovaTarefaPendente] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768)
   useEffect(() => {
@@ -4149,6 +4189,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
             criado_em: t.concluida_em || t.prazo || t.criado,
             usuario,
             detalhe: t.titulo,
+            tarefa_id: t.id,
           })
         } else if ((t.status === 'pendente' || t.status === 'em_andamento') && t.prazo) {
           eventos.push({
@@ -4158,6 +4199,8 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
             criado_em: t.prazo,
             usuario,
             detalhe: t.titulo,
+            tarefa_id: t.id,
+            tarefa_status: t.status,
           })
         }
       })
@@ -4672,13 +4715,25 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           textTransform:'uppercase', letterSpacing:'0.08em', fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
           🕐 Histórico
         </span>
-        <button type="button" onClick={() => setLogOpen(false)} title="Fechar histórico"
-          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
-            fontSize:13, padding:'2px 4px', lineHeight:1, borderRadius:4, flexShrink:0 }}>
-          ✕
-        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+          <button type="button" onClick={() => { setTab('tarefas'); setNovaTarefaPendente(true); setLogOpen(false) }}
+            title="Nova tarefa" style={{ background:'none', border:'none', cursor:'pointer', color:'var(--accent)',
+              fontSize:11, fontWeight:700, padding:'2px 4px', lineHeight:1 }}>
+            + Tarefa
+          </button>
+          <button type="button" onClick={() => setLogOpen(false)} title="Fechar histórico"
+            style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+              fontSize:13, padding:'2px 4px', lineHeight:1, borderRadius:4 }}>
+            ✕
+          </button>
+        </div>
       </div>
-      <HistoricoPanel oppId={initial.id} logs={oppHistorico} />
+      <HistoricoPanel
+        oppId={initial.id}
+        logs={oppHistorico}
+        onOpenTarefa={id => { setPendingTarefaId(id); setTab('tarefas'); setLogOpen(false) }}
+        onToggleTarefa={(id, status) => onToggleStatus(id, status)}
+      />
     </>
   ) : null
 
@@ -4806,6 +4861,10 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
               tarefas={tarefas}
               onSaveTarefa={onSaveTarefa}
               onToggleStatus={onToggleStatus}
+              openTarefaId={pendingTarefaId}
+              onOpenedTarefa={() => setPendingTarefaId(null)}
+              openNewForm={novaTarefaPendente}
+              onOpenedNewForm={() => setNovaTarefaPendente(false)}
             />
           </div>
         </div>
