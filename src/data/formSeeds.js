@@ -151,10 +151,27 @@ export const LAYOUT_SEED = {
       {
         id: 'sec_op_1', label: 'Identificação',
         rows: [
-          ['sf_op_titulo',   'sf_op_empresa'],
+          ['sf_op_titulo', 'sf_op_empresa'],
+        ],
+      },
+      {
+        id: 'sec_op_2', label: 'Origem',
+        rows: [
+          ['sf_op_origem', 'sf_op_campanha'],
+        ],
+      },
+      {
+        id: 'sec_op_3', label: 'Negociação',
+        rows: [
           ['sf_op_situacao', 'sf_op_etapa'],
-          ['sf_op_origem',   'sf_op_campanha'],
-          ['sf_op_prazo',    null],
+          ['sf_op_prazo',    'sf_op_motivo'],
+        ],
+      },
+      {
+        id: 'sec_op_4', label: 'Financeiro',
+        rows: [
+          ['sf_op_cdu',      'sf_op_sms'],
+          ['sf_op_servico',  'sf_op_desconto'],
         ],
       },
     ],

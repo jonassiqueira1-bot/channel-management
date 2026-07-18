@@ -46,6 +46,18 @@ export function useFormLayout(entity) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Migração única: reorganiza o layout de Oportunidades (antes 1 seção única
+  // "Identificação" com todos os campos) na nova estrutura agrupada por contexto
+  // (Identificação / Origem / Negociação / Financeiro). Detecta a estrutura antiga
+  // pela seção única sec_op_1 e substitui pelo novo layout do seed.
+  useEffect(() => {
+    const opSections = storedLayout.opportunities?.sections
+    if (opSections?.length === 1 && opSections[0]?.id === 'sec_op_1') {
+      setStoredLayout(prev => ({ ...prev, opportunities: LAYOUT_SEED.opportunities }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Garante que campos novos do seed sejam adicionados ao localStorage (migração automática)
   const fields = useMemo(() => {
     const storedIds = new Set(storedFields.map(f => f.id))

@@ -3980,6 +3980,11 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           playbook_ids: [], playbook_ids_excluidos: [], playbook_ids_manual: [], checklist_respostas: {},
           qualificacao_score: 0, qualificacao_desqualificada: false }
   )
+  // Snapshot do form no momento em que o SlideOver abriu — comparado contra o
+  // form atual só pra indicar "alterações não salvas" no rodapé, não usado
+  // pra nenhuma regra de negócio.
+  const formBaselineRef = useRef(JSON.stringify(form))
+  const isDirty = JSON.stringify(form) !== formBaselineRef.current
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [moverFunilPopup, setMoverFunilPopup] = useState(null) // { novoFunil, etapaId }
   const [cfFields, cfActions] = useCustomFields('oportunidade')
@@ -4274,6 +4279,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       setErrs({ _salvar: result.message || 'Erro ao salvar a oportunidade. Tente novamente.' })
       return
     }
+    formBaselineRef.current = JSON.stringify(form)
     if (form.situacao === 'ganha' && !eraGanha) {
       onFechamento(oppSalva)
     }
@@ -4417,14 +4423,19 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           )}
         </div>
       )}
-      {/* Etapa do funil — sempre fixo no topo */}
-      <SectionLabel>Posição no funil</SectionLabel>
-      <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => tentarMudarEtapa(id, etapas)} />
+      {/* Etapa do funil — elemento principal da tela: progresso da oportunidade */}
+      <div style={{ border:'1px solid var(--border)', borderRadius:12, background:'var(--surface)', padding:'14px 16px 10px', boxShadow:'0 1px 3px rgba(0,0,0,0.04)' }}>
+        <SectionLabel>Posição no funil</SectionLabel>
+        <EtapaStepper etapas={etapas} value={form.etapa_id} onChange={id => tentarMudarEtapa(id, etapas)} />
+      </div>
 
-      {/* Forecast — fora do DynamicFormLayout para evitar conflito com layout salvo */}
+      {/* Forecast e Qualificação — cards de situação/próxima ação, não campos de formulário */}
       <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div>
-          <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Forecast</div>
+        <div style={{ border:'1px solid var(--border)', borderTop:`3px solid ${cfgForecastAtual.color}`, borderRadius:10, background:'var(--surface)', padding:'10px 12px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+            <span style={{ fontSize:13 }}>📈</span>
+            <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Forecast</span>
+          </div>
           <select style={{ ...m.input, fontWeight:600, color: cfgForecastAtual.color }}
             value={form.categoria_forecast || ''}
             onChange={e => set('categoria_forecast', e.target.value || null)}>
@@ -4432,17 +4443,22 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
             {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
           </select>
         </div>
-        {isEditing && (
-          <div>
-            <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:4 }}>Qualificação</div>
-            <div style={{ border:'1px solid var(--border)', borderRadius:8, background:'var(--surface2)', padding:'8px 12px' }}>
+        {isEditing && (() => {
+          const qualifColor = form.qualificacao_desqualificada ? '#991B1B'
+            : form.qualificacao_score >= 70 ? '#065F46' : form.qualificacao_score >= 40 ? '#92400E'
+            : form.qualificacao_score > 0 ? '#991B1B' : 'var(--border)'
+          return (
+            <div style={{ border:'1px solid var(--border)', borderTop:`3px solid ${qualifColor}`, borderRadius:10, background:'var(--surface)', padding:'10px 12px' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+                <span style={{ fontSize:13 }}>🎯</span>
+                <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Qualificação</span>
+              </div>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 {form.qualificacao_desqualificada ? (
                   <span style={{ fontSize:12, fontWeight:700, color:'#991B1B' }}>🚫 Desqualificada</span>
                 ) : form.qualificacao_score > 0 ? (
-                  <span style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)',
-                    color: form.qualificacao_score >= 70 ? '#065F46' : form.qualificacao_score >= 40 ? '#92400E' : '#991B1B' }}>
-                    🎯 {form.qualificacao_score}%
+                  <span style={{ fontSize:12, fontWeight:700, fontFamily:'var(--mono)', color: qualifColor }}>
+                    {form.qualificacao_score}%
                   </span>
                 ) : (
                   <span style={{ fontSize:12, color:'var(--text-muted)' }}>Sem checklist/questionário respondido ainda</span>
@@ -4471,8 +4487,8 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )
+        })()}
       </div>
 
       <div style={{ marginTop:16 }}>
@@ -4586,8 +4602,24 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           </div>,
           document.body
         )}
-        {dataFmt && <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>Aberta em {dataFmt}</span>}
-        {dataFmt && (nItens > 0 || liq > 0) && dot}
+        {dataFmt && (
+          <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+            Aberta em {dataFmt}
+            {(() => {
+              const dias = Math.max(0, Math.floor((Date.now() - new Date(dataAbertura).getTime()) / 86400000))
+              return dias > 0 ? ` · ${dias}d em aberto` : null
+            })()}
+          </span>
+        )}
+        {dataFmt && form.responsavel && dot}
+        {form.responsavel && (
+          <span style={{ fontSize:10, color:'var(--text-muted)' }}>👤 {form.responsavel}</span>
+        )}
+        {form.origem && (form.responsavel || dataFmt) && dot}
+        {form.origem && (
+          <span style={{ fontSize:10, color:'var(--text-muted)' }}>{form.origem}</span>
+        )}
+        {(dataFmt || form.responsavel || form.origem) && (nItens > 0 || liq > 0) && dot}
         {nItens > 0 && chip(`${nItens} produto${nItens>1?'s':''}`, 'var(--text-muted)')}
         {nItens > 0 && liq > 0 && dot}
         {form.valor_cdu > 0 && chip(`CDU ${fmtMoeda(form.valor_cdu)}`, 'var(--accent)')}
@@ -4858,6 +4890,12 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
         saveLabel={isEditing ? 'Salvar' : 'Criar oportunidade'}
         saving={saving}
         cancelLabel="Cancelar"
+        footerLeft={isDirty && (
+          <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, color:'var(--text-muted)' }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:'#F59E0B', flexShrink:0 }} />
+            Alterações não salvas
+          </span>
+        )}
         rightPanel={logPanelContent}
         rightPanelOpen={logOpen}
       >
