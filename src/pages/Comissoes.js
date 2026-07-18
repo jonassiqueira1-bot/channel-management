@@ -2407,9 +2407,9 @@ export default function Comissoes() {
 
       {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
       <div style={{ marginBottom:20 }}>
-        {/* Linha 1: título + ações */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:16, flexWrap:'wrap' }}>
-          <div />
+        {/* Linha 1: título da página + ações principais */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:14, flexWrap:'wrap' }}>
+          <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px' }}>Comissões</h1>
           <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
           {tab !== 'aprovacao' && <PeriodPopover value={period} onChange={setPeriod} />}
           {tab !== 'aprovacao' && (isAdmin || tab !== 'repasses') && (
@@ -2419,11 +2419,30 @@ export default function Comissoes() {
           )}
           </div>
         </div>
-        {/* Linha 2: abas fixas no topo */}
-        <div style={{ position:'fixed', top:0, left:'50%', transform:'translateX(-50%)', zIndex:200, display:'flex', gap:2, background:'var(--surface)', borderRadius:'0 0 10px 10px', padding:3, border:'1px solid var(--border)', borderTop:'none', boxShadow:'0 2px 12px rgba(0,0,0,0.12)' }}>
-          {TABS.filter(t => t.id !== 'regras' || podeVerRegras).map(t => (
-            <button key={t.id} onClick={()=>setTab(t.id)} style={{ padding:'7px 20px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:tab===t.id?700:500, fontFamily:'var(--font)', background:tab===t.id?'var(--accent)':'none', color:tab===t.id?'#fff':'var(--text-muted)', boxShadow:tab===t.id?'0 1px 4px rgba(0,0,0,0.18)':'none', transition:'all 0.15s', whiteSpace:'nowrap' }}>{t.label}</button>
-          ))}
+        {/* Linha 2: navegação entre funcionalidades do módulo — tabs com indicador inferior */}
+        <div style={{ display:'flex', gap:24, borderBottom:'1px solid var(--border)' }}>
+          {TABS.filter(t => t.id !== 'regras' || podeVerRegras).map(t => {
+            const active = tab === t.id
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                style={{
+                  padding:'10px 2px', marginBottom:-1,
+                  background:'none', border:'none',
+                  borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                  color: active ? 'var(--text)' : 'var(--text-muted)',
+                  fontSize:13, fontWeight: active ? 600 : 500,
+                  fontFamily:'var(--font)', cursor:'pointer', whiteSpace:'nowrap',
+                  transition:'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
+              >
+                {t.label}
+              </button>
+            )
+          })}
         </div>
       </div>
 
