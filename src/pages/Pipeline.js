@@ -863,9 +863,6 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
     [tarefas, oppId]
   )
 
-  const abertas    = oppTarefas.filter(t=>t.status==='pendente'||t.status==='em_andamento').length
-  const concluidas = oppTarefas.filter(t=>t.status==='concluida').length
-
   function qset(f,v) { setQuickForm(prev=>({ ...prev,[f]:v })) }
 
   function handleQuickSave() {
@@ -908,10 +905,7 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus }
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
 
       {/* Resumo */}
-      <div style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 0 14px', borderBottom:'1px solid var(--border2)' }}>
-        <div style={tb.kpi}><span style={tb.kpiN}>{oppTarefas.length}</span><span style={tb.kpiL}>Total</span></div>
-        <div style={tb.kpi}><span style={{ ...tb.kpiN, color:'#F59E0B' }}>{abertas}</span><span style={tb.kpiL}>Abertas</span></div>
-        <div style={tb.kpi}><span style={{ ...tb.kpiN, color:'#10B981' }}>{concluidas}</span><span style={tb.kpiL}>Concluídas</span></div>
+      <div style={{ display:'flex', alignItems:'center', padding:'10px 0 14px', borderBottom:'1px solid var(--border2)' }}>
         <div style={{ flex:1 }} />
         {!showForm && (
           <button style={tb.addBtn} onClick={()=>{ setShowForm(true); setEditingId(null); setQuickForm({...EMPTY_TAREFA}) }}>
