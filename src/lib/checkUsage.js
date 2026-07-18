@@ -11,11 +11,24 @@ async function count(table, field, value, tenantId) {
 export async function checkEmUso(tipo, id, label, tenantId) {
   switch (tipo) {
     case 'empresa': {
-      const opps = await count('oportunidades', 'company_id', id, tenantId)
-      const cts  = await count('contratos',     'company_id', id, tenantId)
-      const acs  = await count('actions',       'company_id', id, tenantId)
-      const total = opps + cts + acs
-      if (total > 0) return `"${label}" está em uso (${opps} oportunidade(s), ${cts} contrato(s), ${acs} ação(ões)) e não pode ser excluída.`
+      const opps  = await count('oportunidades', 'company_id', id, tenantId)
+      const cts   = await count('contratos',     'company_id', id, tenantId)
+      const acs   = await count('actions',       'company_id', id, tenantId)
+      const pags  = await count('payments',      'company_id', id, tenantId)
+      const projs = await count('projects',      'company_id', id, tenantId)
+      const ctts  = await count('contacts',      'company_id', id, tenantId)
+      const total = opps + cts + acs + pags + projs + ctts
+      if (total > 0) {
+        const partes = [
+          opps  > 0 && `${opps} oportunidade(s)`,
+          cts   > 0 && `${cts} contrato(s)`,
+          acs   > 0 && `${acs} ação(ões)`,
+          pags  > 0 && `${pags} pagamento(s)`,
+          projs > 0 && `${projs} projeto(s)`,
+          ctts  > 0 && `${ctts} contato(s)`,
+        ].filter(Boolean).join(', ')
+        return `"${label}" está em uso (${partes}) e não pode ser excluída. Inative-a em vez de excluir.`
+      }
       return null
     }
     case 'funil': {

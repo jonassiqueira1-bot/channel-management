@@ -1203,6 +1203,32 @@ export default function Empresas() {
     setModal(null)
   }
 
+  // Exclusão em lote pelo navegador — aplica a mesma checagem de vínculos que
+  // a exclusão individual. Sem isso, dava pra excluir empresa com oportunidade/
+  // contrato/ação vinculados só porque veio da lista em vez do modal de edição.
+  async function handleBulkDelete(ids) {
+    const checks = await Promise.all(ids.map(async id => {
+      const emp = empresas.find(e => e.id === id)
+      const bloqueio = await checkEmUso('empresa', id, emp?.razao || emp?.nome || id, tenantId)
+      return { id, emp, bloqueio }
+    }))
+    const bloqueadas = checks.filter(c => c.bloqueio)
+    const liberadas   = checks.filter(c => !c.bloqueio)
+
+    if (bloqueadas.length > 0) {
+      const lista = bloqueadas.map(c => `• ${c.bloqueio}`).join('\n')
+      alert(
+        `${bloqueadas.length} empresa(s) não podem ser excluídas por terem registros vinculados (inative-as em vez de excluir):\n\n${lista}` +
+        (liberadas.length > 0 ? `\n\nAs demais ${liberadas.length} serão excluídas normalmente.` : '')
+      )
+    }
+    if (liberadas.length === 0) return
+
+    const idsLiberados = liberadas.map(c => c.id)
+    await removeMany(idsLiberados)
+    liberadas.forEach(c => log('excluir', 'empresa', c.id, { descricao: `Empresa excluída: ${c.emp?.razao || c.emp?.nome || c.id}` }))
+  }
+
   // Reset soTab ao abrir modal
   useEffect(() => { if (modal) setSoTab('dados') }, [!!modal])
 
@@ -1376,7 +1402,7 @@ export default function Empresas() {
           { label: '→ Ativo',      onClick: (ids) => { bulkSetStatus(ids, 'ativo') } },
           { label: '→ Negociação', onClick: (ids) => { bulkSetStatus(ids, 'negociacao') } },
           { label: '→ Inativo',    onClick: (ids) => { bulkSetStatus(ids, 'inativo') } },
-          { label: 'Excluir',      variant: 'danger', onClick: (ids) => { if (window.confirm(`Excluir ${ids.length} empresa(s)?`)) removeMany(ids) } },
+          { label: 'Excluir',      variant: 'danger', onClick: (ids) => { if (window.confirm(`Excluir ${ids.length} empresa(s)?`)) handleBulkDelete(ids) } },
         ]}
       />
 
