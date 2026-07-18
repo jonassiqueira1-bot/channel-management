@@ -11,7 +11,6 @@ import MetricasStrip from '../components/MetricasStrip'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
 import { useProducts } from '../hooks/useProducts'
-import { MOCK_LOGS_OPORTUNIDADE } from '../data/mockLogsOportunidade'
 import { MOCK_ATIVIDADES } from '../data/mockAtividades'
 import { MOCK_MEMBROS_OPP, PAPEIS, PERSONAS } from '../data/mockMembroOportunidade'
 import { useSellers } from '../hooks/useSellers'
@@ -1069,6 +1068,8 @@ const EVENTO_CFG = {
   produto_adicionado: { icon:'＋', label:'Produto adicionado',     color:'#06B6D4', bg:'#CFFAFE' },
   produto_removido:   { icon:'−', label:'Produto removido',       color:'#EF4444', bg:'#FEE2E2' },
   tarefa_criada:      { icon:'☑', label:'Tarefa criada',          color:'#6B7280', bg:'#F3F4F6' },
+  tarefa_concluida:   { icon:'✓', label:'Tarefa concluída',       color:'#10B981', bg:'#D1FAE5' },
+  tarefa_proxima:     { icon:'☐', label:'Tarefa agendada',        color:'#F59E0B', bg:'#FEF3C7' },
 }
 
 function fmtDateTime(iso) {
@@ -1461,6 +1462,11 @@ function HistoricoPanel({ oppId, logs }) {
             </div>
             <div style={{ flex:1, minWidth:0, paddingTop:3 }}>
               <div style={{ fontSize:12, fontWeight:600, color:'var(--text)', marginBottom:3 }}>{cfg.label}</div>
+              {log.detalhe && (
+                <div style={{ fontSize:11, color:'var(--text-soft)', marginBottom:5, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                  {log.detalhe}
+                </div>
+              )}
               {log.campos && log.campos.length > 0 && (
                 <div style={{ display:'flex', flexDirection:'column', gap:3, marginBottom:5 }}>
                   {log.campos.map((c, i) => (
@@ -4115,6 +4121,49 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
 
   const oppTarefasCount   = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id).length
   const oppTarefasAbertas = tarefas.filter(t => t.entidade_tipo==='oportunidade' && t.entidade_id===initial?.id && (t.status==='pendente'||t.status==='em_andamento')).length
+
+  // ── Histórico — criação da oportunidade + tarefas concluídas/agendadas ────
+  // Primeira leva: só datas que já existem no dado (criação, conclusão de
+  // tarefa, prazo de tarefa em aberto). Mudanças de campo/etapa ficam pra uma
+  // próxima etapa, quando houver um log de auditoria real gravando isso.
+  const oppHistorico = useMemo(() => {
+    if (!initial?.id) return []
+    const eventos = []
+    if (initial.criado) {
+      eventos.push({
+        id: `criado-${initial.id}`,
+        opp_id: initial.id,
+        evento: 'criado',
+        criado_em: initial.criado,
+        usuario: initial.responsavel || '—',
+      })
+    }
+    tarefas
+      .filter(t => t.entidade_tipo === 'oportunidade' && t.entidade_id === initial.id)
+      .forEach(t => {
+        const usuario = t.responsavel_nome || t.responsavel || '—'
+        if (t.status === 'concluida') {
+          eventos.push({
+            id: `tarefa-concluida-${t.id}`,
+            opp_id: initial.id,
+            evento: 'tarefa_concluida',
+            criado_em: t.concluida_em || t.prazo || t.criado,
+            usuario,
+            detalhe: t.titulo,
+          })
+        } else if ((t.status === 'pendente' || t.status === 'em_andamento') && t.prazo) {
+          eventos.push({
+            id: `tarefa-proxima-${t.id}`,
+            opp_id: initial.id,
+            evento: 'tarefa_proxima',
+            criado_em: t.prazo,
+            usuario,
+            detalhe: t.titulo,
+          })
+        }
+      })
+    return eventos
+  }, [initial?.id, initial?.criado, initial?.responsavel, tarefas])
   const itensCount        = form.itens.length
   const { membros: todosMembrosOpp } = useOppMembros()
   const oppEquipeCount    = todosMembrosOpp.filter(m => m.oportunidade_id === initial?.id).length
@@ -4601,7 +4650,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           ✕
         </button>
       </div>
-      <HistoricoPanel oppId={initial.id} logs={MOCK_LOGS_OPORTUNIDADE} />
+      <HistoricoPanel oppId={initial.id} logs={oppHistorico} />
     </>
   ) : null
 
