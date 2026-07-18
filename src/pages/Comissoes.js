@@ -2405,22 +2405,9 @@ export default function Comissoes() {
     <div style={{ display:'flex', flexDirection:'column', gap:0, minHeight:0 }}>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
 
-      {/* ── Cabeçalho ───────────────────────────────────────────────────── */}
-      <div style={{ marginBottom:20 }}>
-        {/* Linha 1: título da página + ações principais */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16, marginBottom:14, flexWrap:'wrap' }}>
-          <h1 style={{ margin:0, fontSize:22, fontWeight:700, color:'var(--text)', letterSpacing:'-0.4px' }}>Comissões</h1>
-          <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
-          {tab !== 'aprovacao' && <PeriodPopover value={period} onChange={setPeriod} />}
-          {tab !== 'aprovacao' && (isAdmin || tab !== 'repasses') && (
-            <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={() => tab==='repasses' ? openPayment('new') : openRule('new')}>
-              {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
-            </Button>
-          )}
-          </div>
-        </div>
-        {/* Linha 2: navegação entre funcionalidades do módulo — tabs com indicador inferior */}
-        <div style={{ display:'flex', gap:24, borderBottom:'1px solid var(--border)' }}>
+      {/* ── Cabeçalho: navegação entre funcionalidades + ações, uma única linha ── */}
+      <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, marginBottom:20, borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
+        <div style={{ display:'flex', gap:24 }}>
           {TABS.filter(t => t.id !== 'regras' || podeVerRegras).map(t => {
             const active = tab === t.id
             return (
@@ -2443,6 +2430,14 @@ export default function Comissoes() {
               </button>
             )
           })}
+        </div>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0, paddingBottom:10 }}>
+          {tab !== 'aprovacao' && <PeriodPopover value={period} onChange={setPeriod} />}
+          {tab !== 'aprovacao' && (isAdmin || tab !== 'repasses') && (
+            <Button icon={<Plus size={SZ} strokeWidth={2.5} />} onClick={() => tab==='repasses' ? openPayment('new') : openRule('new')}>
+              {tab==='repasses' ? 'Novo Lançamento' : 'Nova Regra'}
+            </Button>
+          )}
         </div>
       </div>
 
