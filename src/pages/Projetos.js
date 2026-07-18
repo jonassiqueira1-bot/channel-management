@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { supabase } from '../lib/supabase'
-import { SlidersHorizontal, ChevronDown, LayoutList, LayoutGrid } from 'lucide-react'
+import { SlidersHorizontal, ChevronDown, ChevronUp, LayoutList, LayoutGrid } from 'lucide-react'
 import { useRelatorios } from '../hooks/useRelatorios'
 import FechamentoHoras, { FECHAMENTOS_KEY } from './FechamentoHoras'
 import {
@@ -5141,14 +5141,10 @@ export default function Projetos() {
       <PulseStyle />
 
       {/* ── Área de scroll (tudo exceto kanban) ── */}
-      <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div style={{ flexShrink: 0, padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Page header — navegação entre funcionalidades do módulo integrada, com indicador inferior */}
+        {/* Page header — navegação entre funcionalidades do módulo integrada, com indicador inferior (mesmo padrão de Comissões, via componente compartilhado) */}
         <PageHeader
-          breadcrumb={['Indicadores']}
-          title={null}
-          showKpis={showKpis}
-          onToggleKpis={propostasEditing ? undefined : () => setShowKpis(v => !v)}
           tabs={PROJETOS_TABS.filter(t => podeVerTab(t.id))}
           activeTab={tab}
           onTabChange={setTab}
@@ -5159,8 +5155,25 @@ export default function Projetos() {
           }
         />
 
-
-        {showKpis && !propostasEditing && (() => {
+        {/* Indicadores — mesmo padrão de cabeçalho colapsável usado em Comissões (BrowseLayout) */}
+        {!propostasEditing && (
+          <div style={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10, overflow:'hidden' }}>
+            <button
+              type="button"
+              onClick={() => setShowKpis(v => !v)}
+              style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between',
+                width:'100%', padding:'8px 14px', cursor:'pointer', userSelect:'none',
+                background:'none', border:'none', fontFamily:'var(--font)',
+              }}
+            >
+              <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontWeight:700, letterSpacing:'0.07em', textTransform:'uppercase', color:'var(--text-muted)' }}>
+                <span style={{ width:3, height:12, borderRadius:2, background:'var(--accent)', flexShrink:0 }} />
+                Indicadores
+              </span>
+              {showKpis ? <ChevronUp size={13} color="var(--text-muted)" /> : <ChevronDown size={13} color="var(--text-muted)" />}
+            </button>
+            {showKpis && (() => {
           const kpiSets = {
             projetos: [
               { label:'Total projetos',  value: projetos.length,               color:'var(--accent)' },
@@ -5196,7 +5209,7 @@ export default function Projetos() {
           }
           const items = kpiSets[tab] || []
           return (
-            <div style={{ display:'flex', background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:12, overflow:'hidden', boxShadow:'var(--shadow)' }}>
+            <div style={{ display:'flex', borderTop:'1px solid var(--border2)' }}>
               {items.map((k, i) => (
                 <KpiCard key={k.label} label={k.label} value={k.value} color={k.color}
                   last={i === items.length - 1} />
@@ -5204,6 +5217,8 @@ export default function Projetos() {
             </div>
           )
         })()}
+          </div>
+        )}
 
         {/* Toolbar */}
         {tab !== 'fechamento' && tab !== 'recursos' && tab !== 'financeiro' && tab !== 'propostas' && (
