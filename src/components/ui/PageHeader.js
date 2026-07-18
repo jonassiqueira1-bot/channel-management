@@ -27,37 +27,43 @@ export default function PageHeader({
   onTabChange,
   style,
 }) {
+  const hasTabs = tabs?.length > 0
+  const hasHeading = breadcrumb?.length > 0 || title
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: tabs?.length ? 10 : 0 }}>
     <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16,
+      borderBottom: hasTabs ? '1px solid var(--border)' : undefined,
+      flexWrap: 'wrap',
       ...style,
     }}>
-      {/* Esquerda: breadcrumb + título + toggle */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <div>
-          {breadcrumb?.length > 0 && (
-            <div style={{
-              fontSize: 11, color: 'var(--text-muted)', marginBottom: 2,
-              display: 'flex', gap: 4, alignItems: 'center',
-            }}>
-              {breadcrumb.map((crumb, i) => (
-                <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {i > 0 && <span style={{ opacity: 0.4 }}>›</span>}
-                  {crumb}
-                </span>
-              ))}
-            </div>
-          )}
-          {title && (
-            <h1 style={{
-              margin: 0, fontSize: 15, fontWeight: 600,
-              color: 'var(--text-muted)', letterSpacing: '-0.2px',
-            }}>
-              {title}
-            </h1>
-          )}
-        </div>
+      {/* Esquerda: breadcrumb + título + toggle + tabs — tudo numa única linha */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: hasTabs ? 24 : 8 }}>
+        {hasHeading && (
+          <div>
+            {breadcrumb?.length > 0 && (
+              <div style={{
+                fontSize: 11, color: 'var(--text-muted)', marginBottom: 2,
+                display: 'flex', gap: 4, alignItems: 'center',
+              }}>
+                {breadcrumb.map((crumb, i) => (
+                  <span key={i} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    {i > 0 && <span style={{ opacity: 0.4 }}>›</span>}
+                    {crumb}
+                  </span>
+                ))}
+              </div>
+            )}
+            {title && (
+              <h1 style={{
+                margin: 0, fontSize: 15, fontWeight: 600,
+                color: 'var(--text-muted)', letterSpacing: '-0.2px',
+              }}>
+                {title}
+              </h1>
+            )}
+          </div>
+        )}
 
         {onToggleKpis && (
           <button
@@ -68,7 +74,6 @@ export default function PageHeader({
               width: 26, height: 26, borderRadius: 7,
               border: '1px solid var(--border)', background: 'var(--surface)',
               color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0,
-              marginTop: breadcrumb?.length ? 14 : 0,
               transition: 'border-color 0.15s, color 0.15s',
             }}
             onMouseEnter={e => {
@@ -83,43 +88,42 @@ export default function PageHeader({
             {showKpis ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
           </button>
         )}
+
+        {/* Navegação entre funcionalidades do módulo — tabs com indicador inferior */}
+        {hasTabs && (
+          <div style={{ display: 'flex', gap: 24 }}>
+            {tabs.map(t => {
+              const active = activeTab === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => onTabChange?.(t.id)}
+                  style={{
+                    padding: '10px 2px', marginBottom: -1,
+                    background: 'none', border: 'none',
+                    borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                    color: active ? 'var(--text)' : 'var(--text-muted)',
+                    fontSize: 13, fontWeight: active ? 600 : 500,
+                    fontFamily: 'var(--font)', cursor: 'pointer', whiteSpace: 'nowrap',
+                    transition: 'color 0.15s, border-color 0.15s',
+                  }}
+                  onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
+                  onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
+                >
+                  {t.label}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* Direita: actions */}
       {actions && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: hasTabs ? 10 : 0 }}>
           {actions}
         </div>
       )}
-    </div>
-
-    {/* Navegação entre funcionalidades do módulo — tabs com indicador inferior */}
-    {tabs?.length > 0 && (
-      <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border)' }}>
-        {tabs.map(t => {
-          const active = activeTab === t.id
-          return (
-            <button
-              key={t.id}
-              onClick={() => onTabChange?.(t.id)}
-              style={{
-                padding: '10px 2px', marginBottom: -1,
-                background: 'none', border: 'none',
-                borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-                color: active ? 'var(--text)' : 'var(--text-muted)',
-                fontSize: 13, fontWeight: active ? 600 : 500,
-                fontFamily: 'var(--font)', cursor: 'pointer', whiteSpace: 'nowrap',
-                transition: 'color 0.15s, border-color 0.15s',
-              }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
-            >
-              {t.label}
-            </button>
-          )
-        })}
-      </div>
-    )}
     </div>
   )
 }
