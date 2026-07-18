@@ -4443,9 +4443,15 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
             : form.qualificacao_score > 0 ? '#991B1B' : 'var(--border)'
           return (
             <div style={{ border:'1px solid var(--border)', borderTop:`3px solid ${qualifColor}`, borderRadius:10, background:'var(--surface)', padding:'10px 12px' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-                <span style={{ fontSize:13 }}>🎯</span>
-                <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Qualificação</span>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6, marginBottom:6 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ fontSize:13 }}>🎯</span>
+                  <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Qualificação</span>
+                </div>
+                <button type="button" onClick={() => setQualifDetalheAberto(v => !v)}
+                  style={{ fontSize:11, color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0 }}>
+                  {qualifDetalheAberto ? '▲' : '▼'} detalhes
+                </button>
               </div>
               <div style={{ display:'flex', alignItems:'center', gap:8 }}>
                 {form.qualificacao_desqualificada ? (
@@ -4457,10 +4463,6 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
                 ) : (
                   <span style={{ fontSize:12, color:'var(--text-muted)' }}>Sem checklist/questionário respondido ainda</span>
                 )}
-                <button type="button" onClick={() => setQualifDetalheAberto(v => !v)}
-                  style={{ fontSize:11, color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)' }}>
-                  {qualifDetalheAberto ? '▲' : '▼'} detalhes
-                </button>
                 <button type="button" onClick={() => setTab('playbook')}
                   style={{ marginLeft:'auto', fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)', fontWeight:600 }}>
                   Ver Playbook →
