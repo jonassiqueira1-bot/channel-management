@@ -5143,8 +5143,12 @@ export default function Projetos() {
       {/* ── Área de scroll (tudo exceto kanban) ── */}
       <div style={{ flexShrink: 0, padding: '0 28px', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Page header — navegação entre funcionalidades do módulo integrada, com indicador inferior (mesmo padrão de Comissões, via componente compartilhado) */}
+        {/* Page header — navegação entre funcionalidades do módulo integrada, com indicador inferior.
+            marginBottom extra (8px, somado ao gap:12 do container = 20px) pra manter o mesmo
+            espaçamento após o cabeçalho usado em Comissões, mantendo o alinhamento com a borda
+            superior da área de conteúdo padronizado entre as telas. */}
         <PageHeader
+          style={{ marginBottom: 8 }}
           tabs={PROJETOS_TABS.filter(t => podeVerTab(t.id))}
           activeTab={tab}
           onTabChange={setTab}
