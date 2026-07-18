@@ -10,6 +10,9 @@ import { ChevronDown, ChevronUp } from 'lucide-react'
  *   showKpis     bool          estado atual do toggle de indicadores
  *   onToggleKpis () => void    callback do toggle (omitir = sem toggle)
  *   kpisLabel    string        texto do tooltip/badge (default: "indicadores")
+ *   tabs         {id,label}[]  navegação entre funcionalidades do módulo (opcional)
+ *   activeTab    string        id da tab ativa
+ *   onTabChange  (id) => void
  *   style        object        estilo extra no root
  */
 export default function PageHeader({
@@ -19,9 +22,13 @@ export default function PageHeader({
   showKpis,
   onToggleKpis,
   kpisLabel = 'indicadores',
+  tabs,
+  activeTab,
+  onTabChange,
   style,
 }) {
   return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: tabs?.length ? 10 : 0 }}>
     <div style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       ...style,
@@ -84,6 +91,35 @@ export default function PageHeader({
           {actions}
         </div>
       )}
+    </div>
+
+    {/* Navegação entre funcionalidades do módulo — tabs com indicador inferior */}
+    {tabs?.length > 0 && (
+      <div style={{ display: 'flex', gap: 24, borderBottom: '1px solid var(--border)' }}>
+        {tabs.map(t => {
+          const active = activeTab === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => onTabChange?.(t.id)}
+              style={{
+                padding: '10px 2px', marginBottom: -1,
+                background: 'none', border: 'none',
+                borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                color: active ? 'var(--text)' : 'var(--text-muted)',
+                fontSize: 13, fontWeight: active ? 600 : 500,
+                fontFamily: 'var(--font)', cursor: 'pointer', whiteSpace: 'nowrap',
+                transition: 'color 0.15s, border-color 0.15s',
+              }}
+              onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
+              onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
+            >
+              {t.label}
+            </button>
+          )
+        })}
+      </div>
+    )}
     </div>
   )
 }

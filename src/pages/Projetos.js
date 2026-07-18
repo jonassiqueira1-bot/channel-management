@@ -31,6 +31,15 @@ const CanvasEditor = lazy(() => import('../components/ui/CanvasEditor'))
 
 const ACCENT = 'var(--accent)'
 
+// Navegação entre as 5 funcionalidades do módulo Projetos (PageHeader tabs)
+const PROJETOS_TABS = [
+  { id: 'projetos',   label: 'Projetos' },
+  { id: 'propostas',  label: 'Propostas' },
+  { id: 'recursos',   label: 'Recursos' },
+  { id: 'financeiro', label: 'Financeiro' },
+  { id: 'fechamento', label: 'Fechamento' },
+]
+
 const EMPTY_FORM = {
   name: '', company_nome: '', franchise_nome: '',
   phase: 'iniciacao', current_phase_index: 1, status: 'em_andamento',
@@ -5134,36 +5143,21 @@ export default function Projetos() {
       {/* ── Área de scroll (tudo exceto kanban) ── */}
       <div style={{ flexShrink: 0, padding: '20px 28px 0', display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-        {/* Page header */}
+        {/* Page header — navegação entre funcionalidades do módulo integrada, com indicador inferior */}
         <PageHeader
           breadcrumb={['Indicadores']}
           title={null}
           showKpis={showKpis}
           onToggleKpis={propostasEditing ? undefined : () => setShowKpis(v => !v)}
+          tabs={PROJETOS_TABS.filter(t => podeVerTab(t.id))}
+          activeTab={tab}
+          onTabChange={setTab}
           actions={
             tab === 'projetos' ? <Button onClick={() => setModal({ _new: true, phase: 'iniciacao', phaseIndex: 1 })}>+ Novo projeto</Button>
             : tab === 'recursos' ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>Capacidade padrão: {CAPACIDADE_MENSAL}h/mês por analista</span>
             : undefined
           }
         />
-
-        {/* Tab switcher — fixo centralizado */}
-        <div style={{ position: 'fixed', top: 0, left: '50%', transform: 'translateX(-50%)',
-          zIndex: 200, display: 'flex', gap: 2,
-          background: 'var(--surface)', borderRadius: '0 0 10px 10px', padding: '3px 3px 3px 3px',
-          border: '1px solid var(--border)', borderTop: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.12)' }}>
-          {[{ id: 'projetos', label: 'Projetos' }, { id: 'propostas', label: 'Propostas' }, { id: 'recursos', label: 'Recursos' }, { id: 'financeiro', label: 'Financeiro' }, { id: 'fechamento', label: 'Fechamento' }].filter(t => podeVerTab(t.id)).map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)}
-              style={{ padding: '7px 20px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13,
-                fontWeight: tab === t.id ? 700 : 500, fontFamily: 'var(--font)',
-                background: tab === t.id ? 'var(--accent)' : 'none',
-                color: tab === t.id ? '#fff' : 'var(--text-muted)',
-                boxShadow: tab === t.id ? '0 1px 4px rgba(0,0,0,0.18)' : 'none',
-                transition: 'all 0.15s' }}>
-              {t.label}
-            </button>
-          ))}
-        </div>
 
 
         {showKpis && !propostasEditing && (() => {
