@@ -6514,13 +6514,13 @@ function EtapaBadge({ etapa }) {
   )
 }
 
-// ─── Origem Badge ─────────────────────────────────────────────────────────────
+// ─── Origem — texto discreto, sem pílula: informação secundária no card ──────
 function OrigemBadge({ origem }) {
   const cfg = ORIGEM_COLORS[origem] || { color:'#6B7280', bg:'rgba(107,114,128,0.10)', text:'#4B5563' }
   return (
-    <span style={{ fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:20,
-      background:cfg.bg, color:cfg.text, border:`1px solid ${cfg.color}30`,
-      fontFamily:'var(--font)', letterSpacing:'0.01em', whiteSpace:'nowrap' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:10, fontWeight:600,
+      color:'var(--text-muted)', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+      <span style={{ width:5, height:5, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {origem}
     </span>
   )
@@ -6650,80 +6650,74 @@ function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForeca
         </div>
       )}
 
-      {/* Valor + Origem */}
+      {/* Valor + Responsável — as duas perguntas mais frequentes do vendedor,
+          lado a lado para não competir com metadados secundários */}
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
-        <div>
-          <span style={{ fontSize:14, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)',
-            letterSpacing:'-0.02em' }}>
-            {opp.valor > 0
-              ? fmtMoeda(opp.valor)
-              : <span style={{ color:'var(--text-muted)', fontWeight:400, fontSize:12 }}>Sem valor</span>}
-          </span>
-          {/* Breakdown mini — visível só quando há componentes */}
-          {(opp.valor_cdu > 0 || opp.valor_sms > 0 || opp.valor_desconto > 0) && (
-            <div style={{ display:'flex', gap:5, marginTop:3, flexWrap:'wrap' }}>
-              {opp.valor_cdu > 0 && (
-                <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'var(--accent)',
-                  background:'rgba(99,102,241,0.08)', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>
-                  CDU {fmtMoeda(opp.valor_cdu)}
-                </span>
-              )}
-              {opp.valor_sms > 0 && (
-                <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'#3B82F6',
-                  background:'rgba(59,130,246,0.08)', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>
-                  SMS {fmtMoeda(opp.valor_sms)}
-                </span>
-              )}
-              {opp.valor_desconto > 0 && (
-                <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'#EF4444',
-                  background:'rgba(239,68,68,0.08)', padding:'1px 5px', borderRadius:4, fontWeight:700 }}>
-                  ↓ {fmtMoeda(opp.valor_desconto)}
-                </span>
-              )}
+        <span style={{ fontSize:15, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)',
+          letterSpacing:'-0.02em' }}>
+          {opp.valor > 0
+            ? fmtMoeda(opp.valor)
+            : <span style={{ color:'var(--text-muted)', fontWeight:400, fontSize:12 }}>Sem valor</span>}
+        </span>
+        {opp.responsavel && (
+          <div style={{ display:'flex', alignItems:'center', gap:5, minWidth:0 }}>
+            <div style={{ width:18, height:18, borderRadius:'50%', background:'var(--surface3)',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontSize:8, fontWeight:700, color:'var(--text-muted)',
+              border:'1px solid var(--border)', flexShrink:0 }}>
+              {opp.responsavel.charAt(0).toUpperCase()}
             </div>
-          )}
-        </div>
-        <OrigemBadge origem={opp.origem} />
+            <span style={{ fontSize:11, color:'var(--text-muted)', overflow:'hidden',
+              textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              {opp.responsavel.split(' ')[0]}
+            </span>
+          </div>
+        )}
       </div>
 
-      {/* Situação (se não for padrão) */}
-      {opp.situacao && opp.situacao !== 'em_andamento' && (
-        <div style={{ marginTop:8 }}>
-          <SituacaoBadge situacao={opp.situacao} />
+      {/* Breakdown de valor — só quando há componentes, visível apenas no hover
+          pra não competir o tempo todo com o valor total (progressive disclosure) */}
+      {hovered && (opp.valor_cdu > 0 || opp.valor_sms > 0 || opp.valor_desconto > 0) && (
+        <div style={{ display:'flex', gap:5, marginTop:4, flexWrap:'wrap' }}>
+          {opp.valor_cdu > 0 && (
+            <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'var(--text-muted)',
+              background:'var(--surface2)', padding:'1px 5px', borderRadius:4, fontWeight:600 }}>
+              CDU {fmtMoeda(opp.valor_cdu)}
+            </span>
+          )}
+          {opp.valor_sms > 0 && (
+            <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'var(--text-muted)',
+              background:'var(--surface2)', padding:'1px 5px', borderRadius:4, fontWeight:600 }}>
+              SMS {fmtMoeda(opp.valor_sms)}
+            </span>
+          )}
+          {opp.valor_desconto > 0 && (
+            <span style={{ fontSize:9, fontFamily:'var(--mono)', color:'var(--text-muted)',
+              background:'var(--surface2)', padding:'1px 5px', borderRadius:4, fontWeight:600 }}>
+              ↓ {fmtMoeda(opp.valor_desconto)}
+            </span>
+          )}
         </div>
       )}
 
-      {/* Forecast inline */}
-      <div style={{ marginTop:8 }}>
+      {/* Metadados secundários — origem, situação e forecast comprimidos numa
+          única linha discreta, pra reduzir o número de elementos coloridos
+          concorrendo com valor/responsável */}
+      <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:8, marginTop:9 }}>
+        <OrigemBadge origem={opp.origem} />
+        {opp.situacao && opp.situacao !== 'em_andamento' && <SituacaoBadge situacao={opp.situacao} />}
         <ForecastBadge opp={opp} etapaCat={etapaCat} onChange={v => onForecastChange && onForecastChange(opp, v)} />
       </div>
 
-      {/* Rodapé: responsável + prazo */}
-      {(opp.prazo || opp.responsavel) && (
-        <div style={{ marginTop:8, paddingTop:9, borderTop:'1px solid var(--border2)',
-          display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
-          {opp.responsavel && (
-            <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-              <div style={{ width:18, height:18, borderRadius:'50%', background:'var(--surface3)',
-                display:'flex', alignItems:'center', justifyContent:'center',
-                fontSize:8, fontWeight:700, color:'var(--text-muted)',
-                border:'1px solid var(--border)', flexShrink:0 }}>
-                {opp.responsavel.charAt(0).toUpperCase()}
-              </div>
-              <span style={{ fontSize:11, color:'var(--text-muted)', overflow:'hidden',
-                textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                {opp.responsavel.split(' ')[0]}
-              </span>
-            </div>
-          )}
-          {opp.prazo && (
-            <span style={{ fontSize:10, fontFamily:'var(--mono)', fontWeight:600,
-              whiteSpace:'nowrap', padding:'2px 6px', borderRadius:4,
-              background: atrasado ? 'rgba(239,68,68,0.1)' : urgente ? 'rgba(245,158,11,0.1)' : 'transparent',
-              color: atrasado ? 'var(--red)' : urgente ? '#D97706' : 'var(--text-muted)' }}>
-              {atrasado ? '⚠ ' : urgente ? '⏰ ' : ''}{fmtData(opp.prazo)}
-            </span>
-          )}
+      {/* Rodapé: prazo — único sinal de urgência, isolado por ser acionável */}
+      {opp.prazo && (
+        <div style={{ marginTop:8, paddingTop:9, borderTop:'1px solid var(--border2)' }}>
+          <span style={{ fontSize:10, fontFamily:'var(--mono)', fontWeight:600,
+            whiteSpace:'nowrap', padding:'2px 6px', borderRadius:4,
+            background: atrasado ? 'rgba(239,68,68,0.1)' : urgente ? 'rgba(245,158,11,0.1)' : 'transparent',
+            color: atrasado ? 'var(--red)' : urgente ? '#D97706' : 'var(--text-muted)' }}>
+            {atrasado ? '⚠ ' : urgente ? '⏰ ' : ''}{fmtData(opp.prazo)}
+          </span>
         </div>
       )}
     </div>
@@ -6805,18 +6799,18 @@ function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDra
           <span style={{ fontSize:12, fontWeight:700, color:etapa.cor, fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{etapa.nome}</span>
           <div style={{ display:'flex', alignItems:'center', gap:5, flexShrink:0 }}>
             {taxa !== null && (
-              <span title="Taxa de conversão desta etapa" style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)',
-                background: taxaCor + '22', color: taxaCor, padding:'1px 6px', borderRadius:8, letterSpacing:'0.03em' }}>
+              <span title="Taxa de conversão desta etapa" style={{ fontSize:10, fontWeight:800, fontFamily:'var(--mono)',
+                background: taxaCor + '22', color: taxaCor, padding:'1px 6px', borderRadius:6, letterSpacing:'0.03em' }}>
                 {taxa}%
               </span>
             )}
-            <span style={{ fontSize:10, fontWeight:700, fontFamily:'var(--mono)', background:etapa.cor+'22', color:etapa.cor, padding:'1px 7px', borderRadius:10 }}>{opps.length}</span>
+            <span title="Quantidade de oportunidades" style={{ fontSize:12, fontWeight:800, fontFamily:'var(--mono)', background:etapa.cor+'22', color:etapa.cor, padding:'1px 8px', borderRadius:6, minWidth:20, textAlign:'center' }}>{opps.length}</span>
           </div>
         </div>
-        <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-          {opps.length>0 ? fmtMoeda(totalValor) : <span style={{ opacity:0.5 }}>vazio</span>}
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-soft)', fontFamily:'var(--mono)' }}>
+          {opps.length>0 ? fmtMoeda(totalValor) : <span style={{ opacity:0.5, fontWeight:400 }}>vazio</span>}
           {etapa.probabilidade>0&&etapa.probabilidade<100&&opps.length>0&&(
-            <span style={{ color:etapa.cor, marginLeft:5 }}>≈ {fmtMoeda(valorPonderado)}</span>
+            <span style={{ color:etapa.cor, marginLeft:5, fontSize:10, fontWeight:600 }}>≈ {fmtMoeda(valorPonderado)}</span>
           )}
         </div>
       </div>
@@ -7758,23 +7752,7 @@ export default function Pipeline() {
         {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
         <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
 
-          {/* Botão Rotinas — não disponível pra Contato Canal */}
-          {!isParceiro && (
-          <button
-            onClick={() => setShowRotinas(true)}
-            style={{
-              display:'flex', alignItems:'center', gap:7,
-              padding:'0 13px', height:36, borderRadius:8,
-              border:'1.5px solid var(--border)',
-              background:'var(--surface)',
-              color:'var(--text-soft)',
-              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
-            }}>
-            ⚙ Rotinas
-          </button>
-          )}
-
-          {/* Botão Filtros — não disponível pra Contato Canal */}
+          {/* Botão Filtros — ação de uso diário, vem antes de Rotinas — não disponível pra Contato Canal */}
           {!isParceiro && (
           <button
             onClick={() => setFiltrosOpen(v => !v)}
@@ -7821,7 +7799,23 @@ export default function Pipeline() {
           </div>
           )}
 
-          {/* Nova oportunidade */}
+          {/* Botão Rotinas — ação administrativa, depois das ações de uso diário — não disponível pra Contato Canal */}
+          {!isParceiro && (
+          <button
+            onClick={() => setShowRotinas(true)}
+            style={{
+              display:'flex', alignItems:'center', gap:7,
+              padding:'0 13px', height:36, borderRadius:8,
+              border:'1.5px solid var(--border)',
+              background:'var(--surface)',
+              color:'var(--text-soft)',
+              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+            }}>
+            ⚙ Rotinas
+          </button>
+          )}
+
+          {/* Nova oportunidade — ação principal, mantém destaque visual */}
           <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>Nova oportunidade</Button>
 
           {/* ⋯ Menu de ações */}
