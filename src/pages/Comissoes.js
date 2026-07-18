@@ -1730,8 +1730,6 @@ function TabRepasses({ payments, setPayments, rules, personas, onEdit, period = 
           <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:12, color:'var(--text-muted)', padding:'6px 12px', background:'var(--surface2)', borderRadius:8, border:'1px solid var(--border)', alignSelf:'flex-start' }}>
             <Calendar size={12} strokeWidth={2} />
             <span>Exibindo: <strong style={{ color:'var(--text)' }}>{periodLabel(period)}</strong></span>
-            <span style={{ color:'var(--border)' }}>·</span>
-            <span>{data.length} lançamentos</span>
           </div>
         )}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
