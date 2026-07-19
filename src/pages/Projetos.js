@@ -192,7 +192,22 @@ function ProgressBar({ executed, estimated, thin }) {
 
 function StatusBadge({ status }) {
   const cfg = STATUS_PROJETO[status] || STATUS_PROJETO.em_andamento
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 20, background: cfg.bg, color: cfg.text }}>{cfg.label}</span>
+  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cfg.bg, color: cfg.text }}>{cfg.label}</span>
+}
+
+// ─── Célula de estatística do header do Drawer — dashboard denso, sem caixa
+// colorida: label pequeno em cima, valor embaixo, ponto de cor só quando faz
+// sentido indicar um estado (status/fase). ──────────────────────────────────
+function HeaderStat({ label, value, dotColor }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+      <span style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{label}</span>
+      <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', display: 'flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap' }}>
+        {dotColor && <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}
+        {value}
+      </span>
+    </div>
+  )
 }
 
 function CritBadge({ criticality }) {
@@ -384,7 +399,7 @@ function NotionSection({ title, icon, defaultOpen = true, children, badge }) {
         <span style={{ fontSize: 10, color: 'var(--text-muted)', transition: 'transform 0.18s', display: 'inline-block', transform: open ? 'rotate(90deg)' : 'rotate(0deg)', flexShrink: 0 }}>▶</span>
         {icon && <span style={{ fontSize: 14, flexShrink: 0 }}>{icon}</span>}
         <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)', flex: 1 }}>{title}</span>
-        {badge && <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--surface2)', color: 'var(--text-muted)', borderRadius: 20, padding: '1px 7px' }}>{badge}</span>}
+        {badge && <span style={{ fontSize: 10, fontWeight: 700, background: 'var(--surface2)', color: 'var(--text-muted)', borderRadius: 4, padding: '1px 7px' }}>{badge}</span>}
       </button>
       {open && (
         <div style={{ paddingBottom: 14 }}>
@@ -472,8 +487,8 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Identificação ── */}
-      <NotionSection title="Identificação" icon="📋" defaultOpen={true}>
+      {/* ── Informações Gerais ── */}
+      <NotionSection title="Informações Gerais" icon="📋" defaultOpen={true}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <FormGrid cols={1}>
             <FormField label="Nome do projeto">
@@ -498,34 +513,42 @@ function TabProjeto({ projeto, members, onUpdate, onUpdateOpp, onAddMember, onRe
             <FormField label="Canal / Franquia">
               <input className="so-field" value={form.franchise_nome || ''} onChange={set('franchise_nome')} placeholder="Canal SP Sul" />
             </FormField>
-            <FormField label="Fase MIT">
-              <select className="so-field" value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
-                {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-              </select>
-            </FormField>
             <FormField label="Status">
               <select className="so-field" value={form.status} onChange={set('status')}>
                 {Object.entries(STATUS_PROJETO).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </FormField>
-          </FormGrid>
-          <FormGrid cols={3}>
-            <FormField label="Horas estimadas">
-              <input className="so-field" type="number" value={form.total_hours_estimated} onChange={set('total_hours_estimated')} />
-            </FormField>
-            <FormField label="Início">
-              <input className="so-field" type="date" value={form.start_date || ''} onChange={set('start_date')} />
-            </FormField>
-            <FormField label="Previsão término">
-              <input className="so-field" type="date" value={form.end_date_estimated || ''} onChange={set('end_date_estimated')} />
-            </FormField>
-          </FormGrid>
-          <FormGrid cols={1}>
-            <FormField label="Observações">
-              <textarea className="so-field" style={{ height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
+            <FormField label="Fase MIT">
+              <select className="so-field" value={form.phase} onChange={e => setForm(f => ({ ...f, phase: e.target.value, current_phase_index: FASES_MIT.find(x => x.value === e.target.value)?.order || 1 }))}>
+                {FASES_MIT.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+              </select>
             </FormField>
           </FormGrid>
         </div>
+      </NotionSection>
+
+      {/* ── Planejamento ── */}
+      <NotionSection title="Planejamento" icon="🗓" defaultOpen={true}>
+        <FormGrid cols={3}>
+          <FormField label="Início">
+            <input className="so-field" type="date" value={form.start_date || ''} onChange={set('start_date')} />
+          </FormField>
+          <FormField label="Previsão término">
+            <input className="so-field" type="date" value={form.end_date_estimated || ''} onChange={set('end_date_estimated')} />
+          </FormField>
+          <FormField label="Horas estimadas">
+            <input className="so-field" type="number" value={form.total_hours_estimated} onChange={set('total_hours_estimated')} />
+          </FormField>
+        </FormGrid>
+      </NotionSection>
+
+      {/* ── Observações ── */}
+      <NotionSection title="Observações" icon="📝" defaultOpen={true}>
+        <FormGrid cols={1}>
+          <FormField label="Observações">
+            <textarea className="so-field" style={{ height: 72, resize: 'vertical' }} value={form.notes || ''} onChange={set('notes')} />
+          </FormField>
+        </FormGrid>
       </NotionSection>
 
       {/* ── Comercial (Pipeline) ── */}
@@ -2117,19 +2140,31 @@ function ProjetoDrawer({ projeto, phases, tasks, timeLogs, issues, attachments, 
       saveLabel={saved ? '✓ Salvo' : 'Salvar'}
       onDelete={() => onDelete(projeto.id)}
       deleteConfirm={`Excluir o projeto "${projeto.name}"? Esta ação não pode ser desfeita.`}
-      headerExtra={
-        <div style={{ marginTop: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: fase.bg, color: fase.text }}>{fase.label}</span>
-            <StatusBadge status={projeto.status} />
-            {isBlocked && (
-              <div className="prj-blocked-badge" style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#EF4444', borderRadius: 20, padding: '2px 8px', letterSpacing: '0.04em' }}>⚠ BLOQUEADO</div>
-            )}
+      headerExtra={(() => {
+        const statusCfg = STATUS_PROJETO[projeto.status] || STATUS_PROJETO.em_andamento
+        const exec = Number(projeto.total_hours_executed) || 0
+        const est  = Number(projeto.total_hours_estimated) || 0
+        const pct  = est > 0 ? Math.min(100, Math.round((exec / est) * 100)) : 0
+        return (
+          <div style={{ marginTop: 8 }}>
+            {/* Linha única de indicadores — dashboard denso, sem caixas coloridas */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', gap: '9px 22px', marginBottom: 9 }}>
+              <HeaderStat label="Status"    value={statusCfg.label} dotColor={statusCfg.text} />
+              <HeaderStat label="Fase"      value={fase.label}      dotColor={fase.text} />
+              <HeaderStat label="Progresso" value={`${pct}%`} />
+              <HeaderStat label="Horas"     value={`${exec}h de ${est}h`} />
+              <HeaderStat label="Início"    value={fmtDate(projeto.start_date)} />
+              <HeaderStat label="Previsão"  value={fmtDate(projeto.end_date_estimated)} />
+              {isBlocked && (
+                <span className="prj-blocked-badge" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, color: '#EF4444', letterSpacing: '0.03em', alignSelf: 'flex-end' }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#EF4444' }} /> BLOQUEADO
+                </span>
+              )}
+            </div>
+            <ProgressBar executed={exec} estimated={est} thin />
           </div>
-          <ProgressBar executed={Number(projeto.total_hours_executed)} estimated={Number(projeto.total_hours_estimated)} />
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{projeto.total_hours_executed}h executadas de {projeto.total_hours_estimated}h estimadas</div>
-        </div>
-      }
+        )
+      })()}
     >
       {/* Conteúdo rolável por tab */}
       <div style={{ flex: 1, overflowY: 'auto', minHeight: 0, padding: '20px 24px' }}>
