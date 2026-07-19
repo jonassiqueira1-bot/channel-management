@@ -422,6 +422,13 @@ function ProdutoSearch({ onAdd }) {
   )
 }
 
+// Cada produto vira uma unidade visual só (card), não uma linha de tabela —
+// nome, parâmetros e subtotal ficam claramente dentro da mesma "caixa".
+const pc = {
+  card:  { border:'1px solid var(--border)', borderRadius:10, background:'var(--surface)', padding:'11px 14px', transition:'border-color 0.12s' },
+  label: { fontSize:9.5, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 },
+}
+
 function OppProdutosTab({ itens, onChange, onSyncValor }) {
   function addProduto(p) {
     const jaExiste = itens.find(i => i.produto_id === p.id)
@@ -485,101 +492,86 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
         )}
 
         {itens.length > 0 && (
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:12, tableLayout:'fixed' }}>
-            <colgroup>
-              <col style={{ width:'auto' }} />
-              <col style={{ width:70 }} />
-              <col style={{ width:110 }} />
-              <col style={{ width:90 }} />
-              <col style={{ width:100 }} />
-              <col style={{ width:70 }} />
-              <col style={{ width:36 }} />
-            </colgroup>
-            <thead>
-              <tr style={{ background:'var(--surface2)' }}>
-                {['Produto','Qtd','Preço unit.','Desc. %','Subtotal','Cob.',''].map((h,i) => (
-                  <th key={i} style={{ padding:'6px 8px', textAlign: i>=1&&i<=4 ? 'right' : i===6?'center':'left',
-                    color:'var(--text-muted)', fontWeight:700, fontSize:10, fontFamily:'var(--mono)',
-                    borderBottom:'1px solid var(--border)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {itens.map(item => (
-                <tr key={item.produto_id} style={{ borderBottom:'1px solid var(--border2)' }}
-                  onMouseEnter={e=>e.currentTarget.style.background='var(--surface2)'}
-                  onMouseLeave={e=>e.currentTarget.style.background='transparent'}>
-
-                  {/* Nome */}
-                  <td style={{ padding:'8px 8px', overflow:'hidden' }}>
-                    <div style={{ fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={item.produto_nome}>{item.produto_nome}</div>
-                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.produto_codigo}</div>
-                  </td>
-
-                  {/* Quantidade */}
-                  <td style={{ padding:'4px 6px', textAlign:'right' }}>
-                    <input type="number" min="1" step="1"
-                      value={item.quantidade}
-                      onChange={e => updateItem(item.produto_id, 'quantidade', Math.max(1, Number(e.target.value)))}
-                      style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
-                  </td>
-
-                  {/* Preço unitário */}
-                  <td style={{ padding:'4px 6px', textAlign:'right' }}>
-                    <input type="number" min="0" step="1"
-                      value={item.preco_unitario}
-                      onChange={e => updateItem(item.produto_id, 'preco_unitario', Number(e.target.value))}
-                      style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12 }} />
-                  </td>
-
-                  {/* Desconto % */}
-                  <td style={{ padding:'4px 6px', textAlign:'right' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:3, justifyContent:'flex-end' }}>
-                      <input type="number" min="0" step="1"
-                        max={item.desconto_max}
-                        value={item.desconto_pct}
-                        onChange={e => updateItem(item.produto_id, 'desconto_pct', Math.min(Number(e.target.value), item.desconto_max))}
-                        style={{ ...m.input, width:'100%', boxSizing:'border-box', minWidth:0, textAlign:'right', padding:'3px 6px', fontFamily:'var(--mono)', fontSize:12,
-                          borderColor: item.desconto_pct>=item.desconto_max&&item.desconto_max>0 ? '#F59E0B' : undefined }} />
-                      <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>%</span>
+          <div style={{ display:'flex', flexDirection:'column', gap:8, paddingBottom:2 }}>
+            {itens.map(item => {
+              const descontoValor = Number(item.preco_unitario||0) * Number(item.quantidade||1) * (Number(item.desconto_pct||0)/100)
+              const noLimite = item.desconto_pct >= item.desconto_max && item.desconto_max > 0
+              return (
+                <div key={item.produto_id} style={pc.card}>
+                  {/* Linha 1 — identidade do produto: quem é, como é cobrado, ação de remover */}
+                  <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontWeight:700, fontSize:13.5, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={item.produto_nome}>
+                        {item.produto_nome}
+                      </div>
+                      <div style={{ fontSize:10.5, color:'var(--text-muted)', fontFamily:'var(--mono)', marginTop:1 }}>{item.produto_codigo}</div>
                     </div>
-                    {item.desconto_max > 0 && (
-                      <div style={{ fontSize:9, color:'var(--text-muted)', textAlign:'right', marginTop:1 }}>máx {item.desconto_max}%</div>
-                    )}
-                  </td>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
+                      <span style={{ fontSize:9.5, fontWeight:700, padding:'3px 8px', borderRadius:4, whiteSpace:'nowrap', flexShrink:0,
+                        background: COB_BG[item.cobranca]||'#f3f4f6', color: COB_TEXT[item.cobranca]||'#374151', fontFamily:'var(--mono)' }}>
+                        {COB_LABEL[item.cobranca]||item.cobranca}
+                      </span>
+                      <button type="button" onClick={() => removeItem(item.produto_id)}
+                        title="Remover produto"
+                        style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+                          fontSize:14, padding:'2px 4px', borderRadius:4, flexShrink:0 }}
+                        onMouseEnter={e=>e.currentTarget.style.color='var(--red)'}
+                        onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
 
-                  {/* Subtotal */}
-                  <td style={{ padding:'8px 8px', textAlign:'right', fontFamily:'var(--mono)', fontWeight:700, color:'var(--text)', whiteSpace:'nowrap' }}>
-                    {fmtBRL(item.subtotal)}
-                  </td>
+                  {/* Linha 2 — parâmetros da negociação (peso visual igual entre si) + resultado (subtotal, mais destacado) */}
+                  <div style={{ display:'grid', gridTemplateColumns:'72px 1fr 1.2fr auto', gap:14, alignItems:'end', marginTop:10 }}>
+                    <div>
+                      <div style={pc.label}>Qtd.</div>
+                      <input type="number" min="1" step="1"
+                        value={item.quantidade}
+                        onChange={e => updateItem(item.produto_id, 'quantidade', Math.max(1, Number(e.target.value)))}
+                        style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'5px 8px', fontFamily:'var(--mono)', fontSize:12.5, fontWeight:600 }} />
+                    </div>
 
-                  {/* Cobrança */}
-                  <td style={{ padding:'8px 6px', textAlign:'center' }}>
-                    <span style={{ fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:4,
-                      background: COB_BG[item.cobranca]||'#f3f4f6',
-                      color:      COB_TEXT[item.cobranca]||'#374151',
-                      fontFamily:'var(--mono)' }}>
-                      {COB_LABEL[item.cobranca]||item.cobranca}
-                    </span>
-                  </td>
+                    <div>
+                      <div style={pc.label}>Preço unit.</div>
+                      <input type="number" min="0" step="1"
+                        value={item.preco_unitario}
+                        onChange={e => updateItem(item.produto_id, 'preco_unitario', Number(e.target.value))}
+                        style={{ ...m.input, width:'100%', boxSizing:'border-box', textAlign:'right', padding:'5px 8px', fontFamily:'var(--mono)', fontSize:12.5, fontWeight:600 }} />
+                    </div>
 
-                  {/* Remover */}
-                  <td style={{ padding:'4px 6px', textAlign:'center' }}>
-                    <button type="button" onClick={() => removeItem(item.produto_id)}
-                      title="Remover produto"
-                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
-                        fontSize:14, padding:'2px 4px', borderRadius:4 }}
-                      onMouseEnter={e=>e.currentTarget.style.color='var(--red)'}
-                      onMouseLeave={e=>e.currentTarget.style.color='var(--text-muted)'}>
-                      ✕
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    {/* Desconto — % (editável), valor em R$ e limite máximo agrupados como uma única informação */}
+                    <div>
+                      <div style={pc.label}>Desconto</div>
+                      <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                        <input type="number" min="0" step="1"
+                          max={item.desconto_max}
+                          value={item.desconto_pct}
+                          onChange={e => updateItem(item.produto_id, 'desconto_pct', Math.min(Number(e.target.value), item.desconto_max))}
+                          style={{ ...m.input, width:56, flexShrink:0, boxSizing:'border-box', textAlign:'right', padding:'5px 6px', fontFamily:'var(--mono)', fontSize:12.5, fontWeight:600,
+                            borderColor: noLimite ? '#F59E0B' : undefined }} />
+                        <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>%</span>
+                        <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                          {descontoValor > 0 ? `− ${fmtBRL(descontoValor)}` : '—'}
+                        </span>
+                      </div>
+                      {item.desconto_max > 0 && (
+                        <div style={{ fontSize:9.5, color: noLimite ? '#D97706' : 'var(--text-muted)', marginTop:2 }}>limite máx. {item.desconto_max}%</div>
+                      )}
+                    </div>
+
+                    {/* Subtotal — resultado da configuração, maior peso visual que os parâmetros ao lado */}
+                    <div style={{ textAlign:'right' }}>
+                      <div style={pc.label}>Subtotal</div>
+                      <div style={{ fontFamily:'var(--mono)', fontWeight:800, fontSize:16, color:'var(--text)', whiteSpace:'nowrap' }}>
+                        {fmtBRL(item.subtotal)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 
