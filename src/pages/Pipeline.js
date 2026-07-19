@@ -7,6 +7,8 @@ import { usePlaybooks } from '../hooks/usePlaybooks'
 import { MultiSelect } from './Playbooks'
 import { useTasks } from '../hooks/useTasks'
 import { useOppMembros } from '../hooks/useOppMembros'
+import { useCommissions } from '../hooks/useCommissions'
+import { avaliarElegibilidadeMembro } from '../lib/commissionEligibility'
 import MetricasStrip from '../components/MetricasStrip'
 import { MOCK_EMPRESAS } from '../data/mockEmpresas'
 import { MOCK_TAREFAS } from '../data/mockTarefas'
@@ -1888,12 +1890,30 @@ function CopyChip({ value, href, label, bg, children }) {
   )
 }
 
-function OppEquipeTab({ oppId }) {
+function OppEquipeTab({ oppId, opp, etapas }) {
   const { membros, add: addMembro, remove: removeMembro } = useOppMembros()
   const { contacts } = useContacts()
   const { usuarios }  = useUsuarios()
   const { sellers }   = useSellers()
+  const { rules: commissionRules } = useCommissions()
   const [contatosExt, setContatosExt] = useLocalState(`opp_contatos_ext_${oppId}`, [])
+
+  // Nome da etapa atual — usado só pra avaliar condições de elegibilidade
+  // de comissão que referenciam "etapa do funil".
+  const etapaNome = useMemo(() =>
+    (etapas || []).find(e => String(e.id) === String(opp?.etapa_id))?.nome || '',
+  [etapas, opp?.etapa_id])
+
+  // Sim/Não de comissão por membro — computado ao vivo a cada render contra
+  // as regras cadastradas em Comissões, nunca persistido (ver commissionEligibility.js).
+  const elegibilidadePorMembro = useMemo(() => {
+    const map = {}
+    if (!opp) return map
+    membros
+      .filter(m => m.oportunidade_id === oppId && (m.tipo_membro === 'interno' || m.tipo_membro === 'canal'))
+      .forEach(m => { map[m.id] = avaliarElegibilidadeMembro(commissionRules, opp, m, etapaNome) })
+    return map
+  }, [membros, oppId, opp, etapaNome, commissionRules])
 
   // Internos: profiles do Supabase (usuários do sistema ISV) — user_id da tabela
   // real tem FK pra profiles(id), então o id do pool precisa ser o profiles.id cru.
@@ -1984,6 +2004,22 @@ function OppEquipeTab({ oppId }) {
     )
   }
 
+  function ComissaoBadge({ elegibilidade }) {
+    if (!elegibilidade) return null
+    const cor = elegibilidade.elegivel ? '#065F46' : '#92400E'
+    const bg  = elegibilidade.elegivel ? '#D1FAE5' : '#FEF3C7'
+    return (
+      <span
+        title={elegibilidade.elegivel
+          ? `Elegível — regra "${elegibilidade.regra}"`
+          : `Não elegível — ${elegibilidade.motivo}`}
+        style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:'var(--radius-sm, 6px)',
+          background:bg, color:cor, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+        Comissão: {elegibilidade.elegivel ? 'Sim' : 'Não'}
+      </span>
+    )
+  }
+
   function MembroInternoRow({ mb }) {
     const [hover, setHover] = useState(false)
     const u = mb.usuario
@@ -2021,6 +2057,7 @@ function OppEquipeTab({ oppId }) {
           background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
           {cfg.label}
         </span>
+        <ComissaoBadge elegibilidade={elegibilidadePorMembro[mb.id]} />
         <button onClick={() => removeMembro(mb.id)}
           style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px', flexShrink:0 }}
           onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
@@ -4905,7 +4942,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
                 {errs._equipe}
               </div>
             )}
-            <OppEquipeTab oppId={initial.id} />
+            <OppEquipeTab oppId={initial.id} opp={{ ...form, id: initial.id }} etapas={etapas} />
           </div>
         </div>
       )}
