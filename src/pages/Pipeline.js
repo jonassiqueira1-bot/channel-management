@@ -551,13 +551,14 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                           style={{ ...m.input, width:56, flexShrink:0, boxSizing:'border-box', textAlign:'right', padding:'5px 6px', fontFamily:'var(--mono)', fontSize:12.5, fontWeight:600,
                             borderColor: noLimite ? '#F59E0B' : undefined }} />
                         <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>%</span>
-                        <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>
+                        <span style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}
+                          title={item.desconto_max > 0 ? `Limite máximo: ${item.desconto_max}%` : undefined}>
                           {descontoValor > 0 ? `− ${fmtBRL(descontoValor)}` : '—'}
+                          {item.desconto_max > 0 && (
+                            <span style={{ color: noLimite ? '#D97706' : 'var(--text-muted)' }}> · máx {item.desconto_max}%</span>
+                          )}
                         </span>
                       </div>
-                      {item.desconto_max > 0 && (
-                        <div style={{ fontSize:9.5, color: noLimite ? '#D97706' : 'var(--text-muted)', marginTop:2 }}>limite máx. {item.desconto_max}%</div>
-                      )}
                     </div>
 
                     {/* Subtotal — resultado da configuração, maior peso visual que os parâmetros ao lado */}
