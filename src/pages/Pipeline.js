@@ -1948,6 +1948,7 @@ function OppEquipeTab({ oppId, opp, etapas }) {
       email:        c.email || '',
       whatsapp:     c.whatsapp || '',
       linkedin_url: c.linkedin_url || '',
+      empresa_nome: c.empresa_nome || '',
     })),
   [contacts])
 
@@ -1991,15 +1992,33 @@ function OppEquipeTab({ oppId, opp, etapas }) {
   }
   function removeExterno(id) { setContatosExt(prev => prev.filter(c => c.id !== id)) }
 
-  function BlocoHeader({ titulo, subtitulo, onAdd, showAdd }) {
+  // Título + descrição + contador — sem ação nenhuma aqui. A tela é primeiro
+  // pra consultar quem já está na equipe; adicionar é uma ação secundária que
+  // fica sempre depois da lista (ver AddTrigger/GroupEmptyState abaixo).
+  function BlocoHeader({ titulo, subtitulo, count }) {
     return (
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between',
-        paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
-        <div>
-          <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{titulo}</div>
-          <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>{subtitulo}</div>
-        </div>
-        {!showAdd && <button style={tb.addBtn} onClick={onAdd}>+ Adicionar</button>}
+      <div style={{ display:'flex', alignItems:'baseline', gap:7, paddingBottom:8, borderBottom:'2px solid var(--border2)' }}>
+        <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{titulo}</div>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>({count})</div>
+        <div style={{ fontSize:11, color:'var(--text-muted)', marginLeft:2 }}>{subtitulo}</div>
+      </div>
+    )
+  }
+
+  // Gatilho discreto de inclusão — some quando o formulário abre, some de novo
+  // quando fecha. Nunca compete visualmente com a lista de quem já está na equipe.
+  function AddTrigger({ label, onClick }) {
+    return (
+      <button style={{ ...tb.addBtn, marginTop:8 }} onClick={onClick}>{label}</button>
+    )
+  }
+
+  // Estado vazio que orienta a próxima ação, em vez de só informar que não há nada.
+  function GroupEmptyState({ texto, cta, onAdd }) {
+    return (
+      <div style={{ padding:'18px 12px', textAlign:'center', border:'1px dashed var(--border2)', borderRadius:8, marginTop:8 }}>
+        <div style={{ fontSize:12, color:'var(--text-muted)', lineHeight:1.5, maxWidth:340, margin:'0 auto 10px' }}>{texto}</div>
+        <button style={tb.addBtn} onClick={onAdd}>{cta}</button>
       </div>
     )
   }
@@ -2036,9 +2055,16 @@ function OppEquipeTab({ oppId, opp, etapas }) {
           {(u.nome||'?').slice(0,2).toUpperCase()}
         </div>
         <div style={{ flex:1, minWidth:0 }}>
-          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</div>
+          <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap' }}>
+            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</span>
+            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+              background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+              {cfg.label}
+            </span>
+          </div>
           <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
             {u.cargo && <span>{u.cargo}</span>}
+            {u.franquia && <span>· {u.franquia}</span>}
             {u.telefone && <span style={{ fontFamily:'var(--mono)' }}>{u.telefone}</span>}
             {u.email && <a href={`mailto:${u.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{u.email}</a>}
             {u.whatsapp && (
@@ -2053,10 +2079,6 @@ function OppEquipeTab({ oppId, opp, etapas }) {
             )}
           </div>
         </div>
-        <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
-          background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
-          {cfg.label}
-        </span>
         <ComissaoBadge elegibilidade={elegibilidadePorMembro[mb.id]} />
         <button onClick={() => removeMembro(mb.id)}
           style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px', flexShrink:0 }}
@@ -2070,95 +2092,106 @@ function OppEquipeTab({ oppId, opp, etapas }) {
     <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
       <div style={{ flex:1, overflowY:'auto', display:'flex', flexDirection:'column', gap:20, paddingTop:8 }}>
 
-        {/* ── Bloco 1: Time ISV (internos) ── */}
+        {/* ── Bloco 1: Time ISV (internos) — prioridade 1 ── */}
         <div>
-          <BlocoHeader titulo="Time Interno" subtitulo="Usuários internos da empresa"
-            onAdd={() => setShowAddInterno(true)} showAdd={showAddInterno} />
-          {showAddInterno && (
+          <BlocoHeader titulo="Time Interno" count={timeInterno.length} subtitulo="Vendedor, gerente comercial e pré-vendas." />
+          {timeInterno.length > 0 && timeInterno.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)}
+          {timeInterno.length === 0 && !showAddInterno && (
+            <GroupEmptyState
+              texto="Nenhum membro do time interno adicionado ainda. Adicione o vendedor responsável e demais colaboradores envolvidos nesta oportunidade."
+              cta="+ Adicionar membro" onAdd={() => setShowAddInterno(true)} />
+          )}
+          {showAddInterno ? (
             <AddMembroForm pool={poolInternos} jaAdicionados={jaInternosIds}
               selectorLabel="Papel" selectorOptions={PAPEIS} defaultPapel="vendedor"
               onAdd={handleAddInterno} onCancel={() => setShowAddInterno(false)} />
+          ) : timeInterno.length > 0 && (
+            <AddTrigger label="+ Adicionar membro" onClick={() => setShowAddInterno(true)} />
           )}
-          {timeInterno.length === 0 && !showAddInterno
-            ? <div style={{ padding:'14px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhum membro ISV adicionado</div>
-            : timeInterno.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)
-          }
         </div>
 
-        {/* ── Bloco 2: Contatos Canal (parceiros/franquias) ── */}
+        {/* ── Bloco 2: Contatos Canal (parceiros/franquias) — prioridade 2 ── */}
         <div>
-          <BlocoHeader titulo="Contatos Canal" subtitulo="Usuários de parceiros e franquias"
-            onAdd={() => setShowAddCanal(true)} showAdd={showAddCanal} />
-          {showAddCanal && (
+          <BlocoHeader titulo="Contatos Canal" count={timeCanal.length} subtitulo="Parceiros e franquias." />
+          {timeCanal.length > 0 && timeCanal.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)}
+          {timeCanal.length === 0 && !showAddCanal && (
+            <GroupEmptyState
+              texto="Nenhum contato de canal adicionado ainda. Vincule o parceiro ou franquia responsável por esta oportunidade."
+              cta="+ Adicionar contato" onAdd={() => setShowAddCanal(true)} />
+          )}
+          {showAddCanal ? (
             <AddMembroForm pool={poolCanais} jaAdicionados={jaCanaisIds}
               selectorLabel="Papel" selectorOptions={PAPEIS} defaultPapel="vendedor"
               onAdd={handleAddCanal} onCancel={() => setShowAddCanal(false)} />
+          ) : timeCanal.length > 0 && (
+            <AddTrigger label="+ Adicionar contato" onClick={() => setShowAddCanal(true)} />
           )}
-          {timeCanal.length === 0 && !showAddCanal
-            ? <div style={{ padding:'14px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>Nenhum contato de canal adicionado</div>
-            : timeCanal.map(mb => <MembroInternoRow key={mb.id} mb={mb} />)
-          }
         </div>
 
-        {/* ── Bloco 3: Contatos Externos (clientes) ── */}
+        {/* ── Bloco 3: Contatos Externos (clientes) — prioridade 3 ── */}
         <div>
-          <BlocoHeader titulo="Contatos Externos" subtitulo="Decisores e influenciadores do cliente"
-            onAdd={() => setShowAddExterno(true)} showAdd={showAddExterno} />
-          {showAddExterno && (
+          <BlocoHeader titulo="Contatos Externos" count={contatosExt.length} subtitulo="Decisores e influenciadores do cliente." />
+
+          {contatosExt.length > 0 && contatosExt.map(c => {
+            const fresh   = poolContatos.find(p => String(p.id) === String(c.contato_id)) || {}
+            const merged  = { ...c, whatsapp: fresh.whatsapp || c.whatsapp || '', linkedin_url: fresh.linkedin_url || c.linkedin_url || '', email: fresh.email || c.email || '', empresa_nome: fresh.empresa_nome || '' }
+            const persona = PERSONAS.find(p => p.value === c.persona) || PERSONAS[0]
+            const waTel   = merged.whatsapp.replace(/\D/g, '')
+            return (
+              <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 4px',
+                borderBottom:'1px solid var(--border2)', borderRadius:6 }}>
+                <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0,
+                  background:'#F3F4F6', display:'flex', alignItems:'center', justifyContent:'center',
+                  fontSize:11, fontWeight:800, color:'#6B7280', fontFamily:'var(--mono)' }}>
+                  {(c.nome||'?').slice(0,2).toUpperCase()}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</span>
+                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+                      background:persona.bg, color:persona.color, whiteSpace:'nowrap',
+                      fontFamily:'var(--mono)', border:`1px solid ${persona.color}33` }}>
+                      {persona.label}
+                    </span>
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
+                    {merged.empresa_nome && <span style={{ fontWeight:600 }}>{merged.empresa_nome}</span>}
+                    {merged.cargo && <span>{merged.cargo}</span>}
+                    {merged.email && <a href={`mailto:${merged.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{merged.email}</a>}
+                    {waTel && (
+                      <CopyChip value={merged.whatsapp} href={`https://wa.me/55${waTel}`} label={merged.whatsapp} bg="#25D366">
+                        💬
+                      </CopyChip>
+                    )}
+                    {merged.linkedin_url && (
+                      <CopyChip value={merged.linkedin_url} href={merged.linkedin_url} label={merged.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\//,'')} bg="#0A66C2">
+                        in
+                      </CopyChip>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => removeExterno(c.id)}
+                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
+                    fontSize:14, padding:'0 4px', flexShrink:0 }}
+                  onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                  onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+              </div>
+            )
+          })}
+
+          {contatosExt.length === 0 && !showAddExterno && (
+            <GroupEmptyState
+              texto="Nenhum contato externo adicionado. Adicione decisores, compradores ou influenciadores para facilitar o acompanhamento da negociação."
+              cta="+ Adicionar contato" onAdd={() => setShowAddExterno(true)} />
+          )}
+
+          {showAddExterno ? (
             <AddMembroForm
               pool={poolContatos.filter(c => !jaExternosIds.has(c.id))} jaAdicionados={jaExternosIds}
               selectorLabel="Persona da negociação" selectorOptions={PERSONAS} defaultPapel="nao_informado"
               onAdd={handleAddExterno} onCancel={() => setShowAddExterno(false)} />
-          )}
-
-          {contatosExt.length === 0 && !showAddExterno ? (
-            <div style={{ padding:'16px 0', fontSize:12, color:'var(--text-muted)', textAlign:'center' }}>
-              Nenhum contato externo adicionado
-            </div>
-          ) : (
-            contatosExt.map(c => {
-              const fresh   = poolContatos.find(p => String(p.id) === String(c.contato_id)) || {}
-              const merged  = { ...c, whatsapp: fresh.whatsapp || c.whatsapp || '', linkedin_url: fresh.linkedin_url || c.linkedin_url || '', email: fresh.email || c.email || '' }
-              const persona = PERSONAS.find(p => p.value === c.persona) || PERSONAS[0]
-              const waTel   = merged.whatsapp.replace(/\D/g, '')
-              return (
-                <div key={c.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'9px 4px',
-                  borderBottom:'1px solid var(--border2)', borderRadius:6 }}>
-                  <div style={{ width:32, height:32, borderRadius:'50%', flexShrink:0,
-                    background:'#F3F4F6', display:'flex', alignItems:'center', justifyContent:'center',
-                    fontSize:11, fontWeight:800, color:'#6B7280', fontFamily:'var(--mono)' }}>
-                    {(c.nome||'?').slice(0,2).toUpperCase()}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</div>
-                    <div style={{ fontSize:11, color:'var(--text-muted)', display:'flex', alignItems:'center', gap:8, marginTop:2, flexWrap:'wrap' }}>
-                      {merged.cargo && <span>{merged.cargo}</span>}
-                      {merged.email && <a href={`mailto:${merged.email}`} style={{ color:'var(--accent)', textDecoration:'none' }}>{merged.email}</a>}
-                      {waTel && (
-                        <CopyChip value={merged.whatsapp} href={`https://wa.me/55${waTel}`} label={merged.whatsapp} bg="#25D366">
-                          💬
-                        </CopyChip>
-                      )}
-                      {merged.linkedin_url && (
-                        <CopyChip value={merged.linkedin_url} href={merged.linkedin_url} label={merged.linkedin_url.replace(/^https?:\/\/(www\.)?linkedin\.com\//,'')} bg="#0A66C2">
-                          in
-                        </CopyChip>
-                      )}
-                    </div>
-                  </div>
-                  <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
-                    background:persona.bg, color:persona.color, whiteSpace:'nowrap',
-                    fontFamily:'var(--mono)', border:`1px solid ${persona.color}33` }}>
-                    {persona.label}
-                  </span>
-                  <button onClick={() => removeExterno(c.id)}
-                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)',
-                      fontSize:14, padding:'0 4px', flexShrink:0 }}
-                    onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
-                    onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
-                </div>
-              )
-            })
+          ) : contatosExt.length > 0 && (
+            <AddTrigger label="+ Adicionar contato" onClick={() => setShowAddExterno(true)} />
           )}
         </div>
       </div>
