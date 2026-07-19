@@ -1717,7 +1717,7 @@ function PapelBadge({ papel, tipoMembro }) {
   if (tipoMembro === 'externo') {
     const p = PERSONAS.find(x => x.value === papel) || PERSONAS[0]
     return (
-      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6,
         background:p.bg, color:p.color, whiteSpace:'nowrap', fontFamily:'var(--mono)',
         border:`1px solid ${p.color}33` }}>
         {p.label}
@@ -1726,7 +1726,7 @@ function PapelBadge({ papel, tipoMembro }) {
   }
   const cfg = PAPEL_CFG[papel] || PAPEL_CFG.outro
   return (
-    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6,
       background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
       {cfg.label}
     </span>
@@ -2057,7 +2057,7 @@ function OppEquipeTab({ oppId, opp, etapas }) {
         <div style={{ flex:1, minWidth:0 }}>
           <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap' }}>
             <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{u.nome}</span>
-            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:20,
+            <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6,
               background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
               {cfg.label}
             </span>
@@ -2148,7 +2148,7 @@ function OppEquipeTab({ oppId, opp, etapas }) {
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ display:'flex', alignItems:'center', gap:7, flexWrap:'wrap' }}>
                     <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{c.nome}</span>
-                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
+                    <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6,
                       background:persona.bg, color:persona.color, whiteSpace:'nowrap',
                       fontFamily:'var(--mono)', border:`1px solid ${persona.color}33` }}>
                       {persona.label}
