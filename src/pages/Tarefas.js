@@ -112,7 +112,7 @@ function novoId() { return Date.now() + Math.random() }
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20,
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6,
       background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.dot }} />
       {cfg.label}
@@ -260,15 +260,38 @@ function ContatoSearch({ value, label, onChange }) {
   )
 }
 
+// ─── Gatilho de campo opcional — divulgação progressiva ──────────────────────
+// Mesma ideia usada em Oportunidades > Equipe: campo opcional some por trás de
+// um botão discreto até o usuário pedir pra preencher, em vez de ocupar espaço
+// sempre. Nunca pílula — retangular, consistente com o resto do projeto.
+function AddFieldTrigger({ label, onClick }) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'6px 12px',
+        borderRadius:6, border:'1px dashed var(--border2)', background:'var(--surface2)',
+        color:'var(--text-soft)', fontSize:12, fontWeight:600, fontFamily:'var(--font)',
+        cursor:'pointer', width:'fit-content' }}>
+      {label}
+    </button>
+  )
+}
+
 // ─── Formulário de Tarefa (usado dentro do SlideOver) ────────────────────────
+// Ordem segue o fluxo mental do usuário: o que é (Contexto) → quando acontece
+// e em que pé está (Execução) → quem faz (Responsáveis) → detalhes complementares
+// por último, já que normalmente são só apoio pra quem já entendeu a tarefa.
 function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs = {}, clearErr }) {
   const { usuarios: usuariosRaw } = useUsuarios()
   const usuarios = usuariosRaw.filter(u => u.status !== 'inativo')
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
+  // Só nasce fechado quando realmente não há nada — se a tarefa já tem contato
+  // externo vinculado, o campo já vem visível (nunca esconde dado existente).
+  const [contatoAberto, setContatoAberto] = useState(!!form.contato_id)
+
   return (
     <>
-      <FormSection label="Identificação">
+      <FormSection label="Contexto" description="O que é esta tarefa e a que ela se refere.">
         <FormField label="Título" required span={2} error={errs.titulo}>
           <input className="so-field" value={form.titulo}
             onChange={e => { set('titulo', e.target.value); clearErr?.('titulo') }}
@@ -286,14 +309,30 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
           </select>
         </FormField>
 
-        <FormField label="Descrição" span={2}>
-          <textarea className="so-field" rows={3} value={form.descricao || ''}
-            onChange={e => set('descricao', e.target.value)}
-            placeholder="Detalhes, contexto ou notas sobre esta tarefa…" />
+        <FormField label="Vínculo">
+          <select className="so-field" value={form.entidade_tipo || ''}
+            onChange={e => onChange({ ...form, entidade_tipo: e.target.value || null, entidade_id: null, entidade_nome: '' })}>
+            <option value="">Sem vínculo</option>
+            {ENTIDADE_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+          </select>
         </FormField>
+
+        {form.entidade_tipo && (
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label className="so-label">
+              {ENTIDADE_TIPOS.find(t => t.value === form.entidade_tipo)?.label || 'Entidade'}
+            </label>
+            <EntidadeSearch
+              entidadeTipo={form.entidade_tipo}
+              value={form.entidade_id}
+              label={form.entidade_nome}
+              onChange={(id, nome) => onChange({ ...form, entidade_id: id, entidade_nome: nome })}
+            />
+          </div>
+        )}
       </FormSection>
 
-      <FormSection label="Execução">
+      <FormSection label="Execução" description="Status atual, prioridade e quando deve acontecer.">
         <FormField label="Status">
           <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
             {Object.entries(STATUS_CFG).map(([k, cfg]) => (
@@ -317,7 +356,7 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
         </FormField>
       </FormSection>
 
-      <FormSection label="Participantes">
+      <FormSection label="Responsáveis" description="Quem interno cuida disso e, se houver, o contato do outro lado.">
         <FormField label="Responsável interno" span={2}>
           <select className="so-field"
             value={form.responsavel_id || ''}
@@ -333,42 +372,70 @@ function TarefaForm({ form, onChange, tiposTarefa = TIPOS_TAREFA_DEFAULT, errs =
         </FormField>
 
         <div style={{ gridColumn: '1 / -1' }}>
-          <label className="so-label">Contato externo</label>
-          <ContatoSearch
-            value={form.contato_id}
-            label={form.contato_nome}
-            onChange={(id, nome, empresa) => onChange({ ...form, contato_id: id, contato_nome: nome, contato_empresa: empresa || '' })}
-          />
-          {form.contato_id && form.contato_empresa && (
-            <span className="so-hint">{form.contato_empresa}</span>
+          {contatoAberto ? (
+            <>
+              <label className="so-label">Contato externo</label>
+              <ContatoSearch
+                value={form.contato_id}
+                label={form.contato_nome}
+                onChange={(id, nome, empresa) => onChange({ ...form, contato_id: id, contato_nome: nome, contato_empresa: empresa || '' })}
+              />
+              {form.contato_id && form.contato_empresa && (
+                <span className="so-hint">{form.contato_empresa}</span>
+              )}
+            </>
+          ) : (
+            <AddFieldTrigger label="+ Adicionar contato externo" onClick={() => setContatoAberto(true)} />
           )}
         </div>
       </FormSection>
 
-      <FormSection label="Vínculo">
-        <FormField label="Tipo de vínculo" span={2}>
-          <select className="so-field" value={form.entidade_tipo || ''}
-            onChange={e => onChange({ ...form, entidade_tipo: e.target.value || null, entidade_id: null, entidade_nome: '' })}>
-            <option value="">Sem vínculo</option>
-            {ENTIDADE_TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-          </select>
+      <FormSection label="Detalhes" description="Contexto adicional — normalmente complementar ao que já foi dito acima.">
+        <FormField label="Descrição" span={2}>
+          <textarea className="so-field" rows={3} value={form.descricao || ''}
+            onChange={e => set('descricao', e.target.value)}
+            placeholder="Detalhes, contexto ou notas sobre esta tarefa…" />
         </FormField>
-
-        {form.entidade_tipo && (
-          <div style={{ gridColumn: '1 / -1' }}>
-            <label className="so-label">
-              {ENTIDADE_TIPOS.find(t => t.value === form.entidade_tipo)?.label || 'Entidade'}
-            </label>
-            <EntidadeSearch
-              entidadeTipo={form.entidade_tipo}
-              value={form.entidade_id}
-              label={form.entidade_nome}
-              onChange={(id, nome) => onChange({ ...form, entidade_id: id, entidade_nome: nome })}
-            />
-          </div>
-        )}
       </FormSection>
     </>
+  )
+}
+
+// ─── Resumo executivo do header — status, prioridade, prazo, responsável e
+// vínculo visíveis sem rolar, pra responder de cara "em que pé está e quem
+// cuida" antes mesmo de abrir qualquer seção do formulário. ────────────────────
+function TarefaHeaderResumo({ form }) {
+  if (!form) return null
+  const statusCfg = STATUS_CFG[form.status] || STATUS_CFG.pendente
+  const prioCfg   = PRIORIDADE_CFG[form.prioridade] || PRIORIDADE_CFG.media
+  const dataFmt   = form.data_inicio
+    ? new Date(form.data_inicio).toLocaleString('pt-BR', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' })
+    : null
+
+  const itens = [
+    { key:'status', node: (
+      <span style={{ display:'inline-flex', alignItems:'center', gap:5 }}>
+        <span style={{ width:6, height:6, borderRadius:'50%', background:statusCfg.dot, flexShrink:0 }} />
+        <span style={{ color:statusCfg.text, fontWeight:700 }}>{statusCfg.label}</span>
+      </span>
+    ) },
+    { key:'prio', node: (
+      <span style={{ color:prioCfg.text, fontWeight:700 }}>{prioCfg.label}</span>
+    ) },
+    dataFmt ? { key:'data', node: <span style={{ fontFamily:'var(--mono)' }}>{dataFmt}</span> } : null,
+    form.responsavel_nome ? { key:'resp', node: <span>👤 {form.responsavel_nome}</span> } : null,
+    (form.entidade_tipo && form.entidade_nome) ? { key:'vinc', node: <EntidadeTag tipo={form.entidade_tipo} nome={form.entidade_nome} /> } : null,
+  ].filter(Boolean)
+
+  return (
+    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:11.5, color:'var(--text-muted)' }}>
+      {itens.map((it, i) => (
+        <span key={it.key} style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {i > 0 && <span style={{ opacity:0.4 }}>·</span>}
+          {it.node}
+        </span>
+      ))}
+    </div>
   )
 }
 
@@ -1140,7 +1207,8 @@ export default function Tarefas() {
       onClose={closeSlideOver}
       onSave={handleSave}
       title={isNew ? 'Nova tarefa' : (form?.titulo || 'Editar tarefa')}
-      subtitle={isNew ? 'Preencha os dados da tarefa' : `${tipoIcon(form?.tipo)} ${STATUS_CFG[form?.status]?.label || ''}`}
+      subtitle={isNew ? 'Preencha os dados da tarefa' : `${tipoIcon(form?.tipo)} ${tiposTarefa.find(t => (t.slug||t.key||t.id) === form?.tipo)?.label || ''}`}
+      headerExtra={!isNew ? <TarefaHeaderResumo form={form} /> : undefined}
       saveLabel={isNew ? 'Criar tarefa' : 'Salvar alterações'}
       columns={2}
       onDelete={!isNew ? handleDelete : undefined}
