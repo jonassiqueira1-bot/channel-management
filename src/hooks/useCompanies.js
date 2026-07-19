@@ -222,21 +222,39 @@ export function useCompanies() {
     return { ok: true }
   }, [])
 
-  // ── Importar em lote (CSV) ──────────────────────────────────
-  const importMany = useCallback(async (rows) => {
+  // ── Importar em lote (CSV) ────────────────────────────────────
+  // Insere em blocos de IMPORT_CHUNK_SIZE em vez de um único insert com todas
+  // as linhas — um payload de milhares de linhas de uma vez só tende a estourar
+  // limite/timeout do PostgREST, e o erro nem chegava a ser reportado antes
+  // (o chamador não aguardava nem checava o retorno). onProgress(feitas, total)
+  // é opcional, usado pra alimentar o ImportProgressWidget global.
+  const IMPORT_CHUNK_SIZE = 300
+  const importMany = useCallback(async (rows, onProgress) => {
     if (isMockMode.current) {
       const novas = rows.map(r => ({ ...r, id: Date.now() + Math.random(), mrr: 0, contratos: 0, contatos: 0, criado: new Date().toISOString().slice(0, 10) }))
       setCompanies(prev => [...prev, ...novas])
+      onProgress?.(novas.length, novas.length)
       return { ok: true, count: novas.length }
     }
 
-    const dbRows = rows.map(r => empresaToRow(r, tenantId, branchId))
-    const { data, error } = await supabase.from('companies').insert(dbRows).select()
-    if (error) return { ok: false, message: error.message }
+    const inseridas = []
+    for (let i = 0; i < rows.length; i += IMPORT_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + IMPORT_CHUNK_SIZE)
+      const dbRows = chunk.map(r => empresaToRow(r, tenantIdRef.current, branchIdRef.current))
+      const { data, error } = await supabase.from('companies').insert(dbRows).select()
+      if (error) {
+        // Falhou no meio do lote — o que já foi inserido com sucesso fica
+        // refletido na lista; o chamador decide o que fazer com o restante.
+        if (inseridas.length) setCompanies(prev => [...prev, ...inseridas])
+        return { ok: false, message: error.message, count: inseridas.length }
+      }
+      inseridas.push(...(data || []).map(rowToEmpresa))
+      onProgress?.(Math.min(i + IMPORT_CHUNK_SIZE, rows.length), rows.length)
+    }
 
-    setCompanies(prev => [...prev, ...(data || []).map(rowToEmpresa)])
-    return { ok: true, count: data?.length || 0 }
-  }, [tenantId, branchId])
+    setCompanies(prev => [...prev, ...inseridas])
+    return { ok: true, count: inseridas.length }
+  }, [])
 
   return {
     companies,

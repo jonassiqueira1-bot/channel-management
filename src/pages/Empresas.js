@@ -18,6 +18,7 @@ import { useProfile } from '../hooks/useProfile'
 import { checkEmUso } from '../lib/checkUsage'
 import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
 import { SEGMENTOS_PADRAO } from '../data/segmentos'
+import { startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtCNPJ(v) {
@@ -1448,10 +1449,19 @@ export default function Empresas() {
           onClose={() => setImportModal(false)}
           onDownloadTemplate={handleDownloadTemplate}
           existingEmpresas={empresas}
-          onImport={(rows, log) => {
-            importMany(rows)
-            setImportLogs(prev => [log, ...prev])
-            setImportModal(false)
+          onImport={async (rows, log) => {
+            const jobId = startImportJob({ label: 'Empresas', total: rows.length })
+            const result = await importMany(rows, (current, total) => {
+              updateImportJob(jobId, { current, subLabel: `${current} de ${total}…` })
+            })
+            if (result.ok) {
+              finishImportJob(jobId, { subLabel: `Concluído! ${result.count} empresa${result.count !== 1 ? 's' : ''} importada${result.count !== 1 ? 's' : ''}.` })
+              setImportLogs(prev => [{ ...log, imported: result.count }, ...prev])
+            } else {
+              finishImportJob(jobId, { status: 'error', subLabel: `Erro: ${result.message}` })
+              setImportLogs(prev => [{ ...log, imported: result.count || 0, erro: result.message }, ...prev])
+            }
+            return result
           }}
         />
       )}
@@ -1581,8 +1591,14 @@ function parseCSV(text) {
 
 const IMPORT_COLS = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status']
 const TIPOS_VALUES = TIPOS.map(t => t.value)
+const PREVIEW_ROW_LIMIT = 500
 
-function validateImportRow(row, idx, existingEmpresas, imported) {
+// existingCnpjMap: Map<cnpjDigits, empresa> pré-computado uma única vez pro
+// arquivo inteiro; seenCnpj: Set<cnpjDigits> das linhas já processadas do
+// próprio arquivo. Antes eram um array (existingEmpresas) e outro que crescia
+// a cada linha (imported), escaneados inteiros a cada chamada — O(n²), travava
+// o navegador em arquivos de milhares de linhas. Com Map/Set vira O(1) por linha.
+function validateImportRow(row, idx, existingCnpjMap, seenCnpj) {
   const errors = []
   if (!row.razao?.trim()) errors.push('Razão Social é obrigatória')
   const cnpjRaw = (row.cnpj || '').replace(/\D/g, '')
@@ -1594,10 +1610,9 @@ function validateImportRow(row, idx, existingEmpresas, imported) {
     errors.push('CNPJ informado é inválido (precisa de 14 dígitos)')
   }
   else {
-    if (existingEmpresas.some(e => e.cnpj.replace(/\D/g,'') === cnpjRaw))
-      errors.push(`CNPJ já cadastrado: ${existingEmpresas.find(e => e.cnpj.replace(/\D/g,'') === cnpjRaw).fantasia || existingEmpresas.find(e => e.cnpj.replace(/\D/g,'') === cnpjRaw).razao}`)
-    if (imported.some(r => r.cnpj.replace(/\D/g,'') === cnpjRaw))
-      errors.push('CNPJ duplicado no arquivo')
+    const existente = existingCnpjMap.get(cnpjRaw)
+    if (existente) errors.push(`CNPJ já cadastrado: ${existente.fantasia || existente.razao}`)
+    if (seenCnpj.has(cnpjRaw)) errors.push('CNPJ duplicado no arquivo')
   }
   if (row.tipo && !TIPOS_VALUES.includes(row.tipo))
     errors.push(`Tipo inválido: "${row.tipo}". Use: ${TIPOS_VALUES.join(', ')}`)
@@ -1608,9 +1623,11 @@ function validateImportRow(row, idx, existingEmpresas, imported) {
 
 // ─── Import Modal ─────────────────────────────────────────────────────────────
 function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }) {
-  const [step, setStep]         = useState('upload') // 'upload' | 'preview' | 'done'
+  const [step, setStep]         = useState('upload') // 'upload' | 'preview'
   const [parsed, setParsed]     = useState(null)     // { headers, rows, validated }
   const [dragging, setDragging] = useState(false)
+  const [importing, setImporting]     = useState(false)
+  const [importError, setImportError] = useState(null)
   const fileRef                 = useRef(null)
 
   function processFile(file) {
@@ -1618,11 +1635,13 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
     const reader = new FileReader()
     reader.onload = e => {
       const { headers, rows } = parseCSV(e.target.result)
-      const validatedRows = []
+      const existingCnpjMap = new Map(existingEmpresas.map(emp => [emp.cnpj.replace(/\D/g,''), emp]))
+      const seenCnpj = new Set()
       const rowResults = rows.map((row, i) => {
-        const errors = validateImportRow(row, i, existingEmpresas, validatedRows)
+        const errors = validateImportRow(row, i, existingCnpjMap, seenCnpj)
         const ok = errors.length === 0
-        if (ok) validatedRows.push({ ...row, cnpj: fmtCNPJ(row.cnpj || '') })
+        const cnpjRaw = (row.cnpj || '').replace(/\D/g, '')
+        if (ok && cnpjRaw) seenCnpj.add(cnpjRaw)
         return { row, errors, ok, line: i + 2 }
       })
       setParsed({ fileName: file.name, fileSize: file.size, headers, rowResults })
@@ -1636,7 +1655,7 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
     processFile(e.dataTransfer.files[0])
   }
 
-  function handleConfirmImport() {
+  async function handleConfirmImport() {
     const okRows = parsed.rowResults.filter(r => r.ok).map(r => ({
       ...EMPTY_FORM, ...r.row,
       cnpj: fmtCNPJ(r.row.cnpj || ''),
@@ -1655,21 +1674,36 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
       errors: parsed.rowResults.filter(r => !r.ok).length,
       rows: parsed.rowResults,
     }
-    onImport(okRows, log)
+    setImportError(null)
+    setImporting(true)
+    // O progresso linha-a-linha aparece no widget flutuante global (canto da
+    // tela); esse "importing" aqui só impede o usuário de fechar o popup ou
+    // clicar em Importar de novo enquanto a Promise não resolve — antes disso
+    // o popup fechava na hora, sucesso ou erro, sem esperar nada.
+    const result = await onImport(okRows, log)
+    setImporting(false)
+    if (result?.ok === false) {
+      setImportError(result.message || 'Erro desconhecido ao importar.')
+    } else {
+      onClose()
+    }
   }
 
   const okCount  = parsed?.rowResults.filter(r => r.ok).length ?? 0
   const errCount = parsed?.rowResults.filter(r => !r.ok).length ?? 0
 
   return (
-    <div style={m.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+    <div style={m.overlay} onClick={e => { if (e.target === e.currentTarget && !importing) onClose() }}>
       <div style={{ ...m.modal, maxWidth:700 }}>
         <div style={m.header}>
           <div>
             <div style={m.title}>Importar empresas</div>
-            <div style={m.subtitle}>Arquivo CSV com separador ponto-e-vírgula (;) — UTF-8</div>
+            <div style={m.subtitle}>
+              {importing ? 'Importando — acompanhe o progresso no canto da tela…' : 'Arquivo CSV com separador ponto-e-vírgula (;) — UTF-8'}
+            </div>
           </div>
-          <button style={m.closeBtn} onClick={onClose}>✕</button>
+          <button style={{ ...m.closeBtn, opacity: importing ? 0.4 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}
+            onClick={() => !importing && onClose()} disabled={importing}>✕</button>
         </div>
 
         {step === 'upload' && (
@@ -1733,8 +1767,16 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
               </div>
             </div>
 
-            {/* Rows preview */}
+            {/* Rows preview — renderizar as 500 linhas cabe tranquilo no DOM; arquivos
+                de milhares de linhas travavam a aba só de desenhar a tabela inteira.
+                Os contadores acima (okCount/errCount) já refletem o arquivo inteiro,
+                só a tabela é limitada. */}
             <div style={{ overflowY:'auto', flex:1, padding:'0 24px' }}>
+              {parsed.rowResults.length > PREVIEW_ROW_LIMIT && (
+                <div style={{ fontSize:11.5, color:'var(--text-muted)', padding:'8px 0' }}>
+                  Mostrando as primeiras {PREVIEW_ROW_LIMIT} de {parsed.rowResults.length} linhas — a importação processa o arquivo inteiro.
+                </div>
+              )}
               <table style={{ ...p.table, marginBottom:0 }}>
                 <thead>
                   <tr>
@@ -1747,7 +1789,7 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
                   </tr>
                 </thead>
                 <tbody>
-                  {parsed.rowResults.map(({ row, errors, ok, line }) => (
+                  {parsed.rowResults.slice(0, PREVIEW_ROW_LIMIT).map(({ row, errors, ok, line }) => (
                     <tr key={line} style={{ ...p.tr, background: ok ? undefined : 'rgba(220,38,38,0.03)' }}>
                       <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:11, color:'var(--text-muted)', width:50 }}>{line}</td>
                       <td style={{ ...p.td, fontSize:12 }}>{row.razao || <span style={{ color:'var(--text-muted)' }}>—</span>}</td>
@@ -1766,8 +1808,15 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
               </table>
             </div>
 
+            {importError && (
+              <div style={{ margin:'0 24px 12px', padding:'10px 14px', borderRadius:8,
+                background:'rgba(220,38,38,0.06)', border:'1px solid rgba(220,38,38,0.2)',
+                color:'var(--red)', fontSize:12.5 }}>
+                ✕ A importação falhou: {importError} — nenhuma empresa a mais foi criada além do que já aparecer na lista. Tente novamente ou reduza o arquivo.
+              </div>
+            )}
             <div style={{ ...m.footer, padding:'14px 24px', borderTop:'1px solid var(--border2)' }}>
-              <Button variant="secondary" onClick={() => setStep('upload')}>← Voltar</Button>
+              <Button variant="secondary" disabled={importing} onClick={() => setStep('upload')}>← Voltar</Button>
               <div style={{ flex:1 }} />
               {errCount > 0 && okCount === 0 && (
                 <span style={{ fontSize:12, color:'var(--red)' }}>Nenhuma linha válida para importar</span>
@@ -1777,8 +1826,8 @@ function ImportModal({ onClose, onDownloadTemplate, existingEmpresas, onImport }
                   {errCount} linha{errCount>1?'s':''} serão ignoradas
                 </span>
               )}
-              <Button disabled={okCount === 0} onClick={handleConfirmImport}>
-                Importar {okCount} empresa{okCount !== 1 ? 's' : ''}
+              <Button disabled={okCount === 0 || importing} onClick={handleConfirmImport}>
+                {importing ? 'Importando…' : `Importar ${okCount} empresa${okCount !== 1 ? 's' : ''}`}
               </Button>
             </div>
           </div>
