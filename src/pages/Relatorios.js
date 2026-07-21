@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { BarChart2, Lock, Users, Globe, FileEdit, Printer, ChevronDown, ChevronUp } from 'lucide-react'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField } from '../components/ui/SlideOver'
@@ -391,6 +392,7 @@ function PrintModal({ relatorio, sources = [], onConfirm, onClose }) {
 }
 
 export default function Relatorios() {
+  const navigate = useNavigate()
   const { relatorios, loading, save, remove, canEdit } = useRelatorios('relatorio')
   const { profile } = useProfile()
   const { sources } = useDocumentDataSources()
@@ -514,6 +516,9 @@ export default function Relatorios() {
         activeFilters={activeFilters}
         onFilterChange={setActiveFilters}
         onRowClick={openEdit}
+        extraMenuItems={[
+          { label: '✨ Experimentar novo construtor', onClick: () => navigate('/relatorios/novo-construtor') },
+        ]}
         bulkActions={[
           {
             label: 'Excluir selecionados',

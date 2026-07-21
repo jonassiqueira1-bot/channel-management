@@ -54,6 +54,7 @@ const BranchSharing       = lazy(() => import('./pages/settings/BranchSharing'))
 const SettingsEquipes     = lazy(() => import('./pages/settings/Equipes'))
 const Funis               = lazy(() => import('./pages/Funis'))
 const Relatorios          = lazy(() => import('./pages/Relatorios'))
+const RelatoriosBuilder   = lazy(() => import('./pages/RelatoriosBuilder'))
 const FechamentoHoras     = lazy(() => import('./pages/FechamentoHoras'))
 const ParceirosPage       = lazy(() => import('./pages/Parceiros'))
 const SettingsMaturidade  = lazy(() => import('./pages/settings/MaturidadeParceiros'))
@@ -125,6 +126,7 @@ export default function App() {
             <Route path="/comissoes"   element={<Comissoes />} />
             <Route path="/customer-success" element={<CustomerSuccess />} />
             <Route path="/relatorios" element={<Relatorios />} />
+            <Route path="/relatorios/novo-construtor" element={<RelatoriosBuilder />} />
             <Route path="/my-account" element={<MyAccount />} />
 
             {/* ── Configurações ── */}
