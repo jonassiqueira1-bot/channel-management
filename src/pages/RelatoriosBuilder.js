@@ -30,6 +30,17 @@ import { ENTIDADES, relacionadasDe, relacaoEntre } from '../data/reportEntities'
 import { useDocumentDataSources } from '../hooks/useDocumentDataSources'
 import { useRelatorios } from '../hooks/useRelatorios'
 
+// Mesma lista de papéis usada em Relatorios.js (RelatorioForm) — mantida
+// duplicada de propósito, igual o próprio Relatorios.js já faz com as
+// opções de acesso, pra não criar acoplamento entre as duas telas.
+const PAPEIS = [
+  { value: 'admin_isv',  label: 'Administrador'    },
+  { value: 'vendedor',   label: 'Vendedor'         },
+  { value: 'cs',         label: 'Customer Success' },
+  { value: 'financeiro', label: 'Financeiro'       },
+  { value: 'projetos',   label: 'Projetos'         },
+]
+
 const FASES = [
   { id: 'fonte',     label: 'Fonte' },
   { id: 'colunas',   label: 'Colunas & Cálculo' },
@@ -297,6 +308,7 @@ export default function RelatoriosBuilder() {
   // Persistência — reaproveita a tabela `relatorios` (mesma do CanvasEditor).
   const [titulo, setTitulo]       = useState('Novo relatório')
   const [acesso, setAcesso]       = useState('privado') // 'privado' | 'equipe' | 'todos'
+  const [papeisPermitidos, setPapeisPermitidos] = useState([]) // só relevante quando acesso === 'equipe'
   const [relatorioId, setRelatorioId] = useState(null)
   const [salvando, setSalvando]   = useState(false)
   const hidratado = useRef(false)
@@ -313,6 +325,7 @@ export default function RelatoriosBuilder() {
     setRelatorioId(rel.id)
     setTitulo(rel.titulo || 'Novo relatório')
     setAcesso(rel.acesso || 'privado')
+    setPapeisPermitidos(rel.papeis_permitidos || [])
     setEntidadeId(b.entidadeId || null)
     setJoins(b.joins || [])
     setCampos(b.campos || [])
@@ -330,7 +343,7 @@ export default function RelatoriosBuilder() {
     setSalvando(true)
     try {
       const config = { builder: { versao: 1, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, kpis } }
-      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso, status: 'rascunho', config, elementos: [] })
+      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso, papeis_permitidos: acesso === 'equipe' ? papeisPermitidos : [], status: 'rascunho', config, elementos: [] })
       if (result?.ok && result.relatorio) {
         setRelatorioId(result.relatorio.id)
         setSearchParams({ id: result.relatorio.id }, { replace: true })
@@ -361,6 +374,10 @@ export default function RelatoriosBuilder() {
     // KPIs de "contagem" não dependem de campo — só os demais precisam existir.
     setKpis(prev => prev.filter(k => k.agregacao === 'contagem' || camposIds.has(k.campoId)))
   }, [campos])
+
+  function togglePapel(papel) {
+    setPapeisPermitidos(prev => prev.includes(papel) ? prev.filter(p => p !== papel) : [...prev, papel])
+  }
 
   function addKpi(kpi) {
     setKpis(prev => [...prev, { id: `kpi_${Date.now()}`, ...kpi }])
@@ -450,6 +467,22 @@ export default function RelatoriosBuilder() {
           </button>
         </div>
       </div>
+
+      {acesso === 'equipe' && (
+        <div style={s.papeisRow}>
+          <span style={s.papeisLabel}>Papéis com acesso:</span>
+          {PAPEIS.map(p => {
+            const sel = papeisPermitidos.includes(p.value)
+            return (
+              <button key={p.value} onClick={() => togglePapel(p.value)}
+                style={{ ...s.papelChip, ...(sel ? s.papelChipSel : {}) }}>
+                {sel && <Check size={10} strokeWidth={3} />} {p.label}
+              </button>
+            )
+          })}
+          {papeisPermitidos.length === 0 && <span style={s.papeisHint}>Nenhum papel selecionado — ninguém além de você vê este relatório</span>}
+        </div>
+      )}
 
       <div style={s.faseNav}>
         {FASES.map((f, i) => {
@@ -1092,6 +1125,12 @@ const s = {
   orderDirBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text-soft)', cursor: 'pointer' },
 
   acessoSelect: { fontSize: 12.5, fontWeight: 600, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-soft)', fontFamily: 'var(--font)' },
+
+  papeisRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' },
+  papeisLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginRight: 2 },
+  papelChip: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 9px', cursor: 'pointer', fontFamily: 'var(--font)' },
+  papelChipSel: { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
+  papeisHint: { fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' },
 
   kpiRow: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
   kpiCard: { position: 'relative', minWidth: 130, padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' },
