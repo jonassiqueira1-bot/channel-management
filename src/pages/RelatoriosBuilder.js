@@ -6,7 +6,9 @@
  * Fases implementadas até aqui:
  *   1. Fonte       — escolher entidade principal + relacionamentos a incluir
  *   2. Colunas      — escolher quais campos (da entidade principal e das
- *                      relacionadas) entram no relatório, e em que ordem
+ *                      relacionadas) entram no relatório, em que ordem, e
+ *                      opcionalmente criar campos calculados (campo/valor
+ *                      fixo ± × ÷ campo/valor fixo, ex: Valor − Custo)
  *   3. Regras       — filtros (E/OU) + agrupamento
  *   4. Resultado    — grade ao vivo (junção real), ordenação, export CSV/Excel
  *
@@ -78,15 +80,42 @@ function montarLinhas(sources, entidadeId, joins) {
   return linhas
 }
 
-function valorDoCampo(linha, campo) {
+// `todosCampos` só é necessário pra resolver os operandos de um campo
+// calculado (formula.a/formula.b podem apontar pra outro campo por id) —
+// campos comuns ignoram o parâmetro.
+function valorDoCampo(linha, campo, todosCampos) {
+  if (campo.calculado) {
+    const va = resolverOperando(linha, campo.formula.a, todosCampos)
+    const vb = resolverOperando(linha, campo.formula.b, todosCampos)
+    if (va === null || vb === null || Number.isNaN(va) || Number.isNaN(vb)) return null
+    switch (campo.formula.op) {
+      case '+': return va + vb
+      case '-': return va - vb
+      case '*': return va * vb
+      case '/': return vb === 0 ? null : va / vb
+      default: return null
+    }
+  }
   return linha[campo.entidadeId] ? linha[campo.entidadeId][campo.key] : undefined
+}
+
+function resolverOperando(linha, operando, todosCampos) {
+  if (!operando) return null
+  if (operando.tipo === 'valor') {
+    const n = Number(operando.valor)
+    return Number.isNaN(n) ? null : n
+  }
+  const campo = (todosCampos || []).find(c => c.id === operando.campoId)
+  if (!campo) return null
+  const v = Number(valorDoCampo(linha, campo, todosCampos))
+  return Number.isNaN(v) ? null : v
 }
 
 function passaNoFiltro(linha, filtro, campos) {
   const campo = campos.find(c => c.id === filtro.campoId)
   if (!campo) return true
   if (filtro.valor === '' || filtro.valor == null) return true
-  const bruto = valorDoCampo(linha, campo)
+  const bruto = valorDoCampo(linha, campo, campos)
   if (campo.type === 'number') {
     const v = Number(bruto)
     const alvo = Number(filtro.valor)
@@ -131,7 +160,7 @@ function formatarValor(v) {
 function exportarCSV(campos, linhas) {
   const header = campos.map(c => `"${c.label.replace(/"/g, '""')}"`).join(';')
   const rows = linhas.map(l => campos.map(c => {
-    const v = formatarValor(valorDoCampo(l, c))
+    const v = formatarValor(valorDoCampo(l, c, campos))
     return `"${v.replace(/"/g, '""')}"`
   }).join(';'))
   const csv = [header, ...rows].join('\n')
@@ -147,7 +176,7 @@ function exportarCSV(campos, linhas) {
 async function exportarExcel(campos, linhas, titulo) {
   const XLSX = await import('xlsx')
   const header = campos.map(c => c.label)
-  const rows = linhas.map(l => campos.map(c => formatarValor(valorDoCampo(l, c))))
+  const rows = linhas.map(l => campos.map(c => formatarValor(valorDoCampo(l, c, campos))))
   const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Relatório')
@@ -162,13 +191,13 @@ function ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos) {
   if (camposAgrupObjs.length === 0 && !campoOrd) return linhas
   return [...linhas].sort((a, b) => {
     for (const c of camposAgrupObjs) {
-      const va = formatarValor(valorDoCampo(a, c))
-      const vb = formatarValor(valorDoCampo(b, c))
+      const va = formatarValor(valorDoCampo(a, c, campos))
+      const vb = formatarValor(valorDoCampo(b, c, campos))
       if (va !== vb) return va < vb ? -1 : 1
     }
     if (campoOrd) {
-      const va = valorDoCampo(a, campoOrd)
-      const vb = valorDoCampo(b, campoOrd)
+      const va = valorDoCampo(a, campoOrd, campos)
+      const vb = valorDoCampo(b, campoOrd, campos)
       let cmp
       if (campoOrd.type === 'number') cmp = (Number(va) || 0) - (Number(vb) || 0)
       else if (campoOrd.type === 'date') cmp = (va ? new Date(va).getTime() : 0) - (vb ? new Date(vb).getTime() : 0)
@@ -245,8 +274,10 @@ export default function RelatoriosBuilder() {
 
   // Remove da seleção de campos qualquer entidade que deixou de estar ativa
   // (ex.: usuário voltou na fase Fonte e desmarcou um relacionamento).
+  // Campos calculados não têm entidadeId (não vêm de uma fonte só) — nunca
+  // são removidos por essa checagem, só manualmente pelo usuário.
   useEffect(() => {
-    setCampos(prev => prev.filter(c => entidadesAtivas.includes(c.entidadeId)))
+    setCampos(prev => prev.filter(c => c.calculado || entidadesAtivas.includes(c.entidadeId)))
   }, [entidadesAtivas])
 
   // Idem pra filtros/agrupamento quando uma coluna usada neles é removida na
@@ -296,6 +327,14 @@ export default function RelatoriosBuilder() {
     setCampos(prev => prev.some(c => c.id === campoId)
       ? prev.filter(c => c.id !== campoId)
       : [...prev, { id: campoId, entidadeId, key: field.key, label: field.label, type: field.type }])
+  }
+
+  function addCalculado({ label, a, op, b }) {
+    setCampos(prev => [...prev, {
+      id: `calc_${Date.now()}`, entidadeId: null, key: null,
+      label: label || 'Campo calculado', type: 'number',
+      calculado: true, formula: { a, op, b },
+    }])
   }
 
   function moverCampo(idx, dir) {
@@ -402,6 +441,7 @@ export default function RelatoriosBuilder() {
           onToggleCampo={toggleCampo}
           onMoverCampo={moverCampo}
           onRemoverCampo={id => setCampos(prev => prev.filter(c => c.id !== id))}
+          onAddCalculado={addCalculado}
           onVoltar={() => { setFase(0); setFonteStep(1) }}
           onContinuar={() => setFase(2)}
         />
@@ -446,7 +486,7 @@ export default function RelatoriosBuilder() {
 }
 
 // ─── Fase "Colunas & Cálculo" — escolha de campos ────────────────────────────
-function ColunasFase({ entidadesAtivas, sources, campos, busca, onBusca, onToggleCampo, onMoverCampo, onRemoverCampo, onVoltar, onContinuar }) {
+function ColunasFase({ entidadesAtivas, sources, campos, busca, onBusca, onToggleCampo, onMoverCampo, onRemoverCampo, onAddCalculado, onVoltar, onContinuar }) {
   const grupos = entidadesAtivas
     .map(id => sources.find(s => s.id === id))
     .filter(Boolean)
@@ -460,71 +500,176 @@ function ColunasFase({ entidadesAtivas, sources, campos, busca, onBusca, onToggl
   const selecionadosSet = useMemo(() => new Set(campos.map(c => c.id)), [campos])
 
   return (
-    <div style={{ ...s.body, maxWidth: 'none', display: 'flex', gap: 20, minHeight: 0 }}>
-      {/* Disponíveis */}
-      <div style={s.colPanel}>
-        <div style={s.colPanelHead}>Campos disponíveis</div>
-        <div style={s.searchWrap}>
-          <Search size={13} style={s.searchIcon} />
-          <input value={busca} onChange={e => onBusca(e.target.value)} placeholder="Buscar campo…" style={s.searchInput} />
-        </div>
-        <div style={s.colPanelBody}>
-          {grupos.length === 0 && (
-            <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>Carregando fontes…</div>
-          )}
-          {grupos.map(g => (
-            <div key={g.id} style={{ marginBottom: 16 }}>
-              <div style={s.groupHead}><span>{g.icon}</span> {g.label}</div>
-              {g.fields.length === 0 && <div style={s.groupEmpty}>Nenhum campo encontrado</div>}
-              {g.fields.map(f => {
-                const campoId = `${g.id}.${f.key}`
-                const sel = selecionadosSet.has(campoId)
-                return (
-                  <button key={campoId} onClick={() => onToggleCampo(g.id, f)}
-                    style={{ ...s.fieldRow, ...(sel ? s.fieldRowSel : {}) }}>
-                    <span style={s.relCheck}>{sel && <Check size={12} strokeWidth={3} />}</span>
-                    <span style={{ flex: 1 }}>{f.label}</span>
-                    <span style={s.fieldType}>{f.type}</span>
-                  </button>
-                )
-              })}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Selecionados */}
-      <div style={s.colPanel}>
-        <div style={s.colPanelHead}>Colunas do relatório ({campos.length})</div>
-        <div style={{ ...s.colPanelBody, paddingTop: 12 }}>
-          {campos.length === 0 && (
-            <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5, fontStyle: 'italic' }}>
-              Nenhum campo escolhido ainda — clique nos campos à esquerda.
-            </div>
-          )}
-          {campos.map((c, idx) => {
-            const g = ENTIDADES.find(e => e.id === c.entidadeId)
-            return (
-              <div key={c.id} style={s.selectedRow}>
-                <div style={s.reorderCol}>
-                  <button disabled={idx === 0} onClick={() => onMoverCampo(idx, -1)} style={s.reorderBtn}><ChevronUp size={12} /></button>
-                  <button disabled={idx === campos.length - 1} onClick={() => onMoverCampo(idx, 1)} style={s.reorderBtn}><ChevronDown size={12} /></button>
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{g?.icon} {g?.label}</div>
-                </div>
-                <button onClick={() => onRemoverCampo(c.id)} style={s.removeBtn}><X size={13} /></button>
+    <div style={{ ...s.body, maxWidth: 'none' }}>
+      <div style={{ display: 'flex', gap: 20, minHeight: 0 }}>
+        {/* Disponíveis */}
+        <div style={s.colPanel}>
+          <div style={s.colPanelHead}>Campos disponíveis</div>
+          <div style={s.searchWrap}>
+            <Search size={13} style={s.searchIcon} />
+            <input value={busca} onChange={e => onBusca(e.target.value)} placeholder="Buscar campo…" style={s.searchInput} />
+          </div>
+          <div style={s.colPanelBody}>
+            {grupos.length === 0 && (
+              <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>Carregando fontes…</div>
+            )}
+            {grupos.map(g => (
+              <div key={g.id} style={{ marginBottom: 16 }}>
+                <div style={s.groupHead}><span>{g.icon}</span> {g.label}</div>
+                {g.fields.length === 0 && <div style={s.groupEmpty}>Nenhum campo encontrado</div>}
+                {g.fields.map(f => {
+                  const campoId = `${g.id}.${f.key}`
+                  const sel = selecionadosSet.has(campoId)
+                  return (
+                    <button key={campoId} onClick={() => onToggleCampo(g.id, f)}
+                      style={{ ...s.fieldRow, ...(sel ? s.fieldRowSel : {}) }}>
+                      <span style={s.relCheck}>{sel && <Check size={12} strokeWidth={3} />}</span>
+                      <span style={{ flex: 1 }}>{f.label}</span>
+                      <span style={s.fieldType}>{f.type}</span>
+                    </button>
+                  )
+                })}
               </div>
-            )
-          })}
+            ))}
+          </div>
+        </div>
+
+        {/* Selecionados */}
+        <div style={s.colPanel}>
+          <div style={s.colPanelHead}>Colunas do relatório ({campos.length})</div>
+          <div style={{ ...s.colPanelBody, paddingTop: 12 }}>
+            {campos.length === 0 && (
+              <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5, fontStyle: 'italic' }}>
+                Nenhum campo escolhido ainda — clique nos campos à esquerda.
+              </div>
+            )}
+            {campos.map((c, idx) => {
+              const g = ENTIDADES.find(e => e.id === c.entidadeId)
+              return (
+                <div key={c.id} style={s.selectedRow}>
+                  <div style={s.reorderCol}>
+                    <button disabled={idx === 0} onClick={() => onMoverCampo(idx, -1)} style={s.reorderBtn}><ChevronUp size={12} /></button>
+                    <button disabled={idx === campos.length - 1} onClick={() => onMoverCampo(idx, 1)} style={s.reorderBtn}><ChevronDown size={12} /></button>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {c.calculado ? '🧮 Campo calculado' : <>{g?.icon} {g?.label}</>}
+                    </div>
+                  </div>
+                  <button onClick={() => onRemoverCampo(c.id)} style={s.removeBtn}><X size={13} /></button>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
 
-      <div style={s.colunasFooter}>
+      <CamposCalculadosBox campos={campos} onAddCalculado={onAddCalculado} />
+
+      <div style={{ ...s.colunasFooter, position: 'static', marginTop: 20, borderTop: 'none', paddingTop: 0 }}>
         <button style={s.btnGhost} onClick={onVoltar}><ArrowLeft size={14} /> Voltar</button>
         <button style={s.btnPrimary} disabled={campos.length === 0} onClick={onContinuar}>Continuar <ArrowRight size={14} /></button>
       </div>
+    </div>
+  )
+}
+
+// ─── Campos calculados — fórmula simples entre dois operandos (campo ou valor fixo) ─
+const OPERADORES_CALCULO = [{ id: '+', l: '+' }, { id: '-', l: '−' }, { id: '*', l: '×' }, { id: '/', l: '÷' }]
+
+function CamposCalculadosBox({ campos, onAddCalculado }) {
+  const numericos = campos.filter(c => !c.calculado && c.type === 'number')
+  const [aberto, setAberto]   = useState(false)
+  const [label, setLabel]     = useState('')
+  const [aTipo, setATipo]     = useState('campo')
+  const [aCampo, setACampo]   = useState('')
+  const [aValor, setAValor]   = useState('')
+  const [op, setOp]           = useState('+')
+  const [bTipo, setBTipo]     = useState('campo')
+  const [bCampo, setBCampo]   = useState('')
+  const [bValor, setBValor]   = useState('')
+
+  function resetForm() {
+    setLabel(''); setATipo('campo'); setACampo(''); setAValor('')
+    setOp('+'); setBTipo('campo'); setBCampo(''); setBValor('')
+    setAberto(false)
+  }
+
+  function confirmar() {
+    if (!label.trim()) return
+    const a = aTipo === 'campo' ? { tipo: 'campo', campoId: aCampo } : { tipo: 'valor', valor: aValor }
+    const b = bTipo === 'campo' ? { tipo: 'campo', campoId: bCampo } : { tipo: 'valor', valor: bValor }
+    if (aTipo === 'campo' && !aCampo) return
+    if (bTipo === 'campo' && !bCampo) return
+    onAddCalculado({ label: label.trim(), a, op, b })
+    resetForm()
+  }
+
+  const calculados = campos.filter(c => c.calculado)
+
+  return (
+    <div style={{ marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
+      <div style={s.colPanelHead2}>Campos calculados</div>
+      <p style={{ ...s.hint, marginBottom: 12 }}>Combine dois campos numéricos (ou valores fixos) com uma operação — ex: Valor − Custo = Margem.</p>
+
+      {calculados.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+          {calculados.map(c => (
+            <span key={c.id} style={s.groupChip}>🧮 {c.label}</span>
+          ))}
+        </div>
+      )}
+
+      {!aberto && (
+        <button style={s.addLink} onClick={() => setAberto(true)} disabled={numericos.length === 0}>
+          + Adicionar campo calculado
+        </button>
+      )}
+      {aberto && numericos.length === 0 && (
+        <div style={s.emptyRel}>Selecione ao menos um campo numérico acima antes de criar um cálculo.</div>
+      )}
+
+      {aberto && numericos.length > 0 && (
+        <div style={s.calcBox}>
+          <input style={s.filterInput} placeholder="Nome do campo calculado (ex: Margem)" value={label} onChange={e => setLabel(e.target.value)} />
+          <div style={s.calcRow}>
+            <select style={s.filterSelect} value={aTipo} onChange={e => setATipo(e.target.value)}>
+              <option value="campo">Campo</option>
+              <option value="valor">Valor fixo</option>
+            </select>
+            {aTipo === 'campo' ? (
+              <select style={s.filterSelect} value={aCampo} onChange={e => setACampo(e.target.value)}>
+                <option value="">Selecione…</option>
+                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            ) : (
+              <input style={s.filterInput} type="number" placeholder="Valor" value={aValor} onChange={e => setAValor(e.target.value)} />
+            )}
+
+            <select style={{ ...s.filterSelect, flex: '0 0 56px' }} value={op} onChange={e => setOp(e.target.value)}>
+              {OPERADORES_CALCULO.map(o => <option key={o.id} value={o.id}>{o.l}</option>)}
+            </select>
+
+            <select style={s.filterSelect} value={bTipo} onChange={e => setBTipo(e.target.value)}>
+              <option value="campo">Campo</option>
+              <option value="valor">Valor fixo</option>
+            </select>
+            {bTipo === 'campo' ? (
+              <select style={s.filterSelect} value={bCampo} onChange={e => setBCampo(e.target.value)}>
+                <option value="">Selecione…</option>
+                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            ) : (
+              <input style={s.filterInput} type="number" placeholder="Valor" value={bValor} onChange={e => setBValor(e.target.value)} />
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button style={s.btnGhost} onClick={resetForm}>Cancelar</button>
+            <button style={s.btnPrimary} onClick={confirmar}>Adicionar</button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -627,7 +772,7 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
   const linhasOrdenadas = useMemo(() => ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos), [linhas, camposAgrupObjs, ordenacao, campos])
 
   function chaveGrupo(linha) {
-    return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c))).join(' · ')
+    return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c, campos))).join(' · ')
   }
 
   async function handleExportarExcel() {
@@ -705,7 +850,7 @@ function RowComGrupo({ linha, campos, novoGrupo, chave }) {
         </tr>
       )}
       <tr>
-        {campos.map(c => <td key={c.id} style={s.td}>{formatarValor(valorDoCampo(linha, c))}</td>)}
+        {campos.map(c => <td key={c.id} style={s.td}>{formatarValor(valorDoCampo(linha, c, campos))}</td>)}
       </tr>
     </>
   )
@@ -765,6 +910,11 @@ const s = {
   reorderBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' },
   removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 },
   colunasFooter: { position: 'absolute', bottom: -8, left: 24, right: 24, display: 'flex', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--border)', background: 'var(--surface)' },
+
+  // Campos calculados
+  colPanelHead2: { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 },
+  calcBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10, padding: 14, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface2)', maxWidth: 640 },
+  calcRow: { display: 'flex', alignItems: 'center', gap: 6 },
 
   // Regras
   sectionTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' },
