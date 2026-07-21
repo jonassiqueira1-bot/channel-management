@@ -243,6 +243,39 @@ function ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos) {
   })
 }
 
+const AGREGACOES = [
+  { id: 'contagem', l: 'Contagem' },
+  { id: 'soma',     l: 'Soma' },
+  { id: 'media',    l: 'Média' },
+  { id: 'min',      l: 'Mínimo' },
+  { id: 'max',      l: 'Máximo' },
+]
+
+// Sempre calculado sobre as linhas já filtradas (não afetado por ordenação/
+// agrupamento visual — é uma agregação sobre o mesmo conjunto que vai pra
+// tabela).
+function calcularKpi(linhas, campos, kpi) {
+  if (kpi.agregacao === 'contagem') return linhas.length
+  const campo = campos.find(c => c.id === kpi.campoId)
+  if (!campo) return null
+  const valores = linhas
+    .map(l => Number(valorDoCampo(l, campo, campos)))
+    .filter(v => !Number.isNaN(v))
+  if (valores.length === 0) return null
+  switch (kpi.agregacao) {
+    case 'soma':  return valores.reduce((a, b) => a + b, 0)
+    case 'media': return valores.reduce((a, b) => a + b, 0) / valores.length
+    case 'min':   return Math.min(...valores)
+    case 'max':   return Math.max(...valores)
+    default:      return null
+  }
+}
+
+function formatarKpi(v) {
+  if (v === null || v === undefined) return '—'
+  return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
 export default function RelatoriosBuilder() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -259,9 +292,11 @@ export default function RelatoriosBuilder() {
   const [conector, setConector]   = useState('E')   // 'E' | 'OU' — entre todas as regras de filtro
   const [agrupamento, setAgrupamento] = useState([]) // [campoId] em ordem
   const [ordenacao, setOrdenacao] = useState(null)   // { campoId, dir: 'asc'|'desc' } | null
+  const [kpis, setKpis]           = useState([])     // [{ id, label, agregacao, campoId? }]
 
   // Persistência — reaproveita a tabela `relatorios` (mesma do CanvasEditor).
   const [titulo, setTitulo]       = useState('Novo relatório')
+  const [acesso, setAcesso]       = useState('privado') // 'privado' | 'equipe' | 'todos'
   const [relatorioId, setRelatorioId] = useState(null)
   const [salvando, setSalvando]   = useState(false)
   const hidratado = useRef(false)
@@ -277,6 +312,7 @@ export default function RelatoriosBuilder() {
     hidratado.current = true
     setRelatorioId(rel.id)
     setTitulo(rel.titulo || 'Novo relatório')
+    setAcesso(rel.acesso || 'privado')
     setEntidadeId(b.entidadeId || null)
     setJoins(b.joins || [])
     setCampos(b.campos || [])
@@ -284,6 +320,7 @@ export default function RelatoriosBuilder() {
     setConector(b.conector || 'E')
     setAgrupamento(b.agrupamento || [])
     setOrdenacao(b.ordenacao || null)
+    setKpis(b.kpis || [])
     setFonteStep(1)
     setFase(3)
   }, [searchParams, relatorios])
@@ -292,8 +329,8 @@ export default function RelatoriosBuilder() {
     if (!entidadeId) return
     setSalvando(true)
     try {
-      const config = { builder: { versao: 1, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao } }
-      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso: 'privado', status: 'rascunho', config, elementos: [] })
+      const config = { builder: { versao: 1, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, kpis } }
+      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso, status: 'rascunho', config, elementos: [] })
       if (result?.ok && result.relatorio) {
         setRelatorioId(result.relatorio.id)
         setSearchParams({ id: result.relatorio.id }, { replace: true })
@@ -321,7 +358,16 @@ export default function RelatoriosBuilder() {
     const camposIds = new Set(campos.map(c => c.id))
     setFiltros(prev => prev.filter(f => camposIds.has(f.campoId)))
     setAgrupamento(prev => prev.filter(id => camposIds.has(id)))
+    // KPIs de "contagem" não dependem de campo — só os demais precisam existir.
+    setKpis(prev => prev.filter(k => k.agregacao === 'contagem' || camposIds.has(k.campoId)))
   }, [campos])
+
+  function addKpi(kpi) {
+    setKpis(prev => [...prev, { id: `kpi_${Date.now()}`, ...kpi }])
+  }
+  function removeKpi(id) {
+    setKpis(prev => prev.filter(k => k.id !== id))
+  }
 
   function addFiltro() {
     if (campos.length === 0) return
@@ -392,7 +438,12 @@ export default function RelatoriosBuilder() {
           <div style={s.eyebrow}>Construtor de relatórios · novo{entidade ? ` · ${entidade.label}` : ''}</div>
           <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Novo relatório" style={s.titleInput} />
         </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
+          <select style={s.acessoSelect} value={acesso} onChange={e => setAcesso(e.target.value)} title="Quem pode ver este relatório">
+            <option value="privado">🔒 Privado</option>
+            <option value="equipe">👥 Equipe</option>
+            <option value="todos">🌐 Público</option>
+          </select>
           <button style={s.btnGhost} onClick={() => navigate('/relatorios')}>Voltar aos relatórios</button>
           <button style={s.btnPrimary} disabled={!entidadeId || salvando} onClick={handleSalvar}>
             <Save size={14} /> {salvando ? 'Salvando…' : relatorioId ? 'Salvar' : 'Salvar relatório'}
@@ -512,6 +563,9 @@ export default function RelatoriosBuilder() {
           agrupamento={agrupamento}
           ordenacao={ordenacao}
           onOrdenacao={setOrdenacao}
+          kpis={kpis}
+          onAddKpi={addKpi}
+          onRemoveKpi={removeKpi}
           titulo={titulo}
           onVoltar={() => setFase(2)}
         />
@@ -789,7 +843,66 @@ function RegrasFase({ campos, filtros, conector, onConector, onAddFiltro, onUpda
 }
 
 // ─── Fase "Resultado" — grade ao vivo (junção + filtros + agrupamento) ───────
-function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, onOrdenacao, titulo, onVoltar }) {
+// ─── KPIs — cards de agregação sobre o resultado filtrado ────────────────────
+function KpisBox({ linhas, campos, kpis, onAddKpi, onRemoveKpi }) {
+  const numericos = campos.filter(c => c.type === 'number')
+  const [aberto, setAberto]     = useState(false)
+  const [label, setLabel]       = useState('')
+  const [agregacao, setAgregacao] = useState('contagem')
+  const [campoId, setCampoId]   = useState('')
+
+  function resetForm() { setLabel(''); setAgregacao('contagem'); setCampoId(''); setAberto(false) }
+
+  function confirmar() {
+    if (!label.trim()) return
+    if (agregacao !== 'contagem' && !campoId) return
+    onAddKpi({ label: label.trim(), agregacao, campoId: agregacao === 'contagem' ? null : campoId })
+    resetForm()
+  }
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      {kpis.length > 0 && (
+        <div style={s.kpiRow}>
+          {kpis.map(k => (
+            <div key={k.id} style={s.kpiCard}>
+              <button style={s.kpiRemove} onClick={() => onRemoveKpi(k.id)} title="Remover KPI"><X size={11} /></button>
+              <div style={s.kpiValue}>{formatarKpi(calcularKpi(linhas, campos, k))}</div>
+              <div style={s.kpiLabel}>{k.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!aberto && (
+        <button style={s.addLink} onClick={() => setAberto(true)}>+ Adicionar KPI</button>
+      )}
+
+      {aberto && (
+        <div style={s.calcBox}>
+          <input style={s.filterInput} placeholder="Nome do KPI (ex: Total de contratos)" value={label} onChange={e => setLabel(e.target.value)} />
+          <div style={s.calcRow}>
+            <select style={s.filterSelect} value={agregacao} onChange={e => { setAgregacao(e.target.value); if (e.target.value === 'contagem') setCampoId('') }}>
+              {AGREGACOES.map(a => <option key={a.id} value={a.id}>{a.l}</option>)}
+            </select>
+            {agregacao !== 'contagem' && (
+              <select style={s.filterSelect} value={campoId} onChange={e => setCampoId(e.target.value)}>
+                <option value="">Selecione o campo…</option>
+                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+              </select>
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button style={s.btnGhost} onClick={resetForm}>Cancelar</button>
+            <button style={s.btnPrimary} onClick={confirmar}>Adicionar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, onOrdenacao, kpis, onAddKpi, onRemoveKpi, titulo, onVoltar }) {
   const [exportando, setExportando] = useState(false)
 
   const linhas = useMemo(() => {
@@ -819,6 +932,8 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
 
   return (
     <div style={{ ...s.body, maxWidth: 'none' }}>
+      <KpisBox linhas={linhas} campos={campos} kpis={kpis} onAddKpi={onAddKpi} onRemoveKpi={onRemoveKpi} />
+
       <div style={s.resultToolbar}>
         <div style={s.resultCount}>
           <strong>{linhasOrdenadas.length}</strong> registro{linhasOrdenadas.length !== 1 ? 's' : ''}
@@ -975,6 +1090,14 @@ const s = {
   resultCount: { fontSize: 13, color: 'var(--text-soft)' },
   orderSelect: { fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
   orderDirBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text-soft)', cursor: 'pointer' },
+
+  acessoSelect: { fontSize: 12.5, fontWeight: 600, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-soft)', fontFamily: 'var(--font)' },
+
+  kpiRow: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
+  kpiCard: { position: 'relative', minWidth: 130, padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' },
+  kpiValue: { fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' },
+  kpiLabel: { fontSize: 11.5, color: 'var(--text-soft)', marginTop: 2 },
+  kpiRemove: { position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' },
   tableWrap: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
   th: { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', position: 'sticky', top: 0 },
