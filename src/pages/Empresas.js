@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react'
 import Button from '../components/Button'
 import { useLocalState } from '../hooks/useLocalState'
 import { useCompanies } from '../hooks/useCompanies'
+import { useCompaniesPaged } from '../hooks/useCompaniesPaged'
 import { InlineTextarea, DeleteZone } from '../components/NotionDrawer'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import BrowseLayout from '../components/BrowseLayout'
@@ -1102,7 +1103,11 @@ export default function Empresas() {
   const [showExportTray, setShowExportTray] = useState(false)
   const exportTrayRef                   = useRef(null)
 
-  const filtered = useMemo(() => {
+  // Filtro/ordenação client-side em cima do array completo (useCompanies())
+  // — mantido só pra exportação (roda uma vez, no clique, não a cada tecla).
+  // A tabela em si não usa mais isso: veio pra useCompaniesPaged, que busca/
+  // filtra/pagina direto no Postgres (ver comentário no hook).
+  function filtrarEmpresasParaExport() {
     let list = empresas
     if (search) {
       const q = search.toLowerCase()
@@ -1129,13 +1134,28 @@ export default function Empresas() {
       if (sortBy === 'razao_z')  return b.razao?.localeCompare?.(a.razao) ?? 0
       return a.razao?.localeCompare?.(b.razao) ?? 0
     })
-  }, [empresas, search, filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade, sortBy])
+  }
 
+  // ── Paginação server-side da tabela (ver useCompaniesPaged.js) ───────────
+  const [browsePage, setBrowsePage]         = useState(1)
+  const [browsePageSize, setBrowsePageSize] = useLocalState('empresas_browse_ps', 20)
+  const pagedFilters = useMemo(() => ({
+    status: filterStatus, tipo: filterTipo, seg: filterSeg, porte: filterPorte,
+    receita: filterReceita, uf: filterUf, origem: filterOrigem, resp: filterResp,
+    unidade: filterUnidade,
+  }), [filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade])
+  const { rows: pagedRows, total: pagedTotal, kpiRows } = useCompaniesPaged({
+    page: browsePage, pageSize: browsePageSize, search, filters: pagedFilters, sortBy,
+  })
+  function changeBrowsePageSize(n) { setBrowsePageSize(n); setBrowsePage(1) }
+  // Qualquer filtro/busca muda → volta pra página 1 (senão a página atual
+  // pode ficar vazia/fora do intervalo do novo total filtrado).
+  useEffect(() => { setBrowsePage(1) }, [search, pagedFilters, sortBy])
 
   // ── Export ────────────────────────────────────────────────────────────────
   function handleExport() {
     const scope = (search || filterStatus || filterTipo || filterSeg || filterPorte || filterReceita || filterUf || filterOrigem || filterResp || filterUnidade) ? 'filtrados' : 'todos'
-    const rows  = filtered
+    const rows  = filtrarEmpresasParaExport()
     const baseExportHeaders = ['razao','fantasia','cnpj','tipo','segmento','cnae_codigo','cnae_descricao','cep','logradouro','numero','complemento','bairro','cidade','uf','email','telefone','site','origem','responsavel','status','mrr','contratos']
     const headers = [...baseExportHeaders, ...getEntityCustomFieldKeys('companies')]
     const fileName = `empresas_${new Date().toISOString().slice(0,10)}.csv`
@@ -1331,7 +1351,12 @@ export default function Empresas() {
     <div style={p.page}>
       <BrowseLayout
         modulo="empresas"
-        data={filtered}
+        data={pagedRows}
+        totalCount={pagedTotal}
+        page={browsePage}
+        onPageChange={setBrowsePage}
+        pageSize={browsePageSize}
+        onPageSizeChange={changeBrowsePageSize}
         columns={COLUMNS}
         filters={FILTERS}
         activeFilters={browseActiveFilters}
@@ -1386,13 +1411,16 @@ export default function Empresas() {
             </div>
           )
         }}
-        kpis={data => {
-          const totalAtivo = data.filter(e => e.status === 'ativo').length
-          const totalNegoc = data.filter(e => e.status === 'negociacao').length
-          const totalMRR   = data.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
+        kpis={() => {
+          // Ignora o argumento (BrowseLayout passaria só a página atual) —
+          // KPIs precisam agregar sobre TODO o conjunto filtrado, por isso
+          // vêm de kpiRows (query leve e separada, ver useCompaniesPaged.js).
+          const totalAtivo = kpiRows.filter(e => e.status === 'ativo').length
+          const totalNegoc = kpiRows.filter(e => e.status === 'negociacao').length
+          const totalMRR   = kpiRows.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
           return (
             <div style={p.kpis}>
-              <KpiCard label="Total de empresas" value={data.length} />
+              <KpiCard label="Total de empresas" value={pagedTotal} />
               <KpiCard label="Clientes ativos"   value={totalAtivo} accent />
               <KpiCard label="Em negociação"     value={totalNegoc} />
               <KpiCard label="MRR total"         value={`R$ ${totalMRR.toLocaleString('pt-BR')}`} mono />

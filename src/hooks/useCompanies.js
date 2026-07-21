@@ -10,7 +10,9 @@ function loadMockStore() { try { const r = localStorage.getItem(MOCK_STORAGE_KEY
 function saveMockStore(list) { try { localStorage.setItem(MOCK_STORAGE_KEY, JSON.stringify(list)) } catch {} }
 
 // Converte linha do Supabase → formato usado pelo componente Empresas
-function rowToEmpresa(row) {
+// (exportado — reaproveitado por useCompaniesPaged.js pra manter o mesmo
+// mapeamento de campos entre a lista completa e a versão paginada)
+export function rowToEmpresa(row) {
   return {
     id:                row.id,
     razao:             row.razao_social || '',

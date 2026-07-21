@@ -724,7 +724,19 @@ export default function BrowseLayout({
   groupBy,                  // opcional: (row) => string — agrupa a tabela por essa chave
   renderGroupHeader,        // ({ groupKey, rows, expanded, onToggleExpand, allSelected, someSelected, onToggleGroupSelection }) => ReactNode
   groupsControlRef,         // ref preenchida com { collapseAll, expandAll } — mesmo padrão de bulkEditCloseRef
+
+  // ── Paginação server-side (opcional) ──────────────────────────────────────
+  // Por padrão, BrowseLayout pagina em memória sobre `data` (assume que é a
+  // lista completa já filtrada/ordenada). Quando `totalCount` é informado,
+  // assume o modo servidor: `data` já é só a página atual (ex: vinda de um
+  // .range() do Supabase), e page/pageSize passam a ser controlados de fora.
+  totalCount,
+  page:          pageProp,
+  onPageChange:  onPageChangeProp,
+  pageSize:      pageSizeProp,
+  onPageSizeChange: onPageSizeChangeProp,
 }) {
+  const isServerPaged = totalCount !== undefined
   const { can } = usePermissions()
   const podeExportar = !modulo || can(modulo, 'exportar')
   const podeImportar  = !modulo || can(modulo, 'importar')
@@ -756,10 +768,16 @@ export default function BrowseLayout({
     try { return localStorage.getItem(storagePrefix + '_sd') || 'asc' } catch { return 'asc' }
   })
   const [selected,   setSelected]   = useState(new Set())
-  const [page,       setPage]       = useState(1)
-  const [pageSize,   setPageSize]   = useState(() => {
+  const [pageInternal,     setPageInternal]     = useState(1)
+  const [pageSizeInternal, setPageSizeInternal] = useState(() => {
     try { return Number(localStorage.getItem(storagePrefix + '_ps')) || 20 } catch { return 20 }
   })
+  // No modo servidor, page/pageSize vêm de fora (o caller já refaz a query
+  // ao mudar); fora dele, mantém o state local de sempre.
+  const page       = isServerPaged ? pageProp       : pageInternal
+  const pageSize   = isServerPaged ? pageSizeProp   : pageSizeInternal
+  const setPage    = isServerPaged ? onPageChangeProp     : setPageInternal
+  const setPageSize = isServerPaged ? onPageSizeChangeProp : setPageSizeInternal
 
   // Controla qual dropdown está aberto (apenas um por vez)
   const [openId, setOpenId] = useState(null)
@@ -838,8 +856,8 @@ export default function BrowseLayout({
     setPageSize(n)
     setPage(1)
     setOpenId(null)
-    try { localStorage.setItem(storagePrefix + '_ps', String(n)) } catch {}
-  }, [storagePrefix])
+    if (!isServerPaged) { try { localStorage.setItem(storagePrefix + '_ps', String(n)) } catch {} }
+  }, [storagePrefix, isServerPaged, setPageSize, setPage])
 
   // ── persiste kpisOpen, view, sortKey, sortDir ───────────────────────────
   useEffect(() => { try { localStorage.setItem(storagePrefix + '_kpis', String(kpisOpen)) } catch {} }, [storagePrefix, kpisOpen])
@@ -854,7 +872,7 @@ export default function BrowseLayout({
       setSortDir('asc'); return key
     })
     setPage(1)
-  }, [])
+  }, [setPage])
 
   // ── dados ordenados e paginados (memoizado — evita re-ordenar em todo render) ──
   const sorted = useMemo(() => [...data].sort((a, b) => {
@@ -866,13 +884,16 @@ export default function BrowseLayout({
 
   const hasGrouping = typeof groupBy === 'function'
 
-  const total     = sorted.length
+  const total     = isServerPaged ? totalCount : sorted.length
   const pageCount = Math.max(1, Math.ceil(total / pageSize))
   const safePage  = Math.min(page, pageCount)
   const start     = (safePage - 1) * pageSize
   const end       = Math.min(start + pageSize, total)
-  // Com agrupamento, paginar quebraria grupos ao meio — mostra tudo, sem paginação.
-  const pageRows  = useMemo(() => hasGrouping ? sorted : sorted.slice(start, end), [sorted, start, end, hasGrouping])
+  // Modo servidor: `data` já chega só com a página atual (ex: um .range() do
+  // Supabase) — fatiar de novo por índice absoluto quebraria a partir da
+  // página 2. Com agrupamento, paginar em memória quebraria grupos ao meio —
+  // mostra tudo, sem paginação.
+  const pageRows  = useMemo(() => (isServerPaged || hasGrouping) ? sorted : sorted.slice(start, end), [sorted, start, end, hasGrouping, isServerPaged])
 
   // ── agrupamento (opcional) ────────────────────────────────────────────────
   const [collapsedGroups, setCollapsedGroups] = useState(() => {
