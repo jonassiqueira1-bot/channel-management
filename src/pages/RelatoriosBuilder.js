@@ -7,17 +7,26 @@
  *   1. Fonte       — escolher entidade principal + relacionamentos a incluir
  *   2. Colunas      — escolher quais campos (da entidade principal e das
  *                      relacionadas) entram no relatório, e em que ordem
- * Fases 3-4 (filtros/agrupamento/ordenação e a grade de resultado ao vivo)
- * ainda não existem — aparecem como "em construção".
+ *   3. Regras       — filtros (E/OU) + agrupamento
+ *   4. Resultado    — grade ao vivo (junção real), ordenação, export CSV/Excel
  *
- * Vive lado a lado com Relatorios.js (não substitui nada ainda) — acessível
- * por um item de menu na tela atual, pra comparação lado a lado.
+ * Persistência reaproveita a mesma tabela `relatorios` usada pelo editor de
+ * canvas (useRelatorios) — o estado do builder inteiro vai dentro de
+ * `config.builder`, o que já basta pro relatório aparecer na listagem
+ * existente em Relatorios.js. `elementos` (o formato do CanvasEditor) fica
+ * vazio nesses relatórios; Relatorios.js detecta `config.builder` e abre
+ * esta tela em vez do CanvasEditor ao clicar na linha.
+ *
+ * Vive lado a lado com Relatorios.js (não substitui o editor de canvas
+ * ainda) — acessível por um item de menu na tela atual, pra comparação
+ * lado a lado.
  */
-import { useState, useMemo, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, ChevronUp, ChevronDown, X, Search } from 'lucide-react'
+import { useState, useMemo, useEffect, useRef } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, Check, ChevronUp, ChevronDown, X, Search, Save } from 'lucide-react'
 import { ENTIDADES, relacionadasDe, relacaoEntre } from '../data/reportEntities'
 import { useDocumentDataSources } from '../hooks/useDocumentDataSources'
+import { useRelatorios } from '../hooks/useRelatorios'
 
 const FASES = [
   { id: 'fonte',     label: 'Fonte' },
@@ -135,9 +144,46 @@ function exportarCSV(campos, linhas) {
   URL.revokeObjectURL(url)
 }
 
+async function exportarExcel(campos, linhas, titulo) {
+  const XLSX = await import('xlsx')
+  const header = campos.map(c => c.label)
+  const rows = linhas.map(l => campos.map(c => formatarValor(valorDoCampo(l, c))))
+  const ws = XLSX.utils.aoa_to_sheet([header, ...rows])
+  const wb = XLSX.utils.book_new()
+  XLSX.utils.book_append_sheet(wb, ws, 'Relatório')
+  XLSX.writeFile(wb, `${(titulo || 'relatorio').toLowerCase().replace(/\s+/g, '_')}.xlsx`)
+}
+
+// Ordena linhas primeiro pelos níveis de agrupamento, depois pela ordenação
+// escolhida pelo usuário na grade final (sempre nessa prioridade — agrupar
+// sem respeitar essa ordem quebraria os cabeçalhos de grupo na tabela).
+function ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos) {
+  const campoOrd = ordenacao ? campos.find(c => c.id === ordenacao.campoId) : null
+  if (camposAgrupObjs.length === 0 && !campoOrd) return linhas
+  return [...linhas].sort((a, b) => {
+    for (const c of camposAgrupObjs) {
+      const va = formatarValor(valorDoCampo(a, c))
+      const vb = formatarValor(valorDoCampo(b, c))
+      if (va !== vb) return va < vb ? -1 : 1
+    }
+    if (campoOrd) {
+      const va = valorDoCampo(a, campoOrd)
+      const vb = valorDoCampo(b, campoOrd)
+      let cmp
+      if (campoOrd.type === 'number') cmp = (Number(va) || 0) - (Number(vb) || 0)
+      else if (campoOrd.type === 'date') cmp = (va ? new Date(va).getTime() : 0) - (vb ? new Date(vb).getTime() : 0)
+      else cmp = String(va ?? '').localeCompare(String(vb ?? ''))
+      return ordenacao.dir === 'desc' ? -cmp : cmp
+    }
+    return 0
+  })
+}
+
 export default function RelatoriosBuilder() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { sources } = useDocumentDataSources()
+  const { relatorios, save } = useRelatorios('relatorio')
 
   const [fase, setFase]           = useState(0)
   const [fonteStep, setFonteStep] = useState(0) // dentro da fase "Fonte": 0=entidade, 1=relacionamentos
@@ -148,6 +194,50 @@ export default function RelatoriosBuilder() {
   const [filtros, setFiltros]     = useState([])   // [{ id, campoId, operador, valor }]
   const [conector, setConector]   = useState('E')   // 'E' | 'OU' — entre todas as regras de filtro
   const [agrupamento, setAgrupamento] = useState([]) // [campoId] em ordem
+  const [ordenacao, setOrdenacao] = useState(null)   // { campoId, dir: 'asc'|'desc' } | null
+
+  // Persistência — reaproveita a tabela `relatorios` (mesma do CanvasEditor).
+  const [titulo, setTitulo]       = useState('Novo relatório')
+  const [relatorioId, setRelatorioId] = useState(null)
+  const [salvando, setSalvando]   = useState(false)
+  const hidratado = useRef(false)
+
+  // Carrega um relatório existente (?id=...) assim que a lista chegar —
+  // só uma vez, pra não sobrescrever edições do usuário a cada reload da lista.
+  useEffect(() => {
+    const id = searchParams.get('id')
+    if (!id || hidratado.current || relatorios.length === 0) return
+    const rel = relatorios.find(r => r.id === id)
+    const b = rel?.config?.builder
+    if (!b) return
+    hidratado.current = true
+    setRelatorioId(rel.id)
+    setTitulo(rel.titulo || 'Novo relatório')
+    setEntidadeId(b.entidadeId || null)
+    setJoins(b.joins || [])
+    setCampos(b.campos || [])
+    setFiltros(b.filtros || [])
+    setConector(b.conector || 'E')
+    setAgrupamento(b.agrupamento || [])
+    setOrdenacao(b.ordenacao || null)
+    setFonteStep(1)
+    setFase(3)
+  }, [searchParams, relatorios])
+
+  async function handleSalvar() {
+    if (!entidadeId) return
+    setSalvando(true)
+    try {
+      const config = { builder: { versao: 1, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao } }
+      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso: 'privado', status: 'rascunho', config, elementos: [] })
+      if (result?.ok && result.relatorio) {
+        setRelatorioId(result.relatorio.id)
+        setSearchParams({ id: result.relatorio.id }, { replace: true })
+      }
+    } finally {
+      setSalvando(false)
+    }
+  }
 
   const entidade      = ENTIDADES.find(e => e.id === entidadeId) || null
   const relacionadas   = useMemo(() => entidadeId ? relacionadasDe(entidadeId) : [], [entidadeId])
@@ -224,11 +314,16 @@ export default function RelatoriosBuilder() {
     <div style={s.page}>
       {/* ── Cabeçalho + navegação de fases ── */}
       <div style={s.header}>
-        <div>
-          <div style={s.eyebrow}>Construtor de relatórios · novo</div>
-          <h1 style={s.title}>{entidade ? entidade.label : 'Novo relatório'}</h1>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={s.eyebrow}>Construtor de relatórios · novo{entidade ? ` · ${entidade.label}` : ''}</div>
+          <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Novo relatório" style={s.titleInput} />
         </div>
-        <button style={s.btnGhost} onClick={() => navigate('/relatorios')}>Voltar aos relatórios</button>
+        <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+          <button style={s.btnGhost} onClick={() => navigate('/relatorios')}>Voltar aos relatórios</button>
+          <button style={s.btnPrimary} disabled={!entidadeId || salvando} onClick={handleSalvar}>
+            <Save size={14} /> {salvando ? 'Salvando…' : relatorioId ? 'Salvar' : 'Salvar relatório'}
+          </button>
+        </div>
       </div>
 
       <div style={s.faseNav}>
@@ -340,6 +435,9 @@ export default function RelatoriosBuilder() {
           filtros={filtros}
           conector={conector}
           agrupamento={agrupamento}
+          ordenacao={ordenacao}
+          onOrdenacao={setOrdenacao}
+          titulo={titulo}
           onVoltar={() => setFase(2)}
         />
       )}
@@ -511,7 +609,9 @@ function RegrasFase({ campos, filtros, conector, onConector, onAddFiltro, onUpda
 }
 
 // ─── Fase "Resultado" — grade ao vivo (junção + filtros + agrupamento) ───────
-function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, onVoltar }) {
+function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, onOrdenacao, titulo, onVoltar }) {
+  const [exportando, setExportando] = useState(false)
+
   const linhas = useMemo(() => {
     if (!entidadeId || sources.length === 0) return []
     const combinadas = montarLinhas(sources, entidadeId, joins)
@@ -522,23 +622,17 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
     })
   }, [sources, entidadeId, joins, filtros, conector, campos])
 
-  const linhasOrdenadas = useMemo(() => {
-    if (agrupamento.length === 0) return linhas
-    const camposAgrup = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
-    return [...linhas].sort((a, b) => {
-      for (const c of camposAgrup) {
-        const va = formatarValor(valorDoCampo(a, c))
-        const vb = formatarValor(valorDoCampo(b, c))
-        if (va !== vb) return va < vb ? -1 : 1
-      }
-      return 0
-    })
-  }, [linhas, agrupamento, campos])
-
   const camposAgrupObjs = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
+
+  const linhasOrdenadas = useMemo(() => ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos), [linhas, camposAgrupObjs, ordenacao, campos])
 
   function chaveGrupo(linha) {
     return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c))).join(' · ')
+  }
+
+  async function handleExportarExcel() {
+    setExportando(true)
+    try { await exportarExcel(campos, linhasOrdenadas, titulo) } finally { setExportando(false) }
   }
 
   let chaveAnterior = null
@@ -550,9 +644,26 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
           <strong>{linhasOrdenadas.length}</strong> registro{linhasOrdenadas.length !== 1 ? 's' : ''}
           {agrupamento.length > 0 && <> · agrupado por {camposAgrupObjs.map(c => c.label).join(' → ')}</>}
         </div>
-        <button style={s.btnPrimary} onClick={() => exportarCSV(campos, linhasOrdenadas)} disabled={linhasOrdenadas.length === 0}>
-          Exportar CSV
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <select style={s.orderSelect} value={ordenacao?.campoId || ''} onChange={e => {
+            const campoId = e.target.value
+            onOrdenacao(campoId ? { campoId, dir: ordenacao?.dir || 'asc' } : null)
+          }}>
+            <option value="">Ordenar por…</option>
+            {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+          {ordenacao && (
+            <button style={s.orderDirBtn} onClick={() => onOrdenacao({ ...ordenacao, dir: ordenacao.dir === 'asc' ? 'desc' : 'asc' })}>
+              {ordenacao.dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+            </button>
+          )}
+          <button style={s.btnGhost} onClick={() => exportarCSV(campos, linhasOrdenadas)} disabled={linhasOrdenadas.length === 0}>
+            CSV
+          </button>
+          <button style={s.btnPrimary} onClick={handleExportarExcel} disabled={linhasOrdenadas.length === 0 || exportando}>
+            {exportando ? 'Gerando…' : 'Excel'}
+          </button>
+        </div>
       </div>
 
       <div style={s.tableWrap}>
@@ -605,6 +716,7 @@ const s = {
   header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px 0' },
   eyebrow: { fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 },
   title: { fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' },
+  titleInput: { fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font)', padding: 0, width: '100%', maxWidth: 480 },
   btnGhost: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', color: 'var(--text-soft)', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 'var(--radius-md, 8px)', cursor: 'pointer', fontFamily: 'var(--font)' },
   btnPrimary: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 'var(--radius-md, 8px)', cursor: 'pointer', fontFamily: 'var(--font)' },
 
@@ -671,8 +783,10 @@ const s = {
   groupOption: { fontSize: 12, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontFamily: 'var(--font)' },
 
   // Resultado
-  resultToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  resultToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 },
   resultCount: { fontSize: 13, color: 'var(--text-soft)' },
+  orderSelect: { fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
+  orderDirBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text-soft)', cursor: 'pointer' },
   tableWrap: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
   th: { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', position: 'sticky', top: 0 },

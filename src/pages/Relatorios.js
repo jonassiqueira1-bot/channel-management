@@ -58,7 +58,9 @@ function makeColumns(onPrint) { return [
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{val || '(sem título)'}</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          {row.elementos?.length || 0} elemento{row.elementos?.length !== 1 ? 's' : ''}
+          {row.config?.builder
+            ? `✨ Construtor · ${row.config.builder.campos?.length || 0} coluna${row.config.builder.campos?.length !== 1 ? 's' : ''}`
+            : `${row.elementos?.length || 0} elemento${row.elementos?.length !== 1 ? 's' : ''}`}
         </span>
       </div>
     ),
@@ -429,6 +431,10 @@ export default function Relatorios() {
   }
 
   function openEdit(rel) {
+    if (rel.config?.builder) {
+      navigate(`/relatorios/novo-construtor?id=${rel.id}`)
+      return
+    }
     setForm({ ...rel })
     setSlideOpen(true)
   }
