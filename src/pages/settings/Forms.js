@@ -138,10 +138,26 @@ function SidebarFieldCard({ field, isDragOverlay }) {
 function FieldLibraryPanel({ sidebarFields, onNewField, onDeleteField, selectedId, onSelect }) {
   const { isOver, setNodeRef } = useDroppable({ id: SIDEBAR_ID })
   const [search, setSearch] = useState('')
+  const [collapsedCats, setCollapsedCats] = useState(() => new Set())
 
   const filtered = sidebarFields.filter(f =>
     f.label.toLowerCase().includes(search.toLowerCase())
   )
+
+  // Agrupado por categoria de tipo (a mesma do seletor no Inspector) — sem
+  // isso, formulários com 50+ campos customizados viram uma lista solta
+  // impossível de escanear.
+  const grupos = TIPO_CATEGORIAS
+    .map(cat => ({ ...cat, campos: filtered.filter(f => cat.tipos.some(t => t.id === f.field_type)) }))
+    .filter(g => g.campos.length > 0)
+
+  function toggleCat(label) {
+    setCollapsedCats(prev => {
+      const next = new Set(prev)
+      next.has(label) ? next.delete(label) : next.add(label)
+      return next
+    })
+  }
 
   return (
     <div ref={setNodeRef} style={{
@@ -174,29 +190,48 @@ function FieldLibraryPanel({ sidebarFields, onNewField, onDeleteField, selectedI
         </div>
       )}
 
-      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '8px 8px 10px', display: 'flex', flexDirection: 'column', gap: 10 }}>
         {filtered.length === 0 && (
           <div style={{ fontSize: 11, color: 'var(--border2)', fontStyle: 'italic', textAlign: 'center', marginTop: 16 }}>
             {search ? 'Nenhum resultado' : 'Todos os campos estão no formulário'}
           </div>
         )}
-        {filtered.map(f => (
-          <div key={f.id}
-            onClick={() => onSelect(f)}
-            style={{ display: 'flex', gap: 4, alignItems: 'stretch', cursor: 'pointer',
-              borderRadius: 6, outline: selectedId === f.id ? `2px solid ${ACCENT}` : 'none', outlineOffset: -1 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <SidebarFieldCard field={f} />
-            </div>
-            {!f.is_system && (
-              <button onClick={e => { e.stopPropagation(); onDeleteField(f.id) }} title="Excluir campo" style={cs.iconBtn}
-                onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
-                onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
-                <Trash2 size={11} strokeWidth={1.75} />
+        {grupos.map(g => {
+          const isCollapsed = collapsedCats.has(g.label)
+          return (
+            <div key={g.label}>
+              <button onClick={() => toggleCat(g.label)}
+                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 4, background: 'none', border: 'none',
+                  cursor: 'pointer', padding: '2px 2px 5px', fontFamily: 'var(--font)' }}>
+                {isCollapsed ? <ChevronRight size={11} color="var(--text-muted)" strokeWidth={2} /> : <ChevronDown size={11} color="var(--text-muted)" strokeWidth={2} />}
+                <span style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  {g.label} <span style={{ fontWeight: 500 }}>({g.campos.length})</span>
+                </span>
               </button>
-            )}
-          </div>
-        ))}
+              {!isCollapsed && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {g.campos.map(f => (
+                    <div key={f.id}
+                      onClick={() => onSelect(f)}
+                      style={{ display: 'flex', gap: 4, alignItems: 'stretch', cursor: 'pointer',
+                        borderRadius: 6, outline: selectedId === f.id ? `2px solid ${ACCENT}` : 'none', outlineOffset: -1 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <SidebarFieldCard field={f} />
+                      </div>
+                      {!f.is_system && (
+                        <button onClick={e => { e.stopPropagation(); onDeleteField(f.id) }} title="Excluir campo" style={cs.iconBtn}
+                          onMouseEnter={e => e.currentTarget.style.color = 'var(--red)'}
+                          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}>
+                          <Trash2 size={11} strokeWidth={1.75} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
       <div style={{ padding: '10px 10px 12px', borderTop: '1px solid var(--border)', flexShrink: 0 }}>
@@ -315,6 +350,7 @@ function Inspector({ mode, field, entity, allFields, onClose, onSave, onDelete, 
   const [tipo, setTipo]           = useState(field?.field_type || 'text')
   const [opts, setOpts]           = useState((field?.options || []).join('\n'))
   const [req, setReq]             = useState(field?.is_required || false)
+  const [helpText, setHelpText]   = useState(field?.help_text || '')
   const [lookupTarget, setLookupTarget] = useState(field?.lookup_target || '')
   const [keyManual, setKeyManual] = useState(isEdit)
   const [errs, setErrs]           = useState({})
@@ -354,7 +390,7 @@ function Inspector({ mode, field, entity, allFields, onClose, onSave, onDelete, 
       field_type: tipo,
       options: tipo === 'select' ? opts.split('\n').map(o => o.trim()).filter(Boolean) : [],
       lookup_target: tipo === 'lookup' ? lookupTarget : null,
-      is_required: req, is_system: false,
+      is_required: req, help_text: helpText.trim(), is_system: false,
     })
   }
 
@@ -484,6 +520,13 @@ function Inspector({ mode, field, entity, allFields, onClose, onSave, onDelete, 
               {!lookupTarget && <span style={cs.err}>Selecione o cadastro de referência</span>}
             </div>
           )}
+
+          <div style={cs.fg}>
+            <label style={cs.lbl}>Texto de ajuda <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(opcional)</span></label>
+            <textarea rows={2} style={{ ...cs.inp, resize: 'vertical' }}
+              value={helpText} onChange={e => setHelpText(e.target.value)}
+              placeholder="Explica o que preencher aqui — aparece abaixo do campo no formulário" />
+          </div>
 
           <label style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
             <input type="checkbox" checked={req} onChange={e => setReq(e.target.checked)}
@@ -745,7 +788,7 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
     if (isEdit) {
       setFields(prev => prev.map(f => f.id === data.id ? { ...f, ...data } : f))
       syncCustomFieldsStore(prev => {
-        const entry = { id: data.id, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false }
+        const entry = { id: data.id, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false, help_text: data.help_text || '' }
         return prev.map(f => f.id === data.id ? entry : f)
       })
       log('editar', 'config_campo', data.id, { descricao: `Campo editado: ${data.label} (${entity})` })
@@ -755,7 +798,7 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
       const newField = { ...data, id: newId }
       setFields(prev => [...prev, newField])
       syncCustomFieldsStore(prev => {
-        const entry = { id: newId, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false }
+        const entry = { id: newId, field_key: data.field_key, label: data.label, field_type: data.field_type, options: data.options || [], is_required: data.is_required || false, help_text: data.help_text || '' }
         return [...prev, entry]
       })
       if (pendingSlot) {
@@ -790,7 +833,7 @@ function EntityEditor({ entity, fields, setFields, layout, setLayout }) {
     }
     const newField = { ...field, id: newId, label, field_key, is_required: false, is_system: false }
     setFields(prev => [...prev, newField])
-    syncCustomFieldsStore(prev => [...prev, { id: newId, field_key, label, field_type: field.field_type, options: field.options || [], is_required: false }])
+    syncCustomFieldsStore(prev => [...prev, { id: newId, field_key, label, field_type: field.field_type, options: field.options || [], is_required: false, help_text: field.help_text || '' }])
     log('criar', 'config_campo', newId, { descricao: `Campo duplicado: ${label} (${entity})` })
     flashSaved()
     setSelected({ field: newField })

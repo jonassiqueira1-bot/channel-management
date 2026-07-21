@@ -117,6 +117,9 @@ function FieldSlot({ field, preRendered, labelStyle }) {
         )}
       </label>
       {preRendered ?? <GenericInput field={field} />}
+      {field.help_text && (
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>{field.help_text}</div>
+      )}
     </div>
   )
 }
