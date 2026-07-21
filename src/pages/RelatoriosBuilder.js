@@ -16,7 +16,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ArrowRight, Check, ChevronUp, ChevronDown, X, Search } from 'lucide-react'
-import { ENTIDADES, relacionadasDe } from '../data/reportEntities'
+import { ENTIDADES, relacionadasDe, relacaoEntre } from '../data/reportEntities'
 import { useDocumentDataSources } from '../hooks/useDocumentDataSources'
 
 const FASES = [
@@ -32,6 +32,108 @@ const OPERADORES_POR_TIPO = {
   date:   [{ id: '=', l: 'em' }, { id: '<', l: 'antes de' }, { id: '>', l: 'depois de' }],
 }
 function operadoresDe(tipo) { return OPERADORES_POR_TIPO[tipo] || OPERADORES_POR_TIPO.text }
+
+// ─── Motor de junção — combina as fontes reais via as FKs de reportEntities.js ─
+// Cada linha do resultado é um mapa { [entidadeId]: registro | null }. Junções
+// muitos-para-um/um-para-um viram lookup direto (1 linha vira 1 linha);
+// um-para-muitos expande a linha (1 linha vira N linhas), igual um JOIN de SQL.
+function montarLinhas(sources, entidadeId, joins) {
+  const baseSource = sources.find(s => s.id === entidadeId)
+  let linhas = (baseSource?.registros || []).map(r => ({ [entidadeId]: r }))
+
+  for (const joinId of joins) {
+    const r = relacaoEntre(entidadeId, joinId)
+    if (!r) continue
+    const campoLado = r.fkEm === 'de' ? r.de : r.para
+    const relatedSource = sources.find(s => s.id === joinId)
+    const relatedRows = relatedSource?.registros || []
+
+    if (campoLado === entidadeId) {
+      // A entidade base tem a FK — cada linha aponta pra no máximo 1 relacionado.
+      const indice = new Map(relatedRows.map(rr => [String(rr.id), rr]))
+      linhas = linhas.map(l => ({ ...l, [joinId]: indice.get(String(l[entidadeId]?.[r.campo])) || null }))
+    } else {
+      // A entidade relacionada tem a FK — pode haver vários por linha base.
+      const grupos = new Map()
+      relatedRows.forEach(rr => {
+        const chave = String(rr[r.campo])
+        if (!grupos.has(chave)) grupos.set(chave, [])
+        grupos.get(chave).push(rr)
+      })
+      linhas = linhas.flatMap(l => {
+        const matches = grupos.get(String(l[entidadeId]?.id)) || [null]
+        return matches.map(m => ({ ...l, [joinId]: m }))
+      })
+    }
+  }
+  return linhas
+}
+
+function valorDoCampo(linha, campo) {
+  return linha[campo.entidadeId] ? linha[campo.entidadeId][campo.key] : undefined
+}
+
+function passaNoFiltro(linha, filtro, campos) {
+  const campo = campos.find(c => c.id === filtro.campoId)
+  if (!campo) return true
+  if (filtro.valor === '' || filtro.valor == null) return true
+  const bruto = valorDoCampo(linha, campo)
+  if (campo.type === 'number') {
+    const v = Number(bruto)
+    const alvo = Number(filtro.valor)
+    if (Number.isNaN(v)) return false
+    switch (filtro.operador) {
+      case '=': return v === alvo
+      case '!=': return v !== alvo
+      case '>': return v > alvo
+      case '<': return v < alvo
+      case '>=': return v >= alvo
+      case '<=': return v <= alvo
+      default: return true
+    }
+  }
+  if (campo.type === 'date') {
+    const v = bruto ? new Date(bruto).getTime() : NaN
+    const alvo = new Date(filtro.valor).getTime()
+    if (Number.isNaN(v)) return false
+    switch (filtro.operador) {
+      case '=': return new Date(bruto).toDateString() === new Date(filtro.valor).toDateString()
+      case '<': return v < alvo
+      case '>': return v > alvo
+      default: return true
+    }
+  }
+  const texto = (bruto ?? '').toString().toLowerCase()
+  const alvo = filtro.valor.toLowerCase()
+  switch (filtro.operador) {
+    case '=': return texto === alvo
+    case '!=': return texto !== alvo
+    case 'contem': return texto.includes(alvo)
+    default: return true
+  }
+}
+
+function formatarValor(v) {
+  if (v === null || v === undefined || v === '') return '—'
+  if (typeof v === 'boolean') return v ? 'Sim' : 'Não'
+  return String(v)
+}
+
+function exportarCSV(campos, linhas) {
+  const header = campos.map(c => `"${c.label.replace(/"/g, '""')}"`).join(';')
+  const rows = linhas.map(l => campos.map(c => {
+    const v = formatarValor(valorDoCampo(l, c))
+    return `"${v.replace(/"/g, '""')}"`
+  }).join(';'))
+  const csv = [header, ...rows].join('\n')
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'relatorio.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function RelatoriosBuilder() {
   const navigate = useNavigate()
@@ -228,22 +330,18 @@ export default function RelatoriosBuilder() {
         />
       )}
 
-      {/* ── Fase 4: ainda não implementada ── */}
+      {/* ── Fase 4: Resultado (grade ao vivo) ── */}
       {fase === 3 && (
-        <div style={s.body}>
-          <div style={s.building}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>🚧</div>
-            <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 6 }}>Etapa "Resultado" ainda em construção</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 440, margin: '0 auto' }}>
-              Fonte ({entidade?.label}, {joins.length} relacionamento{joins.length !== 1 ? 's' : ''}), Colunas ({campos.length} campo{campos.length !== 1 ? 's' : ''})
-              e Regras ({filtros.length} filtro{filtros.length !== 1 ? 's' : ''}, {agrupamento.length} nível{agrupamento.length !== 1 ? 'is' : ''} de agrupamento) já estão prontas.
-              A grade de resultado ao vivo (buscar e combinar os dados de verdade) é o próximo passo da implementação.
-            </div>
-            <button style={{ ...s.btnGhost, marginTop: 18 }} onClick={() => setFase(2)}>
-              <ArrowLeft size={14} /> Voltar para regras
-            </button>
-          </div>
-        </div>
+        <ResultadoFase
+          sources={sources}
+          entidadeId={entidadeId}
+          joins={joins}
+          campos={campos}
+          filtros={filtros}
+          conector={conector}
+          agrupamento={agrupamento}
+          onVoltar={() => setFase(2)}
+        />
       )}
     </div>
   )
@@ -412,6 +510,96 @@ function RegrasFase({ campos, filtros, conector, onConector, onAddFiltro, onUpda
   )
 }
 
+// ─── Fase "Resultado" — grade ao vivo (junção + filtros + agrupamento) ───────
+function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, onVoltar }) {
+  const linhas = useMemo(() => {
+    if (!entidadeId || sources.length === 0) return []
+    const combinadas = montarLinhas(sources, entidadeId, joins)
+    if (filtros.length === 0) return combinadas
+    return combinadas.filter(l => {
+      const resultados = filtros.map(f => passaNoFiltro(l, f, campos))
+      return conector === 'E' ? resultados.every(Boolean) : resultados.some(Boolean)
+    })
+  }, [sources, entidadeId, joins, filtros, conector, campos])
+
+  const linhasOrdenadas = useMemo(() => {
+    if (agrupamento.length === 0) return linhas
+    const camposAgrup = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
+    return [...linhas].sort((a, b) => {
+      for (const c of camposAgrup) {
+        const va = formatarValor(valorDoCampo(a, c))
+        const vb = formatarValor(valorDoCampo(b, c))
+        if (va !== vb) return va < vb ? -1 : 1
+      }
+      return 0
+    })
+  }, [linhas, agrupamento, campos])
+
+  const camposAgrupObjs = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
+
+  function chaveGrupo(linha) {
+    return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c))).join(' · ')
+  }
+
+  let chaveAnterior = null
+
+  return (
+    <div style={{ ...s.body, maxWidth: 'none' }}>
+      <div style={s.resultToolbar}>
+        <div style={s.resultCount}>
+          <strong>{linhasOrdenadas.length}</strong> registro{linhasOrdenadas.length !== 1 ? 's' : ''}
+          {agrupamento.length > 0 && <> · agrupado por {camposAgrupObjs.map(c => c.label).join(' → ')}</>}
+        </div>
+        <button style={s.btnPrimary} onClick={() => exportarCSV(campos, linhasOrdenadas)} disabled={linhasOrdenadas.length === 0}>
+          Exportar CSV
+        </button>
+      </div>
+
+      <div style={s.tableWrap}>
+        <table style={s.table}>
+          <thead>
+            <tr>
+              {campos.map(c => <th key={c.id} style={s.th}>{c.label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {linhasOrdenadas.map((linha, idx) => {
+              const chave = camposAgrupObjs.length > 0 ? chaveGrupo(linha) : null
+              const novoGrupo = chave !== null && chave !== chaveAnterior
+              chaveAnterior = chave
+              return (
+                <RowComGrupo key={idx} linha={linha} campos={campos} novoGrupo={novoGrupo} chave={chave} />
+              )
+            })}
+            {linhasOrdenadas.length === 0 && (
+              <tr><td colSpan={campos.length || 1} style={s.tdEmpty}>Nenhum registro encontrado com os filtros atuais.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ ...s.footerNav, marginTop: 20 }}>
+        <button style={s.btnGhost} onClick={onVoltar}><ArrowLeft size={14} /> Voltar para regras</button>
+      </div>
+    </div>
+  )
+}
+
+function RowComGrupo({ linha, campos, novoGrupo, chave }) {
+  return (
+    <>
+      {novoGrupo && (
+        <tr>
+          <td colSpan={campos.length || 1} style={s.groupHeaderCell}>{chave}</td>
+        </tr>
+      )}
+      <tr>
+        {campos.map(c => <td key={c.id} style={s.td}>{formatarValor(valorDoCampo(linha, c))}</td>)}
+      </tr>
+    </>
+  )
+}
+
 const s = {
   page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
   header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px 0' },
@@ -465,4 +653,30 @@ const s = {
   reorderBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' },
   removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 },
   colunasFooter: { position: 'absolute', bottom: -8, left: 24, right: 24, display: 'flex', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--border)', background: 'var(--surface)' },
+
+  // Regras
+  sectionTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' },
+  filterRow: { display: 'flex', alignItems: 'center', gap: 8 },
+  connector: { flexShrink: 0, width: 34, fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-glow)', border: '1px solid var(--accent)', borderRadius: 6, padding: '4px 0', cursor: 'pointer', fontFamily: 'var(--mono)' },
+  filterSelect: { flex: 1, minWidth: 0, fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
+  filterInput: { flex: 1, minWidth: 0, fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
+  addLink: { background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'var(--font)' },
+
+  groupTrail: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
+  groupChip: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 6px 5px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-glow)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600 },
+  groupArrow: { color: 'var(--text-muted)', marginRight: 4 },
+  chipReorder: { background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', padding: 1, display: 'flex' },
+  chipRemove: { background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', padding: 1, display: 'flex', marginLeft: 2 },
+  groupPicker: { display: 'flex', flexWrap: 'wrap', gap: 8 },
+  groupOption: { fontSize: 12, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontFamily: 'var(--font)' },
+
+  // Resultado
+  resultToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 },
+  resultCount: { fontSize: 13, color: 'var(--text-soft)' },
+  tableWrap: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' },
+  table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
+  th: { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', position: 'sticky', top: 0 },
+  td: { padding: '9px 12px', color: 'var(--text)', borderBottom: '1px solid var(--border2)', fontVariantNumeric: 'tabular-nums' },
+  tdEmpty: { padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' },
+  groupHeaderCell: { padding: '8px 12px', fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-glow)', borderBottom: '1px solid var(--border2)' },
 }
