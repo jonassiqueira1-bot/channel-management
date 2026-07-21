@@ -10,7 +10,7 @@
  *                      opcionalmente criar campos calculados (campo/valor
  *                      fixo ± × ÷ campo/valor fixo, ex: Valor − Custo)
  *   3. Regras       — filtros (E/OU) + agrupamento
- *   4. Resultado    — grade ao vivo (junção real), ordenação, export CSV/Excel
+ *   4. Resultado    — grade ao vivo (junção real), ordenação, export CSV/Excel/PDF
  *
  * Persistência reaproveita a mesma tabela `relatorios` usada pelo editor de
  * canvas (useRelatorios) — o estado do builder inteiro vai dentro de
@@ -181,6 +181,41 @@ async function exportarExcel(campos, linhas, titulo) {
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Relatório')
   XLSX.writeFile(wb, `${(titulo || 'relatorio').toLowerCase().replace(/\s+/g, '_')}.xlsx`)
+}
+
+function escapeHtml(v) {
+  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+// Gera PDF via diálogo de impressão do navegador — mesmo padrão já usado no
+// CanvasEditor (não há lib de PDF instalada; window.print() deixa o usuário
+// escolher "Salvar como PDF" com o motor de impressão nativo do sistema).
+function exportarPDF(campos, linhas, titulo) {
+  const w = window.open('', '_blank', 'width=900,height=1000')
+  if (!w) return
+  const dataGeracao = new Date().toLocaleString('pt-BR')
+  const linhasHtml = linhas.map(l => `<tr>${campos.map(c =>
+    `<td>${escapeHtml(formatarValor(valorDoCampo(l, c, campos)))}</td>`).join('')}</tr>`).join('')
+
+  w.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(titulo || 'Relatório')}</title><style>
+    @page { size: A4 landscape; margin: 14mm; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, Arial, sans-serif; margin: 0; color: #1A1916; }
+    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #1A1916; padding-bottom: 10px; margin-bottom: 14px; }
+    h1 { font-size: 18px; margin: 0; }
+    .meta { font-size: 11px; color: #666; }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; }
+    th { text-transform: uppercase; font-size: 9.5px; letter-spacing: .04em; color: #666; border-bottom: 2px solid #1A1916; }
+    tr:nth-child(even) { background: #fafafa; }
+    footer { margin-top: 14px; font-size: 10px; color: #999; }
+  </style></head><body>
+    <header><h1>${escapeHtml(titulo || 'Relatório')}</h1><span class="meta">Gerado em ${dataGeracao} · ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}</span></header>
+    <table><thead><tr>${campos.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead><tbody>${linhasHtml}</tbody></table>
+    <footer>Boostly · Construtor de relatórios</footer>
+  </body></html>`)
+  w.document.close()
+  setTimeout(() => { w.print(); w.close() }, 400)
 }
 
 // Ordena linhas primeiro pelos níveis de agrupamento, depois pela ordenação
@@ -804,6 +839,9 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
           )}
           <button style={s.btnGhost} onClick={() => exportarCSV(campos, linhasOrdenadas)} disabled={linhasOrdenadas.length === 0}>
             CSV
+          </button>
+          <button style={s.btnGhost} onClick={() => exportarPDF(campos, linhasOrdenadas, titulo)} disabled={linhasOrdenadas.length === 0}>
+            PDF
           </button>
           <button style={s.btnPrimary} onClick={handleExportarExcel} disabled={linhasOrdenadas.length === 0 || exportando}>
             {exportando ? 'Gerando…' : 'Excel'}
