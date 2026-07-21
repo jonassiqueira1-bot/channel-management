@@ -321,7 +321,10 @@ const s = {
   // Footer
   footer: {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '8px 20px', gap: 12,
+    // paddingRight reserva espaço pro botão flutuante do Crisp (canto
+    // inferior direito) — sem isso a paginação fica embaixo dele, já que o
+    // Crisp roda num iframe próprio e não respeita z-index/offset do layout.
+    padding: '8px 88px 8px 20px', gap: 12,
     borderTop: '1px solid var(--border)',
     background: 'var(--surface)', flexShrink: 0,
   },
