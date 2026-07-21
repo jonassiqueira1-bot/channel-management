@@ -21,7 +21,16 @@ export function AuthProvider({ children }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, sess) => {
       // Ignora eventos anteriores à validação inicial (evita race condition com localStorage)
-      if (validatedRef.current) setSession(sess)
+      if (!validatedRef.current) return
+      // O client do Supabase dispara TOKEN_REFRESHED (com um objeto de sessão
+      // novo, mesmo usuário) toda vez que a aba volta a ficar visível — sem
+      // essa checagem, todo hook de dados que depende de `session` no array
+      // de dependências (são ~40 no app) refaz o fetch completo da tabela
+      // inteira nesse momento, o que com milhares de registros trava a tela
+      // por vários segundos. O token em si continua sendo renovado
+      // normalmente pelo client por baixo dos panos — só não propagamos uma
+      // referência nova pro React quando o usuário logado é o mesmo.
+      setSession(prev => (prev?.user?.id === sess?.user?.id) ? prev : sess)
     })
     return () => subscription.unsubscribe()
   }, [])

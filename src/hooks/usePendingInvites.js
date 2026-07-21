@@ -26,13 +26,19 @@ export function usePendingInvites() {
   useEffect(() => { loadInvites() }, [loadInvites])
 
   const invite = useCallback(async (record) => {
-    if (!session?.access_token) return { ok: false, message: 'Não autenticado' }
+    if (!session?.user) return { ok: false, message: 'Não autenticado' }
+    // Busca o token na hora em vez de usar `session.access_token` do
+    // context — o context agora só troca de referência quando o usuário
+    // muda (ver AuthContext.js), então o token ali pode estar desatualizado;
+    // o client do Supabase sempre mantém o token renovado internamente.
+    const { data: { session: freshSession } } = await supabase.auth.getSession()
+    if (!freshSession?.access_token) return { ok: false, message: 'Não autenticado' }
     const FNURL = `${process.env.REACT_APP_SUPABASE_URL}/functions/v1/invite-user`
     const res = await window.fetch(FNURL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
+        'Authorization': `Bearer ${freshSession.access_token}`,
         'apikey': process.env.REACT_APP_SUPABASE_ANON_KEY,
       },
       body: JSON.stringify(record),
