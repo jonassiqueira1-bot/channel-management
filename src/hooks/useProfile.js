@@ -31,6 +31,47 @@ function initials(nome) {
   return nome.split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
+// ── Cache compartilhado entre instâncias ──────────────────────────────────────
+// useProfile() é chamado de dentro de ~45 outros hooks (useCompanies,
+// useCustomerHealth, useAuditLog, usePermissions — que por sua vez roda em
+// TODA tela que usa BrowseLayout — etc), e nenhum deles é Context. Sem esse
+// cache, uma única tela dispara uma busca de profiles+companies PRA CADA um
+// desses hooks simultaneamente — dezenas de requisições idênticas em
+// paralelo, competindo entre si, e é isso (não o volume de linhas da tabela
+// principal) que deixava até telas pequenas (Parceiros, ~60 registros) lentas.
+// `sharedCache` guarda o último resultado por usuário; `sharedPromise` faz
+// instâncias que montam enquanto uma busca já está em andamento aguardarem
+// essa MESMA busca em vez de disparar outra.
+let sharedCache        = null  // { userId, profile, company }
+let sharedPromise      = null
+let sharedPromiseUserId = null
+
+async function fetchProfileAndCompany(userId, session) {
+  const { data: prof, error: profErr } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', userId)
+    .single()
+
+  if (profErr) throw Object.assign(new Error('perfil não encontrado'), { code: 'not_found' })
+  if (prof.status === 'inativo') throw Object.assign(new Error('usuário inativo'), { code: 'inativo' })
+
+  const hydrated = {
+    ...prof,
+    email:  session.user.email,
+    avatar: initials(prof.nome),
+    papel:  prof.role || prof.papel || 'vendedor',
+  }
+
+  let comp = null
+  const empresaId = prof.empresa_id || prof.company_id
+  if (empresaId) {
+    const { data } = await supabase.from('companies').select('*').eq('id', empresaId).single()
+    comp = data || null
+  }
+  return { profile: hydrated, company: comp }
+}
+
 export function useProfile() {
   const { session } = useAuth()
   const [profile,    setProfile]    = useState(null)
@@ -39,7 +80,8 @@ export function useProfile() {
   const [error,      setError]      = useState(null)
 
   // ── Carregar perfil ────────────────────────────────────────────────────────
-  const load = useCallback(async () => {
+  // force=true (usado por `reload`) ignora o cache e busca de novo.
+  const load = useCallback(async (force = false) => {
     // session === undefined: AuthContext ainda validando o JWT — mantém loading=true
     // (não confundir com session === null, que é "confirmado sem sessão")
     if (session === undefined && !DEV_BYPASS) return
@@ -56,45 +98,31 @@ export function useProfile() {
 
     if (!session?.user) { setLoading(false); return }
 
+    const userId = session.user.id
+
+    if (!force && sharedCache?.userId === userId) {
+      setProfile(sharedCache.profile)
+      setCompany(sharedCache.company)
+      setLoading(false)
+      return
+    }
+
     try {
-      // 1. Perfil
-      const { data: prof, error: profErr } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', session.user.id)
-        .single()
-
-      if (profErr) {
-        // Perfil não encontrado — força logout para evitar sessão órfã
-        await supabase.auth.signOut()
-        return
+      if (force || !(sharedPromise && sharedPromiseUserId === userId)) {
+        sharedPromiseUserId = userId
+        sharedPromise = fetchProfileAndCompany(userId, session)
       }
-
-      // Usuário desativado: forçar logout imediatamente
-      if (prof.status === 'inativo') {
-        await supabase.auth.signOut()
-        return
-      }
-
-      const hydrated = {
-        ...prof,
-        email:  session.user.email,
-        avatar: initials(prof.nome),
-        papel:  prof.role || prof.papel || 'vendedor',
-      }
-      setProfile(hydrated)
-
-      // 2. Empresa
-      if (prof.empresa_id || prof.company_id) {
-        const empresaId = prof.empresa_id || prof.company_id
-        const { data: comp } = await supabase
-          .from('companies')
-          .select('*')
-          .eq('id', empresaId)
-          .single()
-        setCompany(comp || null)
-      }
+      const result = await sharedPromise
+      sharedCache = { userId, ...result }
+      setProfile(result.profile)
+      setCompany(result.company)
     } catch (e) {
+      if (e?.code === 'not_found' || e?.code === 'inativo') {
+        // Perfil não encontrado ou usuário desativado — força logout pra
+        // evitar sessão órfã (mesmo comportamento de antes do cache).
+        await supabase.auth.signOut()
+        return
+      }
       setError(e.message || 'Erro ao carregar perfil.')
     } finally {
       setLoading(false)
@@ -116,6 +144,9 @@ export function useProfile() {
       .eq('id', profile.id)
     if (error) return { ok: false, message: error.message }
     setProfile(p => ({ ...p, ...patch, avatar: initials(patch.nome || p.nome) }))
+    if (sharedCache?.userId === profile.id) {
+      sharedCache = { ...sharedCache, profile: { ...sharedCache.profile, ...patch, avatar: initials(patch.nome || sharedCache.profile.nome) } }
+    }
     return { ok: true }
   }, [profile])
 
@@ -132,8 +163,11 @@ export function useProfile() {
       .eq('id', company.id)
     if (error) return { ok: false, message: error.message }
     setCompany(c => ({ ...c, ...patch }))
+    if (sharedCache?.userId === profile?.id) {
+      sharedCache = { ...sharedCache, company: { ...sharedCache.company, ...patch } }
+    }
     return { ok: true }
-  }, [company])
+  }, [company, profile])
 
   // ── Alterar senha ─────────────────────────────────────────────────────────
   const changePassword = useCallback(async (newPassword) => {
@@ -164,12 +198,15 @@ export function useProfile() {
     const { data: { publicUrl } } = supabase.storage.from('avatars').getPublicUrl(path)
     await supabase.from('profiles').update({ avatar_url: publicUrl }).eq('id', profile.id)
     setProfile(p => ({ ...p, avatar_url: publicUrl }))
+    if (sharedCache?.userId === profile.id) {
+      sharedCache = { ...sharedCache, profile: { ...sharedCache.profile, avatar_url: publicUrl } }
+    }
     return { ok: true, url: publicUrl }
   }, [profile])
 
   return {
     profile, company, loading, error,
-    reload: load,
+    reload: () => load(true),
     saveProfile, saveCompany, changePassword, uploadAvatar,
     isAdmin: profile?.papel === 'admin_isv',
     papelCfg: PAPEIS_CONFIG[profile?.papel] || null,
