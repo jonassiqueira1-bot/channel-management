@@ -2,7 +2,7 @@
 -- Contratos/Oportunidades já copiam o preço no momento do cadastro (custom_fields.itens) e
 -- não são afetados por mudanças futuras aqui.
 
-CREATE TABLE public.tabela_precos (
+CREATE TABLE IF NOT EXISTS public.tabela_precos (
   id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
   produto_id      uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
@@ -18,10 +18,13 @@ CREATE TABLE public.tabela_precos (
   created_at      timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_tabela_precos_produto ON public.tabela_precos(produto_id, vigencia_inicio DESC);
-CREATE INDEX idx_tabela_precos_tenant  ON public.tabela_precos(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_tabela_precos_produto ON public.tabela_precos(produto_id, vigencia_inicio DESC);
+CREATE INDEX IF NOT EXISTS idx_tabela_precos_tenant  ON public.tabela_precos(tenant_id);
 
 ALTER TABLE public.tabela_precos ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "tabela_precos: view"   ON public.tabela_precos;
+DROP POLICY IF EXISTS "tabela_precos: manage" ON public.tabela_precos;
 
 CREATE POLICY "tabela_precos: view" ON public.tabela_precos FOR SELECT
   USING (tenant_id = public.my_tenant_id());

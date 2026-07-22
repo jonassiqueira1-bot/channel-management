@@ -19,6 +19,7 @@ ALTER TABLE public.contact_list_options ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "contact_list_options: view"   ON public.contact_list_options;
 DROP POLICY IF EXISTS "contact_list_options: manage" ON public.contact_list_options;
 DROP POLICY IF EXISTS "soft_delete_filter"            ON public.contact_list_options;
+DROP POLICY IF EXISTS no_hard_delete                  ON public.contact_list_options;
 CREATE POLICY "contact_list_options: view" ON public.contact_list_options
   FOR SELECT USING (tenant_id = public.my_tenant_id());
 CREATE POLICY "contact_list_options: manage" ON public.contact_list_options

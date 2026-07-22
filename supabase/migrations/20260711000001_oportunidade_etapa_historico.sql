@@ -16,9 +16,12 @@ CREATE TABLE IF NOT EXISTS public.oportunidade_etapa_historico (
   situacao         text,
   entrou_em        timestamptz NOT NULL DEFAULT now(),
   saiu_em          timestamptz,
-  dias_na_etapa    int GENERATED ALWAYS AS (
-    EXTRACT(DAY FROM COALESCE(saiu_em, now()) - entrou_em)::int
-  ) STORED,
+  -- Não pode ser GENERATED ALWAYS (Postgres exige expressão imutável, e
+  -- `now()` não é) — fica NULL enquanto a etapa está aberta (saiu_em IS
+  -- NULL) e é preenchido pelo trigger fn_registra_mudanca_etapa() no
+  -- momento em que a etapa fecha. useDocumentDataSources.js já trata
+  -- ausência como 0.
+  dias_na_etapa    int,
   created_at       timestamptz NOT NULL DEFAULT now()
 );
 
@@ -50,7 +53,8 @@ BEGIN
 
   -- Fecha o registro anterior (etapa que estava aberta)
   UPDATE public.oportunidade_etapa_historico
-  SET saiu_em = now()
+  SET saiu_em = now(),
+      dias_na_etapa = EXTRACT(DAY FROM now() - entrou_em)::int
   WHERE oportunidade_id = NEW.id
     AND saiu_em IS NULL;
 

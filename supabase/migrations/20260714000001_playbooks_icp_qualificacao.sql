@@ -25,6 +25,7 @@ ALTER TABLE public.product_categories ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "product_categories: view"   ON public.product_categories;
 DROP POLICY IF EXISTS "product_categories: manage" ON public.product_categories;
 DROP POLICY IF EXISTS "soft_delete_filter"          ON public.product_categories;
+DROP POLICY IF EXISTS no_hard_delete                ON public.product_categories;
 CREATE POLICY "product_categories: view" ON public.product_categories
   FOR SELECT USING (tenant_id = public.my_tenant_id());
 CREATE POLICY "product_categories: manage" ON public.product_categories

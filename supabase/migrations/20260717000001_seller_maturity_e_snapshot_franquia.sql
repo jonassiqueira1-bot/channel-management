@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS public.seller_maturity_params (
 );
 
 ALTER TABLE public.seller_maturity_params ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_own" ON public.seller_maturity_params;
 CREATE POLICY "tenant_own" ON public.seller_maturity_params
   USING (tenant_id = public.my_tenant_id());
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.seller_maturity_params TO authenticated;
@@ -49,6 +50,7 @@ CREATE INDEX IF NOT EXISTS idx_seller_scores_seller ON public.seller_maturity_sc
 CREATE INDEX IF NOT EXISTS idx_seller_scores_tenant ON public.seller_maturity_scores (tenant_id, calculado_em DESC);
 
 ALTER TABLE public.seller_maturity_scores ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_own" ON public.seller_maturity_scores;
 CREATE POLICY "tenant_own" ON public.seller_maturity_scores
   USING (tenant_id = public.my_tenant_id());
 GRANT SELECT, INSERT ON public.seller_maturity_scores TO authenticated;

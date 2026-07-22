@@ -1144,7 +1144,7 @@ export default function Empresas() {
     receita: filterReceita, uf: filterUf, origem: filterOrigem, resp: filterResp,
     unidade: filterUnidade,
   }), [filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade])
-  const { rows: pagedRows, total: pagedTotal, kpiRows } = useCompaniesPaged({
+  const { rows: pagedRows, total: pagedTotal, kpis: pagedKpis } = useCompaniesPaged({
     page: browsePage, pageSize: browsePageSize, search, filters: pagedFilters, sortBy,
   })
   function changeBrowsePageSize(n) { setBrowsePageSize(n); setBrowsePage(1) }
@@ -1414,10 +1414,8 @@ export default function Empresas() {
         kpis={() => {
           // Ignora o argumento (BrowseLayout passaria só a página atual) —
           // KPIs precisam agregar sobre TODO o conjunto filtrado, por isso
-          // vêm de kpiRows (query leve e separada, ver useCompaniesPaged.js).
-          const totalAtivo = kpiRows.filter(e => e.status === 'ativo').length
-          const totalNegoc = kpiRows.filter(e => e.status === 'negociacao').length
-          const totalMRR   = kpiRows.filter(e => e.status === 'ativo').reduce((s, e) => s + (e.mrr || 0), 0)
+          // vêm de uma RPC que soma/conta no Postgres (ver useCompaniesPaged.js).
+          const { totalAtivo, totalNegoc, totalMRR } = pagedKpis
           return (
             <div style={p.kpis}>
               <KpiCard label="Total de empresas" value={pagedTotal} />

@@ -44,27 +44,36 @@ function unidadeExclui(filters) {
  * filtro/busca (tudo era filtrado/ordenado em JS sobre o array inteiro).
  *
  * Aqui busca/filtra/ordena/pagina direto no Postgres via PostgREST — só a
- * página atual trafega e é processada no navegador. Os KPIs (que precisam
- * agregar sobre TODO o conjunto filtrado, não só a página) vêm de uma
- * segunda query bem mais leve — só `status` e `mrr`, sem paginar.
+ * página atual trafega e é processada no navegador.
+ *
+ * Duas otimizações que evitam o timeout (57014) visto com ~11 mil linhas:
+ *  - `count: 'estimated'` em vez de `'exact'` — um COUNT(*) exato sob RLS
+ *    precisa avaliar a policy pra TODA linha do tenant a cada busca só pra
+ *    saber o total; a versão "estimated" usa a estimativa do planner
+ *    (instantânea) quando o resultado é grande, e cai pra exata só se for
+ *    pequeno o suficiente pra não importar.
+ *  - KPIs (que precisam agregar sobre TODO o conjunto filtrado, não só a
+ *    página) vêm de uma RPC (`companies_kpis`) que soma/conta no Postgres —
+ *    antes buscava `status`+`mrr` de TODAS as linhas filtradas só pra somar
+ *    em JS, ou seja, pagava o custo de um SELECT completo sob RLS de novo.
  */
 export function useCompaniesPaged({ page, pageSize, search, filters, sortBy }) {
   const { session } = useAuth()
   const [rows, setRows]       = useState([])
   const [total, setTotal]     = useState(0)
   const [loading, setLoading] = useState(true)
-  const [kpiRows, setKpiRows] = useState([])   // [{ status, mrr }] — todo o conjunto filtrado
+  const [kpis, setKpis]       = useState({ totalAtivo: 0, totalNegoc: 0, totalMRR: 0 })
 
   const load = useCallback(async () => {
-    if (!session?.user) { setRows([]); setTotal(0); setKpiRows([]); setLoading(false); return }
+    if (!session?.user) { setRows([]); setTotal(0); setKpis({ totalAtivo: 0, totalNegoc: 0, totalMRR: 0 }); setLoading(false); return }
     setLoading(true)
 
     if (unidadeExclui(filters)) {
-      setRows([]); setTotal(0); setKpiRows([]); setLoading(false)
+      setRows([]); setTotal(0); setKpis({ totalAtivo: 0, totalNegoc: 0, totalMRR: 0 }); setLoading(false)
       return
     }
 
-    let q = applyFilters(supabase.from('companies').select('*', { count: 'exact' }), { search, filters })
+    let q = applyFilters(supabase.from('companies').select('*', { count: 'estimated' }), { search, filters })
 
     if (sortBy === 'mrr_desc')      q = q.order('custom_fields->mrr', { ascending: false, nullsFirst: false })
     else if (sortBy === 'mrr_asc')  q = q.order('custom_fields->mrr', { ascending: true,  nullsFirst: true })
@@ -75,7 +84,12 @@ export function useCompaniesPaged({ page, pageSize, search, filters, sortBy }) {
     const start = (page - 1) * pageSize
     q = q.range(start, start + pageSize - 1)
 
-    const kpiQuery = applyFilters(supabase.from('companies').select('status, custom_fields->>mrr'), { search, filters })
+    const kpiQuery = supabase.rpc('companies_kpis', {
+      p_search: search || null, p_status: filters.status || null, p_tipo: filters.tipo || null,
+      p_seg: filters.seg || null, p_porte: filters.porte || null, p_receita: filters.receita || null,
+      p_uf: filters.uf || null, p_origem: filters.origem || null, p_resp: filters.resp || null,
+      p_unidade: filters.unidade || null,
+    })
 
     const [{ data, count, error }, { data: kpiData, error: kpiError }] = await Promise.all([q, kpiQuery])
 
@@ -83,11 +97,16 @@ export function useCompaniesPaged({ page, pageSize, search, filters, sortBy }) {
       setRows((data || []).map(rowToEmpresa))
       setTotal(count || 0)
     }
-    setKpiRows(kpiError ? [] : (kpiData || []).map(r => ({ status: r.status, mrr: Number(r.mrr) || 0 })))
+    const kpiRow = kpiError ? null : kpiData?.[0]
+    setKpis({
+      totalAtivo: Number(kpiRow?.total_ativo) || 0,
+      totalNegoc: Number(kpiRow?.total_negociacao) || 0,
+      totalMRR:   Number(kpiRow?.mrr_total) || 0,
+    })
     setLoading(false)
   }, [session, page, pageSize, search, filters, sortBy])
 
   useEffect(() => { load() }, [load])
 
-  return { rows, total, kpiRows, loading, reload: load }
+  return { rows, total, kpis, loading, reload: load }
 }

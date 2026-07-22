@@ -4,6 +4,7 @@
 
 DROP POLICY IF EXISTS "tenant isolado"               ON public.pending_invites;
 DROP POLICY IF EXISTS "tenant members can manage invites" ON public.pending_invites;
+DROP POLICY IF EXISTS "pending_invites: tenant"       ON public.pending_invites;
 
 CREATE POLICY "pending_invites: tenant" ON public.pending_invites
   FOR ALL

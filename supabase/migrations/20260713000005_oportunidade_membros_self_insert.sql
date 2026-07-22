@@ -8,6 +8,8 @@ ALTER TABLE public.oportunidade_membros
 -- Permite que qualquer usuário se auto-adicione como membro (seção "Contatos Canal")
 -- de uma oportunidade que ele mesmo está criando — sem abrir gerenciamento amplo,
 -- que continua restrito a admin_isv pela policy já existente.
+DROP POLICY IF EXISTS "oportunidade_membros: self_insert" ON public.oportunidade_membros;
+
 CREATE POLICY "oportunidade_membros: self_insert" ON public.oportunidade_membros
   FOR INSERT WITH CHECK (
     tenant_id = public.my_tenant_id()

@@ -9,6 +9,20 @@
 -- sistema de permissões.
 
 -- ─── Bloqueio total ─────────────────────────────────────────────────────────
+DROP POLICY IF EXISTS "payments: block_parceiro"        ON public.payments;
+DROP POLICY IF EXISTS "projects: block_parceiro"        ON public.projects;
+DROP POLICY IF EXISTS "project_tasks: block_parceiro"   ON public.project_tasks;
+DROP POLICY IF EXISTS "time_logs: block_parceiro"       ON public.time_logs;
+DROP POLICY IF EXISTS "customer_health: block_parceiro" ON public.customer_health;
+DROP POLICY IF EXISTS "equipes: block_parceiro"         ON public.equipes;
+DROP POLICY IF EXISTS "tabela_precos: block_parceiro"   ON public.tabela_precos;
+DROP POLICY IF EXISTS "integracoes: block_parceiro"     ON public.integracoes;
+DROP POLICY IF EXISTS "alert_rules: block_parceiro"     ON public.alert_rules;
+DROP POLICY IF EXISTS "sellers: block_parceiro_select"  ON public.sellers;
+DROP POLICY IF EXISTS "sellers: block_parceiro_insert"  ON public.sellers;
+DROP POLICY IF EXISTS "sellers: block_parceiro_update"  ON public.sellers;
+DROP POLICY IF EXISTS "sellers: block_parceiro_delete"  ON public.sellers;
+
 CREATE POLICY "payments: block_parceiro" ON public.payments
   AS RESTRICTIVE FOR ALL USING (public.my_role() <> 'parceiro');
 

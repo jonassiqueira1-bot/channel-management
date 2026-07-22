@@ -19,6 +19,7 @@ CREATE INDEX IF NOT EXISTS idx_acao_membros_tenant ON public.acao_membros (tenan
 CREATE INDEX IF NOT EXISTS idx_acao_membros_acao   ON public.acao_membros (acao_id);
 
 ALTER TABLE public.acao_membros ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "tenant_own" ON public.acao_membros;
 CREATE POLICY "tenant_own" ON public.acao_membros
   USING (tenant_id = public.my_tenant_id())
   WITH CHECK (tenant_id = public.my_tenant_id());

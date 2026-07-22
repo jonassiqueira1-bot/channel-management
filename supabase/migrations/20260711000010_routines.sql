@@ -45,6 +45,16 @@ CREATE INDEX IF NOT EXISTS idx_routine_exec_tenant ON public.routine_executions 
 ALTER TABLE public.routines           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.routine_executions ENABLE ROW LEVEL SECURITY;
 
+-- Idempotência — mesma tabela pode já ter sido criada com essas policies
+-- numa tentativa anterior (histórico de migrations divergente entre ambientes).
+DROP POLICY IF EXISTS "routines: select" ON public.routines;
+DROP POLICY IF EXISTS "routines: insert" ON public.routines;
+DROP POLICY IF EXISTS "routines: update" ON public.routines;
+DROP POLICY IF EXISTS "routines: delete" ON public.routines;
+DROP POLICY IF EXISTS "routine_executions: select" ON public.routine_executions;
+DROP POLICY IF EXISTS "routine_executions: insert" ON public.routine_executions;
+DROP POLICY IF EXISTS "routine_executions: update" ON public.routine_executions;
+
 -- routines: visível para o criador + compartilhadas com equipe/filiais do mesmo tenant
 CREATE POLICY "routines: select" ON public.routines FOR SELECT
   USING (
