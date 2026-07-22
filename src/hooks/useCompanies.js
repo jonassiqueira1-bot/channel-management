@@ -90,13 +90,17 @@ function empresaToRow(form, tenantId, branchId) {
   }
 }
 
-export function useCompanies() {
+// `lazy: true` pula o fetch automático da tabela inteira no mount — pra
+// telas que já têm outra fonte de dados pra exibição (ex: Empresas.js usa
+// useCompaniesPaged pra listar) e só precisam do array completo sob demanda
+// (exportar, opções de filtro). Chame `reload()` quando de fato precisar dele.
+export function useCompanies({ lazy = false } = {}) {
   const { session } = useAuth()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
 
   const [companies, setCompanies] = useState([])
-  const [loading,   setLoading]   = useState(true)
+  const [loading,   setLoading]   = useState(!lazy)
   const [error,     setError]     = useState(null)
   // true quando a tabela companies não existe no Supabase (modo demo)
   const isMockMode  = useRef(false)
@@ -139,7 +143,7 @@ export function useCompanies() {
     setLoading(false)
   }, [session, activeBranchId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (!lazy) load() }, [load, lazy])
 
   // ── Adicionar ───────────────────────────────────────────────
   const add = useCallback(async (form) => {

@@ -9,12 +9,15 @@ import { MOCK_CUSTOMER_HEALTH, STORAGE_KEY as MOCK_KEY } from '../data/mockCusto
 function load() { try { const r = localStorage.getItem(MOCK_KEY); return r ? JSON.parse(r) : null } catch { return null } }
 function persist(list) { try { localStorage.setItem(MOCK_KEY, JSON.stringify(list)) } catch {} }
 
-export function useCustomerHealth() {
+// `lazy: true` pula o fetch automático no mount — pra telas onde isso é só
+// um dado decorativo secundário (ex: badge de health score em Empresas.js),
+// não a razão da tela existir. Chame `reload()` quando precisar de verdade.
+export function useCustomerHealth({ lazy = false } = {}) {
   const { session } = useAuth()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
   const [records, setRecords] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(!lazy)
   const isMock = useRef(false)
   const tid = useRef(null)
 
@@ -43,7 +46,7 @@ export function useCustomerHealth() {
     setLoading(false)
   }, [session, activeBranchId])
 
-  useEffect(() => { fetch() }, [fetch])
+  useEffect(() => { if (!lazy) fetch() }, [fetch, lazy])
 
   const isUuid = (id) => typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-/.test(id)
 

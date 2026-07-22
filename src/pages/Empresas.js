@@ -1087,8 +1087,24 @@ export default function Empresas() {
   const [filterUnidade, setFilterUnidade] = useLocalState('empresas:filterUnidade', '')
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
-  const { companies: empresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies()
-  const { records: csRecords } = useCustomerHealth()
+  // lazy: true — a tabela em si vem de useCompaniesPaged (rápido, paginado
+  // no servidor). Esse array completo (empresas) só serve pra exportação e
+  // pras opções do filtro "Responsável", que precisam de todos os registros
+  // — carregado em segundo plano logo depois, sem competir com a busca
+  // paginada pelo mesmo gargalo de RLS (era essa busca cheia, disparada toda
+  // vez que a tela abria, que ainda deixava o carregamento lento mesmo
+  // depois do fix em useCompaniesPaged.js).
+  const { companies: empresas, reload: reloadEmpresas, add: addEmpresa, update: updateEmpresa, remove: removeEmpresa, removeMany, bulkSetStatus, importMany } = useCompanies({ lazy: true })
+  useEffect(() => {
+    const t = setTimeout(() => { reloadEmpresas() }, 400)
+    return () => clearTimeout(t)
+  }, [reloadEmpresas])
+  // Idem — badge de health score é decorativo, não bloqueia a lista.
+  const { records: csRecords, reload: reloadCsRecords } = useCustomerHealth({ lazy: true })
+  useEffect(() => {
+    const t = setTimeout(() => { reloadCsRecords() }, 400)
+    return () => clearTimeout(t)
+  }, [reloadCsRecords])
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
   const tenantId = profile?.tenant_id
