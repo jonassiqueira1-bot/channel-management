@@ -15,9 +15,11 @@ export function useDocumentDataSources() {
     try {
       // Promise.allSettled: falha isolada de uma query não derruba as demais
       const results = await Promise.allSettled([
-        // Pipeline (oportunidades) — sem deleted_at nem campanha_id (não existem nessa tabela)
+        // Pipeline (oportunidades) — sem deleted_at nem campanha_id (não existem nessa tabela).
+        // company_id só pro motor de relacionamentos do novo construtor de
+        // relatórios (RelatoriosBuilder) — não aparece como campo escolhível.
         supabase.from('oportunidades')
-          .select('id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, custom_fields, origem, motivo_perda, created_at')
+          .select('id, company_id, titulo, situacao, valor_cdu, valor_sms, valor_servico, responsavel, stage_id, custom_fields, origem, motivo_perda, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
         // Etapas do pipeline
@@ -29,9 +31,9 @@ export function useDocumentDataSources() {
           .select('id, nome, status, inicio, fim, meta, meta_oportunidades, custos')
           .eq('tenant_id', tenantId).limit(500),
 
-        // Projetos
+        // Projetos — company_id e opportunity_id só pro motor de relacionamentos
         supabase.from('projects')
-          .select('id, nome, status, custom_fields, data_inicio, created_at')
+          .select('id, company_id, opportunity_id, nome, status, custom_fields, data_inicio, created_at')
           .eq('tenant_id', tenantId).is('deleted_at', null).limit(2000),
 
         // Empresas / Clientes
@@ -49,39 +51,44 @@ export function useDocumentDataSources() {
           .select('id, tipo_alvo, alvo_nome, tipo_meta, valor_planejado, valor_atual, status, periodo_mes, periodo_ano, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
-        // Ações / Tarefas
+        // Ações / Tarefas — company_id só pro motor de relacionamentos
         supabase.from('actions')
-          .select('id, titulo, tipo, status, prioridade, data_prevista, data_conclusao, created_at')
+          .select('id, company_id, titulo, tipo, status, prioridade, data_prevista, data_conclusao, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
-        // Contatos
+        // Contatos — company_id só pro motor de relacionamentos
         supabase.from('contacts')
-          .select('id, email, job_title, created_at')
+          .select('id, company_id, email, job_title, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
-        // Vendedores (Contatos Canais)
+        // Vendedores (Contatos Canais) — parceiro_id só pro motor de relacionamentos
         supabase.from('sellers')
-          .select('id, nome, status, cargo, equipe, regiao, meta_mensal, created_at')
+          .select('id, parceiro_id, nome, status, cargo, equipe, regiao, meta_mensal, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
-        // Contratos — RLS via my_tenant_id(), sem filtro explícito de tipo conflitante
+        // Contratos — RLS via my_tenant_id(), sem filtro explícito de tipo conflitante.
+        // company_id ainda não confirmado no schema (ver reportEntities.js) — se a
+        // coluna não existir, essa query falha isoladamente (Promise.allSettled) e
+        // o relacionamento Empresas→Contratos só fica sem correspondência.
         supabase.from('contracts')
-          .select('id, numero, status, data_inicio, data_fim, created_at')
+          .select('id, company_id, numero, status, data_inicio, data_fim, created_at')
           .is('deleted_at', null).limit(2000),
 
-        // Pagamentos — amount_total_net é coluna gerada; busca as partes e calcula em JS
+        // Pagamentos — amount_total_net é coluna gerada; busca as partes e calcula em JS.
+        // contract_id/company_id só pro motor de relacionamentos.
         supabase.from('payments')
-          .select('id, amount_cdu, amount_sms, amount_services, amount_discount, status, reference_month, due_date, created_at')
+          .select('id, contract_id, company_id, amount_cdu, amount_sms, amount_services, amount_discount, status, reference_month, due_date, created_at')
           .limit(2000),
 
-        // Comissões — tenant_id = auth.uid(); persona e periodo_mes/ano podem não existir em prod
+        // Comissões — tenant_id = auth.uid(); persona e periodo_mes/ano podem não
+        // existir em prod. contract_id/company_id só pro motor de relacionamentos.
         supabase.from('commission_payments')
-          .select('id, beneficiario_nome, receita_tipo, valor_base, percentual, status, created_at')
+          .select('id, contract_id, company_id, beneficiario_nome, receita_tipo, valor_base, percentual, status, created_at')
           .limit(2000),
 
-        // Sucesso do Cliente
+        // Sucesso do Cliente — company_id só pro motor de relacionamentos
         supabase.from('customer_health')
-          .select('id, laer_stage, touch_model, health_score, renewal_date, created_at')
+          .select('id, company_id, laer_stage, touch_model, health_score, renewal_date, created_at')
           .eq('tenant_id', tenantId).limit(2000),
 
         // Questionários — tenant_id é TEXT nessa tabela; RLS via current_setting
@@ -202,6 +209,7 @@ export function useDocumentDataSources() {
         const tm = taskMap[String(o.id)] || {}
         const pm = oppsPropostasMap[String(o.id)] || {}
         return {
+        id: o.id, company_id: o.company_id || null, // só pro motor de relacionamentos
         situacao:     o.situacao || 'em_andamento',
         titulo:       o.titulo || '',
         responsavel:  o.responsavel || '',
@@ -240,6 +248,7 @@ export function useDocumentDataSources() {
       const projetos = projData.map(p => {
         const cf = p.custom_fields || {}
         return {
+          id: p.id, company_id: p.company_id || null, opportunity_id: p.opportunity_id || null, // motor de relacionamentos
           status:     p.status || '',
           fase:       cf.phase || '',
           horas_est:  Number(cf.total_hours_estimated || 0),
@@ -287,6 +296,7 @@ export function useDocumentDataSources() {
       })
 
       const empresas = companiesData.map(c => ({
+        id: c.id, // motor de relacionamentos
         tipo:       c.tipo || '',
         status:     c.status || '',
         nome:       c.nome_fantasia || c.razao_social || '',
@@ -294,6 +304,7 @@ export function useDocumentDataSources() {
       }))
 
       const parceiros = parceirosData.map(p => ({
+        id: p.id, // motor de relacionamentos
         nome:       p.nome || '',
         status:     p.status || 'ativo',
         created_at: p.created_at?.slice(0,10) || '',
@@ -311,6 +322,7 @@ export function useDocumentDataSources() {
       }))
 
       const acoes = actionsData.map(a => ({
+        id: a.id, company_id: a.company_id || null, // motor de relacionamentos
         titulo:     a.titulo || '',
         tipo:       a.tipo || '',
         status:     a.status || '',
@@ -321,12 +333,14 @@ export function useDocumentDataSources() {
       }))
 
       const contatos = contactsData.map(c => ({
+        id: c.id, company_id: c.company_id || null, // motor de relacionamentos
         email:      c.email || '',
         cargo:      c.job_title || '',
         created_at: c.created_at?.slice(0,10) || '',
       }))
 
       const vendedores = sellersData.map(s => ({
+        id: s.id, parceiro_id: s.parceiro_id || null, // motor de relacionamentos
         nome:        s.nome || '',
         status:      s.status || '',
         cargo:       s.cargo || '',
@@ -337,6 +351,7 @@ export function useDocumentDataSources() {
       }))
 
       const contratos = contractsData.map(c => ({
+        id: c.id, company_id: c.company_id || null, // motor de relacionamentos
         numero:      c.numero || '',
         status:      c.status || '',
         vigencia_ini: c.data_inicio?.slice(0,10) || '',
@@ -345,6 +360,7 @@ export function useDocumentDataSources() {
       }))
 
       const pagamentos = paymentsData.map(p => ({
+        id: p.id, contract_id: p.contract_id || null, company_id: p.company_id || null, // motor de relacionamentos
         status:       p.status || '',
         mes_ref:      p.reference_month?.slice(0,7) || '',
         vencimento:   p.due_date?.slice(0,10) || '',
@@ -357,6 +373,7 @@ export function useDocumentDataSources() {
       }))
 
       const comissoes = commissionsData.map(c => ({
+        id: c.id, contract_id: c.contract_id || null, company_id: c.company_id || null, // motor de relacionamentos
         beneficiario: c.beneficiario_nome || '',
         receita_tipo: c.receita_tipo || '',
         valor_base:   Number(c.valor_base || 0),
@@ -366,6 +383,7 @@ export function useDocumentDataSources() {
       }))
 
       const cs = csData.map(h => ({
+        id: h.id, company_id: h.company_id || null, // motor de relacionamentos
         laer_stage:   h.laer_stage || '',
         touch_model:  h.touch_model || '',
         health_score: Number(h.health_score || 0),

@@ -4,10 +4,12 @@
 // sistema), mas acrescenta o que faltava pro motor de relacionamentos: quais
 // entidades se conectam a quais, por qual campo, e com que cardinalidade.
 //
-// Isso ainda não busca dado nenhum — é só o mapa. A etapa de fato buscar e
-// combinar os dados (JOIN em JS a partir do que o Supabase retorna) é o
-// próximo passo depois que a UI dos passos 1-2 estiver validada.
-
+// Cada relacionamento foi conferido contra o schema real (supabase/migrations)
+// antes de entrar aqui — nenhuma FK inventada. Os dois marcados como
+// "verificarNoUso" são os únicos onde não achei a migration que cria a coluna
+// com certeza (contracts.company_id) — o motor de junção lida com isso de
+// forma segura: se o campo não existir de fato, a junção simplesmente não
+// encontra correspondência (linhas ficam sem o relacionado), não quebra nada.
 export const ENTIDADES = [
   { id: 'pipeline',    label: 'Oportunidades',       icon: '📈' },
   { id: 'empresas',    label: 'Empresas',            icon: '🏢' },
@@ -26,25 +28,30 @@ export const ENTIDADES = [
   { id: 'playbooks',   label: 'Playbooks',            icon: '📚' },
 ]
 
-// Relacionamento direto entre duas entidades. `de`/`para` são ids de ENTIDADES;
-// `campo` é o nome lógico da chave estrangeira (ainda a mapear pro select()
-// real quando ligarmos ao Supabase); `cardinalidade` é sempre do ponto de
-// vista de "de" — 'um_para_muitos' significa 1 registro de "de" pode ter
-// vários relacionados em "para".
+// Campanhas, Documentos e Playbooks continuam selecionáveis como entidade
+// principal (fase 1) — só não entraram em RELACIONAMENTOS porque não achei
+// FK real conectando elas a outra entidade no schema atual (campanha_id não
+// existe em oportunidades, documents/playbooks não têm company_id). Ficam
+// disponíveis "isoladas" até o schema ganhar essas colunas.
+
+// `campo`  — nome da coluna de chave estrangeira.
+// `fkEm`   — qual lado ("de" ou "para") tem essa coluna, apontando pro `id`
+//            do outro lado. Convenção única evita ambiguidade na hora de
+//            montar o join de verdade.
+// `cardinalidade` — sempre do ponto de vista de "de".
 export const RELACIONAMENTOS = [
-  { de: 'empresas',  para: 'pipeline',   campo: 'company_id',    cardinalidade: 'um_para_muitos', rotulo: '1 empresa → várias oportunidades' },
-  { de: 'empresas',  para: 'contratos',  campo: 'company_id',    cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários contratos' },
-  { de: 'empresas',  para: 'projetos',   campo: 'company_id',    cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários projetos' },
-  { de: 'empresas',  para: 'contatos',   campo: 'company_id',    cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários contatos' },
-  { de: 'empresas',  para: 'customer_health', campo: 'company_id', cardinalidade: 'um_para_um', rotulo: '1 empresa → 1 registro de saúde' },
-  { de: 'empresas',  para: 'documentos', campo: 'company_id',    cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários documentos' },
-  { de: 'contratos', para: 'pagamentos', campo: 'contract_id',   cardinalidade: 'um_para_muitos', rotulo: '1 contrato → vários pagamentos' },
-  { de: 'contratos', para: 'comissoes',  campo: 'contract_id',   cardinalidade: 'um_para_muitos', rotulo: '1 contrato → várias comissões' },
-  { de: 'pipeline',  para: 'vendedores', campo: 'responsavel',   cardinalidade: 'muitos_para_um', rotulo: 'várias oportunidades → 1 vendedor' },
-  { de: 'pipeline',  para: 'campanhas',  campo: 'campanha_id',   cardinalidade: 'muitos_para_um', rotulo: 'várias oportunidades → 1 campanha' },
-  { de: 'projetos',  para: 'acoes',      campo: 'project_id',    cardinalidade: 'um_para_muitos', rotulo: '1 projeto → várias ações/tarefas' },
-  { de: 'projetos',  para: 'pipeline',   campo: 'opportunity_id', cardinalidade: 'muitos_para_um', rotulo: 'vários projetos → 1 oportunidade de origem' },
-  { de: 'parceiros', para: 'vendedores', campo: 'parceiro_id',   cardinalidade: 'um_para_muitos', rotulo: '1 parceiro → vários contatos canais' },
+  { de: 'empresas',  para: 'pipeline',       campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → várias oportunidades' },
+  { de: 'empresas',  para: 'projetos',       campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários projetos' },
+  { de: 'empresas',  para: 'contatos',       campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários contatos' },
+  { de: 'empresas',  para: 'customer_health', campo: 'company_id', fkEm: 'para', cardinalidade: 'um_para_um',     rotulo: '1 empresa → 1 registro de saúde' },
+  { de: 'empresas',  para: 'acoes',          campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → várias ações' },
+  { de: 'empresas',  para: 'pagamentos',     campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários pagamentos' },
+  { de: 'empresas',  para: 'comissoes',      campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → várias comissões' },
+  { de: 'empresas',  para: 'contratos',      campo: 'company_id',  fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 empresa → vários contratos', verificarNoUso: true },
+  { de: 'contratos', para: 'pagamentos',     campo: 'contract_id', fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 contrato → vários pagamentos' },
+  { de: 'contratos', para: 'comissoes',      campo: 'contract_id', fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 contrato → várias comissões' },
+  { de: 'projetos',  para: 'pipeline',       campo: 'opportunity_id', fkEm: 'de', cardinalidade: 'muitos_para_um', rotulo: 'vários projetos → 1 oportunidade de origem' },
+  { de: 'parceiros', para: 'vendedores',     campo: 'parceiro_id', fkEm: 'para', cardinalidade: 'um_para_muitos', rotulo: '1 parceiro → vários contatos canais' },
 ]
 
 // Entidades relacionadas diretamente a uma entidade (nos dois sentidos).
@@ -54,4 +61,9 @@ export function relacionadasDe(entidadeId) {
     const outroId = r.de === entidadeId ? r.para : r.de
     return { entidade: ENTIDADES.find(e => e.id === outroId), relacao: r, direcao: r.de === entidadeId ? 'para' : 'de' }
   }).filter(x => x.entidade)
+}
+
+// Acha o relacionamento direto entre duas entidades, em qualquer ordem.
+export function relacaoEntre(aId, bId) {
+  return RELACIONAMENTOS.find(r => (r.de === aId && r.para === bId) || (r.de === bId && r.para === aId)) || null
 }
