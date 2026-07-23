@@ -370,12 +370,26 @@ export default function RelatoriosBuilder() {
   }
   function toggleCampo(entId, field) {
     const campoId = `${entId}.${field.key}`
-    setCampos(prev => prev.some(c => c.id === campoId)
+    const jaSelecionado = campos.some(c => c.id === campoId)
+    setCampos(prev => jaSelecionado
       ? prev.filter(c => c.id !== campoId)
       : [...prev, { id: campoId, entidadeId: entId, key: field.key, label: field.label, type: field.type }])
+    // Marcar um campo aqui precisa refletir na hora nos blocos de tabela —
+    // senão o usuário marca o campo e não vê nada mudar na visualização,
+    // já que a lista de colunas de cada bloco de tabela é separada do pool
+    // de campos do relatório.
+    if (!jaSelecionado) {
+      setBlocks(prev => prev.map(b => b.tipo === 'tabela'
+        ? { ...b, config: { ...b.config, colunas: [...(b.config.colunas || []), campoId] } }
+        : b))
+    }
   }
   function addCalculado({ label, a, op, b }) {
-    setCampos(prev => [...prev, { id: uid('calc'), entidadeId: null, key: null, label: label || 'Campo calculado', type: 'number', calculado: true, formula: { a, op, b } }])
+    const novoId = uid('calc')
+    setCampos(prev => [...prev, { id: novoId, entidadeId: null, key: null, label: label || 'Campo calculado', type: 'number', calculado: true, formula: { a, op, b } }])
+    setBlocks(prev => prev.map(b => b.tipo === 'tabela'
+      ? { ...b, config: { ...b.config, colunas: [...(b.config.colunas || []), novoId] } }
+      : b))
   }
   function removerCampo(id) {
     setCampos(prev => prev.filter(c => c.id !== id))
