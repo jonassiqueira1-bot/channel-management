@@ -9,7 +9,7 @@ async function sincronizarProximaTarefa(oportunidadeId) {
   if (!oportunidadeId) return
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('data_inicio, prazo, status, concluida_em, custom_fields')
+    .select('prazo, status, concluida_em, custom_fields')
     .eq('entidade_id', oportunidadeId)
     .eq('entidade_tipo', 'oportunidade')
     .neq('status', 'cancelada')
