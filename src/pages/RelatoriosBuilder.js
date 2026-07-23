@@ -375,7 +375,17 @@ export default function RelatoriosBuilder() {
   }, [sources, entidadeId, joins, filtros, conector, campos])
 
   // ── Ações de fonte ────────────────────────────────────────────────────────
+  // Trocar a entidade principal reseta relacionamentos/campos/blocos (a base
+  // do relatório inteiro muda) — não é a mesma coisa que JOIN (isso é feito
+  // em "Relacionamentos", que só aparece depois de escolher a entidade
+  // principal). Clicar na que já está selecionada não faz nada; clicar numa
+  // diferente pede confirmação, já que apaga o que foi montado até aqui.
   function escolherEntidade(id) {
+    if (id === entidadeId) return
+    if (entidadeId && (campos.length > 0 || blocks.length > 0)) {
+      const ok = window.confirm('Trocar a entidade principal apaga os relacionamentos, campos e blocos já configurados neste relatório. Continuar?')
+      if (!ok) return
+    }
     setEntidadeId(id); setJoins([]); setCampos([]); setBlocks([])
   }
   function toggleJoin(id) {
