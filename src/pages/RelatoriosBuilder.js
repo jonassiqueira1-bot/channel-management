@@ -268,6 +268,19 @@ function migrarParaBlocos(b) {
   return blocks
 }
 
+// Agrupa blocos de KPI ADJACENTES numa mesma linha (faixa de indicadores),
+// sem posicionamento livre — é puramente sobre a ordem da sequência, não
+// coordenadas. Qualquer outro tipo de bloco quebra o agrupamento.
+function agruparParaRender(blocks) {
+  const grupos = []
+  let atual = null
+  blocks.forEach((blk, idx) => {
+    if (blk.tipo === 'kpi' && atual) atual.push({ blk, idx })
+    else { atual = [{ blk, idx }]; grupos.push(atual) }
+  })
+  return grupos
+}
+
 export default function RelatoriosBuilder() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -508,16 +521,20 @@ export default function RelatoriosBuilder() {
             <EmptyBlocks onAdd={() => setPickerAberto(true)} />
           ) : (
             <div style={s.blocosLista}>
-              {blocks.map((blk, idx) => (
-                <BlockWrapper key={blk.id} idx={idx} total={blocks.length}
-                  selecionado={painel?.blockId === blk.id}
-                  onSelect={() => setPainel({ blockId: blk.id })}
-                  onMoveUp={() => moverBlock(idx, -1)}
-                  onMoveDown={() => moverBlock(idx, 1)}
-                  onDuplicate={() => duplicarBlock(blk.id)}
-                  onRemove={() => removerBlock(blk.id)}>
-                  <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />
-                </BlockWrapper>
+              {agruparParaRender(blocks).map((grupo, gi) => (
+                <div key={gi} style={grupo.length > 1 ? s.kpiRowWrap : undefined}>
+                  {grupo.map(({ blk, idx }) => (
+                    <BlockWrapper key={blk.id} idx={idx} total={blocks.length} emLinha={grupo.length > 1}
+                      selecionado={painel?.blockId === blk.id}
+                      onSelect={() => setPainel({ blockId: blk.id })}
+                      onMoveUp={() => moverBlock(idx, -1)}
+                      onMoveDown={() => moverBlock(idx, 1)}
+                      onDuplicate={() => duplicarBlock(blk.id)}
+                      onRemove={() => removerBlock(blk.id)}>
+                      <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />
+                    </BlockWrapper>
+                  ))}
+                </div>
               ))}
               <button style={s.addBlockInline} onClick={() => setPickerAberto(true)}>
                 <Plus size={14} /> Adicionar bloco
@@ -609,14 +626,14 @@ function BlockPicker({ onPick, onClose }) {
 }
 
 // ─── Invólucro de bloco — toolbar discreta ao passar o mouse ─────────────────
-function BlockWrapper({ children, idx, total, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
+function BlockWrapper({ children, idx, total, emLinha, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
   const [hover, setHover] = useState(false)
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onSelect}
-      style={{ ...s.blockWrap, ...(selecionado ? s.blockWrapSel : {}) }}>
+      style={{ ...s.blockWrap, ...(emLinha ? s.blockWrapEmLinha : {}), ...(selecionado ? s.blockWrapSel : {}) }}>
       {(hover || selecionado) && (
         <div style={s.blockToolbar} onClick={e => e.stopPropagation()}>
           <span style={s.blockDragHint}><GripVertical size={12} /></span>
@@ -1249,7 +1266,9 @@ const s = {
   emptyBlocks: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', textAlign: 'center' },
 
   blocosLista: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880, margin: '0 auto' },
+  kpiRowWrap: { display: 'flex', flexWrap: 'wrap', gap: 14 },
   blockWrap: { position: 'relative', borderRadius: 10, border: '1.5px solid transparent', padding: 16, cursor: 'pointer', transition: 'border-color 0.12s, background 0.12s' },
+  blockWrapEmLinha: { flex: '0 0 auto' },
   blockWrapSel: { borderColor: 'var(--accent)', background: 'var(--surface)' },
   blockToolbar: { position: 'absolute', top: -14, right: 8, display: 'flex', alignItems: 'center', gap: 2, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', zIndex: 5 },
   blockDragHint: { color: 'var(--border2)', display: 'flex', padding: '0 2px' },
