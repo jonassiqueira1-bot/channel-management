@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { Layers, CheckSquare, HelpCircle, Target, Users, FileText, MessageSquareWarning, ChevronRight, Pencil, Check as CheckIcon } from 'lucide-react'
 import { STAGE_CFG, RESOURCE_CFG, REGION_OPTIONS } from '../data/mockPlaybooks'
 import { SEGMENTOS_PADRAO as SEGMENT_OPTIONS } from '../data/segmentos'
 import { useLocalState } from '../hooks/useLocalState'
@@ -372,25 +373,16 @@ function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
 
       {/* lista agrupada por categoria */}
       {objecoes.length === 0 && editingId !== 'new' ? (
-        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
-          <div style={{ fontSize: 36, marginBottom: 10, opacity: 0.3 }}>🛡️</div>
-          Nenhuma objeção cadastrada ainda.<br />
-          <span style={{ fontSize: 12 }}>Clique em "+ Nova objeção" para começar.</span>
+        <div style={{ textAlign: 'left', padding: '20px 0', color: 'var(--text-muted)' }}>
+          <div style={{ fontSize: 13, marginBottom: 2 }}>Nenhuma objeção mapeada ainda.</div>
+          <div style={{ fontSize: 12 }}>Prepare o vendedor pra responder as dúvidas mais comuns.</div>
         </div>
       ) : (
         Object.entries(OBJ_CATS).map(([catKey, catCfg]) => {
           const items = byCat[catKey]
           if (!items.length) return null
           return (
-            <div key={catKey}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: catCfg.color }}>
-                  {catCfg.icon} {catCfg.label}
-                </span>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
-                  {items.length} objeç{items.length === 1 ? 'ão' : 'ões'}
-                </span>
-              </div>
+            <CollapsibleSection key={catKey} defaultOpen title={catCfg.label} icon={catCfg.icon} count={items.length}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {items.map(obj =>
                   editingId === obj.id ? (
@@ -400,7 +392,7 @@ function ObjecoesTab({ objecoes = [], onChange, stageCfg = STAGE_CFG }) {
                   )
                 )}
               </div>
-            </div>
+            </CollapsibleSection>
           )
         })
       )}
@@ -894,8 +886,6 @@ function ResourceSlideOver({ open, initial, onSave, onClose }) {
 // ─── Detail: Funnel Steps Panel ───────────────────────────────────────────────
 function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, stageCfg = STAGE_CFG, isAdministrativo = false }) {
   const firstKey = Object.keys(stageCfg)[0] || 'prospeccao'
-  const [open, setOpen] = useState(new Set([firstKey]))
-  const toggle = k => setOpen(prev => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n })
 
   const byStage = useMemo(() => {
     const map = {}
@@ -916,70 +906,40 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, s
         <h2 style={dp.panelTitle}>{isAdministrativo ? 'Atividades por Status do Contrato' : 'Atividades por Etapa'}</h2>
         <p style={dp.panelSub}>{isAdministrativo ? 'Roteiros e processos internos organizados por status do contrato.' : 'Roteiros, scripts e critérios estruturados por fase do funil.'}</p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div>
         {Object.entries(stageCfg).map(([key, cfg]) => {
           const stageSteps = byStage[key] || []
-          const isOpen = open.has(key)
           return (
-            <div key={key} style={{ border: '1px solid var(--border2)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
-              {/* Accordion header */}
-              <button onClick={() => toggle(key)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', background: isOpen ? 'var(--accent-glow)' : 'transparent', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left', transition: 'background 0.15s' }}>
-                <span style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 15, flexShrink: 0 }}>{cfg.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: isOpen ? 'var(--accent)' : 'var(--text)', letterSpacing: '-0.2px' }}>{cfg.label}</div>
-                  {stageSteps.length > 0 && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>{stageSteps[0].title}</div>
-                  )}
+            <CollapsibleSection key={key} defaultOpen={key === firstKey} title={cfg.label} icon={cfg.icon} count={stageSteps.length}>
+              {stageSteps.length === 0 ? (
+                <div style={{ padding: '10px 0' }}>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Nenhuma atividade criada ainda.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>As atividades ajudam os vendedores durante esta etapa.</div>
+                  {isISV && <button onClick={() => onAddStep(key, stageCfg)} style={{ ...dp.ghostAddBtn, opacity: 1 }}>+ Criar primeira atividade</button>}
                 </div>
-                {stageSteps.length === 0 && isISV && (
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 12, padding: '2px 8px' }}>Sem conteúdo</span>
-                )}
-                <span style={{ color: 'var(--text-muted)', fontSize: 13, transform: isOpen ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0 }}>›</span>
-              </button>
-
-              {/* Accordion body */}
-              {isOpen && (
-                <div style={{ borderTop: '1px solid var(--border2)' }}>
-                  {stageSteps.length === 0 ? (
-                    <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <div style={{ fontSize: 24, marginBottom: 8, opacity: 0.4 }}>{cfg.icon}</div>
-                      <div style={{ fontSize: 13, marginBottom: 12 }}>Nenhuma atividade definida para {cfg.label}</div>
-                      {isISV && (
-                        <button onClick={() => onAddStep(key, stageCfg)} style={dp.addBtn}>+ Adicionar conteúdo</button>
-                      )}
-                    </div>
-                  ) : (
-                    stageSteps.map(step => (
-                      <div key={step.id} style={{ padding: '20px 24px', borderBottom: '1px solid var(--border2)' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                            {step.icone && (
-                              <span style={{ width: 32, height: 32, borderRadius: 8, background: cfg.bg,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 16, flexShrink: 0 }}>{step.icone}</span>
-                            )}
-                            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.2px' }}>{step.title}</h3>
-                          </div>
-                          {isISV && (
-                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                              <button onClick={() => onEditStep(step, stageCfg)} style={dp.editBtn}>✎ Editar</button>
-                              <button onClick={() => onDeleteStep(step.id)} style={dp.deleteBtn}>✕</button>
-                            </div>
-                          )}
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+                  {stageSteps.map(step => (
+                    <div key={step.id}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 10, gap: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {step.icone && <span style={{ fontSize: 15, flexShrink: 0 }}>{step.icone}</span>}
+                          <h3 style={{ margin: 0, fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{step.title}</h3>
                         </div>
-                        <MarkdownRenderer content={step.content} />
+                        {isISV && (
+                          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <button onClick={() => onEditStep(step, stageCfg)} style={dp.editBtn}>✎ Editar</button>
+                            <button onClick={() => onDeleteStep(step.id)} style={dp.deleteBtn}>✕</button>
+                          </div>
+                        )}
                       </div>
-                    ))
-                  )}
-                  {stageSteps.length > 0 && isISV && (
-                    <div style={{ padding: '10px 20px' }}>
-                      <button onClick={() => onAddStep(key, stageCfg)} style={dp.ghostAddBtn}>+ Adicionar outra atividade</button>
+                      <MarkdownRenderer content={step.content} />
                     </div>
-                  )}
+                  ))}
+                  {isISV && <button onClick={() => onAddStep(key, stageCfg)} style={{ ...dp.ghostAddBtn, opacity: 1 }}>+ Adicionar outra atividade</button>}
                 </div>
               )}
-            </div>
+            </CollapsibleSection>
           )
         })}
       </div>
@@ -988,6 +948,40 @@ function FunnelStepsPanel({ steps, isISV, onAddStep, onEditStep, onDeleteStep, s
 }
 
 // ─── Detail: References Panel ─────────────────────────────────────────────────
+function ReferenceCard({ referencia: reference, isISV, onEdit, onDelete }) {
+  const [hover, setHover] = useState(false)
+  const citacao = reference.results?.find(r => r.label)
+  return (
+    <div style={dp.refCard} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 9, background: reference.logo_color + '22', color: reference.logo_color, border: `1px solid ${reference.logo_color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11.5, flexShrink: 0, fontFamily: 'var(--mono)' }}>
+          {reference.logo_initials}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text)' }}>{reference.company_name}</span>
+            <span style={dp.regionPill}>{reference.region}</span>
+          </div>
+        </div>
+        {isISV && hover && (
+          <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+            <button onClick={() => onEdit(reference)} style={dp.editBtn}>✎</button>
+            <button onClick={() => onDelete(reference.id)} style={dp.deleteBtn}>✕</button>
+          </div>
+        )}
+      </div>
+      {reference.summary && (
+        <p style={{ margin: '10px 0 0', fontSize: 12.5, color: 'var(--text-soft)', lineHeight: 1.55, fontStyle: 'italic' }}>"{reference.summary}"</p>
+      )}
+      {citacao && (
+        <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+          <strong style={{ color: 'var(--text)' }}>{citacao.value}</strong> {citacao.label}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ReferencesPanel({ refs, isISV, onAdd, onEdit, onDelete }) {
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
@@ -1001,9 +995,9 @@ function ReferencesPanel({ refs, isISV, onAdd, onEdit, onDelete }) {
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
             <h2 style={dp.panelTitle}>Clientes de Referência</h2>
-            <p style={dp.panelSub}>{refs.length} caso{refs.length !== 1 ? 's' : ''} de sucesso associado{refs.length !== 1 ? 's' : ''} a este playbook.</p>
+            <p style={dp.panelSub}>Cases reais ajudam a dar confiança na etapa de negociação.</p>
           </div>
-          {isISV && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
+          {isISV && refs.length > 0 && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
         </div>
         {refs.length > 0 && (
           <div style={{ position: 'relative', marginTop: 14 }}>
@@ -1015,45 +1009,19 @@ function ReferencesPanel({ refs, isISV, onAdd, onEdit, onDelete }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={dp.empty}>
-          <div style={dp.emptyIcon}>🏆</div>
-          <div style={dp.emptyTitle}>{refs.length === 0 ? 'Nenhum caso cadastrado ainda' : 'Nenhum resultado encontrado'}</div>
-          {refs.length === 0 && isISV && <button onClick={onAdd} style={dp.addBtn}>+ Adicionar primeiro caso</button>}
-        </div>
+        refs.length === 0 ? (
+          <div style={dp.empty}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhuma referência cadastrada ainda.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Cases reais ajudam a dar confiança na etapa de negociação.</div>
+            {isISV && <button onClick={onAdd} style={{ ...dp.addBtn, marginTop: 4 }}>+ Adicionar primeira referência</button>}
+          </div>
+        ) : (
+          <div style={dp.empty}><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhum resultado encontrado.</div></div>
+        )
       ) : (
-        <div style={dp.refList}>
+        <div style={dp.refGrid}>
           {filtered.map(ref => (
-            <div key={ref.id} style={dp.refCard}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-                <div style={{ width: 38, height: 38, borderRadius: 9, background: ref.logo_color + '22', color: ref.logo_color, border: `1px solid ${ref.logo_color}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 12, flexShrink: 0, fontFamily: 'var(--mono)', letterSpacing: '-0.5px' }}>
-                  {ref.logo_initials}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{ref.company_name}</span>
-                    <span style={dp.regionPill}>{ref.region}</span>
-                    {!ref.is_public && isISV && <span style={{ fontSize: 10, color: '#9CA3AF' }} title="Apenas ISV">🔒</span>}
-                  </div>
-                  {ref.summary && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>{ref.summary}</p>}
-                  {ref.results?.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-                      {ref.results.filter(r => r.label).map((r, i) => (
-                        <div key={i} style={dp.resultKpi}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', letterSpacing: '-0.3px' }}>{r.value}</div>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>{r.label}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {isISV && (
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                    <button onClick={() => onEdit(ref)} style={dp.editBtn}>✎</button>
-                    <button onClick={() => onDelete(ref.id)} style={dp.deleteBtn}>✕</button>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ReferenceCard key={ref.id} referencia={ref} isISV={isISV} onEdit={onEdit} onDelete={onDelete} />
           ))}
         </div>
       )}
@@ -1062,25 +1030,62 @@ function ReferencesPanel({ refs, isISV, onAdd, onEdit, onDelete }) {
 }
 
 // ─── Detail: Resources Panel ──────────────────────────────────────────────────
+function ResourceCard({ res, isISV, onEdit, onDelete }) {
+  const [hover, setHover] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const cfg = RESOURCE_CFG[res.type] || RESOURCE_CFG.outro
+  function copyLink() { setCopied(true); setTimeout(() => setCopied(false), 1800) }
+  return (
+    <div style={dp.resCard} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{cfg.icon}</div>
+        <span style={{ fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, padding: '2px 8px', borderRadius: 6 }}>{cfg.label}</span>
+      </div>
+      <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.35, marginBottom: 4 }}>{res.title}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, flex: 1 }}>{res.description}</div>
+      {res.tags?.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+          {res.tags.map(t => <span key={t} style={dp.tag}>{t}</span>)}
+        </div>
+      )}
+      {hover && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border2)' }}>
+          {res.file_size && res.file_size !== '—' && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>{res.file_size}</span>}
+          {isISV && (
+            <>
+              <button onClick={() => onEdit(res)} style={dp.resBtn}>✎</button>
+              <button onClick={() => onDelete(res.id)} style={{ ...dp.resBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>✕</button>
+            </>
+          )}
+          <button onClick={copyLink} style={{ ...dp.resBtn, ...(copied ? { background: '#D1FAE5', color: '#065F46', borderColor: '#10B981' } : {}) }}>
+            {copied ? '✓ Copiado' : '⎘ Copiar'}
+          </button>
+          <a href={res.url} target="_blank" rel="noreferrer"
+            style={{ ...dp.resBtn, background: 'var(--accent-glow)', color: 'var(--accent)', borderColor: 'transparent', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
+            ↗ Abrir
+          </a>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
-  const [copied, setCopied] = useState(null)
   const [search, setSearch] = useState('')
   const filtered = useMemo(() => {
     const q = search.toLowerCase()
     return resources.filter(r => r.title.toLowerCase().includes(q) || (r.description || '').toLowerCase().includes(q) || (r.tags || []).some(t => t.toLowerCase().includes(q)))
   }, [resources, search])
 
-  function copyLink(id) { setCopied(id); setTimeout(() => setCopied(null), 1800) }
-
   return (
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
           <div>
-            <h2 style={dp.panelTitle}>Materiais e Apoio</h2>
-            <p style={dp.panelSub}>{resources.length} material(is) disponível(is) neste playbook.</p>
+            <h2 style={dp.panelTitle}>Materiais</h2>
+            <p style={dp.panelSub}>Um pitch deck ou one-pager pronto acelera o vendedor.</p>
           </div>
-          {isISV && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
+          {isISV && resources.length > 0 && <Button onClick={onAdd} size="sm">+ Adicionar</Button>}
         </div>
         {resources.length > 0 && (
           <div style={{ position: 'relative', marginTop: 14 }}>
@@ -1092,48 +1097,20 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
       </div>
 
       {filtered.length === 0 ? (
-        <div style={dp.empty}>
-          <div style={dp.emptyIcon}>📂</div>
-          <div style={dp.emptyTitle}>{resources.length === 0 ? 'Nenhum material cadastrado ainda' : 'Nenhum resultado encontrado'}</div>
-          {resources.length === 0 && isISV && <button onClick={onAdd} style={dp.addBtn}>+ Adicionar primeiro material</button>}
-        </div>
+        resources.length === 0 ? (
+          <div style={dp.empty}>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhum material de apoio ainda.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Um pitch deck ou one-pager pronto acelera o vendedor.</div>
+            {isISV && <button onClick={onAdd} style={{ ...dp.addBtn, marginTop: 4 }}>+ Adicionar primeiro material</button>}
+          </div>
+        ) : (
+          <div style={dp.empty}><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Nenhum resultado encontrado.</div></div>
+        )
       ) : (
         <div style={dp.resGrid}>
-          {filtered.map(res => {
-            const cfg = RESOURCE_CFG[res.type] || RESOURCE_CFG.outro
-            return (
-              <div key={res.id} style={dp.resCard}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <div style={{ width: 36, height: 36, borderRadius: 8, background: cfg.bg, color: cfg.color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>{cfg.icon}</div>
-                  <span style={{ fontSize: 10, fontWeight: 600, background: cfg.bg, color: cfg.color, padding: '2px 8px', borderRadius: 10 }}>{cfg.label}</span>
-                </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', lineHeight: 1.35, marginBottom: 4 }}>{res.title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.5, flex: 1 }}>{res.description}</div>
-                {res.tags?.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-                    {res.tags.map(t => <span key={t} style={dp.tag}>{t}</span>)}
-                  </div>
-                )}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 10, paddingTop: 8, borderTop: '1px solid var(--border2)' }}>
-                  {res.file_size && res.file_size !== '—' && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 'auto' }}>{res.file_size}</span>}
-                  {isISV && (
-                    <>
-                      <button onClick={() => onEdit(res)} style={dp.resBtn}>✎</button>
-                      <button onClick={() => onDelete(res.id)} style={{ ...dp.resBtn, color: 'var(--red)', borderColor: 'var(--red)' }}>✕</button>
-                    </>
-                  )}
-                  <button onClick={() => copyLink(res.id)}
-                    style={{ ...dp.resBtn, ...(copied === res.id ? { background: '#D1FAE5', color: '#065F46', borderColor: '#10B981' } : {}) }}>
-                    {copied === res.id ? '✓ Copiado' : '⎘ Copiar'}
-                  </button>
-                  <a href={res.url} target="_blank" rel="noreferrer"
-                    style={{ ...dp.resBtn, background: 'var(--accent-glow)', color: 'var(--accent)', borderColor: 'transparent', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
-                    ↗ Abrir
-                  </a>
-                </div>
-              </div>
-            )
-          })}
+          {filtered.map(res => (
+            <ResourceCard key={res.id} res={res} isISV={isISV} onEdit={onEdit} onDelete={onDelete} />
+          ))}
         </div>
       )}
     </div>
@@ -1143,6 +1120,36 @@ function ResourcesPanel({ resources, isISV, onAdd, onEdit, onDelete }) {
 // ─── Checklist de Avanço de Etapas — itens sim/não por etapa, cada um com peso ────
 // Checks positivos aumentam a qualificação da Oportunidade (Pipeline.js soma os
 // pesos marcados / total de pesos da etapa = qualificacao_score).
+// Linha read-only por padrão (label + peso como metadado discreto); clique
+// vira edição inline (label + stepper de peso), sem modal.
+function ChecklistItem({ item, onUpdate, onRemove }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(item)
+  useEffect(() => { if (!editing) setDraft(item) }, [item, editing])
+
+  if (!editing) {
+    return (
+      <div style={ck.row} onClick={() => setEditing(true)}>
+        <span style={ck.checkbox}>☐</span>
+        <span style={ck.rowLabel}>{item.label}</span>
+        <span style={ck.pesoTag}>peso {item.peso}</span>
+        <Pencil size={11} style={{ color: 'var(--text-muted)', opacity: 0.35, flexShrink: 0 }} />
+      </div>
+    )
+  }
+  return (
+    <div style={{ ...ck.row, cursor: 'default', flexWrap: 'wrap' }}>
+      <input value={draft.label} onChange={e => setDraft(d => ({ ...d, label: e.target.value }))}
+        style={{ flex: 1, minWidth: 160, padding: '5px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }} />
+      <input type="number" min={0} max={100} value={draft.peso}
+        onChange={e => setDraft(d => ({ ...d, peso: Number(e.target.value) }))}
+        style={{ width: 56, padding: '5px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, textAlign: 'center' }} />
+      <button onClick={() => { onUpdate(draft); setEditing(false) }} style={{ ...dp.ghostAddBtn, opacity: 1 }}><CheckIcon size={12} /> Salvar</button>
+      <button onClick={onRemove} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--red)', fontSize: 12, padding: '2px 4px' }}>Remover</button>
+    </div>
+  )
+}
+
 function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
   const [novoLabel, setNovoLabel] = useState({})
 
@@ -1156,49 +1163,39 @@ function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
   function removeItem(etapaKey, itemId) {
     onChange({ ...checklist, [etapaKey]: (checklist[etapaKey] || []).filter(i => i.id !== itemId) })
   }
-  function updatePeso(etapaKey, itemId, peso) {
-    onChange({ ...checklist, [etapaKey]: (checklist[etapaKey] || []).map(i => i.id === itemId ? { ...i, peso } : i) })
+  function updateItem(etapaKey, itemId, patch) {
+    onChange({ ...checklist, [etapaKey]: (checklist[etapaKey] || []).map(i => i.id === itemId ? { ...i, ...patch } : i) })
   }
 
   return (
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
-        <h2 style={dp.panelTitle}>Checklist de Avanço de Etapas</h2>
-        <p style={dp.panelSub}>Itens sim/não por etapa do funil. Cada item marcado como "sim" na Oportunidade soma seu peso na Qualificação (0–100%).</p>
+        <h2 style={dp.panelTitle}>Checklist de Avanço</h2>
+        <p style={dp.panelSub}>Itens que decidem o avanço de etapa. Clique num item pra editar — o peso soma na Qualificação (0–100%) da Oportunidade.</p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
         {Object.entries(stageCfg).map(([key, cfg]) => {
           const itens = checklist[key] || []
           return (
-            <div key={key} style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: '14px 16px', background: 'var(--surface)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color || 'var(--accent)', flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{cfg.label}</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+            <CollapsibleSection key={key} defaultOpen title={cfg.label} dotColor={cfg.color} count={itens.length}>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {itens.map(item => (
-                  <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ flex: 1, fontSize: 12.5, color: 'var(--text)' }}>{item.label}</span>
-                    <input type="number" min={0} max={100} value={item.peso}
-                      onChange={e => updatePeso(key, item.id, Number(e.target.value))}
-                      style={{ width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12, textAlign: 'center' }} />
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>peso</span>
-                    <button onClick={() => removeItem(key, item.id)}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '2px 4px' }}>✕</button>
-                  </div>
+                  <ChecklistItem key={item.id} item={item}
+                    onUpdate={patch => updateItem(key, item.id, patch)}
+                    onRemove={() => removeItem(key, item.id)} />
                 ))}
                 {itens.length === 0 && (
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>Nenhum item nesta etapa ainda.</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', padding: '8px 0' }}>Nenhum item nesta etapa ainda.</div>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                 <input value={novoLabel[key] || ''} onChange={e => setNovoLabel(p => ({ ...p, [key]: e.target.value }))}
                   onKeyDown={e => e.key === 'Enter' && addItem(key)}
                   placeholder="Ex: Empresa tem orçamento aprovado?"
                   style={{ flex: 1, padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }} />
-                <button onClick={() => addItem(key)} style={dp.ghostAddBtn}>+ Adicionar</button>
+                <button onClick={() => addItem(key)} style={{ ...dp.ghostAddBtn, opacity: 1 }}>+ Adicionar</button>
               </div>
-            </div>
+            </CollapsibleSection>
           )
         })}
       </div>
@@ -1211,6 +1208,50 @@ function ChecklistPanel({ checklist = {}, onChange, stageCfg = STAGE_CFG }) {
 // — hoje o vínculo era solto (o SDR escolhia manualmente, sem relação com o
 // Playbook nem com a etapa). Fica só como sugestão/atalho na aba Questionários
 // da Oportunidade, não bloqueia — pode virar obrigatório depois se fizer sentido.
+// Preview real do questionário vinculado (não só o nome) — mostra as
+// primeiras perguntas, como um embed do Notion. Trocar abre um popover leve.
+function QuestionBlock({ template, ativos, onLink }) {
+  const [trocando, setTrocando] = useState(false)
+  const perguntas = (template?.estrutura_secoes?.secoes || []).flatMap(s => s.perguntas || [])
+
+  if (!template && !trocando) {
+    return (
+      <div style={qb.empty}>
+        <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginBottom: 4 }}>Nenhum questionário vinculado a esta etapa.</div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8 }}>Ajuda o vendedor a saber exatamente o que perguntar na call.</div>
+        <button onClick={() => setTrocando(true)} style={{ ...dp.ghostAddBtn, opacity: 1 }} disabled={ativos.length === 0}>+ Vincular questionário</button>
+      </div>
+    )
+  }
+  if (trocando) {
+    return (
+      <div style={qb.card}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>Selecione um questionário</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+          <button onClick={() => { onLink(null); setTrocando(false) }} style={qb.pickItem}>— Nenhum —</button>
+          {ativos.map(t => (
+            <button key={t.id} onClick={() => { onLink(t.id); setTrocando(false) }} style={qb.pickItem}>{t.title}</button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div style={qb.card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <HelpCircle size={14} color="var(--accent)" strokeWidth={1.75} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', flex: 1 }}>{template.title}</span>
+      </div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>{perguntas.length} pergunta{perguntas.length !== 1 ? 's' : ''}</div>
+      {perguntas.slice(0, 3).map((p, i) => (
+        <div key={p.id || i} style={qb.previewLine}>{i + 1}. {p.label}</div>
+      ))}
+      {perguntas.length > 3 && <div style={qb.previewMore}>+ {perguntas.length - 3} outra{perguntas.length - 3 !== 1 ? 's' : ''}</div>}
+      <button onClick={() => setTrocando(true)} style={qb.trocarLink}>Trocar <ChevronRight size={11} /></button>
+    </div>
+  )
+}
+
 function QuestionarioEtapaPanel({ questionarioEtapas = {}, onChange, stageCfg = STAGE_CFG }) {
   const { templates } = useQuestionnaires()
   const ativos = templates.filter(t => t.is_active !== false)
@@ -1219,45 +1260,103 @@ function QuestionarioEtapaPanel({ questionarioEtapas = {}, onChange, stageCfg = 
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
         <h2 style={dp.panelTitle}>Questionário Recomendado</h2>
-        <p style={dp.panelSub}>Template de Questionário sugerido por etapa do funil — aparece como atalho na aba Questionários da Oportunidade quando ela estiver nessa etapa.</p>
+        <p style={dp.panelSub}>Um questionário sugerido por etapa — aparece como atalho na Oportunidade quando ela estiver nessa etapa.</p>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {Object.entries(stageCfg).map(([key, cfg]) => (
-          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 12, border: '1px solid var(--border2)', borderRadius: 10, padding: '12px 16px', background: 'var(--surface)' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: cfg.color || 'var(--accent)', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', width: 150, flexShrink: 0 }}>{cfg.label}</span>
-            <select value={questionarioEtapas[key] || ''} onChange={e => onChange({ ...questionarioEtapas, [key]: e.target.value || null })}
-              style={{ flex: 1, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontSize: 12.5 }}>
-              <option value="">— Nenhum —</option>
-              {ativos.map(t => <option key={t.id} value={t.id}>{t.title}</option>)}
-            </select>
-          </div>
-        ))}
-        {ativos.length === 0 && (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+        {ativos.length === 0 ? (
+          <div style={{ fontSize: 12.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>
             Nenhum template de Questionário ativo cadastrado ainda — crie um em Questionários primeiro.
           </div>
+        ) : (
+          Object.entries(stageCfg).map(([key, cfg]) => {
+            const template = ativos.find(t => String(t.id) === String(questionarioEtapas[key]))
+            return (
+              <div key={key}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 8 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: cfg.color || 'var(--accent)', flexShrink: 0 }} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text)' }}>{cfg.label}</span>
+                </div>
+                <QuestionBlock template={template} ativos={ativos} onLink={id => onChange({ ...questionarioEtapas, [key]: id })} />
+              </div>
+            )
+          })
         )}
       </div>
     </div>
   )
 }
 
+// ─── PropertyRow — padrão Notion de propriedades: label à esquerda, valor
+// clicável à direita (tags soltas em modo leitura); clique abre o editor
+// (MultiSelect/campo) inline, sem sair da página. ────────────────────────────
+// ─── CollapsibleSection — toggle list (padrão Notion), usada por Atividades
+// por Etapa e Checklist de Avanço. Fechada mostra só título + contagem. ─────
+function CollapsibleSection({ title, icon, dotColor, count, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(defaultOpen)
+  return (
+    <div style={cs.wrap}>
+      <button onClick={() => setOpen(o => !o)} style={cs.header}>
+        <ChevronRight size={13} style={{ color: 'var(--text-muted)', transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
+        {dotColor && <span style={{ width: 7, height: 7, borderRadius: '50%', background: dotColor, flexShrink: 0 }} />}
+        {icon && <span style={{ fontSize: 15, flexShrink: 0 }}>{icon}</span>}
+        <span style={cs.title}>{title}</span>
+        {typeof count === 'number' && <span style={cs.count}>{count}</span>}
+      </button>
+      {open && <div style={cs.body}>{children}</div>}
+    </div>
+  )
+}
+
+function PropertyRow({ label, value = [], placeholder, editor }) {
+  const [editing, setEditing] = useState(false)
+  return (
+    <div style={pr.row}>
+      <div style={pr.label}>{label}</div>
+      <div style={pr.value}>
+        {editing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {editor}
+            <button onClick={() => setEditing(false)} style={pr.doneLink}><CheckIcon size={11} /> Concluído</button>
+          </div>
+        ) : (
+          <button onClick={() => setEditing(true)} style={pr.valueBtn}>
+            {value.length === 0
+              ? <span style={pr.placeholder}>{placeholder}</span>
+              : <span style={pr.valueText}>{value.join(' · ')}</span>}
+            <Pencil size={11} style={pr.pencil} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function PropertyGroup({ title, children }) {
+  return (
+    <div style={{ marginBottom: 24 }}>
+      <div style={pr.groupTitle}>{title}</div>
+      <div>{children}</div>
+    </div>
+  )
+}
+
 // ─── ICP — Perfil de Cliente Ideal ────────────────────────────────────────────
+// Lê como um retrato do cliente ideal (propriedades), não como um formulário
+// de segmentação — cada linha só vira campo de edição ao ser clicada.
 function IcpPanel({ icp = {}, onChange }) {
   const set = (k, v) => onChange({ ...icp, [k]: v })
   const { opcoes: departamentos, setOpcoes: setDepartamentos } = useContactListOptions('departamento', DEPARTAMENTOS_DEFAULT)
   const addTag = (k, v) => { const t = (v || '').trim(); if (!t) return; set(k, [...(icp[k] || []), t]) }
   const removeTag = (k, t) => set(k, (icp[k] || []).filter(x => x !== t))
 
-  function TagField({ field, placeholder }) {
+  function TagEditor({ field, placeholder }) {
     const [draft, setDraft] = useState('')
     return (
       <div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
           {(icp[field] || []).map(t => (
-            <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 20, background: 'var(--accent)20', color: 'var(--accent)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              {t}<span onClick={() => removeTag(field, t)} style={{ cursor: 'pointer', opacity: 0.7 }}>×</span>
+            <span key={t} style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              {t}<span onClick={() => removeTag(field, t)} style={{ cursor: 'pointer', opacity: 0.6 }}>×</span>
             </span>
           ))}
         </div>
@@ -1272,99 +1371,79 @@ function IcpPanel({ icp = {}, onChange }) {
     )
   }
 
-  const block = (title, children) => (
-    <div style={{ border: '1px solid var(--border2)', borderRadius: 12, padding: '16px 18px', background: 'var(--surface)', marginBottom: 14 }}>
-      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 12 }}>{title}</div>
-      {children}
-    </div>
-  )
-
   return (
     <div style={dp.panel}>
       <div style={dp.panelHeader}>
         <h2 style={dp.panelTitle}>ICP — Perfil de Cliente Ideal</h2>
-        <p style={dp.panelSub}>Critérios objetivos de quem é o cliente ideal para este playbook — firmográfico, comportamental e tecnográfico.</p>
+        <p style={dp.panelSub}>Quem é o cliente ideal para este playbook — clique em qualquer valor para editar.</p>
       </div>
 
-      {block('Firmográfico', (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Segmentos</div>
-            <MultiSelect options={SEGMENT_OPTIONS.map(s => ({ value: s, label: s }))} value={icp.segmentos || []} onChange={v => set('segmentos', v)} placeholder="Selecionar segmentos…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Porte</div>
-            <MultiSelect options={PORTES.filter(p => p.value)} value={icp.portes || []} onChange={v => set('portes', v)} placeholder="Selecionar portes…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Faixa de faturamento</div>
-            <MultiSelect options={RECEITA_FAIXAS.filter(r => r.value)} value={icp.faturamento || []} onChange={v => set('faturamento', v)} placeholder="Selecionar faixas…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Região</div>
-            <MultiSelect options={REGION_OPTIONS.map(r => ({ value: r, label: r }))} value={icp.regioes || []} onChange={v => set('regioes', v)} placeholder="Selecionar regiões…" />
-          </div>
-        </div>
-      ))}
+      <PropertyGroup title="Perfil da empresa">
+        <PropertyRow label="Segmentos" value={icp.segmentos || []} placeholder="Nenhum segmento definido"
+          editor={<MultiSelect options={SEGMENT_OPTIONS.map(s => ({ value: s, label: s }))} value={icp.segmentos || []} onChange={v => set('segmentos', v)} placeholder="Selecionar segmentos…" />} />
+        <PropertyRow label="Porte" value={icp.portes || []} placeholder="Nenhum porte definido"
+          editor={<MultiSelect options={PORTES.filter(p => p.value)} value={icp.portes || []} onChange={v => set('portes', v)} placeholder="Selecionar portes…" />} />
+        <PropertyRow label="Faturamento" value={icp.faturamento || []} placeholder="Nenhuma faixa definida"
+          editor={<MultiSelect options={RECEITA_FAIXAS.filter(r => r.value)} value={icp.faturamento || []} onChange={v => set('faturamento', v)} placeholder="Selecionar faixas…" />} />
+        <PropertyRow label="Região" value={icp.regioes || []} placeholder="Nenhuma região definida"
+          editor={<MultiSelect options={REGION_OPTIONS.map(r => ({ value: r, label: r }))} value={icp.regioes || []} onChange={v => set('regioes', v)} placeholder="Selecionar regiões…" />} />
+        <PropertyRow label="Stack / concorrentes" value={icp.stack || []} placeholder="Nenhum registrado"
+          editor={<TagEditor field="stack" placeholder="Ex: Planilhas, CRM concorrente X…" />} />
+      </PropertyGroup>
 
-      {block('Comportamental', (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Principais dores / gatilhos de compra</div>
-            <TagField field="dores" placeholder="Ex: Falta de visibilidade do funil de vendas…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Critérios de desqualificação</div>
-            <TagField field="desqualificacao" placeholder="Ex: Menos de 5 vendedores…" />
-          </div>
-        </div>
-      ))}
+      <PropertyGroup title="Perfil do decisor">
+        <PropertyRow label="Departamento" value={icp.departamentos || []} placeholder="Nenhum departamento definido"
+          editor={<MultiSelect options={departamentos.map(d => ({ value: d, label: d }))} value={icp.departamentos || []} onChange={v => set('departamentos', v)} placeholder="Selecionar departamentos…"
+            onCreate={nome => setDepartamentos(prev => prev.includes(nome) ? prev : [...prev, nome])} createPlaceholder="Novo departamento…" />} />
+        <PropertyRow label="Senioridade" value={icp.senioridades || []} placeholder="Nenhuma senioridade definida"
+          editor={<MultiSelect options={SENIORIDADE_OPTIONS.filter(o => o.value)} value={icp.senioridades || []} onChange={v => set('senioridades', v)} placeholder="Selecionar senioridades…" />} />
+        <PropertyRow label="Poder de decisão" value={icp.poderes_decisao || []} placeholder="Nenhum registrado"
+          editor={<MultiSelect options={PODER_DECISAO_OPTIONS.filter(o => o.value)} value={icp.poderes_decisao || []} onChange={v => set('poderes_decisao', v)} placeholder="Selecionar poder de decisão…" />} />
+      </PropertyGroup>
 
-      {block('Tecnográfico', (
-        <div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Stack / soluções concorrentes em uso</div>
-          <TagField field="stack" placeholder="Ex: Planilhas, CRM concorrente X…" />
-        </div>
-      ))}
-
-      {block('Perfil de Contato', (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Departamento(s) ideal(is)</div>
-            <MultiSelect options={departamentos.map(d => ({ value: d, label: d }))} value={icp.departamentos || []} onChange={v => set('departamentos', v)} placeholder="Selecionar departamentos…"
-              onCreate={nome => setDepartamentos(prev => prev.includes(nome) ? prev : [...prev, nome])} createPlaceholder="Novo departamento…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Senioridade ideal</div>
-            <MultiSelect options={SENIORIDADE_OPTIONS.filter(o => o.value)} value={icp.senioridades || []} onChange={v => set('senioridades', v)} placeholder="Selecionar senioridades…" />
-          </div>
-          <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Poder de decisão exigido</div>
-            <MultiSelect options={PODER_DECISAO_OPTIONS.filter(o => o.value)} value={icp.poderes_decisao || []} onChange={v => set('poderes_decisao', v)} placeholder="Selecionar poder de decisão…" />
-          </div>
-        </div>
-      ))}
+      <PropertyGroup title="Contexto de compra">
+        <PropertyRow label="Dores / gatilhos" value={icp.dores || []} placeholder="Nenhum registrado"
+          editor={<TagEditor field="dores" placeholder="Ex: Falta de visibilidade do funil de vendas…" />} />
+        <PropertyRow label="Desqualificação" value={icp.desqualificacao || []} placeholder="Nenhum critério definido"
+          editor={<TagEditor field="desqualificacao" placeholder="Ex: Menos de 5 vendedores…" />} />
+      </PropertyGroup>
     </div>
   )
 }
 
 // ─── Objeções Detail Panel ────────────────────────────────────────────────────
 // ─── Detail View ─────────────────────────────────────────────────────────────
+// Índice do documento — agrupado por natureza (metodologia vs. materiais de
+// apoio vs. objeções), não uma lista solta. Badge de contagem só nas seções
+// que são listas de verdade (checklist, atividades, referências, materiais,
+// objeções) — questionário e ICP são "1 escolha"/"1 perfil", não precisam.
 const DETAIL_SECTIONS_VENDAS = [
-  { id: 'funnel',    icon: '🎯', label: 'Atividades por Etapa' },
-  { id: 'checklist', icon: '✅', label: 'Checklist de Avanço de Etapas' },
-  { id: 'questionario', icon: '📝', label: 'Questionário Recomendado' },
-  { id: 'icp',       icon: '🧭', label: 'ICP' },
-  { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
-  { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
-  { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
+  { group: 'Metodologia', items: [
+    { id: 'funnel',       Icon: Layers,               label: 'Atividades por Etapa' },
+    { id: 'checklist',    Icon: CheckSquare,          label: 'Checklist de Avanço' },
+    { id: 'questionario', Icon: HelpCircle,           label: 'Questionário', noBadge: true },
+    { id: 'icp',          Icon: Target,               label: 'ICP', noBadge: true },
+  ] },
+  { group: 'Materiais de Apoio', items: [
+    { id: 'refs',      Icon: Users,    label: 'Clientes de Referência' },
+    { id: 'resources', Icon: FileText, label: 'Materiais' },
+  ] },
+  { group: 'Objeções', items: [
+    { id: 'objecoes', Icon: MessageSquareWarning, label: 'Biblioteca de Objeções' },
+  ] },
 ]
 
 const DETAIL_SECTIONS_ADMIN = [
-  { id: 'funnel',    icon: '📋', label: 'Atividades por Status' },
-  { id: 'refs',      icon: '🏆', label: 'Clientes de Referência' },
-  { id: 'resources', icon: '📂', label: 'Materiais e Apoio' },
-  { id: 'objecoes',  icon: '🛡️', label: 'Objeções' },
+  { group: 'Metodologia', items: [
+    { id: 'funnel', Icon: Layers, label: 'Atividades por Status' },
+  ] },
+  { group: 'Materiais de Apoio', items: [
+    { id: 'refs',      Icon: Users,    label: 'Clientes de Referência' },
+    { id: 'resources', Icon: FileText, label: 'Materiais' },
+  ] },
+  { group: 'Objeções', items: [
+    { id: 'objecoes', Icon: MessageSquareWarning, label: 'Biblioteca de Objeções' },
+  ] },
 ]
 
 const SEGMENT_COLORS = {
@@ -1402,7 +1481,6 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
   const resourceCount = resources.length
   const objecoesCount  = (playbook.objecoes || []).length
   const checklistCount = Object.values(playbook.checklist_etapas || {}).reduce((s, arr) => s + arr.length, 0)
-  const questionarioCount = Object.values(playbook.questionario_etapas || {}).filter(Boolean).length
 
   return (
     <div style={dv.wrap}>
@@ -1422,24 +1500,32 @@ function PlaybookDetail({ playbook, steps, refs, resources, isISV, funis = [], o
 
       {/* ── 2-column layout ── */}
       <div style={dv.body}>
-        {/* Internal sidebar */}
+        {/* Internal sidebar — índice do documento, agrupado */}
         <aside style={dv.sidebar}>
           <div style={dv.sbInner}>
-            {(isAdministrativo ? DETAIL_SECTIONS_ADMIN : DETAIL_SECTIONS_VENDAS).map(sec => {
-              const count = sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount
-                : sec.id === 'checklist' ? checklistCount : sec.id === 'questionario' ? questionarioCount
-                : sec.id === 'icp' ? undefined : objecoesCount
-              return (
-                <button key={sec.id}
-                  style={{ ...dv.sbItem, ...(section === sec.id ? dv.sbItemActive : {}) }}
-                  onClick={() => setSection(sec.id)}>
-                  <span style={{ flex: 1, textAlign: 'left' }}>{sec.label}</span>
-                  {count > 0 && (
-                    <span style={{ ...dv.sbCount, ...(section === sec.id ? dv.sbCountActive : {}) }}>{count}</span>
-                  )}
-                </button>
-              )
-            })}
+            {(isAdministrativo ? DETAIL_SECTIONS_ADMIN : DETAIL_SECTIONS_VENDAS).map((grp, gi) => (
+              <div key={grp.group} style={{ marginTop: gi > 0 ? 4 : 0 }}>
+                {gi > 0 && <div style={dv.sbDivider} />}
+                <div style={dv.sbGroupLabel}>{grp.group}</div>
+                {grp.items.map(sec => {
+                  const count = sec.noBadge ? undefined
+                    : sec.id === 'funnel' ? stepsCount : sec.id === 'refs' ? refsCount : sec.id === 'resources' ? resourceCount
+                    : sec.id === 'checklist' ? checklistCount : objecoesCount
+                  const ativo = section === sec.id
+                  return (
+                    <button key={sec.id}
+                      style={{ ...dv.sbItem, ...(ativo ? dv.sbItemActive : {}) }}
+                      onClick={() => setSection(sec.id)}>
+                      <sec.Icon size={14} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+                      <span style={{ flex: 1, textAlign: 'left' }}>{sec.label}</span>
+                      {count > 0 && (
+                        <span style={{ ...dv.sbCount, ...(ativo ? dv.sbCountActive : {}) }}>{count}</span>
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
           </div>
         </aside>
 
@@ -1813,7 +1899,9 @@ const dv = {
   body:        { display: 'flex', flex: 1, overflow: 'hidden' },
   sidebar:     { width: 220, flexShrink: 0, borderRight: '1px solid var(--border2)', background: 'var(--surface)', overflowY: 'auto' },
   sbInner:     { padding: '16px 0' },
-  sbItem:      { width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'var(--font)', borderLeft: '2px solid transparent', transition: 'all 0.12s', textAlign: 'left' },
+  sbGroupLabel:{ padding: '6px 16px 4px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' },
+  sbDivider:   { height: 1, background: 'var(--border2)', margin: '8px 16px' },
+  sbItem:      { width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '8px 16px', background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', fontFamily: 'var(--font)', borderLeft: '2px solid transparent', transition: 'all 0.12s', textAlign: 'left' },
   sbItemActive:{ color: 'var(--accent)', background: 'var(--accent-glow)', borderLeft: '2px solid var(--accent)' },
   sbCount:     { fontSize: 11, fontWeight: 600, background: 'var(--surface2)', color: 'var(--text-muted)', borderRadius: 10, padding: '1px 7px', border: '1px solid var(--border)' },
   sbCountActive:{ background: 'var(--accent-glow)', color: 'var(--accent)', border: '1px solid transparent' },
@@ -1821,6 +1909,46 @@ const dv = {
 }
 
 // Detail panels shared
+// QuestionBlock (Questionário Recomendado)
+const qb = {
+  card:       { border: '1px solid var(--border2)', borderRadius: 10, padding: '14px 16px', background: 'var(--surface)' },
+  empty:      { border: '1px dashed var(--border)', borderRadius: 10, padding: '14px 16px' },
+  previewLine:{ fontSize: 12, color: 'var(--text-soft)', lineHeight: 1.6 },
+  previewMore:{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 2 },
+  trocarLink: { display: 'inline-flex', alignItems: 'center', gap: 2, marginTop: 10, fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', padding: 0 },
+  pickItem:   { textAlign: 'left', padding: '7px 8px', borderRadius: 6, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12.5, color: 'var(--text)', fontFamily: 'var(--font)' },
+}
+
+// CollapsibleSection (Atividades por Etapa, Checklist)
+const cs = {
+  wrap:   { borderBottom: '1px solid var(--border2)' },
+  header: { width: '100%', display: 'flex', alignItems: 'center', gap: 9, padding: '11px 4px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', textAlign: 'left' },
+  title:  { flex: 1, fontSize: 13.5, fontWeight: 700, color: 'var(--text)' },
+  count:  { fontSize: 11.5, color: 'var(--text-muted)', fontFamily: 'var(--mono)' },
+  body:   { padding: '0 4px 16px 26px' },
+}
+
+// ChecklistItem
+const ck = {
+  row:     { display: 'flex', alignItems: 'center', gap: 9, padding: '7px 6px', borderRadius: 6, cursor: 'pointer' },
+  checkbox:{ color: 'var(--border2)', fontSize: 13, flexShrink: 0 },
+  rowLabel:{ flex: 1, fontSize: 12.5, color: 'var(--text)' },
+  pesoTag: { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)', flexShrink: 0 },
+}
+
+// PropertyRow / PropertyGroup (padrão Notion de propriedades — usado no ICP)
+const pr = {
+  groupTitle:  { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 },
+  row:         { display: 'flex', alignItems: 'flex-start', gap: 16, padding: '9px 0', borderBottom: '1px solid var(--border2)' },
+  label:       { width: 150, flexShrink: 0, fontSize: 13, color: 'var(--text-muted)', paddingTop: 5 },
+  value:       { flex: 1, minWidth: 0 },
+  valueBtn:    { display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 6px', borderRadius: 6, fontFamily: 'var(--font)' },
+  valueText:   { fontSize: 13, color: 'var(--text)', flex: 1 },
+  placeholder: { fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', flex: 1 },
+  pencil:      { color: 'var(--text-muted)', opacity: 0.35, flexShrink: 0 },
+  doneLink:    { display: 'inline-flex', alignItems: 'center', gap: 4, alignSelf: 'flex-start', fontSize: 11.5, fontWeight: 600, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)', padding: '2px 0' },
+}
+
 const dp = {
   panel:       { maxWidth: 820, padding: '28px 32px 48px' },
   panelHeader: { marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid var(--border2)' },
@@ -1835,8 +1963,8 @@ const dp = {
   empty:       { padding: '48px 0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 },
   emptyIcon:   { fontSize: 40, opacity: 0.3 },
   emptyTitle:  { fontSize: 14, color: 'var(--text-muted)' },
-  refList:     { display: 'flex', flexDirection: 'column', gap: 12 },
-  refCard:     { background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 12, padding: '16px 18px' },
+  refGrid:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 },
+  refCard:     { background: 'var(--surface)', border: '1px solid var(--border2)', borderRadius: 10, padding: '14px 16px' },
   regionPill:  { fontSize: 11, fontWeight: 500, background: 'var(--surface2)', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' },
   resultKpi:   { background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', minWidth: 90 },
   resGrid:     { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 14 },
