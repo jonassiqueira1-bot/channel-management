@@ -425,9 +425,11 @@ export default function Relatorios() {
     return true
   })
 
+  // Novos relatórios sempre nascem no construtor novo — o editor de canvas
+  // (SlideOver + CanvasEditor) fica só pra editar os que já existem nesse
+  // formato, sem migração forçada.
   function openNew() {
-    setForm({ ...EMPTY_FORM, titulo: 'Novo relatório' })
-    setSlideOpen(true)
+    navigate('/relatorios/novo-construtor')
   }
 
   function openEdit(rel) {
@@ -522,9 +524,6 @@ export default function Relatorios() {
         activeFilters={activeFilters}
         onFilterChange={setActiveFilters}
         onRowClick={openEdit}
-        extraMenuItems={[
-          { label: '✨ Experimentar novo construtor', onClick: () => navigate('/relatorios/novo-construtor') },
-        ]}
         bulkActions={[
           {
             label: 'Excluir selecionados',
