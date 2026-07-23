@@ -49,9 +49,14 @@ function unidadeExclui(filters) {
  * Duas otimizações que evitam o timeout (57014) visto com ~11 mil linhas:
  *  - `count: 'estimated'` em vez de `'exact'` — um COUNT(*) exato sob RLS
  *    precisa avaliar a policy pra TODA linha do tenant a cada busca só pra
- *    saber o total; a versão "estimated" usa a estimativa do planner
- *    (instantânea) quando o resultado é grande, e cai pra exata só se for
- *    pequeno o suficiente pra não importar.
+ *    saber o total. Chegou a usar `count: 'estimated'` aqui, mas isso foi
+ *    revertido: o Postgres não sabe estimar a seletividade da função de RLS
+ *    (can_see_branch_record), então o "estimated" chutava ~1/3 do total real
+ *    (confirmado em produção: 22052 registros reais, exibindo só 7350 — bate
+ *    exatamente com o fator de seletividade padrão do planner pra condições
+ *    opacas). Isso deixou de ser necessário depois do fix real de
+ *    performance na RLS (ver migrations 20260723000007/8) — count exato
+ *    agora sai em ~150-420ms, não precisa mais dessa troca.
  *  - KPIs (que precisam agregar sobre TODO o conjunto filtrado, não só a
  *    página) vêm de uma RPC (`companies_kpis`) que soma/conta no Postgres —
  *    antes buscava `status`+`mrr` de TODAS as linhas filtradas só pra somar
@@ -73,7 +78,7 @@ export function useCompaniesPaged({ page, pageSize, search, filters, sortBy }) {
       return
     }
 
-    let q = applyFilters(supabase.from('companies').select('*', { count: 'estimated' }), { search, filters })
+    let q = applyFilters(supabase.from('companies').select('*', { count: 'exact' }), { search, filters })
 
     if (sortBy === 'mrr_desc')      q = q.order('custom_fields->mrr', { ascending: false, nullsFirst: false })
     else if (sortBy === 'mrr_asc')  q = q.order('custom_fields->mrr', { ascending: true,  nullsFirst: true })
