@@ -25,7 +25,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
-  ArrowLeft, Check, ChevronDown, ChevronUp, X, Search, Save, Plus,
+  ArrowLeft, Check, ChevronDown, ChevronUp, ChevronRight, X, Search, Save, Plus,
   Database, Filter, Layers, Settings2, Trash2, Copy, GripVertical,
   BarChart2, LineChart as LineChartIcon, PieChart as PieChartIcon,
   Table2, Type, Minus, Image as ImageIcon, TrendingUp, FileDown,
@@ -281,6 +281,16 @@ function agruparParaRender(blocks) {
   return grupos
 }
 
+// Linha de resumo mostrada quando um bloco está colapsado — útil pra vários
+// blocos de tabela na mesma tela sem ocupar a tela inteira de rolagem.
+function resumoBloco(blk, linhas) {
+  const meta = BLOCO_TIPOS.find(b => b.tipo === blk.tipo)
+  if (blk.tipo === 'tabela') return `${meta.label} · ${(blk.config.colunas || []).length} coluna${(blk.config.colunas || []).length !== 1 ? 's' : ''} · ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}`
+  if (blk.tipo === 'kpi') return `${meta.label} · ${blk.config.label || ''}`
+  if (blk.tipo === 'grafico') return `${meta.label} · ${blk.config.tipo || ''}`
+  return meta.label
+}
+
 export default function RelatoriosBuilder() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -417,6 +427,15 @@ export default function RelatoriosBuilder() {
   function removerCampo(id) {
     setCampos(prev => prev.filter(c => c.id !== id))
   }
+  function moverCampo(idx, dir) {
+    setCampos(prev => {
+      const i = idx + dir
+      if (i < 0 || i >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[i]] = [next[i], next[idx]]
+      return next
+    })
+  }
   function addFiltro() {
     if (campos.length === 0) return
     setFiltros(prev => [...prev, { id: uid('f'), campoId: campos[0].id, operador: operadoresDe(campos[0].type)[0].id, valor: '' }])
@@ -444,6 +463,9 @@ export default function RelatoriosBuilder() {
   }
   function updateBlockConfig(id, patch) {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, config: { ...b.config, ...patch } } : b))
+  }
+  function toggleColapsarBlock(id) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, colapsado: !b.colapsado } : b))
   }
   function moverBlock(idx, dir) {
     setBlocks(prev => {
@@ -535,13 +557,16 @@ export default function RelatoriosBuilder() {
                 <div key={gi} style={grupo.length > 1 ? s.kpiRowWrap : undefined}>
                   {grupo.map(({ blk, idx }) => (
                     <BlockWrapper key={blk.id} idx={idx} total={blocks.length} emLinha={grupo.length > 1}
+                      colapsado={blk.colapsado} onToggleColapsar={() => toggleColapsarBlock(blk.id)}
                       selecionado={painel?.blockId === blk.id}
                       onSelect={() => setPainel({ blockId: blk.id })}
                       onMoveUp={() => moverBlock(idx, -1)}
                       onMoveDown={() => moverBlock(idx, 1)}
                       onDuplicate={() => duplicarBlock(blk.id)}
                       onRemove={() => removerBlock(blk.id)}>
-                      <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />
+                      {blk.colapsado
+                        ? <div style={s.blockColapsadoResumo}>{resumoBloco(blk, linhas)}</div>
+                        : <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />}
                     </BlockWrapper>
                   ))}
                 </div>
@@ -562,7 +587,7 @@ export default function RelatoriosBuilder() {
             relacionadas={relacionadas} campos={campos} filtros={filtros} conector={conector}
             agrupamento={agrupamento} entidadesAtivas={entidadesAtivas}
             onEscolherEntidade={escolherEntidade} onToggleJoin={toggleJoin} onToggleCampo={toggleCampo}
-            onAddCalculado={addCalculado} onRemoverCampo={removerCampo}
+            onAddCalculado={addCalculado} onRemoverCampo={removerCampo} onMoverCampo={moverCampo}
             onAddFiltro={addFiltro} onUpdateFiltro={updateFiltro} onRemoveFiltro={removeFiltro} onConector={setConector}
             onToggleAgrupamento={toggleAgrupamento}
             onClose={() => setPainel(null)}
@@ -636,7 +661,7 @@ function BlockPicker({ onPick, onClose }) {
 }
 
 // ─── Invólucro de bloco — toolbar discreta ao passar o mouse ─────────────────
-function BlockWrapper({ children, idx, total, emLinha, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
+function BlockWrapper({ children, idx, total, emLinha, colapsado, onToggleColapsar, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
   const [hover, setHover] = useState(false)
   return (
     <div
@@ -649,6 +674,9 @@ function BlockWrapper({ children, idx, total, emLinha, selecionado, onSelect, on
           <span style={s.blockDragHint}><GripVertical size={12} /></span>
           <button style={s.iconBtn} disabled={idx === 0} onClick={onMoveUp}><ChevronUp size={13} /></button>
           <button style={s.iconBtn} disabled={idx === total - 1} onClick={onMoveDown}><ChevronDown size={13} /></button>
+          <button style={s.iconBtn} onClick={onToggleColapsar} title={colapsado ? 'Expandir' : 'Recolher'}>
+            {colapsado ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+          </button>
           <button style={s.iconBtn} onClick={onSelect} title="Configurar"><Settings2 size={13} /></button>
           <button style={s.iconBtn} onClick={onDuplicate} title="Duplicar"><Copy size={13} /></button>
           <button style={{ ...s.iconBtn, color: 'var(--red)' }} onClick={onRemove} title="Remover"><Trash2 size={13} /></button>
@@ -838,7 +866,7 @@ function ImagemBlockView({ config }) {
 }
 
 // ─── Painel "Dados" — fonte, relacionamentos, campos, filtros, agrupamento ──
-function DataPanel({ sources, entidade, entidadeId, joins, relacionadas, campos, filtros, conector, agrupamento, entidadesAtivas, onEscolherEntidade, onToggleJoin, onToggleCampo, onAddCalculado, onRemoverCampo, onAddFiltro, onUpdateFiltro, onRemoveFiltro, onConector, onToggleAgrupamento, onClose }) {
+function DataPanel({ sources, entidade, entidadeId, joins, relacionadas, campos, filtros, conector, agrupamento, entidadesAtivas, onEscolherEntidade, onToggleJoin, onToggleCampo, onAddCalculado, onRemoverCampo, onMoverCampo, onAddFiltro, onUpdateFiltro, onRemoveFiltro, onConector, onToggleAgrupamento, onClose }) {
   const [secao, setSecao] = useState('fonte')
   const [busca, setBusca] = useState('')
 
@@ -932,12 +960,15 @@ function DataPanel({ sources, entidade, entidadeId, joins, relacionadas, campos,
             {campos.length > 0 && (
               <>
                 <div style={{ ...s.painelSubtitulo, marginTop: 20 }}>Selecionados ({campos.length})</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {campos.map(c => (
-                    <span key={c.id} style={s.campoChip}>
-                      {c.calculado && '🧮 '}{c.label}
-                      <button style={s.chipRemove} onClick={() => onRemoverCampo(c.id)}><X size={10} /></button>
-                    </span>
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: -4, marginBottom: 8 }}>Essa ordem é a que os campos entram nos blocos novos.</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {campos.map((c, idx) => (
+                    <div key={c.id} style={s.colConfigRow}>
+                      <button style={s.iconBtnXs} disabled={idx === 0} onClick={() => onMoverCampo(idx, -1)}><ChevronUp size={11} /></button>
+                      <button style={s.iconBtnXs} disabled={idx === campos.length - 1} onClick={() => onMoverCampo(idx, 1)}><ChevronDown size={11} /></button>
+                      <span style={{ flex: 1, fontSize: 12.5 }}>{c.calculado && '🧮 '}{c.label}</span>
+                      <button style={s.iconBtnXs} onClick={() => onRemoverCampo(c.id)}><X size={11} /></button>
+                    </div>
                   ))}
                 </div>
               </>
@@ -1283,6 +1314,7 @@ const s = {
   blockToolbar: { position: 'absolute', top: -14, right: 8, display: 'flex', alignItems: 'center', gap: 2, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', zIndex: 5 },
   blockDragHint: { color: 'var(--border2)', display: 'flex', padding: '0 2px' },
   blockEmpty: { padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5, fontStyle: 'italic', border: '1px dashed var(--border)', borderRadius: 8 },
+  blockColapsadoResumo: { padding: '8px 2px', fontSize: 12.5, color: 'var(--text-muted)' },
 
   addBlockInline: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px', borderRadius: 8, border: '1.5px dashed var(--border2)', background: 'none', color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
 
