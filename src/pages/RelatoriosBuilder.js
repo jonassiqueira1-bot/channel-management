@@ -1,38 +1,43 @@
 /**
- * Novo construtor de Relatórios — substitui gradualmente o editor de canvas
- * (CanvasEditor) por um assistente guiado em 4 fases, ancorado no motor de
- * relacionamentos entre entidades (ver proposta de arquitetura).
+ * Construtor de Relatórios — reformulação completa (v2).
  *
- * Fases implementadas até aqui:
- *   1. Fonte       — escolher entidade principal + relacionamentos a incluir
- *   2. Colunas      — escolher quais campos (da entidade principal e das
- *                      relacionadas) entram no relatório, em que ordem, e
- *                      opcionalmente criar campos calculados (campo/valor
- *                      fixo ± × ÷ campo/valor fixo, ex: Valor − Custo)
- *   3. Regras       — filtros (E/OU) + agrupamento
- *   4. Resultado    — grade ao vivo (junção real), ordenação, export CSV/Excel/PDF
+ * Conceito: NÃO é um editor de canvas/páginas. É um construtor de consultas
+ * e visualizações, inspirado em Notion Database / Airtable / ClickUp /
+ * Linear. O usuário nunca desenha um relatório — ele monta uma pergunta de
+ * negócio: escolhe a origem dos dados, navega pelos relacionamentos sem SQL,
+ * escolhe campos/filtros/agrupamentos, e depois adiciona blocos prontos
+ * (KPI, Tabela, Gráfico, Texto, Divisor, Imagem) que se organizam em
+ * sequência — sem posicionamento livre, sem arrastar.
  *
- * Persistência reaproveita a mesma tabela `relatorios` usada pelo editor de
- * canvas (useRelatorios) — o estado do builder inteiro vai dentro de
- * `config.builder`, o que já basta pro relatório aparecer na listagem
- * existente em Relatorios.js. `elementos` (o formato do CanvasEditor) fica
- * vazio nesses relatórios; Relatorios.js detecta `config.builder` e abre
- * esta tela em vez do CanvasEditor ao clicar na linha.
+ * Estrutura:
+ *   - A "fonte" (entidade + relacionamentos + campos + filtros +
+ *     agrupamento) é única por relatório — configurada no painel lateral
+ *     "Dados". É o equivalente a uma database do Notion.
+ *   - Os "blocos" são visualizações dessa mesma fonte — cada um escolhe
+ *     quais campos/métricas usar e como exibir. Ordem editável (↑/↓), nunca
+ *     posição livre.
  *
- * Vive lado a lado com Relatorios.js (não substitui o editor de canvas
- * ainda) — acessível por um item de menu na tela atual, pra comparação
- * lado a lado.
+ * Persistência: mesma tabela `relatorios` (config.builder), mesmo padrão de
+ * versionamento usado desde a v1 — reports salvos antes desta reformulação
+ * são migrados na hidratação (sintetiza um bloco de tabela com os campos
+ * antigos + um bloco de KPI por KPI antigo).
  */
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, ChevronUp, ChevronDown, X, Search, Save } from 'lucide-react'
+import {
+  ArrowLeft, Check, ChevronDown, ChevronUp, X, Search, Save, Plus,
+  Database, Filter, Layers, Settings2, Trash2, Copy, GripVertical,
+  BarChart2, LineChart as LineChartIcon, PieChart as PieChartIcon,
+  Table2, Type, Minus, Image as ImageIcon, TrendingUp, FileDown,
+} from 'lucide-react'
+import {
+  ResponsiveContainer, BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from 'recharts'
 import { ENTIDADES, relacionadasDe, relacaoEntre } from '../data/reportEntities'
 import { useDocumentDataSources } from '../hooks/useDocumentDataSources'
 import { useRelatorios } from '../hooks/useRelatorios'
 
-// Mesma lista de papéis usada em Relatorios.js (RelatorioForm) — mantida
-// duplicada de propósito, igual o próprio Relatorios.js já faz com as
-// opções de acesso, pra não criar acoplamento entre as duas telas.
 const PAPEIS = [
   { value: 'admin_isv',  label: 'Administrador'    },
   { value: 'vendedor',   label: 'Vendedor'         },
@@ -41,19 +46,33 @@ const PAPEIS = [
   { value: 'projetos',   label: 'Projetos'         },
 ]
 
-const FASES = [
-  { id: 'fonte',     label: 'Fonte' },
-  { id: 'colunas',   label: 'Colunas & Cálculo' },
-  { id: 'regras',    label: 'Regras' },
-  { id: 'resultado', label: 'Resultado' },
-]
-
 const OPERADORES_POR_TIPO = {
   text:   [{ id: '=', l: 'é' }, { id: '!=', l: 'não é' }, { id: 'contem', l: 'contém' }],
   number: [{ id: '=', l: '=' }, { id: '!=', l: '≠' }, { id: '>', l: '>' }, { id: '<', l: '<' }, { id: '>=', l: '≥' }, { id: '<=', l: '≤' }],
   date:   [{ id: '=', l: 'em' }, { id: '<', l: 'antes de' }, { id: '>', l: 'depois de' }],
 }
 function operadoresDe(tipo) { return OPERADORES_POR_TIPO[tipo] || OPERADORES_POR_TIPO.text }
+
+const AGREGACOES = [
+  { id: 'contagem', l: 'Contagem' },
+  { id: 'soma',     l: 'Soma' },
+  { id: 'media',    l: 'Média' },
+  { id: 'min',      l: 'Mínimo' },
+  { id: 'max',      l: 'Máximo' },
+]
+
+const CHART_COLORS = ['#2563EB', '#059669', '#C2410C', '#86198F', '#0369A1', '#B45309', '#BE123C', '#4D7C0F']
+
+const BLOCO_TIPOS = [
+  { tipo: 'kpi',     label: 'KPI',      desc: 'Um número em destaque',        Icon: TrendingUp },
+  { tipo: 'tabela',  label: 'Tabela',   desc: 'Linhas e colunas',             Icon: Table2 },
+  { tipo: 'grafico', label: 'Gráfico',  desc: 'Barra, linha, pizza ou funil', Icon: BarChart2 },
+  { tipo: 'texto',   label: 'Texto',    desc: 'Título ou parágrafo',          Icon: Type },
+  { tipo: 'divisor', label: 'Divisor',  desc: 'Separa seções',                Icon: Minus },
+  { tipo: 'imagem',  label: 'Imagem',   desc: 'Logo, banner, etc',            Icon: ImageIcon },
+]
+
+function uid(prefix) { return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` }
 
 // ─── Motor de junção — combina as fontes reais via as FKs de reportEntities.js ─
 // Cada linha do resultado é um mapa { [entidadeId]: registro | null }. Junções
@@ -71,11 +90,9 @@ function montarLinhas(sources, entidadeId, joins) {
     const relatedRows = relatedSource?.registros || []
 
     if (campoLado === entidadeId) {
-      // A entidade base tem a FK — cada linha aponta pra no máximo 1 relacionado.
       const indice = new Map(relatedRows.map(rr => [String(rr.id), rr]))
       linhas = linhas.map(l => ({ ...l, [joinId]: indice.get(String(l[entidadeId]?.[r.campo])) || null }))
     } else {
-      // A entidade relacionada tem a FK — pode haver vários por linha base.
       const grupos = new Map()
       relatedRows.forEach(rr => {
         const chave = String(rr[r.campo])
@@ -91,10 +108,8 @@ function montarLinhas(sources, entidadeId, joins) {
   return linhas
 }
 
-// `todosCampos` só é necessário pra resolver os operandos de um campo
-// calculado (formula.a/formula.b podem apontar pra outro campo por id) —
-// campos comuns ignoram o parâmetro.
 function valorDoCampo(linha, campo, todosCampos) {
+  if (!campo) return undefined
   if (campo.calculado) {
     const va = resolverOperando(linha, campo.formula.a, todosCampos)
     const vb = resolverOperando(linha, campo.formula.b, todosCampos)
@@ -168,7 +183,12 @@ function formatarValor(v) {
   return String(v)
 }
 
-function exportarCSV(campos, linhas) {
+function formatarNumero(v) {
+  if (v === null || v === undefined) return '—'
+  return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+}
+
+function exportarCSV(campos, linhas, titulo) {
   const header = campos.map(c => `"${c.label.replace(/"/g, '""')}"`).join(';')
   const rows = linhas.map(l => campos.map(c => {
     const v = formatarValor(valorDoCampo(l, c, campos))
@@ -179,7 +199,7 @@ function exportarCSV(campos, linhas) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = 'relatorio.csv'
+  a.download = `${(titulo || 'relatorio').toLowerCase().replace(/\s+/g, '_')}.csv`
   a.click()
   URL.revokeObjectURL(url)
 }
@@ -194,86 +214,36 @@ async function exportarExcel(campos, linhas, titulo) {
   XLSX.writeFile(wb, `${(titulo || 'relatorio').toLowerCase().replace(/\s+/g, '_')}.xlsx`)
 }
 
-function escapeHtml(v) {
-  return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-// Gera PDF via diálogo de impressão do navegador — mesmo padrão já usado no
-// CanvasEditor (não há lib de PDF instalada; window.print() deixa o usuário
-// escolher "Salvar como PDF" com o motor de impressão nativo do sistema).
-function exportarPDF(campos, linhas, titulo) {
-  const w = window.open('', '_blank', 'width=900,height=1000')
-  if (!w) return
-  const dataGeracao = new Date().toLocaleString('pt-BR')
-  const linhasHtml = linhas.map(l => `<tr>${campos.map(c =>
-    `<td>${escapeHtml(formatarValor(valorDoCampo(l, c, campos)))}</td>`).join('')}</tr>`).join('')
-
-  w.document.write(`<!DOCTYPE html><html><head><title>${escapeHtml(titulo || 'Relatório')}</title><style>
-    @page { size: A4 landscape; margin: 14mm; }
-    * { box-sizing: border-box; }
-    body { font-family: -apple-system, Arial, sans-serif; margin: 0; color: #1A1916; }
-    header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 2px solid #1A1916; padding-bottom: 10px; margin-bottom: 14px; }
-    h1 { font-size: 18px; margin: 0; }
-    .meta { font-size: 11px; color: #666; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ddd; }
-    th { text-transform: uppercase; font-size: 9.5px; letter-spacing: .04em; color: #666; border-bottom: 2px solid #1A1916; }
-    tr:nth-child(even) { background: #fafafa; }
-    footer { margin-top: 14px; font-size: 10px; color: #999; }
-  </style></head><body>
-    <header><h1>${escapeHtml(titulo || 'Relatório')}</h1><span class="meta">Gerado em ${dataGeracao} · ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}</span></header>
-    <table><thead><tr>${campos.map(c => `<th>${escapeHtml(c.label)}</th>`).join('')}</tr></thead><tbody>${linhasHtml}</tbody></table>
-    <footer>Boostly · Construtor de relatórios</footer>
-  </body></html>`)
-  w.document.close()
-  setTimeout(() => { w.print(); w.close() }, 400)
-}
-
-// Ordena linhas primeiro pelos níveis de agrupamento, depois pela ordenação
-// escolhida pelo usuário na grade final (sempre nessa prioridade — agrupar
-// sem respeitar essa ordem quebraria os cabeçalhos de grupo na tabela).
-function ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos) {
-  const campoOrd = ordenacao ? campos.find(c => c.id === ordenacao.campoId) : null
-  if (camposAgrupObjs.length === 0 && !campoOrd) return linhas
-  return [...linhas].sort((a, b) => {
-    for (const c of camposAgrupObjs) {
-      const va = formatarValor(valorDoCampo(a, c, campos))
-      const vb = formatarValor(valorDoCampo(b, c, campos))
-      if (va !== vb) return va < vb ? -1 : 1
+// Agrega linhas por um campo categórico — usado por blocos de gráfico e por
+// agrupamento de tabela. `campoMetrica` null = conta linhas (contagem).
+function agregarPorGrupo(linhas, campoGrupo, campoMetrica, agregacao, campos) {
+  const grupos = new Map()
+  for (const l of linhas) {
+    const chave = formatarValor(valorDoCampo(l, campoGrupo, campos))
+    if (!grupos.has(chave)) grupos.set(chave, [])
+    grupos.get(chave).push(l)
+  }
+  const linhasAgrupadas = [...grupos.entries()].map(([chave, ls]) => {
+    if (agregacao === 'contagem' || !campoMetrica) return { chave, valor: ls.length }
+    const valores = ls.map(l => Number(valorDoCampo(l, campoMetrica, campos))).filter(v => !Number.isNaN(v))
+    if (valores.length === 0) return { chave, valor: 0 }
+    switch (agregacao) {
+      case 'soma':  return { chave, valor: valores.reduce((a, b) => a + b, 0) }
+      case 'media': return { chave, valor: valores.reduce((a, b) => a + b, 0) / valores.length }
+      case 'min':   return { chave, valor: Math.min(...valores) }
+      case 'max':   return { chave, valor: Math.max(...valores) }
+      default:      return { chave, valor: 0 }
     }
-    if (campoOrd) {
-      const va = valorDoCampo(a, campoOrd, campos)
-      const vb = valorDoCampo(b, campoOrd, campos)
-      let cmp
-      if (campoOrd.type === 'number') cmp = (Number(va) || 0) - (Number(vb) || 0)
-      else if (campoOrd.type === 'date') cmp = (va ? new Date(va).getTime() : 0) - (vb ? new Date(vb).getTime() : 0)
-      else cmp = String(va ?? '').localeCompare(String(vb ?? ''))
-      return ordenacao.dir === 'desc' ? -cmp : cmp
-    }
-    return 0
   })
+  return linhasAgrupadas.sort((a, b) => b.valor - a.valor)
 }
 
-const AGREGACOES = [
-  { id: 'contagem', l: 'Contagem' },
-  { id: 'soma',     l: 'Soma' },
-  { id: 'media',    l: 'Média' },
-  { id: 'min',      l: 'Mínimo' },
-  { id: 'max',      l: 'Máximo' },
-]
-
-// Sempre calculado sobre as linhas já filtradas (não afetado por ordenação/
-// agrupamento visual — é uma agregação sobre o mesmo conjunto que vai pra
-// tabela).
-function calcularKpi(linhas, campos, kpi) {
-  if (kpi.agregacao === 'contagem') return linhas.length
-  const campo = campos.find(c => c.id === kpi.campoId)
-  if (!campo) return null
-  const valores = linhas
-    .map(l => Number(valorDoCampo(l, campo, campos)))
-    .filter(v => !Number.isNaN(v))
+function calcularKpi(linhas, campos, config) {
+  const campo = config.campoId ? campos.find(c => c.id === config.campoId) : null
+  if (config.agregacao === 'contagem' || !campo) return linhas.length
+  const valores = linhas.map(l => Number(valorDoCampo(l, campo, campos))).filter(v => !Number.isNaN(v))
   if (valores.length === 0) return null
-  switch (kpi.agregacao) {
+  switch (config.agregacao) {
     case 'soma':  return valores.reduce((a, b) => a + b, 0)
     case 'media': return valores.reduce((a, b) => a + b, 0) / valores.length
     case 'min':   return Math.min(...valores)
@@ -282,9 +252,20 @@ function calcularKpi(linhas, campos, kpi) {
   }
 }
 
-function formatarKpi(v) {
-  if (v === null || v === undefined) return '—'
-  return Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 })
+// Migra relatórios salvos antes da reformulação (sem `blocks`) — sintetiza
+// um bloco de tabela com as colunas antigas + um bloco de KPI por KPI antigo.
+function migrarParaBlocos(b) {
+  if (Array.isArray(b.blocks)) return b.blocks
+  const blocks = []
+  if (Array.isArray(b.kpis)) {
+    for (const k of b.kpis) {
+      blocks.push({ id: uid('blk'), tipo: 'kpi', config: { campoId: k.campoId || null, agregacao: k.agregacao || 'contagem', label: k.label || 'KPI', cor: CHART_COLORS[0] } })
+    }
+  }
+  if (Array.isArray(b.campos) && b.campos.length > 0) {
+    blocks.push({ id: uid('blk'), tipo: 'tabela', config: { colunas: b.campos.map(c => c.id), ordenacao: b.ordenacao || null } })
+  }
+  return blocks
 }
 
 export default function RelatoriosBuilder() {
@@ -293,28 +274,29 @@ export default function RelatoriosBuilder() {
   const { sources } = useDocumentDataSources()
   const { relatorios, save } = useRelatorios('relatorio')
 
-  const [fase, setFase]           = useState(0)
-  const [fonteStep, setFonteStep] = useState(0) // dentro da fase "Fonte": 0=entidade, 1=relacionamentos
+  // ── Fonte (a "database" do relatório) ────────────────────────────────────
   const [entidadeId, setEntidadeId] = useState(null)
-  const [joins, setJoins]         = useState([])   // ids de entidades relacionadas incluídas
-  const [campos, setCampos]       = useState([])   // [{ id, entidadeId, key, label, type }]
-  const [buscaCampo, setBuscaCampo] = useState('')
-  const [filtros, setFiltros]     = useState([])   // [{ id, campoId, operador, valor }]
-  const [conector, setConector]   = useState('E')   // 'E' | 'OU' — entre todas as regras de filtro
-  const [agrupamento, setAgrupamento] = useState([]) // [campoId] em ordem
-  const [ordenacao, setOrdenacao] = useState(null)   // { campoId, dir: 'asc'|'desc' } | null
-  const [kpis, setKpis]           = useState([])     // [{ id, label, agregacao, campoId? }]
+  const [joins, setJoins]           = useState([])
+  const [campos, setCampos]         = useState([])
+  const [filtros, setFiltros]       = useState([])
+  const [conector, setConector]     = useState('E')
+  const [agrupamento, setAgrupamento] = useState([])
 
-  // Persistência — reaproveita a tabela `relatorios` (mesma do CanvasEditor).
-  const [titulo, setTitulo]       = useState('Novo relatório')
-  const [acesso, setAcesso]       = useState('privado') // 'privado' | 'equipe' | 'todos'
-  const [papeisPermitidos, setPapeisPermitidos] = useState([]) // só relevante quando acesso === 'equipe'
+  // ── Blocos (as visualizações) ────────────────────────────────────────────
+  const [blocks, setBlocks] = useState([])
+
+  // ── Painel lateral: null | 'dados' | { blockId } ─────────────────────────
+  const [painel, setPainel] = useState('dados')
+  const [pickerAberto, setPickerAberto] = useState(false)
+
+  // ── Persistência ──────────────────────────────────────────────────────────
+  const [titulo, setTitulo]           = useState('Novo relatório')
+  const [acesso, setAcesso]           = useState('privado')
+  const [papeisPermitidos, setPapeisPermitidos] = useState([])
   const [relatorioId, setRelatorioId] = useState(null)
-  const [salvando, setSalvando]   = useState(false)
+  const [salvando, setSalvando]       = useState(false)
   const hidratado = useRef(false)
 
-  // Carrega um relatório existente (?id=...) assim que a lista chegar —
-  // só uma vez, pra não sobrescrever edições do usuário a cada reload da lista.
   useEffect(() => {
     const id = searchParams.get('id')
     if (!id || hidratado.current || relatorios.length === 0) return
@@ -332,612 +314,43 @@ export default function RelatoriosBuilder() {
     setFiltros(b.filtros || [])
     setConector(b.conector || 'E')
     setAgrupamento(b.agrupamento || [])
-    setOrdenacao(b.ordenacao || null)
-    setKpis(b.kpis || [])
-    setFonteStep(1)
-    setFase(3)
+    setBlocks(migrarParaBlocos(b))
+    setPainel(null)
   }, [searchParams, relatorios])
 
-  async function handleSalvar() {
-    if (!entidadeId) return
-    setSalvando(true)
-    try {
-      const config = { builder: { versao: 1, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, kpis } }
-      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso, papeis_permitidos: acesso === 'equipe' ? papeisPermitidos : [], status: 'rascunho', config, elementos: [] })
-      if (result?.ok && result.relatorio) {
-        setRelatorioId(result.relatorio.id)
-        setSearchParams({ id: result.relatorio.id }, { replace: true })
-      }
-    } finally {
-      setSalvando(false)
-    }
-  }
-
-  const entidade      = ENTIDADES.find(e => e.id === entidadeId) || null
-  const relacionadas   = useMemo(() => entidadeId ? relacionadasDe(entidadeId) : [], [entidadeId])
+  const entidade = ENTIDADES.find(e => e.id === entidadeId) || null
   const entidadesAtivas = useMemo(() => entidadeId ? [entidadeId, ...joins] : [], [entidadeId, joins])
+  const relacionadas = useMemo(() => entidadeId ? relacionadasDe(entidadeId) : [], [entidadeId])
 
-  // Remove da seleção de campos qualquer entidade que deixou de estar ativa
-  // (ex.: usuário voltou na fase Fonte e desmarcou um relacionamento).
-  // Campos calculados não têm entidadeId (não vêm de uma fonte só) — nunca
-  // são removidos por essa checagem, só manualmente pelo usuário.
+  // Remove da seleção qualquer campo cuja entidade deixou de estar ativa.
   useEffect(() => {
     setCampos(prev => prev.filter(c => c.calculado || entidadesAtivas.includes(c.entidadeId)))
   }, [entidadesAtivas])
 
-  // Idem pra filtros/agrupamento quando uma coluna usada neles é removida na
-  // fase 2 (voltar e desmarcar um campo não pode deixar regra órfã).
   useEffect(() => {
     const camposIds = new Set(campos.map(c => c.id))
     setFiltros(prev => prev.filter(f => camposIds.has(f.campoId)))
     setAgrupamento(prev => prev.filter(id => camposIds.has(id)))
-    // KPIs de "contagem" não dependem de campo — só os demais precisam existir.
-    setKpis(prev => prev.filter(k => k.agregacao === 'contagem' || camposIds.has(k.campoId)))
-  }, [campos])
+    setBlocks(prev => prev.map(blk => limparBlocoOrfao(blk, camposIds)))
+  }, [campos]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  function togglePapel(papel) {
-    setPapeisPermitidos(prev => prev.includes(papel) ? prev.filter(p => p !== papel) : [...prev, papel])
+  function limparBlocoOrfao(blk, camposIds) {
+    if (blk.tipo === 'kpi' && blk.config.campoId && !camposIds.has(blk.config.campoId)) {
+      return { ...blk, config: { ...blk.config, campoId: null, agregacao: 'contagem' } }
+    }
+    if (blk.tipo === 'tabela') {
+      return { ...blk, config: { ...blk.config, colunas: (blk.config.colunas || []).filter(id => camposIds.has(id)) } }
+    }
+    if (blk.tipo === 'grafico') {
+      const cfg = { ...blk.config }
+      if (cfg.eixoXId && !camposIds.has(cfg.eixoXId)) cfg.eixoXId = null
+      if (cfg.campoMetricaId && !camposIds.has(cfg.campoMetricaId)) cfg.campoMetricaId = null
+      return { ...blk, config: cfg }
+    }
+    return blk
   }
 
-  function addKpi(kpi) {
-    setKpis(prev => [...prev, { id: `kpi_${Date.now()}`, ...kpi }])
-  }
-  function removeKpi(id) {
-    setKpis(prev => prev.filter(k => k.id !== id))
-  }
-
-  function addFiltro() {
-    if (campos.length === 0) return
-    setFiltros(prev => [...prev, { id: `f_${Date.now()}`, campoId: campos[0].id, operador: operadoresDe(campos[0].type)[0].id, valor: '' }])
-  }
-  function updateFiltro(id, patch) {
-    setFiltros(prev => prev.map(f => f.id === id ? { ...f, ...patch } : f))
-  }
-  function removeFiltro(id) {
-    setFiltros(prev => prev.filter(f => f.id !== id))
-  }
-  function toggleAgrupamento(campoId) {
-    setAgrupamento(prev => prev.includes(campoId) ? prev.filter(x => x !== campoId) : [...prev, campoId])
-  }
-  function moverAgrupamento(idx, dir) {
-    setAgrupamento(prev => {
-      const i = idx + dir
-      if (i < 0 || i >= prev.length) return prev
-      const next = [...prev]
-      ;[next[idx], next[i]] = [next[i], next[idx]]
-      return next
-    })
-  }
-
-  function escolherEntidade(id) {
-    setEntidadeId(id)
-    setJoins([])
-    setCampos([])
-    setFonteStep(1)
-  }
-
-  function toggleJoin(id) {
-    setJoins(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  }
-
-  function toggleCampo(entidadeId, field) {
-    const campoId = `${entidadeId}.${field.key}`
-    setCampos(prev => prev.some(c => c.id === campoId)
-      ? prev.filter(c => c.id !== campoId)
-      : [...prev, { id: campoId, entidadeId, key: field.key, label: field.label, type: field.type }])
-  }
-
-  function addCalculado({ label, a, op, b }) {
-    setCampos(prev => [...prev, {
-      id: `calc_${Date.now()}`, entidadeId: null, key: null,
-      label: label || 'Campo calculado', type: 'number',
-      calculado: true, formula: { a, op, b },
-    }])
-  }
-
-  function moverCampo(idx, dir) {
-    setCampos(prev => {
-      const i = idx + dir
-      if (i < 0 || i >= prev.length) return prev
-      const next = [...prev]
-      ;[next[idx], next[i]] = [next[i], next[idx]]
-      return next
-    })
-  }
-
-  const faseHabilitada = (i) => i === 0 || (i === 1 && entidadeId) || (i >= 2 && entidadeId)
-
-  return (
-    <div style={s.page}>
-      {/* ── Cabeçalho + navegação de fases ── */}
-      <div style={s.header}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={s.eyebrow}>Construtor de relatórios · novo{entidade ? ` · ${entidade.label}` : ''}</div>
-          <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Novo relatório" style={s.titleInput} />
-        </div>
-        <div style={{ display: 'flex', gap: 8, flexShrink: 0, alignItems: 'center' }}>
-          <select style={s.acessoSelect} value={acesso} onChange={e => setAcesso(e.target.value)} title="Quem pode ver este relatório">
-            <option value="privado">🔒 Privado</option>
-            <option value="equipe">👥 Equipe</option>
-            <option value="todos">🌐 Público</option>
-          </select>
-          <button style={s.btnGhost} onClick={() => navigate('/relatorios')}>Voltar aos relatórios</button>
-          <button style={s.btnPrimary} disabled={!entidadeId || salvando} onClick={handleSalvar}>
-            <Save size={14} /> {salvando ? 'Salvando…' : relatorioId ? 'Salvar' : 'Salvar relatório'}
-          </button>
-        </div>
-      </div>
-
-      {acesso === 'equipe' && (
-        <div style={s.papeisRow}>
-          <span style={s.papeisLabel}>Papéis com acesso:</span>
-          {PAPEIS.map(p => {
-            const sel = papeisPermitidos.includes(p.value)
-            return (
-              <button key={p.value} onClick={() => togglePapel(p.value)}
-                style={{ ...s.papelChip, ...(sel ? s.papelChipSel : {}) }}>
-                {sel && <Check size={10} strokeWidth={3} />} {p.label}
-              </button>
-            )
-          })}
-          {papeisPermitidos.length === 0 && <span style={s.papeisHint}>Nenhum papel selecionado — ninguém além de você vê este relatório</span>}
-        </div>
-      )}
-
-      <div style={s.faseNav}>
-        {FASES.map((f, i) => {
-          const ativo = i === fase
-          const habilitado = faseHabilitada(i)
-          return (
-            <button key={f.id}
-              disabled={!habilitado}
-              onClick={() => habilitado && setFase(i)}
-              style={{ ...s.faseTab, ...(ativo ? s.faseTabAtivo : {}), ...(!habilitado ? s.faseTabDisabled : {}) }}>
-              <span style={s.faseNum}>{i + 1}</span>
-              {f.label}
-            </button>
-          )
-        })}
-      </div>
-
-      {/* ── Fase 1: Fonte (entidade → relacionamentos) ── */}
-      {fase === 0 && fonteStep === 0 && (
-        <div style={s.body}>
-          <p style={s.hint}>De qual cadastro este relatório vai partir? Você poderá trazer campos de outros cadastros relacionados na próxima etapa.</p>
-          <div style={s.grid}>
-            {ENTIDADES.map(e => (
-              <button key={e.id} onClick={() => escolherEntidade(e.id)}
-                style={{ ...s.entityCard, ...(entidadeId === e.id ? s.entityCardSel : {}) }}>
-                <span style={s.entityIcon}>{e.icon}</span>
-                <span style={s.entityLabel}>{e.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {fase === 0 && fonteStep === 1 && entidade && (
-        <div style={s.body}>
-          <p style={s.hint}>
-            Marque quais cadastros relacionados a <strong>{entidade.label}</strong> você quer trazer para este relatório.
-            Campos desses cadastros ficarão disponíveis na próxima etapa.
-          </p>
-
-          {relacionadas.length === 0 && (
-            <div style={s.emptyRel}>Esta entidade ainda não tem relacionamentos mapeados no motor.</div>
-          )}
-
-          <div style={s.relList}>
-            {relacionadas.map(({ entidade: rel, relacao }) => {
-              const incluida = joins.includes(rel.id)
-              return (
-                <button key={rel.id} onClick={() => toggleJoin(rel.id)}
-                  style={{ ...s.relRow, ...(incluida ? s.relRowSel : {}) }}>
-                  <span style={s.relCheck}>{incluida && <Check size={13} strokeWidth={3} />}</span>
-                  <span style={s.relIcon}>{rel.icon}</span>
-                  <span style={s.relLabel}>{rel.label}</span>
-                  <span style={s.relCard}>{relacao.rotulo}</span>
-                </button>
-              )
-            })}
-          </div>
-
-          <div style={s.footerNav}>
-            <button style={s.btnGhost} onClick={() => setFonteStep(0)}><ArrowLeft size={14} /> Trocar entidade</button>
-            <button style={s.btnPrimary} onClick={() => setFase(1)}>Continuar <ArrowRight size={14} /></button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Fase 2: Colunas ── */}
-      {fase === 1 && entidade && (
-        <ColunasFase
-          entidadesAtivas={entidadesAtivas}
-          sources={sources}
-          campos={campos}
-          busca={buscaCampo}
-          onBusca={setBuscaCampo}
-          onToggleCampo={toggleCampo}
-          onMoverCampo={moverCampo}
-          onRemoverCampo={id => setCampos(prev => prev.filter(c => c.id !== id))}
-          onAddCalculado={addCalculado}
-          onVoltar={() => { setFase(0); setFonteStep(1) }}
-          onContinuar={() => setFase(2)}
-        />
-      )}
-
-      {/* ── Fase 3: Regras (filtros + agrupamento) ── */}
-      {fase === 2 && (
-        <RegrasFase
-          campos={campos}
-          filtros={filtros}
-          conector={conector}
-          onConector={setConector}
-          onAddFiltro={addFiltro}
-          onUpdateFiltro={updateFiltro}
-          onRemoveFiltro={removeFiltro}
-          agrupamento={agrupamento}
-          onToggleAgrupamento={toggleAgrupamento}
-          onMoverAgrupamento={moverAgrupamento}
-          onVoltar={() => setFase(1)}
-          onContinuar={() => setFase(3)}
-        />
-      )}
-
-      {/* ── Fase 4: Resultado (grade ao vivo) ── */}
-      {fase === 3 && (
-        <ResultadoFase
-          sources={sources}
-          entidadeId={entidadeId}
-          joins={joins}
-          campos={campos}
-          filtros={filtros}
-          conector={conector}
-          agrupamento={agrupamento}
-          ordenacao={ordenacao}
-          onOrdenacao={setOrdenacao}
-          kpis={kpis}
-          onAddKpi={addKpi}
-          onRemoveKpi={removeKpi}
-          titulo={titulo}
-          onVoltar={() => setFase(2)}
-        />
-      )}
-    </div>
-  )
-}
-
-// ─── Fase "Colunas & Cálculo" — escolha de campos ────────────────────────────
-function ColunasFase({ entidadesAtivas, sources, campos, busca, onBusca, onToggleCampo, onMoverCampo, onRemoverCampo, onAddCalculado, onVoltar, onContinuar }) {
-  const grupos = entidadesAtivas
-    .map(id => sources.find(s => s.id === id))
-    .filter(Boolean)
-    .map(src => ({
-      ...src,
-      fields: (src.fields || []).filter(f =>
-        !busca || f.label.toLowerCase().includes(busca.toLowerCase())
-      ),
-    }))
-
-  const selecionadosSet = useMemo(() => new Set(campos.map(c => c.id)), [campos])
-
-  return (
-    <div style={{ ...s.body, maxWidth: 'none' }}>
-      <div style={{ display: 'flex', gap: 20, minHeight: 0 }}>
-        {/* Disponíveis */}
-        <div style={s.colPanel}>
-          <div style={s.colPanelHead}>Campos disponíveis</div>
-          <div style={s.searchWrap}>
-            <Search size={13} style={s.searchIcon} />
-            <input value={busca} onChange={e => onBusca(e.target.value)} placeholder="Buscar campo…" style={s.searchInput} />
-          </div>
-          <div style={s.colPanelBody}>
-            {grupos.length === 0 && (
-              <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5 }}>Carregando fontes…</div>
-            )}
-            {grupos.map(g => (
-              <div key={g.id} style={{ marginBottom: 16 }}>
-                <div style={s.groupHead}><span>{g.icon}</span> {g.label}</div>
-                {g.fields.length === 0 && <div style={s.groupEmpty}>Nenhum campo encontrado</div>}
-                {g.fields.map(f => {
-                  const campoId = `${g.id}.${f.key}`
-                  const sel = selecionadosSet.has(campoId)
-                  return (
-                    <button key={campoId} onClick={() => onToggleCampo(g.id, f)}
-                      style={{ ...s.fieldRow, ...(sel ? s.fieldRowSel : {}) }}>
-                      <span style={s.relCheck}>{sel && <Check size={12} strokeWidth={3} />}</span>
-                      <span style={{ flex: 1 }}>{f.label}</span>
-                      <span style={s.fieldType}>{f.type}</span>
-                    </button>
-                  )
-                })}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Selecionados */}
-        <div style={s.colPanel}>
-          <div style={s.colPanelHead}>Colunas do relatório ({campos.length})</div>
-          <div style={{ ...s.colPanelBody, paddingTop: 12 }}>
-            {campos.length === 0 && (
-              <div style={{ padding: '16px 0', color: 'var(--text-muted)', fontSize: 12.5, fontStyle: 'italic' }}>
-                Nenhum campo escolhido ainda — clique nos campos à esquerda.
-              </div>
-            )}
-            {campos.map((c, idx) => {
-              const g = ENTIDADES.find(e => e.id === c.entidadeId)
-              return (
-                <div key={c.id} style={s.selectedRow}>
-                  <div style={s.reorderCol}>
-                    <button disabled={idx === 0} onClick={() => onMoverCampo(idx, -1)} style={s.reorderBtn}><ChevronUp size={12} /></button>
-                    <button disabled={idx === campos.length - 1} onClick={() => onMoverCampo(idx, 1)} style={s.reorderBtn}><ChevronDown size={12} /></button>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>{c.label}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                      {c.calculado ? '🧮 Campo calculado' : <>{g?.icon} {g?.label}</>}
-                    </div>
-                  </div>
-                  <button onClick={() => onRemoverCampo(c.id)} style={s.removeBtn}><X size={13} /></button>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      </div>
-
-      <CamposCalculadosBox campos={campos} onAddCalculado={onAddCalculado} />
-
-      <div style={{ ...s.colunasFooter, position: 'static', marginTop: 20, borderTop: 'none', paddingTop: 0 }}>
-        <button style={s.btnGhost} onClick={onVoltar}><ArrowLeft size={14} /> Voltar</button>
-        <button style={s.btnPrimary} disabled={campos.length === 0} onClick={onContinuar}>Continuar <ArrowRight size={14} /></button>
-      </div>
-    </div>
-  )
-}
-
-// ─── Campos calculados — fórmula simples entre dois operandos (campo ou valor fixo) ─
-const OPERADORES_CALCULO = [{ id: '+', l: '+' }, { id: '-', l: '−' }, { id: '*', l: '×' }, { id: '/', l: '÷' }]
-
-function CamposCalculadosBox({ campos, onAddCalculado }) {
-  const numericos = campos.filter(c => !c.calculado && c.type === 'number')
-  const [aberto, setAberto]   = useState(false)
-  const [label, setLabel]     = useState('')
-  const [aTipo, setATipo]     = useState('campo')
-  const [aCampo, setACampo]   = useState('')
-  const [aValor, setAValor]   = useState('')
-  const [op, setOp]           = useState('+')
-  const [bTipo, setBTipo]     = useState('campo')
-  const [bCampo, setBCampo]   = useState('')
-  const [bValor, setBValor]   = useState('')
-
-  function resetForm() {
-    setLabel(''); setATipo('campo'); setACampo(''); setAValor('')
-    setOp('+'); setBTipo('campo'); setBCampo(''); setBValor('')
-    setAberto(false)
-  }
-
-  function confirmar() {
-    if (!label.trim()) return
-    const a = aTipo === 'campo' ? { tipo: 'campo', campoId: aCampo } : { tipo: 'valor', valor: aValor }
-    const b = bTipo === 'campo' ? { tipo: 'campo', campoId: bCampo } : { tipo: 'valor', valor: bValor }
-    if (aTipo === 'campo' && !aCampo) return
-    if (bTipo === 'campo' && !bCampo) return
-    onAddCalculado({ label: label.trim(), a, op, b })
-    resetForm()
-  }
-
-  const calculados = campos.filter(c => c.calculado)
-
-  return (
-    <div style={{ marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
-      <div style={s.colPanelHead2}>Campos calculados</div>
-      <p style={{ ...s.hint, marginBottom: 12 }}>Combine dois campos numéricos (ou valores fixos) com uma operação — ex: Valor − Custo = Margem.</p>
-
-      {calculados.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-          {calculados.map(c => (
-            <span key={c.id} style={s.groupChip}>🧮 {c.label}</span>
-          ))}
-        </div>
-      )}
-
-      {!aberto && (
-        <button style={s.addLink} onClick={() => setAberto(true)} disabled={numericos.length === 0}>
-          + Adicionar campo calculado
-        </button>
-      )}
-      {aberto && numericos.length === 0 && (
-        <div style={s.emptyRel}>Selecione ao menos um campo numérico acima antes de criar um cálculo.</div>
-      )}
-
-      {aberto && numericos.length > 0 && (
-        <div style={s.calcBox}>
-          <input style={s.filterInput} placeholder="Nome do campo calculado (ex: Margem)" value={label} onChange={e => setLabel(e.target.value)} />
-          <div style={s.calcRow}>
-            <select style={s.filterSelect} value={aTipo} onChange={e => setATipo(e.target.value)}>
-              <option value="campo">Campo</option>
-              <option value="valor">Valor fixo</option>
-            </select>
-            {aTipo === 'campo' ? (
-              <select style={s.filterSelect} value={aCampo} onChange={e => setACampo(e.target.value)}>
-                <option value="">Selecione…</option>
-                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            ) : (
-              <input style={s.filterInput} type="number" placeholder="Valor" value={aValor} onChange={e => setAValor(e.target.value)} />
-            )}
-
-            <select style={{ ...s.filterSelect, flex: '0 0 56px' }} value={op} onChange={e => setOp(e.target.value)}>
-              {OPERADORES_CALCULO.map(o => <option key={o.id} value={o.id}>{o.l}</option>)}
-            </select>
-
-            <select style={s.filterSelect} value={bTipo} onChange={e => setBTipo(e.target.value)}>
-              <option value="campo">Campo</option>
-              <option value="valor">Valor fixo</option>
-            </select>
-            {bTipo === 'campo' ? (
-              <select style={s.filterSelect} value={bCampo} onChange={e => setBCampo(e.target.value)}>
-                <option value="">Selecione…</option>
-                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            ) : (
-              <input style={s.filterInput} type="number" placeholder="Valor" value={bValor} onChange={e => setBValor(e.target.value)} />
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button style={s.btnGhost} onClick={resetForm}>Cancelar</button>
-            <button style={s.btnPrimary} onClick={confirmar}>Adicionar</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ─── Fase "Regras" — filtros + agrupamento ───────────────────────────────────
-function RegrasFase({ campos, filtros, conector, onConector, onAddFiltro, onUpdateFiltro, onRemoveFiltro, agrupamento, onToggleAgrupamento, onMoverAgrupamento, onVoltar, onContinuar }) {
-  function campoDe(id) { return campos.find(c => c.id === id) }
-
-  return (
-    <div style={s.body}>
-      {/* Filtros */}
-      <h3 style={s.sectionTitle}>Filtros</h3>
-      <p style={s.hint}>Restrinja quais registros entram no relatório. Todas as regras abaixo são combinadas com o mesmo conector.</p>
-
-      {filtros.length === 0 && (
-        <div style={s.emptyRel}>Nenhum filtro ainda — o relatório traz todos os registros.</div>
-      )}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
-        {filtros.map((f, idx) => {
-          const campo = campoDe(f.campoId)
-          const ops = campo ? operadoresDe(campo.type) : []
-          return (
-            <div key={f.id} style={s.filterRow}>
-              {idx > 0 && (
-                <button style={s.connector} onClick={() => onConector(conector === 'E' ? 'OU' : 'E')}>{conector}</button>
-              )}
-              <select style={s.filterSelect} value={f.campoId} onChange={e => {
-                const novoCampo = campoDe(e.target.value)
-                onUpdateFiltro(f.id, { campoId: e.target.value, operador: operadoresDe(novoCampo?.type)[0]?.id || '=' })
-              }}>
-                {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-              <select style={{ ...s.filterSelect, flex: '0 0 120px' }} value={f.operador} onChange={e => onUpdateFiltro(f.id, { operador: e.target.value })}>
-                {ops.map(o => <option key={o.id} value={o.id}>{o.l}</option>)}
-              </select>
-              <input style={s.filterInput} value={f.valor} onChange={e => onUpdateFiltro(f.id, { valor: e.target.value })}
-                type={campo?.type === 'number' ? 'number' : campo?.type === 'date' ? 'date' : 'text'}
-                placeholder="valor" />
-              <button style={s.removeBtn} onClick={() => onRemoveFiltro(f.id)}><X size={14} /></button>
-            </div>
-          )
-        })}
-      </div>
-
-      <button style={s.addLink} onClick={onAddFiltro} disabled={campos.length === 0}>+ Adicionar filtro</button>
-
-      {/* Agrupamento */}
-      <h3 style={{ ...s.sectionTitle, marginTop: 32 }}>Agrupamento</h3>
-      <p style={s.hint}>Marque campos pra agrupar as linhas — a ordem escolhida vira a ordem dos níveis de agrupamento na tabela final.</p>
-
-      {agrupamento.length > 0 && (
-        <div style={s.groupTrail}>
-          {agrupamento.map((id, idx) => {
-            const c = campoDe(id)
-            if (!c) return null
-            return (
-              <span key={id} style={s.groupChip}>
-                {idx > 0 && <span style={s.groupArrow}>→</span>}
-                {c.label}
-                <button style={s.chipReorder} disabled={idx === 0} onClick={() => onMoverAgrupamento(idx, -1)}><ChevronUp size={10} /></button>
-                <button style={s.chipReorder} disabled={idx === agrupamento.length - 1} onClick={() => onMoverAgrupamento(idx, 1)}><ChevronDown size={10} /></button>
-                <button style={s.chipRemove} onClick={() => onToggleAgrupamento(id)}><X size={11} /></button>
-              </span>
-            )
-          })}
-        </div>
-      )}
-
-      <div style={s.groupPicker}>
-        {campos.filter(c => !agrupamento.includes(c.id)).map(c => (
-          <button key={c.id} style={s.groupOption} onClick={() => onToggleAgrupamento(c.id)}>+ {c.label}</button>
-        ))}
-      </div>
-
-      <div style={{ ...s.footerNav, marginTop: 32 }}>
-        <button style={s.btnGhost} onClick={onVoltar}><ArrowLeft size={14} /> Voltar</button>
-        <button style={s.btnPrimary} onClick={onContinuar}>Continuar <ArrowRight size={14} /></button>
-      </div>
-    </div>
-  )
-}
-
-// ─── Fase "Resultado" — grade ao vivo (junção + filtros + agrupamento) ───────
-// ─── KPIs — cards de agregação sobre o resultado filtrado ────────────────────
-function KpisBox({ linhas, campos, kpis, onAddKpi, onRemoveKpi }) {
-  const numericos = campos.filter(c => c.type === 'number')
-  const [aberto, setAberto]     = useState(false)
-  const [label, setLabel]       = useState('')
-  const [agregacao, setAgregacao] = useState('contagem')
-  const [campoId, setCampoId]   = useState('')
-
-  function resetForm() { setLabel(''); setAgregacao('contagem'); setCampoId(''); setAberto(false) }
-
-  function confirmar() {
-    if (!label.trim()) return
-    if (agregacao !== 'contagem' && !campoId) return
-    onAddKpi({ label: label.trim(), agregacao, campoId: agregacao === 'contagem' ? null : campoId })
-    resetForm()
-  }
-
-  return (
-    <div style={{ marginBottom: 18 }}>
-      {kpis.length > 0 && (
-        <div style={s.kpiRow}>
-          {kpis.map(k => (
-            <div key={k.id} style={s.kpiCard}>
-              <button style={s.kpiRemove} onClick={() => onRemoveKpi(k.id)} title="Remover KPI"><X size={11} /></button>
-              <div style={s.kpiValue}>{formatarKpi(calcularKpi(linhas, campos, k))}</div>
-              <div style={s.kpiLabel}>{k.label}</div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!aberto && (
-        <button style={s.addLink} onClick={() => setAberto(true)}>+ Adicionar KPI</button>
-      )}
-
-      {aberto && (
-        <div style={s.calcBox}>
-          <input style={s.filterInput} placeholder="Nome do KPI (ex: Total de contratos)" value={label} onChange={e => setLabel(e.target.value)} />
-          <div style={s.calcRow}>
-            <select style={s.filterSelect} value={agregacao} onChange={e => { setAgregacao(e.target.value); if (e.target.value === 'contagem') setCampoId('') }}>
-              {AGREGACOES.map(a => <option key={a.id} value={a.id}>{a.l}</option>)}
-            </select>
-            {agregacao !== 'contagem' && (
-              <select style={s.filterSelect} value={campoId} onChange={e => setCampoId(e.target.value)}>
-                <option value="">Selecione o campo…</option>
-                {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
-              </select>
-            )}
-          </div>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-            <button style={s.btnGhost} onClick={resetForm}>Cancelar</button>
-            <button style={s.btnPrimary} onClick={confirmar}>Adicionar</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
-
-function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, agrupamento, ordenacao, onOrdenacao, kpis, onAddKpi, onRemoveKpi, titulo, onVoltar }) {
-  const [exportando, setExportando] = useState(false)
-
+  // ── Linhas ao vivo (motor de junção + filtros) ───────────────────────────
   const linhas = useMemo(() => {
     if (!entidadeId || sources.length === 0) return []
     const combinadas = montarLinhas(sources, entidadeId, joins)
@@ -948,199 +361,961 @@ function ResultadoFase({ sources, entidadeId, joins, campos, filtros, conector, 
     })
   }, [sources, entidadeId, joins, filtros, conector, campos])
 
-  const camposAgrupObjs = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
-
-  const linhasOrdenadas = useMemo(() => ordenarLinhas(linhas, camposAgrupObjs, ordenacao, campos), [linhas, camposAgrupObjs, ordenacao, campos])
-
-  function chaveGrupo(linha) {
-    return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c, campos))).join(' · ')
+  // ── Ações de fonte ────────────────────────────────────────────────────────
+  function escolherEntidade(id) {
+    setEntidadeId(id); setJoins([]); setCampos([]); setBlocks([])
+  }
+  function toggleJoin(id) {
+    setJoins(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function toggleCampo(entId, field) {
+    const campoId = `${entId}.${field.key}`
+    setCampos(prev => prev.some(c => c.id === campoId)
+      ? prev.filter(c => c.id !== campoId)
+      : [...prev, { id: campoId, entidadeId: entId, key: field.key, label: field.label, type: field.type }])
+  }
+  function addCalculado({ label, a, op, b }) {
+    setCampos(prev => [...prev, { id: uid('calc'), entidadeId: null, key: null, label: label || 'Campo calculado', type: 'number', calculado: true, formula: { a, op, b } }])
+  }
+  function removerCampo(id) {
+    setCampos(prev => prev.filter(c => c.id !== id))
+  }
+  function addFiltro() {
+    if (campos.length === 0) return
+    setFiltros(prev => [...prev, { id: uid('f'), campoId: campos[0].id, operador: operadoresDe(campos[0].type)[0].id, valor: '' }])
+  }
+  function updateFiltro(id, patch) { setFiltros(prev => prev.map(f => f.id === id ? { ...f, ...patch } : f)) }
+  function removeFiltro(id) { setFiltros(prev => prev.filter(f => f.id !== id)) }
+  function toggleAgrupamento(campoId) {
+    setAgrupamento(prev => prev.includes(campoId) ? prev.filter(x => x !== campoId) : [...prev, campoId])
   }
 
-  async function handleExportarExcel() {
-    setExportando(true)
-    try { await exportarExcel(campos, linhasOrdenadas, titulo) } finally { setExportando(false) }
+  // ── Ações de blocos ───────────────────────────────────────────────────────
+  function addBlock(tipo) {
+    const defaults = {
+      kpi:     { campoId: null, agregacao: 'contagem', label: 'Total de registros', cor: CHART_COLORS[0] },
+      tabela:  { colunas: campos.slice(0, 6).map(c => c.id), ordenacao: null },
+      grafico: { tipo: 'bar', eixoXId: agrupamento[0] || null, campoMetricaId: null, agregacao: 'contagem', cor: CHART_COLORS[0] },
+      texto:   { conteudo: 'Escreva aqui…', tamanho: 'normal' },
+      divisor: {},
+      imagem:  { url: '' },
+    }
+    const novo = { id: uid('blk'), tipo, config: defaults[tipo] }
+    setBlocks(prev => [...prev, novo])
+    setPainel({ blockId: novo.id })
+    setPickerAberto(false)
+  }
+  function updateBlockConfig(id, patch) {
+    setBlocks(prev => prev.map(b => b.id === id ? { ...b, config: { ...b.config, ...patch } } : b))
+  }
+  function moverBlock(idx, dir) {
+    setBlocks(prev => {
+      const i = idx + dir
+      if (i < 0 || i >= prev.length) return prev
+      const next = [...prev]
+      ;[next[idx], next[i]] = [next[i], next[idx]]
+      return next
+    })
+  }
+  function duplicarBlock(id) {
+    setBlocks(prev => {
+      const idx = prev.findIndex(b => b.id === id)
+      if (idx === -1) return prev
+      const clone = { ...prev[idx], id: uid('blk'), config: { ...prev[idx].config } }
+      const next = [...prev]
+      next.splice(idx + 1, 0, clone)
+      return next
+    })
+  }
+  function removerBlock(id) {
+    setBlocks(prev => prev.filter(b => b.id !== id))
+    setPainel(p => (p && p.blockId === id) ? null : p)
   }
 
-  let chaveAnterior = null
+  async function handleSalvar() {
+    if (!entidadeId) return
+    setSalvando(true)
+    try {
+      const config = { builder: { versao: 2, entidadeId, joins, campos, filtros, conector, agrupamento, blocks } }
+      const result = await save({ id: relatorioId, titulo, tipo: 'relatorio', acesso, papeis_permitidos: acesso === 'equipe' ? papeisPermitidos : [], status: 'rascunho', config, elementos: [] })
+      if (result?.ok && result.relatorio) {
+        setRelatorioId(result.relatorio.id)
+        setSearchParams({ id: result.relatorio.id }, { replace: true })
+      }
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  const blockSelecionado = painel && painel.blockId ? blocks.find(b => b.id === painel.blockId) : null
 
   return (
-    <div style={{ ...s.body, maxWidth: 'none' }}>
-      <KpisBox linhas={linhas} campos={campos} kpis={kpis} onAddKpi={onAddKpi} onRemoveKpi={onRemoveKpi} />
-
-      <div style={s.resultToolbar}>
-        <div style={s.resultCount}>
-          <strong>{linhasOrdenadas.length}</strong> registro{linhasOrdenadas.length !== 1 ? 's' : ''}
-          {agrupamento.length > 0 && <> · agrupado por {camposAgrupObjs.map(c => c.label).join(' → ')}</>}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <select style={s.orderSelect} value={ordenacao?.campoId || ''} onChange={e => {
-            const campoId = e.target.value
-            onOrdenacao(campoId ? { campoId, dir: ordenacao?.dir || 'asc' } : null)
-          }}>
-            <option value="">Ordenar por…</option>
-            {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+    <div style={s.page}>
+      {/* ── Cabeçalho ── */}
+      <div style={s.header}>
+        <button style={s.btnGhost} onClick={() => navigate('/relatorios')}><ArrowLeft size={14} /> Relatórios</button>
+        <input value={titulo} onChange={e => setTitulo(e.target.value)} placeholder="Novo relatório" style={s.titleInput} />
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <select style={s.acessoSelect} value={acesso} onChange={e => setAcesso(e.target.value)} title="Quem pode ver">
+            <option value="privado">🔒 Privado</option>
+            <option value="equipe">👥 Equipe</option>
+            <option value="todos">🌐 Público</option>
           </select>
-          {ordenacao && (
-            <button style={s.orderDirBtn} onClick={() => onOrdenacao({ ...ordenacao, dir: ordenacao.dir === 'asc' ? 'desc' : 'asc' })}>
-              {ordenacao.dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
-            </button>
-          )}
-          <button style={s.btnGhost} onClick={() => exportarCSV(campos, linhasOrdenadas)} disabled={linhasOrdenadas.length === 0}>
-            CSV
+          <button style={{ ...s.btnGhost, ...(painel === 'dados' ? s.btnGhostAtivo : {}) }} onClick={() => setPainel(p => p === 'dados' ? null : 'dados')}>
+            <Database size={14} /> Dados
           </button>
-          <button style={s.btnGhost} onClick={() => exportarPDF(campos, linhasOrdenadas, titulo)} disabled={linhasOrdenadas.length === 0}>
-            PDF
-          </button>
-          <button style={s.btnPrimary} onClick={handleExportarExcel} disabled={linhasOrdenadas.length === 0 || exportando}>
-            {exportando ? 'Gerando…' : 'Excel'}
+          <button style={s.btnPrimary} disabled={!entidadeId || salvando} onClick={handleSalvar}>
+            <Save size={14} /> {salvando ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
       </div>
 
-      <div style={s.tableWrap}>
-        <table style={s.table}>
-          <thead>
-            <tr>
-              {campos.map(c => <th key={c.id} style={s.th}>{c.label}</th>)}
-            </tr>
-          </thead>
-          <tbody>
-            {linhasOrdenadas.map((linha, idx) => {
-              const chave = camposAgrupObjs.length > 0 ? chaveGrupo(linha) : null
-              const novoGrupo = chave !== null && chave !== chaveAnterior
-              chaveAnterior = chave
-              return (
-                <RowComGrupo key={idx} linha={linha} campos={campos} novoGrupo={novoGrupo} chave={chave} />
-              )
-            })}
-            {linhasOrdenadas.length === 0 && (
-              <tr><td colSpan={campos.length || 1} style={s.tdEmpty}>Nenhum registro encontrado com os filtros atuais.</td></tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      {acesso === 'equipe' && (
+        <div style={s.papeisRow}>
+          <span style={s.papeisLabel}>Papéis com acesso:</span>
+          {PAPEIS.map(p => {
+            const sel = papeisPermitidos.includes(p.value)
+            return (
+              <button key={p.value} onClick={() => setPapeisPermitidos(prev => sel ? prev.filter(x => x !== p.value) : [...prev, p.value])}
+                style={{ ...s.papelChip, ...(sel ? s.papelChipSel : {}) }}>
+                {sel && <Check size={10} strokeWidth={3} />} {p.label}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
-      <div style={{ ...s.footerNav, marginTop: 20 }}>
-        <button style={s.btnGhost} onClick={onVoltar}><ArrowLeft size={14} /> Voltar para regras</button>
+      <div style={s.body}>
+        {/* ── Centro: só a visualização ── */}
+        <div style={s.centro}>
+          {!entidadeId ? (
+            <EscolherFonte onEscolher={escolherEntidade} />
+          ) : blocks.length === 0 ? (
+            <EmptyBlocks onAdd={() => setPickerAberto(true)} />
+          ) : (
+            <div style={s.blocosLista}>
+              {blocks.map((blk, idx) => (
+                <BlockWrapper key={blk.id} idx={idx} total={blocks.length}
+                  selecionado={painel?.blockId === blk.id}
+                  onSelect={() => setPainel({ blockId: blk.id })}
+                  onMoveUp={() => moverBlock(idx, -1)}
+                  onMoveDown={() => moverBlock(idx, 1)}
+                  onDuplicate={() => duplicarBlock(blk.id)}
+                  onRemove={() => removerBlock(blk.id)}>
+                  <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />
+                </BlockWrapper>
+              ))}
+              <button style={s.addBlockInline} onClick={() => setPickerAberto(true)}>
+                <Plus size={14} /> Adicionar bloco
+              </button>
+            </div>
+          )}
+
+          {pickerAberto && <BlockPicker onPick={addBlock} onClose={() => setPickerAberto(false)} />}
+        </div>
+
+        {/* ── Painel lateral ── */}
+        {painel === 'dados' && (
+          <DataPanel
+            sources={sources} entidade={entidade} entidadeId={entidadeId} joins={joins}
+            relacionadas={relacionadas} campos={campos} filtros={filtros} conector={conector}
+            agrupamento={agrupamento} entidadesAtivas={entidadesAtivas}
+            onEscolherEntidade={escolherEntidade} onToggleJoin={toggleJoin} onToggleCampo={toggleCampo}
+            onAddCalculado={addCalculado} onRemoverCampo={removerCampo}
+            onAddFiltro={addFiltro} onUpdateFiltro={updateFiltro} onRemoveFiltro={removeFiltro} onConector={setConector}
+            onToggleAgrupamento={toggleAgrupamento}
+            onClose={() => setPainel(null)}
+          />
+        )}
+        {blockSelecionado && (
+          <BlockConfigPanel blk={blockSelecionado} campos={campos} agrupamento={agrupamento}
+            onChange={patch => updateBlockConfig(blockSelecionado.id, patch)}
+            onClose={() => setPainel(null)} />
+        )}
       </div>
     </div>
   )
 }
 
-function RowComGrupo({ linha, campos, novoGrupo, chave }) {
+// ─── Escolher fonte (primeira tela, sem relatório ainda) ─────────────────────
+function EscolherFonte({ onEscolher }) {
+  return (
+    <div style={s.escolherFonte}>
+      <div style={s.escolherFonteEyebrow}>Novo relatório</div>
+      <h1 style={s.escolherFonteTitulo}>De qual cadastro você quer partir?</h1>
+      <p style={s.escolherFonteHint}>Você poderá trazer campos de outros cadastros relacionados depois, sem escrever consulta nenhuma.</p>
+      <div style={s.grid}>
+        {ENTIDADES.map(e => (
+          <button key={e.id} onClick={() => onEscolher(e.id)} style={s.entityCard}>
+            <span style={s.entityIcon}>{e.icon}</span>
+            <span style={s.entityLabel}>{e.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function EmptyBlocks({ onAdd }) {
+  return (
+    <div style={s.emptyBlocks}>
+      <div style={{ fontSize: 32, marginBottom: 12 }}>✨</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', marginBottom: 6 }}>Seu relatório está vazio</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, maxWidth: 360, textAlign: 'center' }}>
+        Adicione um bloco — um KPI, uma tabela, um gráfico — pra começar a responder sua pergunta de negócio.
+      </div>
+      <button style={s.btnPrimary} onClick={onAdd}><Plus size={14} /> Adicionar bloco</button>
+    </div>
+  )
+}
+
+// ─── Menu de biblioteca de blocos ─────────────────────────────────────────────
+function BlockPicker({ onPick, onClose }) {
+  return (
+    <div style={s.pickerOverlay} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={s.pickerBox}>
+        <div style={s.pickerHead}>
+          <span>Adicionar bloco</span>
+          <button style={s.iconBtn} onClick={onClose}><X size={14} /></button>
+        </div>
+        <div style={s.pickerGrid}>
+          {BLOCO_TIPOS.map(({ tipo, label, desc, Icon }) => (
+            <button key={tipo} style={s.pickerItem} onClick={() => onPick(tipo)}>
+              <Icon size={18} color="var(--accent)" strokeWidth={1.75} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>{label}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{desc}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Invólucro de bloco — toolbar discreta ao passar o mouse ─────────────────
+function BlockWrapper({ children, idx, total, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      onClick={onSelect}
+      style={{ ...s.blockWrap, ...(selecionado ? s.blockWrapSel : {}) }}>
+      {(hover || selecionado) && (
+        <div style={s.blockToolbar} onClick={e => e.stopPropagation()}>
+          <span style={s.blockDragHint}><GripVertical size={12} /></span>
+          <button style={s.iconBtn} disabled={idx === 0} onClick={onMoveUp}><ChevronUp size={13} /></button>
+          <button style={s.iconBtn} disabled={idx === total - 1} onClick={onMoveDown}><ChevronDown size={13} /></button>
+          <button style={s.iconBtn} onClick={onSelect} title="Configurar"><Settings2 size={13} /></button>
+          <button style={s.iconBtn} onClick={onDuplicate} title="Duplicar"><Copy size={13} /></button>
+          <button style={{ ...s.iconBtn, color: 'var(--red)' }} onClick={onRemove} title="Remover"><Trash2 size={13} /></button>
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+// ─── Renderização de cada tipo de bloco ──────────────────────────────────────
+function BlockView({ blk, linhas, campos, agrupamento, titulo }) {
+  if (blk.tipo === 'kpi') return <KpiBlockView config={blk.config} linhas={linhas} campos={campos} />
+  if (blk.tipo === 'tabela') return <TabelaBlockView config={blk.config} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />
+  if (blk.tipo === 'grafico') return <GraficoBlockView config={blk.config} linhas={linhas} campos={campos} />
+  if (blk.tipo === 'texto') return <TextoBlockView config={blk.config} />
+  if (blk.tipo === 'divisor') return <hr style={s.divisor} />
+  if (blk.tipo === 'imagem') return <ImagemBlockView config={blk.config} />
+  return null
+}
+
+function KpiBlockView({ config, linhas, campos }) {
+  const valor = calcularKpi(linhas, campos, config)
+  return (
+    <div style={s.kpiCard}>
+      <div style={{ ...s.kpiValue, color: config.cor || CHART_COLORS[0] }}>{formatarNumero(valor)}</div>
+      <div style={s.kpiLabel}>{config.label || 'KPI'}</div>
+    </div>
+  )
+}
+
+function TabelaBlockView({ config, linhas, campos, agrupamento, titulo }) {
+  const colunas = (config.colunas || []).map(id => campos.find(c => c.id === id)).filter(Boolean)
+  const camposAgrupObjs = agrupamento.map(id => campos.find(c => c.id === id)).filter(Boolean)
+
+  const linhasOrdenadas = useMemo(() => {
+    const campoOrd = config.ordenacao ? campos.find(c => c.id === config.ordenacao.campoId) : null
+    if (camposAgrupObjs.length === 0 && !campoOrd) return linhas
+    return [...linhas].sort((a, b) => {
+      for (const c of camposAgrupObjs) {
+        const va = formatarValor(valorDoCampo(a, c, campos))
+        const vb = formatarValor(valorDoCampo(b, c, campos))
+        if (va !== vb) return va < vb ? -1 : 1
+      }
+      if (campoOrd) {
+        const va = valorDoCampo(a, campoOrd, campos)
+        const vb = valorDoCampo(b, campoOrd, campos)
+        let cmp
+        if (campoOrd.type === 'number') cmp = (Number(va) || 0) - (Number(vb) || 0)
+        else cmp = String(va ?? '').localeCompare(String(vb ?? ''))
+        return config.ordenacao.dir === 'desc' ? -cmp : cmp
+      }
+      return 0
+    })
+  }, [linhas, campos, camposAgrupObjs, config.ordenacao])
+
+  const [pagina, setPagina] = useState(1)
+  const tamanhoPagina = 20
+  const totalPaginas = Math.max(1, Math.ceil(linhasOrdenadas.length / tamanhoPagina))
+  const paginaSegura = Math.min(pagina, totalPaginas)
+  const visiveis = camposAgrupObjs.length > 0 ? linhasOrdenadas : linhasOrdenadas.slice((paginaSegura - 1) * tamanhoPagina, paginaSegura * tamanhoPagina)
+
+  function chaveGrupo(linha) { return camposAgrupObjs.map(c => formatarValor(valorDoCampo(linha, c, campos))).join(' · ') }
+  let chaveAnterior = null
+
+  if (colunas.length === 0) {
+    return <div style={s.blockEmpty}>Escolha as colunas dessa tabela no painel ao lado.</div>
+  }
+
+  return (
+    <div>
+      <div style={s.tabelaToolbar}>
+        <span style={s.tabelaCount}>{linhasOrdenadas.length} registro{linhasOrdenadas.length !== 1 ? 's' : ''}</span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <button style={s.btnGhostSm} onClick={() => exportarCSV(colunas, linhasOrdenadas, titulo)}>CSV</button>
+          <button style={s.btnGhostSm} onClick={() => exportarExcel(colunas, linhasOrdenadas, titulo)}><FileDown size={12} /> Excel</button>
+        </div>
+      </div>
+      <div style={s.tableWrap}>
+        <table style={s.table}>
+          <thead><tr>{colunas.map(c => <th key={c.id} style={s.th}>{c.label}</th>)}</tr></thead>
+          <tbody>
+            {visiveis.map((linha, idx) => {
+              const chave = camposAgrupObjs.length > 0 ? chaveGrupo(linha) : null
+              const novoGrupo = chave !== null && chave !== chaveAnterior
+              chaveAnterior = chave
+              return (
+                <RowComGrupo key={idx} linha={linha} campos={colunas} todosCampos={campos} novoGrupo={novoGrupo} chave={chave} />
+              )
+            })}
+            {visiveis.length === 0 && <tr><td colSpan={colunas.length} style={s.tdEmpty}>Nenhum registro encontrado.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+      {camposAgrupObjs.length === 0 && totalPaginas > 1 && (
+        <div style={s.paginacao}>
+          <button style={s.btnGhostSm} disabled={paginaSegura === 1} onClick={() => setPagina(p => p - 1)}>‹ Anterior</button>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Página {paginaSegura} de {totalPaginas}</span>
+          <button style={s.btnGhostSm} disabled={paginaSegura === totalPaginas} onClick={() => setPagina(p => p + 1)}>Próxima ›</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function RowComGrupo({ linha, campos, todosCampos, novoGrupo, chave }) {
   return (
     <>
       {novoGrupo && (
-        <tr>
-          <td colSpan={campos.length || 1} style={s.groupHeaderCell}>{chave}</td>
-        </tr>
+        <tr><td colSpan={campos.length} style={s.groupHeaderCell}>{chave || '(vazio)'}</td></tr>
       )}
       <tr>
-        {campos.map(c => <td key={c.id} style={s.td}>{formatarValor(valorDoCampo(linha, c, campos))}</td>)}
+        {campos.map(c => <td key={c.id} style={s.td}>{formatarValor(valorDoCampo(linha, c, todosCampos))}</td>)}
       </tr>
     </>
   )
 }
 
+function GraficoBlockView({ config, linhas, campos }) {
+  const eixoX = campos.find(c => c.id === config.eixoXId)
+  const metrica = campos.find(c => c.id === config.campoMetricaId)
+  if (!eixoX) return <div style={s.blockEmpty}>Escolha o eixo de categorias (X) no painel ao lado.</div>
+
+  const dados = agregarPorGrupo(linhas, eixoX, metrica, config.agregacao, campos).slice(0, 30)
+  const cor = config.cor || CHART_COLORS[0]
+
+  if (dados.length === 0) return <div style={s.blockEmpty}>Sem dados pra exibir com os filtros atuais.</div>
+
+  if (config.tipo === 'pie') {
+    return (
+      <ResponsiveContainer width="100%" height={320}>
+        <PieChart>
+          <Pie data={dados} dataKey="valor" nameKey="chave" cx="50%" cy="50%" outerRadius={110} label={({ chave }) => chave}>
+            {dados.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+          </Pie>
+          <Tooltip />
+          <Legend />
+        </PieChart>
+      </ResponsiveContainer>
+    )
+  }
+  if (config.tipo === 'line') {
+    return (
+      <ResponsiveContainer width="100%" height={320}>
+        <LineChart data={dados}>
+          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+          <XAxis dataKey="chave" tick={{ fontSize: 11 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip />
+          <Line type="monotone" dataKey="valor" stroke={cor} strokeWidth={2.5} dot={{ r: 3 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    )
+  }
+  // 'bar' e 'funil' (funil = barras horizontais ordenadas, sem lib própria de funil)
+  const funil = config.tipo === 'funil'
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(240, dados.length * (funil ? 36 : 0) + (funil ? 40 : 280))}>
+      <BarChart data={dados} layout={funil ? 'vertical' : 'horizontal'} margin={{ left: funil ? 80 : 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        {funil ? (
+          <>
+            <XAxis type="number" tick={{ fontSize: 11 }} />
+            <YAxis type="category" dataKey="chave" tick={{ fontSize: 11 }} width={100} />
+          </>
+        ) : (
+          <>
+            <XAxis dataKey="chave" tick={{ fontSize: 11 }} />
+            <YAxis tick={{ fontSize: 11 }} />
+          </>
+        )}
+        <Tooltip />
+        <Bar dataKey="valor" fill={cor} radius={[4, 4, 4, 4]} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}
+
+function TextoBlockView({ config }) {
+  if (config.tamanho === 'titulo') return <h2 style={s.textoTitulo}>{config.conteudo}</h2>
+  return <p style={s.textoParagrafo}>{config.conteudo}</p>
+}
+
+function ImagemBlockView({ config }) {
+  if (!config.url) return <div style={s.blockEmpty}>Cole a URL da imagem no painel ao lado.</div>
+  return <img src={config.url} alt="" style={s.imagemBlock} />
+}
+
+// ─── Painel "Dados" — fonte, relacionamentos, campos, filtros, agrupamento ──
+function DataPanel({ sources, entidade, entidadeId, joins, relacionadas, campos, filtros, conector, agrupamento, entidadesAtivas, onEscolherEntidade, onToggleJoin, onToggleCampo, onAddCalculado, onRemoverCampo, onAddFiltro, onUpdateFiltro, onRemoveFiltro, onConector, onToggleAgrupamento, onClose }) {
+  const [secao, setSecao] = useState('fonte')
+  const [busca, setBusca] = useState('')
+
+  const grupos = entidadesAtivas
+    .map(id => sources.find(s => s.id === id))
+    .filter(Boolean)
+    .map(src => ({ ...src, fields: (src.fields || []).filter(f => !busca || f.label.toLowerCase().includes(busca.toLowerCase())) }))
+  const selecionadosSet = new Set(campos.map(c => c.id))
+
+  function campoDe(id) { return campos.find(c => c.id === id) }
+
+  return (
+    <div style={s.painel}>
+      <div style={s.painelHead}>
+        <span style={s.painelTitulo}><Database size={14} /> Dados do relatório</span>
+        <button style={s.iconBtn} onClick={onClose}><X size={14} /></button>
+      </div>
+
+      <div style={s.painelTabs}>
+        {[
+          { id: 'fonte', label: 'Fonte', Icon: Database },
+          { id: 'campos', label: 'Campos', Icon: Layers },
+          { id: 'filtros', label: 'Filtros', Icon: Filter },
+        ].map(({ id, label, Icon }) => (
+          <button key={id} style={{ ...s.painelTab, ...(secao === id ? s.painelTabAtivo : {}) }} onClick={() => setSecao(id)}>
+            <Icon size={12} /> {label}
+          </button>
+        ))}
+      </div>
+
+      <div style={s.painelBody}>
+        {secao === 'fonte' && (
+          <>
+            <div style={s.painelSubtitulo}>Entidade principal</div>
+            <div style={s.grid2}>
+              {ENTIDADES.map(e => (
+                <button key={e.id} onClick={() => onEscolherEntidade(e.id)}
+                  style={{ ...s.entityCardSm, ...(entidadeId === e.id ? s.entityCardSmSel : {}) }}>
+                  <span>{e.icon}</span> {e.label}
+                </button>
+              ))}
+            </div>
+
+            {entidade && (
+              <>
+                <div style={{ ...s.painelSubtitulo, marginTop: 20 }}>Relacionamentos (JOIN)</div>
+                {relacionadas.length === 0 && <div style={s.emptyRel}>Nenhum relacionamento mapeado pra essa entidade.</div>}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {relacionadas.map(({ entidade: rel, relacao }) => {
+                    const incluida = joins.includes(rel.id)
+                    return (
+                      <button key={rel.id} onClick={() => onToggleJoin(rel.id)} style={{ ...s.relRow, ...(incluida ? s.relRowSel : {}) }}>
+                        <span style={s.relCheck}>{incluida && <Check size={12} strokeWidth={3} />}</span>
+                        <span>{rel.icon}</span>
+                        <span style={{ fontWeight: 700, fontSize: 12.5, flexShrink: 0, minWidth: 100 }}>{rel.label}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{relacao.rotulo}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {secao === 'campos' && entidade && (
+          <>
+            <div style={s.searchWrap2}>
+              <Search size={12} style={s.searchIcon2} />
+              <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar campo…" style={s.searchInput2} />
+            </div>
+            {grupos.map(g => (
+              <div key={g.id} style={{ marginBottom: 14 }}>
+                <div style={s.groupHead}><span>{g.icon}</span> {g.label}</div>
+                {g.fields.map(f => {
+                  const campoId = `${g.id}.${f.key}`
+                  const sel = selecionadosSet.has(campoId)
+                  return (
+                    <button key={campoId} onClick={() => onToggleCampo(g.id, f)} style={{ ...s.fieldRow, ...(sel ? s.fieldRowSel : {}) }}>
+                      <span style={s.relCheck}>{sel && <Check size={11} strokeWidth={3} />}</span>
+                      <span style={{ flex: 1, textAlign: 'left' }}>{f.label}</span>
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+
+            <div style={{ ...s.painelSubtitulo, marginTop: 8 }}>Campos calculados</div>
+            <CamposCalculadosBox campos={campos} onAddCalculado={onAddCalculado} />
+
+            {campos.length > 0 && (
+              <>
+                <div style={{ ...s.painelSubtitulo, marginTop: 20 }}>Selecionados ({campos.length})</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {campos.map(c => (
+                    <span key={c.id} style={s.campoChip}>
+                      {c.calculado && '🧮 '}{c.label}
+                      <button style={s.chipRemove} onClick={() => onRemoverCampo(c.id)}><X size={10} /></button>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
+
+        {secao === 'filtros' && (
+          <>
+            <div style={s.painelSubtitulo}>Filtros</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
+              {filtros.map((f, idx) => {
+                const campo = campoDe(f.campoId)
+                const ops = campo ? operadoresDe(campo.type) : []
+                return (
+                  <div key={f.id} style={s.filterRow}>
+                    {idx > 0 && <button style={s.connector} onClick={() => onConector(conector === 'E' ? 'OU' : 'E')}>{conector}</button>}
+                    <select style={s.filterSelect} value={f.campoId} onChange={e => {
+                      const novoCampo = campoDe(e.target.value)
+                      onUpdateFiltro(f.id, { campoId: e.target.value, operador: operadoresDe(novoCampo?.type)[0]?.id || '=' })
+                    }}>
+                      {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                    </select>
+                    <select style={{ ...s.filterSelect, flex: '0 0 70px' }} value={f.operador} onChange={e => onUpdateFiltro(f.id, { operador: e.target.value })}>
+                      {ops.map(o => <option key={o.id} value={o.id}>{o.l}</option>)}
+                    </select>
+                    <input style={s.filterInput} value={f.valor} onChange={e => onUpdateFiltro(f.id, { valor: e.target.value })}
+                      type={campo?.type === 'number' ? 'number' : campo?.type === 'date' ? 'date' : 'text'} placeholder="valor" />
+                    <button style={s.removeBtn} onClick={() => onRemoveFiltro(f.id)}><X size={13} /></button>
+                  </div>
+                )
+              })}
+            </div>
+            <button style={s.addLink} onClick={onAddFiltro} disabled={campos.length === 0}>+ Adicionar filtro</button>
+
+            <div style={{ ...s.painelSubtitulo, marginTop: 22 }}>Agrupamento</div>
+            <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 8 }}>Usado por tabelas (cabeçalhos de grupo) e como sugestão de eixo em gráficos.</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {campos.map(c => {
+                const sel = agrupamento.includes(c.id)
+                return (
+                  <button key={c.id} onClick={() => onToggleAgrupamento(c.id)} style={{ ...s.campoChip, cursor: 'pointer', ...(sel ? s.campoChipSel : {}) }}>
+                    {sel && <Check size={10} strokeWidth={3} />} {c.label}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const OPERADORES_CALCULO = [{ id: '+', l: '+' }, { id: '-', l: '−' }, { id: '*', l: '×' }, { id: '/', l: '÷' }]
+
+function CamposCalculadosBox({ campos, onAddCalculado }) {
+  const numericos = campos.filter(c => !c.calculado && c.type === 'number')
+  const [aberto, setAberto] = useState(false)
+  const [label, setLabel]   = useState('')
+  const [aTipo, setATipo]   = useState('campo')
+  const [aCampo, setACampo] = useState('')
+  const [aValor, setAValor] = useState('')
+  const [op, setOp]         = useState('+')
+  const [bTipo, setBTipo]   = useState('campo')
+  const [bCampo, setBCampo] = useState('')
+  const [bValor, setBValor] = useState('')
+
+  function resetForm() {
+    setLabel(''); setATipo('campo'); setACampo(''); setAValor('')
+    setOp('+'); setBTipo('campo'); setBCampo(''); setBValor('')
+    setAberto(false)
+  }
+  function confirmar() {
+    if (!label.trim()) return
+    const a = aTipo === 'campo' ? { tipo: 'campo', campoId: aCampo } : { tipo: 'valor', valor: aValor }
+    const b = bTipo === 'campo' ? { tipo: 'campo', campoId: bCampo } : { tipo: 'valor', valor: bValor }
+    if (aTipo === 'campo' && !aCampo) return
+    if (bTipo === 'campo' && !bCampo) return
+    onAddCalculado({ label: label.trim(), a, op, b })
+    resetForm()
+  }
+
+  return (
+    <div>
+      {!aberto && (
+        <button style={s.addLink} onClick={() => setAberto(true)} disabled={numericos.length === 0}>+ Novo campo calculado</button>
+      )}
+      {aberto && numericos.length === 0 && <div style={s.emptyRel}>Selecione um campo numérico primeiro.</div>}
+      {aberto && numericos.length > 0 && (
+        <div style={s.calcBox}>
+          <input style={s.filterInput} placeholder="Nome (ex: Margem)" value={label} onChange={e => setLabel(e.target.value)} />
+          <div style={s.calcRow}>
+            <select style={s.filterSelect} value={aTipo} onChange={e => setATipo(e.target.value)}>
+              <option value="campo">Campo</option><option value="valor">Valor</option>
+            </select>
+            {aTipo === 'campo'
+              ? <select style={s.filterSelect} value={aCampo} onChange={e => setACampo(e.target.value)}><option value="">Selecione…</option>{numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+              : <input style={s.filterInput} type="number" value={aValor} onChange={e => setAValor(e.target.value)} />}
+            <select style={{ ...s.filterSelect, flex: '0 0 50px' }} value={op} onChange={e => setOp(e.target.value)}>
+              {OPERADORES_CALCULO.map(o => <option key={o.id} value={o.id}>{o.l}</option>)}
+            </select>
+            <select style={s.filterSelect} value={bTipo} onChange={e => setBTipo(e.target.value)}>
+              <option value="campo">Campo</option><option value="valor">Valor</option>
+            </select>
+            {bTipo === 'campo'
+              ? <select style={s.filterSelect} value={bCampo} onChange={e => setBCampo(e.target.value)}><option value="">Selecione…</option>{numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}</select>
+              : <input style={s.filterInput} type="number" value={bValor} onChange={e => setBValor(e.target.value)} />}
+          </div>
+          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+            <button style={s.btnGhostSm} onClick={resetForm}>Cancelar</button>
+            <button style={s.btnPrimarySm} onClick={confirmar}>Adicionar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Painel de configuração do bloco selecionado ────────────────────────────
+function BlockConfigPanel({ blk, campos, agrupamento, onChange, onClose }) {
+  const meta = BLOCO_TIPOS.find(b => b.tipo === blk.tipo)
+  return (
+    <div style={s.painel}>
+      <div style={s.painelHead}>
+        <span style={s.painelTitulo}>{meta?.Icon && <meta.Icon size={14} />} {meta?.label}</span>
+        <button style={s.iconBtn} onClick={onClose}><X size={14} /></button>
+      </div>
+      <div style={s.painelBody}>
+        {blk.tipo === 'kpi' && <KpiConfig config={blk.config} campos={campos} onChange={onChange} />}
+        {blk.tipo === 'tabela' && <TabelaConfig config={blk.config} campos={campos} onChange={onChange} />}
+        {blk.tipo === 'grafico' && <GraficoConfig config={blk.config} campos={campos} agrupamento={agrupamento} onChange={onChange} />}
+        {blk.tipo === 'texto' && <TextoConfig config={blk.config} onChange={onChange} />}
+        {blk.tipo === 'imagem' && <ImagemConfig config={blk.config} onChange={onChange} />}
+        {blk.tipo === 'divisor' && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Divisor não tem configurações.</div>}
+      </div>
+    </div>
+  )
+}
+
+function KpiConfig({ config, campos, onChange }) {
+  const numericos = campos.filter(c => c.type === 'number')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <label style={s.lbl}>Rótulo</label>
+        <input style={s.inp} value={config.label} onChange={e => onChange({ label: e.target.value })} />
+      </div>
+      <div>
+        <label style={s.lbl}>Métrica</label>
+        <select style={s.inp} value={config.agregacao} onChange={e => onChange({ agregacao: e.target.value, campoId: e.target.value === 'contagem' ? null : config.campoId })}>
+          {AGREGACOES.map(a => <option key={a.id} value={a.id}>{a.l}</option>)}
+        </select>
+      </div>
+      {config.agregacao !== 'contagem' && (
+        <div>
+          <label style={s.lbl}>Campo</label>
+          <select style={s.inp} value={config.campoId || ''} onChange={e => onChange({ campoId: e.target.value })}>
+            <option value="">Selecione…</option>
+            {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label style={s.lbl}>Cor</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {CHART_COLORS.map(c => (
+            <button key={c} onClick={() => onChange({ cor: c })}
+              style={{ width: 24, height: 24, borderRadius: 6, background: c, border: config.cor === c ? '2px solid var(--text)' : '1px solid var(--border)', cursor: 'pointer' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TabelaConfig({ config, campos, onChange }) {
+  const colunas = config.colunas || []
+  function toggle(id) {
+    onChange({ colunas: colunas.includes(id) ? colunas.filter(x => x !== id) : [...colunas, id] })
+  }
+  function mover(idx, dir) {
+    const i = idx + dir
+    if (i < 0 || i >= colunas.length) return
+    const next = [...colunas]
+    ;[next[idx], next[i]] = [next[i], next[idx]]
+    onChange({ colunas: next })
+  }
+  return (
+    <div>
+      <label style={s.lbl}>Colunas</label>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 16 }}>
+        {colunas.map((id, idx) => {
+          const c = campos.find(x => x.id === id)
+          if (!c) return null
+          return (
+            <div key={id} style={s.colConfigRow}>
+              <button style={s.iconBtnXs} disabled={idx === 0} onClick={() => mover(idx, -1)}><ChevronUp size={11} /></button>
+              <button style={s.iconBtnXs} disabled={idx === colunas.length - 1} onClick={() => mover(idx, 1)}><ChevronDown size={11} /></button>
+              <span style={{ flex: 1, fontSize: 12.5 }}>{c.label}</span>
+              <button style={s.iconBtnXs} onClick={() => toggle(id)}><X size={11} /></button>
+            </div>
+          )
+        })}
+      </div>
+      <label style={s.lbl}>Adicionar coluna</label>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        {campos.filter(c => !colunas.includes(c.id)).map(c => (
+          <button key={c.id} style={s.groupOption} onClick={() => toggle(c.id)}>+ {c.label}</button>
+        ))}
+      </div>
+
+      <label style={{ ...s.lbl, marginTop: 20 }}>Ordenar por</label>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <select style={s.inp} value={config.ordenacao?.campoId || ''} onChange={e => onChange({ ordenacao: e.target.value ? { campoId: e.target.value, dir: config.ordenacao?.dir || 'asc' } : null })}>
+          <option value="">Nenhuma</option>
+          {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        {config.ordenacao && (
+          <button style={s.iconBtn} onClick={() => onChange({ ordenacao: { ...config.ordenacao, dir: config.ordenacao.dir === 'asc' ? 'desc' : 'asc' } })}>
+            {config.ordenacao.dir === 'asc' ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GraficoConfig({ config, campos, agrupamento, onChange }) {
+  const numericos = campos.filter(c => c.type === 'number')
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <label style={s.lbl}>Tipo</label>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {[{ v: 'bar', l: 'Barra', Icon: BarChart2 }, { v: 'line', l: 'Linha', Icon: LineChartIcon }, { v: 'pie', l: 'Pizza', Icon: PieChartIcon }, { v: 'funil', l: 'Funil', Icon: BarChart2 }].map(({ v, l, Icon }) => (
+            <button key={v} onClick={() => onChange({ tipo: v })} style={{ ...s.chartTypeBtn, ...(config.tipo === v ? s.chartTypeBtnSel : {}) }}>
+              <Icon size={14} /> {l}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label style={s.lbl}>Categorias (eixo X)</label>
+        <select style={s.inp} value={config.eixoXId || ''} onChange={e => onChange({ eixoXId: e.target.value })}>
+          <option value="">Selecione…</option>
+          {campos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        {agrupamento.length > 0 && <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 4 }}>Sugestão: {campos.find(c => c.id === agrupamento[0])?.label}</div>}
+      </div>
+      <div>
+        <label style={s.lbl}>Métrica</label>
+        <select style={s.inp} value={config.agregacao} onChange={e => onChange({ agregacao: e.target.value, campoMetricaId: e.target.value === 'contagem' ? null : config.campoMetricaId })}>
+          {AGREGACOES.map(a => <option key={a.id} value={a.id}>{a.l}</option>)}
+        </select>
+      </div>
+      {config.agregacao !== 'contagem' && (
+        <div>
+          <label style={s.lbl}>Campo</label>
+          <select style={s.inp} value={config.campoMetricaId || ''} onChange={e => onChange({ campoMetricaId: e.target.value })}>
+            <option value="">Selecione…</option>
+            {numericos.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+          </select>
+        </div>
+      )}
+      <div>
+        <label style={s.lbl}>Cor</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {CHART_COLORS.map(c => (
+            <button key={c} onClick={() => onChange({ cor: c })}
+              style={{ width: 24, height: 24, borderRadius: 6, background: c, border: config.cor === c ? '2px solid var(--text)' : '1px solid var(--border)', cursor: 'pointer' }} />
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TextoConfig({ config, onChange }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div>
+        <label style={s.lbl}>Tamanho</label>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[{ v: 'titulo', l: 'Título' }, { v: 'normal', l: 'Parágrafo' }].map(({ v, l }) => (
+            <button key={v} onClick={() => onChange({ tamanho: v })} style={{ ...s.chartTypeBtn, ...(config.tamanho === v ? s.chartTypeBtnSel : {}) }}>{l}</button>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label style={s.lbl}>Conteúdo</label>
+        <textarea style={{ ...s.inp, minHeight: 90, resize: 'vertical' }} value={config.conteudo} onChange={e => onChange({ conteudo: e.target.value })} />
+      </div>
+    </div>
+  )
+}
+
+function ImagemConfig({ config, onChange }) {
+  return (
+    <div>
+      <label style={s.lbl}>URL da imagem</label>
+      <input style={s.inp} value={config.url} onChange={e => onChange({ url: e.target.value })} placeholder="https://…" />
+    </div>
+  )
+}
+
 const s = {
-  page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 },
-  header: { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px 0' },
-  eyebrow: { fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 },
-  title: { fontSize: 20, fontWeight: 700, margin: 0, letterSpacing: '-0.01em' },
-  titleInput: { fontSize: 20, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font)', padding: 0, width: '100%', maxWidth: 480 },
-  btnGhost: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', color: 'var(--text-soft)', fontSize: 13, fontWeight: 600, padding: '8px 14px', borderRadius: 'var(--radius-md, 8px)', cursor: 'pointer', fontFamily: 'var(--font)' },
-  btnPrimary: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, padding: '9px 16px', borderRadius: 'var(--radius-md, 8px)', cursor: 'pointer', fontFamily: 'var(--font)' },
+  page: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0, background: 'var(--surface2)' },
 
-  faseNav: { display: 'flex', gap: 4, padding: '18px 24px 0', borderBottom: '1px solid var(--border)', flexShrink: 0 },
-  faseTab: { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'none', border: 'none', borderBottom: '2px solid transparent', color: 'var(--text-muted)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
-  faseTabAtivo: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
-  faseTabDisabled: { opacity: 0.4, cursor: 'not-allowed' },
-  faseNum: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: 4, background: 'var(--surface2)', color: 'inherit', fontSize: 10.5, fontWeight: 700, fontFamily: 'var(--mono)' },
+  header: { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0 },
+  titleInput: { flex: 1, fontSize: 16, fontWeight: 700, letterSpacing: '-0.01em', color: 'var(--text)', border: 'none', background: 'none', outline: 'none', fontFamily: 'var(--font)', padding: 0 },
+  btnGhost: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', color: 'var(--text-soft)', fontSize: 12.5, fontWeight: 600, padding: '7px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font)' },
+  btnGhostAtivo: { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
+  btnGhostSm: { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: '1px solid var(--border)', color: 'var(--text-soft)', fontSize: 11.5, fontWeight: 600, padding: '5px 9px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font)' },
+  btnPrimary: { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent)', border: 'none', color: '#fff', fontSize: 12.5, fontWeight: 700, padding: '8px 16px', borderRadius: 8, cursor: 'pointer', fontFamily: 'var(--font)' },
+  btnPrimarySm: { display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--accent)', border: 'none', color: '#fff', fontSize: 11.5, fontWeight: 700, padding: '5px 11px', borderRadius: 6, cursor: 'pointer', fontFamily: 'var(--font)' },
+  acessoSelect: { fontSize: 12, fontWeight: 600, padding: '7px 9px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-soft)', fontFamily: 'var(--font)' },
 
-  body: { flex: 1, overflowY: 'auto', padding: '24px', maxWidth: 760, position: 'relative' },
-  hint: { fontSize: 13.5, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 22, maxWidth: 560 },
+  papeisRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, padding: '8px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', flexShrink: 0 },
+  papeisLabel: { fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' },
+  papelChip: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px', cursor: 'pointer', fontFamily: 'var(--font)' },
+  papelChipSel: { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
 
-  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: 10 },
-  entityCard: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: '16px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)', transition: 'border-color 0.12s, box-shadow 0.12s' },
-  entityCardSel: { borderColor: 'var(--accent)', boxShadow: '0 0 0 3px var(--accent-glow)' },
+  body: { flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' },
+  centro: { flex: 1, overflowY: 'auto', padding: '32px 40px', position: 'relative' },
+
+  escolherFonte: { maxWidth: 640, margin: '40px auto' },
+  escolherFonteEyebrow: { fontSize: 11, fontWeight: 700, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 },
+  escolherFonteTitulo: { fontSize: 22, fontWeight: 700, margin: '0 0 8px', letterSpacing: '-0.02em', color: 'var(--text)' },
+  escolherFonteHint: { fontSize: 13.5, color: 'var(--text-soft)', lineHeight: 1.6, marginBottom: 24 },
+  grid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 10 },
+  entityCard: { display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8, padding: '16px 14px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)' },
   entityIcon: { fontSize: 20 },
   entityLabel: { fontSize: 13, fontWeight: 700, color: 'var(--text)' },
 
-  emptyRel: { padding: '20px 0', color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' },
-  relList: { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 22 },
-  relRow: { display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)', width: '100%' },
-  relRowSel: { borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
-  relCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, borderRadius: 4, border: '1.5px solid var(--border2)', color: 'var(--accent)', flexShrink: 0 },
-  relIcon: { fontSize: 15, flexShrink: 0 },
-  relLabel: { fontSize: 13.5, fontWeight: 700, color: 'var(--text)', flexShrink: 0, minWidth: 140 },
-  relCard: { fontSize: 12, color: 'var(--text-muted)' },
+  emptyBlocks: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', textAlign: 'center' },
 
-  footerNav: { display: 'flex', justifyContent: 'space-between', paddingTop: 8 },
-  building: { textAlign: 'center', padding: '48px 0' },
+  blocosLista: { display: 'flex', flexDirection: 'column', gap: 14, maxWidth: 880, margin: '0 auto' },
+  blockWrap: { position: 'relative', borderRadius: 10, border: '1.5px solid transparent', padding: 16, cursor: 'pointer', transition: 'border-color 0.12s, background 0.12s' },
+  blockWrapSel: { borderColor: 'var(--accent)', background: 'var(--surface)' },
+  blockToolbar: { position: 'absolute', top: -14, right: 8, display: 'flex', alignItems: 'center', gap: 2, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', zIndex: 5 },
+  blockDragHint: { color: 'var(--border2)', display: 'flex', padding: '0 2px' },
+  blockEmpty: { padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5, fontStyle: 'italic', border: '1px dashed var(--border)', borderRadius: 8 },
 
-  // Colunas
-  colPanel: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', maxHeight: 'calc(100vh - 230px)' },
-  colPanelHead: { padding: '12px 14px', fontSize: 12, fontWeight: 700, color: 'var(--text)', borderBottom: '1px solid var(--border)' },
-  colPanelBody: { flex: 1, overflowY: 'auto', padding: '10px 12px' },
-  searchWrap: { position: 'relative', padding: '10px 12px 0' },
-  searchIcon: { position: 'absolute', left: 22, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' },
-  searchInput: { width: '100%', boxSizing: 'border-box', padding: '7px 10px 7px 30px', fontSize: 12.5, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none' },
-  groupHead: { display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '6px 4px' },
-  groupEmpty: { fontSize: 11.5, color: 'var(--text-muted)', fontStyle: 'italic', padding: '2px 8px 6px' },
-  fieldRow: { display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '7px 8px', borderRadius: 6, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)', fontSize: 13, color: 'var(--text)' },
-  fieldRowSel: { background: 'var(--accent-glow)' },
-  fieldType: { fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' },
+  addBlockInline: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px', borderRadius: 8, border: '1.5px dashed var(--border2)', background: 'none', color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
 
-  selectedRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 8px', borderBottom: '1px solid var(--border2)' },
-  reorderCol: { display: 'flex', flexDirection: 'column', gap: 0, flexShrink: 0 },
-  reorderBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, display: 'flex' },
-  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 },
-  colunasFooter: { position: 'absolute', bottom: -8, left: 24, right: 24, display: 'flex', justifyContent: 'space-between', paddingTop: 14, borderTop: '1px solid var(--border)', background: 'var(--surface)' },
+  pickerOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 },
+  pickerBox: { width: 380, background: 'var(--surface)', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden' },
+  pickerHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', fontSize: 13, fontWeight: 700, color: 'var(--text)', borderBottom: '1px solid var(--border)' },
+  pickerGrid: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, padding: 8 },
+  pickerItem: { display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 8, border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)' },
 
-  // Campos calculados
-  colPanelHead2: { fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 4 },
-  calcBox: { display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10, padding: 14, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface2)', maxWidth: 640 },
-  calcRow: { display: 'flex', alignItems: 'center', gap: 6 },
+  kpiCard: { padding: '18px 22px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)', display: 'inline-block', minWidth: 160 },
+  kpiValue: { fontSize: 30, fontWeight: 800, letterSpacing: '-0.02em', fontVariantNumeric: 'tabular-nums' },
+  kpiLabel: { fontSize: 12.5, color: 'var(--text-soft)', marginTop: 4 },
 
-  // Regras
-  sectionTitle: { fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 6px' },
-  filterRow: { display: 'flex', alignItems: 'center', gap: 8 },
-  connector: { flexShrink: 0, width: 34, fontSize: 11, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-glow)', border: '1px solid var(--accent)', borderRadius: 6, padding: '4px 0', cursor: 'pointer', fontFamily: 'var(--mono)' },
-  filterSelect: { flex: 1, minWidth: 0, fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
-  filterInput: { flex: 1, minWidth: 0, fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
-  addLink: { background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'var(--font)' },
-
-  groupTrail: { display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 },
-  groupChip: { display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 6px 5px 10px', borderRadius: 6, border: '1px solid var(--accent)', background: 'var(--accent-glow)', color: 'var(--text)', fontSize: 12.5, fontWeight: 600 },
-  groupArrow: { color: 'var(--text-muted)', marginRight: 4 },
-  chipReorder: { background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', padding: 1, display: 'flex' },
-  chipRemove: { background: 'none', border: 'none', color: 'var(--text-soft)', cursor: 'pointer', padding: 1, display: 'flex', marginLeft: 2 },
-  groupPicker: { display: 'flex', flexWrap: 'wrap', gap: 8 },
-  groupOption: { fontSize: 12, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '6px 10px', cursor: 'pointer', fontFamily: 'var(--font)' },
-
-  // Resultado
-  resultToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, flexWrap: 'wrap', gap: 10 },
-  resultCount: { fontSize: 13, color: 'var(--text-soft)' },
-  orderSelect: { fontSize: 12.5, padding: '7px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)' },
-  orderDirBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--surface)', color: 'var(--text-soft)', cursor: 'pointer' },
-
-  acessoSelect: { fontSize: 12.5, fontWeight: 600, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text-soft)', fontFamily: 'var(--font)' },
-
-  papeisRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 7, padding: '10px 24px', borderBottom: '1px solid var(--border)', background: 'var(--surface2)' },
-  papeisLabel: { fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginRight: 2 },
-  papelChip: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 6, padding: '4px 9px', cursor: 'pointer', fontFamily: 'var(--font)' },
-  papelChipSel: { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
-  papeisHint: { fontSize: 11, color: 'var(--text-muted)', fontStyle: 'italic' },
-
-  kpiRow: { display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
-  kpiCard: { position: 'relative', minWidth: 130, padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', background: 'var(--surface)' },
-  kpiValue: { fontSize: 22, fontWeight: 800, color: 'var(--accent)', fontVariantNumeric: 'tabular-nums', letterSpacing: '-0.02em' },
-  kpiLabel: { fontSize: 11.5, color: 'var(--text-soft)', marginTop: 2 },
-  kpiRemove: { position: 'absolute', top: 6, right: 6, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 2, display: 'flex' },
-  tableWrap: { border: '1px solid var(--border)', borderRadius: 10, overflow: 'auto', maxHeight: 'calc(100vh - 320px)' },
+  tabelaToolbar: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  tabelaCount: { fontSize: 12, color: 'var(--text-muted)' },
+  tableWrap: { border: '1px solid var(--border)', borderRadius: 8, overflow: 'auto', maxHeight: 480 },
   table: { width: '100%', borderCollapse: 'collapse', fontSize: 12.5 },
-  th: { textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', position: 'sticky', top: 0 },
-  td: { padding: '9px 12px', color: 'var(--text)', borderBottom: '1px solid var(--border2)', fontVariantNumeric: 'tabular-nums' },
-  tdEmpty: { padding: '24px 12px', textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic' },
-  groupHeaderCell: { padding: '8px 12px', fontSize: 11.5, fontWeight: 700, color: 'var(--accent)', background: 'var(--accent-glow)', borderBottom: '1px solid var(--border2)' },
+  th: { textAlign: 'left', padding: '8px 12px', fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', borderBottom: '1px solid var(--border)', background: 'var(--surface2)', position: 'sticky', top: 0 },
+  td: { padding: '8px 12px', borderBottom: '1px solid var(--border2)', color: 'var(--text)' },
+  tdEmpty: { padding: '24px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 },
+  groupHeaderCell: { padding: '8px 12px', fontWeight: 700, fontSize: 11.5, color: 'var(--accent)', background: 'var(--accent-glow)' },
+  paginacao: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 14, marginTop: 10 },
+
+  divisor: { border: 'none', borderTop: '1px solid var(--border)', margin: '8px 0' },
+  textoTitulo: { fontSize: 19, fontWeight: 700, color: 'var(--text)', margin: 0 },
+  textoParagrafo: { fontSize: 13.5, color: 'var(--text-soft)', lineHeight: 1.6, margin: 0 },
+  imagemBlock: { maxWidth: '100%', borderRadius: 8 },
+
+  painel: { width: 320, flexShrink: 0, borderLeft: '1px solid var(--border)', background: 'var(--surface)', display: 'flex', flexDirection: 'column', minHeight: 0 },
+  painelHead: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid var(--border)', flexShrink: 0 },
+  painelTitulo: { display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, fontWeight: 700, color: 'var(--text)' },
+  painelTabs: { display: 'flex', borderBottom: '1px solid var(--border)', flexShrink: 0 },
+  painelTab: { flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, padding: '9px 0', background: 'none', border: 'none', borderBottom: '2px solid transparent', color: 'var(--text-muted)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
+  painelTabAtivo: { color: 'var(--accent)', borderBottomColor: 'var(--accent)' },
+  painelBody: { flex: 1, overflowY: 'auto', padding: 16 },
+  painelSubtitulo: { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 8 },
+
+  grid2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 },
+  entityCardSm: { display: 'flex', alignItems: 'center', gap: 6, padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', fontSize: 11.5, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--font)', textAlign: 'left' },
+  entityCardSmSel: { borderColor: 'var(--accent)', background: 'var(--accent-glow)', color: 'var(--accent)' },
+
+  emptyRel: { padding: '10px 0', color: 'var(--text-muted)', fontSize: 11.5, fontStyle: 'italic' },
+  relRow: { display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font)', width: '100%' },
+  relRowSel: { borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
+  relCheck: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 14, height: 14, borderRadius: 4, border: '1.5px solid var(--border2)', color: 'var(--accent)', flexShrink: 0 },
+
+  searchWrap2: { position: 'relative', marginBottom: 10 },
+  searchIcon2: { position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' },
+  searchInput2: { width: '100%', boxSizing: 'border-box', padding: '6px 8px 6px 26px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none' },
+  groupHead: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' },
+  fieldRow: { display: 'flex', alignItems: 'center', gap: 7, width: '100%', padding: '5px 6px', borderRadius: 5, border: 'none', background: 'none', cursor: 'pointer', fontFamily: 'var(--font)', fontSize: 12, color: 'var(--text)' },
+  fieldRowSel: { background: 'var(--accent-glow)' },
+
+  campoChip: { display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 7px' },
+  campoChipSel: { color: 'var(--accent)', borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
+  chipRemove: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 0 },
+
+  filterRow: { display: 'flex', alignItems: 'center', gap: 5 },
+  connector: { flexShrink: 0, width: 26, height: 22, borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--accent)', fontSize: 9.5, fontWeight: 800, cursor: 'pointer' },
+  filterSelect: { flex: 1, minWidth: 0, fontSize: 11.5, padding: '5px 5px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)' },
+  filterInput: { flex: 1, minWidth: 0, fontSize: 11.5, padding: '5px 7px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)' },
+  removeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', flexShrink: 0 },
+  addLink: { background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'var(--font)' },
+
+  calcBox: { display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8, padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface2)' },
+  calcRow: { display: 'flex', alignItems: 'center', gap: 4 },
+
+  lbl: { fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 5 },
+  inp: { width: '100%', boxSizing: 'border-box', padding: '7px 9px', fontSize: 12.5, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none' },
+
+  colConfigRow: { display: 'flex', alignItems: 'center', gap: 4, padding: '4px 6px', borderRadius: 6, background: 'var(--surface2)' },
+  iconBtnXs: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: 1 },
+  groupOption: { fontSize: 11, fontWeight: 600, color: 'var(--accent)', background: 'var(--accent-glow)', border: 'none', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', fontFamily: 'var(--font)' },
+
+  chartTypeBtn: { display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--surface2)', color: 'var(--text-soft)', fontSize: 11.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
+  chartTypeBtnSel: { borderColor: 'var(--accent)', color: 'var(--accent)', background: 'var(--accent-glow)' },
+
+  iconBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 4, borderRadius: 5, display: 'flex', alignItems: 'center' },
 }
