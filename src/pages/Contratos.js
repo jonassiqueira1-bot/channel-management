@@ -162,6 +162,14 @@ function gerarNumero(existentes) {
   const seq = String(existentes.filter(c => c.numero.includes(String(ano))).length + 1).padStart(3, '0')
   return `CTR-${ano}-${seq}`
 }
+function fmtCNPJ(v) {
+  const d = (v || '').replace(/\D/g, '').slice(0, 14)
+  if (d.length <= 2) return d
+  if (d.length <= 5) return `${d.slice(0,2)}.${d.slice(2)}`
+  if (d.length <= 8) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5)}`
+  if (d.length <= 12) return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8)}`
+  return `${d.slice(0,2)}.${d.slice(2,5)}.${d.slice(5,8)}/${d.slice(8,12)}-${d.slice(12)}`
+}
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
 function StatusBadge({ status }) {
@@ -1612,15 +1620,29 @@ function buildItensFromRow(row, productMap) {
   return { itens, errors }
 }
 
+// Aceita tanto o formato brasileiro (DD/MM/AAAA, o que qualquer planilha
+// exportada no Brasil usa) quanto o ISO (AAAA-MM-DD) — sempre devolve ISO,
+// que é o que o banco espera. `null` = vazio (ok), `undefined` = inválido.
+function parseDataFlexivel(v) {
+  if (!v?.trim()) return null
+  const iso = v.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) return v
+  const br = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+  return undefined
+}
+
 // companyCnpjMap/productMap: pré-computados uma única vez pro arquivo
 // inteiro; seenNumero: Set<numero> das linhas já processadas do próprio
 // arquivo — mesmo raciocínio O(1)-por-linha do import de Empresas.
-function validateImportRow(row, companyCnpjMap, productMap, existingNumeros, seenNumero) {
+// Não checa mais se a empresa já existe: se o CNPJ não bater com nenhuma
+// cadastrada, a importação cria a empresa automaticamente (tipo "rascunho")
+// — só o formato do CNPJ precisa ser válido aqui.
+function validateImportRow(row, productMap, existingNumeros, seenNumero) {
   const errors = []
   const cnpjRaw = (row.empresa_cnpj || '').replace(/\D/g, '')
   if (!cnpjRaw) errors.push('CNPJ da empresa é obrigatório')
   else if (cnpjRaw.length !== 14) errors.push('CNPJ inválido (precisa de 14 dígitos)')
-  else if (!companyCnpjMap.has(cnpjRaw)) errors.push(`Empresa não encontrada para o CNPJ ${row.empresa_cnpj}`)
 
   if (row.numero?.trim()) {
     if (existingNumeros.has(row.numero.trim())) errors.push(`Número de contrato já existe: ${row.numero}`)
@@ -1632,15 +1654,15 @@ function validateImportRow(row, companyCnpjMap, productMap, existingNumeros, see
     errors.push(`Origem inválida: "${row.origem}". Use: ${ORIGEM_CONTRATO_VALUES.join(', ')}`)
   if (row.inconsistencia_status && !INCONSISTENCIA_VALUES.includes(row.inconsistencia_status))
     errors.push(`Inconsistência inválida: "${row.inconsistencia_status}". Use: ${INCONSISTENCIA_VALUES.join(', ')}`)
-  if (row.vigencia_inicio && !/^\d{4}-\d{2}-\d{2}$/.test(row.vigencia_inicio))
-    errors.push('Data de início inválida (use AAAA-MM-DD)')
-  if (row.vigencia_fim && !/^\d{4}-\d{2}-\d{2}$/.test(row.vigencia_fim))
-    errors.push('Data de fim inválida (use AAAA-MM-DD)')
+  if (row.vigencia_inicio && parseDataFlexivel(row.vigencia_inicio) === undefined)
+    errors.push('Data de início inválida (use DD/MM/AAAA ou AAAA-MM-DD)')
+  if (row.vigencia_fim && parseDataFlexivel(row.vigencia_fim) === undefined)
+    errors.push('Data de fim inválida (use DD/MM/AAAA ou AAAA-MM-DD)')
   errors.push(...buildItensFromRow(row, productMap).errors)
   return errors
 }
 
-function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos, customFieldKeys, contratosExistentes, onImport }) {
+function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos, customFieldKeys, contratosExistentes, onCreateCompany, onImport }) {
   const existingNumeros = useMemo(() => new Set(contratosExistentes.map(c => c.numero)), [contratosExistentes])
   const importCols = useMemo(() => [...IMPORT_COLS_BASE, ...customFieldKeys], [customFieldKeys])
   const [step, setStep]           = useState('upload') // 'upload' | 'preview'
@@ -1663,7 +1685,7 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
       })
       const seenNumero = new Set()
       const rowResults = rows.map((row, i) => {
-        const errors = validateImportRow(row, companyCnpjMap, productMap, existingNumeros, seenNumero)
+        const errors = validateImportRow(row, productMap, existingNumeros, seenNumero)
         const ok = errors.length === 0
         if (ok && row.numero?.trim()) seenNumero.add(row.numero.trim())
         return { row, errors, ok, line: i + 2 }
@@ -1684,8 +1706,24 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
     // arquivo vierem sem número, precisa ir "crescendo" a lista conforme gera
     // cada uma, senão todas ganhariam o mesmo número auto.
     const geradosAteAgora = [...contratosExistentes]
-    const okRows = parsed.rowResults.filter(r => r.ok).map(r => {
-      const empresa = parsed.companyCnpjMap.get((r.row.empresa_cnpj || '').replace(/\D/g, ''))
+    const okResults = parsed.rowResults.filter(r => r.ok)
+
+    // Empresa não cadastrada pra esse CNPJ → cria automaticamente (tipo
+    // "rascunho", pra ser validada/completada depois via Receita Federal em
+    // Empresas). Cria uma vez por CNPJ distinto, mesmo que várias linhas do
+    // arquivo apontem pro mesmo CNPJ novo.
+    const criadasPorCnpj = new Map()
+    setImporting(true)
+    for (const r of okResults) {
+      const cnpjRaw = (r.row.empresa_cnpj || '').replace(/\D/g, '')
+      if (parsed.companyCnpjMap.has(cnpjRaw) || criadasPorCnpj.has(cnpjRaw)) continue
+      const resultCriacao = await onCreateCompany(cnpjRaw)
+      if (resultCriacao?.ok) criadasPorCnpj.set(cnpjRaw, resultCriacao.data)
+    }
+
+    const okRows = okResults.map(r => {
+      const cnpjRaw = (r.row.empresa_cnpj || '').replace(/\D/g, '')
+      const empresa = parsed.companyCnpjMap.get(cnpjRaw) || criadasPorCnpj.get(cnpjRaw)
       let numero = r.row.numero?.trim()
       if (!numero) { numero = gerarNumero(geradosAteAgora); geradosAteAgora.push({ numero }) }
       const { itens } = buildItensFromRow(r.row, parsed.productMap)
@@ -1698,8 +1736,8 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
         empresa_id:            empresa?.id || null,
         empresa_nome:          empresa?.fantasia || empresa?.razao || '',
         status:                r.row.status || 'ativo',
-        vigencia_inicio:       r.row.vigencia_inicio || '',
-        vigencia_fim:          r.row.vigencia_fim || '',
+        vigencia_inicio:       parseDataFlexivel(r.row.vigencia_inicio) || '',
+        vigencia_fim:          parseDataFlexivel(r.row.vigencia_fim) || '',
         responsavel:           r.row.responsavel || '',
         vendedor:              r.row.vendedor || '',
         origem:                r.row.origem || '',
@@ -1717,10 +1755,10 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
       total: parsed.rowResults.length,
       imported: okRows.length,
       errors: parsed.rowResults.filter(r => !r.ok).length,
+      empresasCriadas: criadasPorCnpj.size,
       rows: parsed.rowResults,
     }
     setImportError(null)
-    setImporting(true)
     const result = await onImport(okRows, log)
     setImporting(false)
     if (result?.ok === false) setImportError(result.message || 'Erro desconhecido ao importar.')
@@ -1778,7 +1816,9 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
                 {importCols.map(c => <span key={c} style={imp.colTag}>{c}</span>)}
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
-                A empresa é resolvida pelo CNPJ — cadastre-a antes em Empresas caso ainda não exista.<br/>
+                A empresa é resolvida pelo CNPJ. Se não existir nenhuma cadastrada com esse CNPJ, ela é
+                criada automaticamente (tipo <b>Rascunho</b>) — depois é só validar/completar os dados em
+                Empresas usando a edição em lote com consulta à Receita Federal.<br/>
                 Produtos: um por slot, em colunas separadas — <code>adesao_produto</code>/<code>adesao_qtd</code>/<code>adesao_valor</code>/<code>adesao_desconto</code>,
                 o mesmo padrão para <code>mrr_*</code> e <code>servico_*</code>. Só <code>*_produto</code> é obrigatório
                 pra contar (resolvido pelo código ou nome exato cadastrado em Produtos); os demais assumem quantidade 1,
@@ -1979,7 +2019,7 @@ export default function Contratos() {
   const { produtos } = useProducts()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
-  const { companies } = useCompanies()
+  const { companies, add: addCompany } = useCompanies()
   const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
@@ -2222,6 +2262,10 @@ export default function Contratos() {
           produtos={produtos}
           customFieldKeys={getEntityCustomFieldKeys('contracts')}
           contratosExistentes={contratos}
+          onCreateCompany={cnpjRaw => addCompany({
+            razao: `Empresa ${fmtCNPJ(cnpjRaw)}`, fantasia: '',
+            cnpj: fmtCNPJ(cnpjRaw), tipo: 'rascunho', status: 'negociacao',
+          })}
           onImport={async (rows, logEntry) => {
             const jobId = startImportJob({ label: 'Contratos', total: rows.length })
             const result = await importMany(rows, (current, total) => {
