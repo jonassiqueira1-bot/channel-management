@@ -23,7 +23,7 @@ import Button from '../components/Button'
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function fmtData(d) {
   if (!d) return ''
-  const [y, m, dia] = d.split('-')
+  const [y, m, dia] = d.split('T')[0].split('-')
   return `${dia}/${m}/${y}`
 }
 function fmtPeriodo(inicio, fim) {
@@ -31,12 +31,54 @@ function fmtPeriodo(inicio, fim) {
   if (!fim || fim === inicio) return fmtData(inicio)
   return `${fmtData(inicio)} → ${fmtData(fim)}`
 }
+const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']
+function fmtDataCurta(d) {
+  if (!d) return ''
+  const [y, m, dia] = d.split('T')[0].split('-')
+  return `${parseInt(dia, 10)} ${MESES_ABREV[parseInt(m, 10) - 1]}`
+}
+// Datas curtas pro card, ex: "10 Jan" / "10–12 Jan" / "10 Jan → 12 Fev"
+function fmtPeriodoCurto(inicio, fim) {
+  if (!inicio) return '—'
+  const i = inicio.split('T')[0]
+  const f = fim ? fim.split('T')[0] : null
+  if (!f || f === i) return fmtDataCurta(i)
+  const [iy, im, id] = i.split('-')
+  const [fy, fm, fd] = f.split('-')
+  if (iy === fy && im === fm) return `${parseInt(id, 10)}–${parseInt(fd, 10)} ${MESES_ABREV[parseInt(im, 10) - 1]}`
+  return `${fmtDataCurta(i)} → ${fmtDataCurta(f)}`
+}
 function novoId(lista) { return Math.max(0, ...lista.map(a => a.id)) + 1 }
 function listToMap(lista) {
   return Object.fromEntries(lista.map(t => [t.slug || t.key || t.id, t]))
 }
 function initials(nome) {
   return (nome || '').split(' ').filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+}
+
+// "Última atualização" relativa (Hoje / Ontem / N dias atrás) — só pro
+// dashboard de franquia, não é usado como registro de auditoria.
+function fmtRelativo(d) {
+  if (!d) return '—'
+  const dia   = new Date(d.split('T')[0] + 'T00:00:00')
+  const hoje  = new Date(new Date().toISOString().slice(0, 10) + 'T00:00:00')
+  const diff  = Math.round((hoje - dia) / 86400000)
+  if (diff <= 0) return 'Hoje'
+  if (diff === 1) return 'Ontem'
+  if (diff < 7)   return `${diff} dias atrás`
+  return fmtData(d)
+}
+
+// Saúde da franquia — sintetiza atrasos/pendências/progresso num único selo,
+// pra não obrigar o gestor a interpretar contadores um por um.
+function calcSaudeFranquia({ atrasadas, pendentes, pct }) {
+  if (atrasadas > 0 || (pct !== null && pct < 40)) {
+    return { nivel:'critica',  label:'Crítica',  emoji:'🔴', color:'#EF4444' }
+  }
+  if (pendentes > 3 || (pct !== null && pct < 70)) {
+    return { nivel:'atencao',  label:'Atenção',  emoji:'🟡', color:'#F59E0B' }
+  }
+  return { nivel:'saudavel', label:'Saudável', emoji:'🟢', color:'#10B981' }
 }
 
 // ─── Tarefa constants (espelhados de Tarefas.js) ─────────────────────────────
@@ -106,24 +148,25 @@ function fmtMoeda(v) {
 }
 
 // ─── Badges ───────────────────────────────────────────────────────────────────
+// Discretos por padrão — texto colorido em vez de chip preenchido. `dense`
+// (usado nos Cards) some com o ícone/rótulo textual e some com bordas, pra
+// reduzir ainda mais o ruído visual quando espaço é curto.
 function TipoBadge({ tipo, tiposMap }) {
-  const cfg = (tiposMap || TIPOS_ACAO_DEFAULT)[tipo] || { icon: '◎', label: tipo, color: '#6B7280', bg: '#F3F4F6' }
+  const cfg = (tiposMap || TIPOS_ACAO_DEFAULT)[tipo] || { icon: '◎', label: tipo, color: '#6B7280' }
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px',
-      borderRadius:20, background:cfg.bg, color:cfg.color, fontSize:11, fontWeight:600,
-      whiteSpace:'nowrap', border:`1px solid ${cfg.color}22` }}>
-      {cfg.icon} {cfg.label}
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11.5, fontWeight:600,
+      color:'var(--text-muted)', whiteSpace:'nowrap' }}>
+      <span style={{ fontSize:12 }}>{cfg.icon}</span> {cfg.label}
     </span>
   )
 }
 
-function StatusBadge({ status }) {
-  const cfg = STATUS_ACAO[status] || { label: status, color:'#9A9590', bg:'#F1F5F9', text:'#475569' }
+function StatusBadge({ status, dense }) {
+  const cfg = STATUS_ACAO[status] || { label: status, color:'#9A9590' }
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px',
-      borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600,
-      fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block' }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize: dense ? 11 : 11.5,
+      fontWeight:600, color:cfg.color, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block', flexShrink:0 }} />
       {cfg.label}
     </span>
   )
@@ -576,8 +619,20 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
   )
 }
 
+// ─── Bloco (card independente dentro da aba Dados) ───────────────────────────
+function Bloco({ title, children }) {
+  return (
+    <div style={{ background:'var(--surface2)', border:'1px solid var(--border2)', borderRadius:10, padding:16, marginBottom:16 }}>
+      <div style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:12 }}>
+        {title}
+      </div>
+      {children}
+    </div>
+  )
+}
+
 // ─── SlideOver de cadastro ────────────────────────────────────────────────────
-function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, empresasOpts, responsaveisOpts, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
+function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, tiposMap, empresasOpts, responsaveisOpts, tarefas, saveTarefa, deleteTarefa, tiposTarefa }) {
   const isNew = !initial?.id
   const [tab, setTab] = useState('dados')
   // Custos sempre vêm recolhidos ao abrir a Ação, independente do que estava
@@ -665,6 +720,11 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
     set('anexos', (form.anexos || []).filter((_, i) => i !== idx))
   }
 
+  // ── Progresso de tarefas (mostrado no topo, no headerExtra) ────────────────
+  const totalTarefas     = tarefasDaAcao.length
+  const concluidasTarefas = tarefasDaAcao.filter(t => t.status === 'concluida').length
+  const pctTarefas        = totalTarefas ? Math.round((concluidasTarefas / totalTarefas) * 100) : null
+
   return (
     <SlideOver
       open={open}
@@ -677,101 +737,145 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, tiposMap, emp
       subtitle={isNew ? 'Atividade operacional com unidade de franquia' : form.empresa_nome}
       saveLabel={isNew ? 'Criar Ação' : 'Salvar alterações'}
       columns={1}
-    >
-      {/* ── Tab bar ── */}
-      <div style={{ display:'flex', gap:0, borderBottom:'1px solid var(--border2)', marginBottom:20, paddingBottom:0 }}>
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)}
-            style={{ display:'flex', alignItems:'center', gap:5, padding:'8px 16px', background:'none', border:'none',
-              borderBottom: tab===t.key ? '2px solid var(--accent)' : '2px solid transparent',
-              color: tab===t.key ? 'var(--accent)' : 'var(--text-muted)',
-              fontWeight: tab===t.key ? 700 : 500, fontSize:13, cursor:'pointer', fontFamily:'var(--font)', marginBottom:-1 }}>
-            {t.label}
-            {t.badge && <span style={{ fontSize:10, fontWeight:700, background:'var(--accent)', color:'#fff', borderRadius:99, padding:'1px 6px', marginLeft:2 }}>{t.badge}</span>}
-          </button>
-        ))}
-      </div>
-
-      {/* ── Aba Dados ── */}
-      {tab === 'dados' && (
-        <FormGrid cols={2}>
-          <FormField label="Tipo de ação" required>
-            <select className="so-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
-              {Object.entries(tiposMap).map(([k, c]) => (
-                <option key={k} value={k}>{c.icon} {c.label}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Status">
-            <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
-              {Object.entries(STATUS_ACAO).map(([k, c]) => (
-                <option key={k} value={k}>{c.label}</option>
-              ))}
-            </select>
-          </FormField>
-
-          <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
-            <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
-              style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
-          </FormField>
-
-          <FormField label="Unidade / Franquia" required error={errs.empresa_id} style={{ gridColumn: 'span 2' }}>
-            <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}
-              style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
-              <option value="">— Selecione —</option>
-              {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
-            </select>
-          </FormField>
-
-          <FormField label="Outras unidades/franquias envolvidas (opcional)" style={{ gridColumn: 'span 2' }}>
-            <MultiSelect
-              options={empresasOpts.filter(e => String(e.id) !== String(form.empresa_id)).map(e => ({ value: e.id, label: e.nome }))}
-              value={form.franquias_adicionais_ids || []}
-              onChange={v => set('franquias_adicionais_ids', v)}
-              placeholder="Selecionar unidades adicionais…"
-            />
-          </FormField>
-
-          <FormField label="Responsável (ISV)">
-            <select className="so-field" value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
-              <option value="">— Selecione —</option>
-              {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
-            </select>
-          </FormField>
-
-          <FormField label="Local">
-            <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder="Ex: Online / São Paulo" />
-          </FormField>
-
-          <FormField label="Data e hora de início" required error={errs.data_inicio}>
-            <input className="so-field" type="datetime-local" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
-              style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
-          </FormField>
-
-          <FormField label="Data e hora de fim">
-            <input className="so-field" type="datetime-local" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
-          </FormField>
-
-          <FormField label="Vagas" style={{ gridColumn: 'span 2' }}>
-            <input className="so-field" type="number" min="0" value={form.vagas} onChange={e => set('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
-          </FormField>
-
-          <FormField label="Custo previsto (R$)">
-            <input className="so-field" type="number" min="0" step="0.01" value={form.custo_previsto || ''} onChange={e => set('custo_previsto', e.target.value)} placeholder="0,00" />
-          </FormField>
-
-          <FormField label="Custo realizado (R$)">
-            <div className="so-field" style={{ background:'var(--surface2)', color:'var(--text-muted)', cursor:'default', display:'flex', alignItems:'center' }}>
-              {fmtMoeda((form.custos || []).reduce((s, c) => s + (c.executado ? (Number(c.valor_realizado) || 0) : 0), 0))}
-            </div>
-          </FormField>
-
-          <FormField label="Descrição / Objetivos" style={{ gridColumn: 'span 2' }}>
-            <textarea className="so-field" rows={4} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
-          </FormField>
-        </FormGrid>
+      tabs={tabs}
+      activeTab={tab}
+      onTabChange={setTab}
+      headerActions={!isNew && (
+        <button type="button" onClick={onDuplicate} title="Duplicar ação"
+          style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:7,
+            border:'1px solid var(--border)', background:'none', color:'var(--text-muted)',
+            fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)' }}>
+          📋 Duplicar
+        </button>
       )}
+      headerExtra={!isNew && (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {/* Resumo rápido — tipo/status/franquia/responsável/período/criado/atualizado */}
+          <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 14px', fontSize:11.5, color:'var(--text-muted)' }}>
+            <span><TipoBadge tipo={form.tipo} tiposMap={tiposMap} /></span>
+            <span><StatusBadge status={form.status} /></span>
+            <span>👤 {form.responsavel_nome || '—'}</span>
+            <span>🗓 {fmtPeriodo(form.data_inicio, form.data_fim)}</span>
+            {initial.criado_em && <span>Criado em {new Date(initial.criado_em).toLocaleDateString('pt-BR')}</span>}
+            {initial.updated_at && <span>Atualizado em {new Date(initial.updated_at).toLocaleDateString('pt-BR')}</span>}
+          </div>
+          {/* Progresso de tarefas */}
+          {pctTarefas !== null && (
+            <div>
+              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:3 }}>
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>{concluidasTarefas} de {totalTarefas} tarefas concluídas</span>
+                <span style={{ fontSize:12, fontWeight:800, color: pctTarefas===100 ? '#10B981' : 'var(--accent)', fontFamily:'var(--mono)' }}>{pctTarefas}%</span>
+              </div>
+              <div style={{ height:6, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+                <div style={{ height:'100%', borderRadius:99, background: pctTarefas===100 ? '#10B981' : 'var(--accent)', width:`${pctTarefas}%`, transition:'width .4s' }} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    >
+      {/* ── Aba Dados ── */}
+      {tab === 'dados' && (() => {
+        // Campos condicionais por tipo — só quando o tipo configurado sinaliza
+        // uma modalidade (via ícone/slug); sem inventar colunas novas no banco,
+        // reaproveita "Local" com um rótulo/placeholder contextual.
+        const tipoAtualLabel = (tiposMap[form.tipo]?.label || '').toLowerCase()
+        const ehOnline = /webinar|online|virtual|live/.test(tipoAtualLabel)
+        const localLabel = ehOnline ? 'Link / Plataforma' : 'Local'
+        const localPlaceholder = ehOnline ? 'Ex: Zoom, Teams, link da sala…' : 'Ex: Online / São Paulo'
+
+        return (
+          <>
+            <Bloco title="Informações gerais">
+              <FormGrid cols={2}>
+                <FormField label="Tipo de ação" required>
+                  <select className="so-field" value={form.tipo} onChange={e => set('tipo', e.target.value)}>
+                    {Object.entries(tiposMap).map(([k, c]) => (
+                      <option key={k} value={k}>{c.icon} {c.label}</option>
+                    ))}
+                  </select>
+                </FormField>
+
+                <FormField label="Status">
+                  <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
+                    {Object.entries(STATUS_ACAO).map(([k, c]) => (
+                      <option key={k} value={k}>{c.label}</option>
+                    ))}
+                  </select>
+                </FormField>
+
+                <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
+                  <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
+                    style={{ borderColor: errs.titulo ? '#DC2626' : '' }} />
+                </FormField>
+
+                <FormField label="Unidade / Franquia" required error={errs.empresa_id} style={{ gridColumn: 'span 2' }}>
+                  <select className="so-field" value={form.empresa_id} onChange={e => set('empresa_id', e.target.value)}
+                    style={{ borderColor: errs.empresa_id ? '#DC2626' : '' }}>
+                    <option value="">— Selecione —</option>
+                    {empresasOpts.map(e => <option key={e.id} value={e.id}>{e.nome}</option>)}
+                  </select>
+                </FormField>
+
+                <FormField label="Outras unidades/franquias envolvidas (opcional)" style={{ gridColumn: 'span 2' }}>
+                  <MultiSelect
+                    options={empresasOpts.filter(e => String(e.id) !== String(form.empresa_id)).map(e => ({ value: e.id, label: e.nome }))}
+                    value={form.franquias_adicionais_ids || []}
+                    onChange={v => set('franquias_adicionais_ids', v)}
+                    placeholder="Selecionar unidades adicionais…"
+                  />
+                </FormField>
+
+                <FormField label="Responsável (ISV)" style={{ gridColumn: 'span 2' }}>
+                  <select className="so-field" value={form.responsavel_id} onChange={e => set('responsavel_id', e.target.value)}>
+                    <option value="">— Selecione —</option>
+                    {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+                  </select>
+                </FormField>
+
+                <FormField label="Descrição / Objetivos" style={{ gridColumn: 'span 2' }}>
+                  <textarea className="so-field" rows={3} style={{ resize:'vertical' }} value={form.descricao || ''} onChange={e => set('descricao', e.target.value)} placeholder="Objetivos, conteúdo programático, observações…" />
+                </FormField>
+              </FormGrid>
+            </Bloco>
+
+            <Bloco title="Agenda">
+              <FormGrid cols={2}>
+                <FormField label="Data e hora de início" required error={errs.data_inicio}>
+                  <input className="so-field" type="datetime-local" value={form.data_inicio} onChange={e => set('data_inicio', e.target.value)}
+                    style={{ borderColor: errs.data_inicio ? '#DC2626' : '' }} />
+                </FormField>
+
+                <FormField label="Data e hora de fim">
+                  <input className="so-field" type="datetime-local" value={form.data_fim || ''} onChange={e => set('data_fim', e.target.value)} />
+                </FormField>
+
+                <FormField label={localLabel}>
+                  <input className="so-field" value={form.local || ''} onChange={e => set('local', e.target.value)} placeholder={localPlaceholder} />
+                </FormField>
+
+                <FormField label="Vagas">
+                  <input className="so-field" type="number" min="0" value={form.vagas} onChange={e => set('vagas', e.target.value)} placeholder="Deixe vazio para ilimitado" />
+                </FormField>
+              </FormGrid>
+            </Bloco>
+
+            <Bloco title="Financeiro">
+              <FormGrid cols={2}>
+                <FormField label="Custo previsto (R$)">
+                  <input className="so-field" type="number" min="0" step="0.01" value={form.custo_previsto || ''} onChange={e => set('custo_previsto', e.target.value)} placeholder="0,00" />
+                </FormField>
+
+                <FormField label="Custo realizado (R$)">
+                  <div className="so-field" style={{ background:'var(--surface)', color:'var(--text-muted)', cursor:'default', display:'flex', alignItems:'center' }}>
+                    {fmtMoeda((form.custos || []).reduce((s, c) => s + (c.executado ? (Number(c.valor_realizado) || 0) : 0), 0))}
+                  </div>
+                </FormField>
+              </FormGrid>
+            </Bloco>
+          </>
+        )
+      })()}
 
       {/* ── Aba Custos ── */}
       {tab === 'custos' && (() => {
@@ -1123,6 +1227,10 @@ export default function Acoes() {
 
   const [search,        setSearch]        = useLocalState('browse:acoes:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:acoes:filters', {})
+  // Agrupar por — só tem efeito na visão em Lista (o card view não agrupa)
+  const [groupByKey, setGroupByKey] = useLocalState('acoes:groupBy', 'none')
+  // franquias com a lista de ações expandida (por padrão só mostra as 3 primeiras)
+  const [franquiasExpandidas, setFranquiasExpandidas] = useState(new Set())
 
   const empresasOpts = useMemo(() => {
     if (franquiasCad.length > 0)
@@ -1139,14 +1247,36 @@ export default function Acoes() {
   // ── filtros ──────────────────────────────────────────────────────────────
   const lista = useMemo(() => {
     const q    = search.toLowerCase()
-    const tipo = activeFilters.tipo   || []
-    const stat = activeFilters.status || []
-    const emp  = activeFilters.empresa || []
+    const tipo = activeFilters.tipo       || []
+    const stat = activeFilters.status     || []
+    const emp  = activeFilters.empresa    || []
+    const resp = activeFilters.responsavel || []
+    const per  = activeFilters.periodo    || []
+
+    const hoje     = new Date().toISOString().slice(0, 10)
+    const em7      = new Date(); em7.setDate(em7.getDate() + 7)
+    const em7Str   = em7.toISOString().slice(0, 10)
+    const em30     = new Date(); em30.setDate(em30.getDate() + 30)
+    const em30Str  = em30.toISOString().slice(0, 10)
+
+    function matchPeriodo(a) {
+      if (!per.length) return true
+      const d = (a.data_inicio || '').slice(0, 10)
+      return per.some(p => {
+        if (p === 'atrasadas')      return a.status === 'agendado' && d && d < hoje
+        if (p === 'esta_semana')    return d >= hoje && d <= em7Str
+        if (p === 'proximos_30')    return d >= hoje && d <= em30Str
+        if (p === 'passadas')       return d && d < hoje
+        return true
+      })
+    }
 
     return acoes.filter(a =>
       (!tipo.length   || tipo.includes(a.tipo)) &&
       (!stat.length   || stat.includes(a.status)) &&
       (!emp.length    || emp.includes(String(a.empresa_id))) &&
+      (!resp.length   || resp.includes(String(a.responsavel_id))) &&
+      matchPeriodo(a) &&
       (!q || a.titulo.toLowerCase().includes(q) ||
              (a.empresa_nome || '').toLowerCase().includes(q) ||
              (a.responsavel_nome || '').toLowerCase().includes(q))
@@ -1165,22 +1295,37 @@ export default function Acoes() {
     return Object.values(map).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
   }, [lista])
 
-  // ── KPIs ─────────────────────────────────────────────────────────────────
+  // ── KPIs — dobram como filtro rápido: clicar filtra a listagem pelo status,
+  // clicar de novo no que já está ativo limpa o filtro. ──────────────────────
+  function toggleStatusFilter(status) {
+    setActiveFilters(prev => {
+      const atual = prev.status || []
+      const ativo = atual.length === 1 && atual[0] === status
+      const { status: _drop, ...rest } = prev
+      return ativo ? rest : { ...rest, status: [status] }
+    })
+  }
+
   const kpis = (data) => {
     const totalPrev = data.reduce((s, a) => s + (a.custos || []).reduce((ss, c) => ss + (Number(c.valor_previsto) || 0), 0), 0)
     const totalReal = data.reduce((s, a) => s + (a.custos || []).reduce((ss, c) => ss + (Number(c.valor_realizado) || 0), 0), 0)
     const overBudget = totalReal > totalPrev && totalPrev > 0
+    const statusAtivo = (activeFilters.status || [])[0]
     return (
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr) 1.6fr', gap:12 }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(5,1fr) 1.6fr', gap:12 }}>
         {[
-          { label:'Total',      value: data.length,                                     color:'var(--border)' },
-          { label:'Agendadas',  value: data.filter(a => a.status==='agendado').length,  color:'#F59E0B' },
-          { label:'Realizadas', value: data.filter(a => a.status==='realizado').length, color:'#10B981' },
-          { label:'Canceladas', value: data.filter(a => a.status==='cancelado').length, color:'#EF4444' },
+          { label:'Total',        value: data.length,                                        color:'var(--text-muted)' },
+          { key:'agendado',       label:'Agendadas',    value: data.filter(a => a.status==='agendado').length,     color:'#F59E0B' },
+          { key:'em_andamento',   label:'Em andamento', value: data.filter(a => a.status==='em_andamento').length, color:'#3B82F6' },
+          { key:'realizado',      label:'Realizadas',   value: data.filter(a => a.status==='realizado').length,    color:'#10B981' },
+          { key:'cancelado',      label:'Canceladas',   value: data.filter(a => a.status==='cancelado').length,    color:'#EF4444' },
         ].map(k => (
-          <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border2)',
-            borderRadius:10, padding:'14px 18px', display:'flex', flexDirection:'column', gap:4,
-            boxShadow:'var(--shadow)', borderTop:`3px solid ${k.color}` }}>
+          <div key={k.label} onClick={k.key ? () => toggleStatusFilter(k.key) : undefined}
+            style={{ background: statusAtivo===k.key ? `${k.color}0F` : 'var(--surface)',
+              border:`1px solid ${statusAtivo===k.key ? k.color : 'var(--border2)'}`,
+              borderRadius:10, padding:'14px 18px', display:'flex', flexDirection:'column', gap:4,
+              boxShadow:'var(--shadow)', borderTop:`3px solid ${k.color}`,
+              cursor: k.key ? 'pointer' : 'default', transition:'all .12s' }}>
             <div style={{ fontSize:22, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)' }}>{k.value}</div>
             <div style={{ fontSize:11, color:'var(--text-muted)', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
           </div>
@@ -1286,51 +1431,138 @@ export default function Acoes() {
       label: 'Unidade',
       options: empresasOpts.map(e => ({ value: String(e.id), label: e.nome })),
     },
+    {
+      key: 'responsavel',
+      label: 'Responsável',
+      options: responsaveisOpts.map(r => ({ value: String(r.id), label: r.nome })),
+    },
+    {
+      key: 'periodo',
+      label: 'Período',
+      options: [
+        { value: 'atrasadas',    label: 'Atrasadas' },
+        { value: 'esta_semana',  label: 'Esta semana' },
+        { value: 'proximos_30',  label: 'Próximos 30 dias' },
+        { value: 'passadas',     label: 'Já ocorreram' },
+      ],
+    },
   ]
 
   // ── card render ───────────────────────────────────────────────────────────
-  function renderCard(acao) {
+  // Conteúdo "puro" — sem borda/sombra/onClick próprios. Quem usa decide o
+  // wrapper: o card view nativo do BrowseLayout já embrulha isso num
+  // container clicável com borda; a visão "Por Franquia" (viewFranquias)
+  // embrulha explicitamente logo abaixo. Evita chrome duplicado (borda
+  // dupla) e mantém "o card inteiro é clicável" garantido num único lugar.
+  // `hideFranquia` esconde a linha da franquia quando o card já está dentro
+  // de um grupo cujo cabeçalho mostra o nome da franquia — ela nunca
+  // aparece duas vezes.
+  function renderCard(acao, { hideFranquia } = {}) {
     const hoje     = new Date().toISOString().slice(0, 10)
     const atrasado = acao.status === 'agendado' && acao.data_inicio < hoje
-    const tipoCfg  = (tiposMap || TIPOS_ACAO_DEFAULT)[acao.tipo] || { icon:'◎', color:'#6B7280', bg:'#F3F4F6' }
+
+    const proximaTarefa = tarefas
+      .filter(t => String(t.entidade_id) === String(acao.id) && t.entidade_tipo === 'acao'
+        && t.status !== 'concluida' && t.status !== 'cancelada')
+      .sort((a, b) => (a.prazo || '9999-99-99').localeCompare(b.prazo || '9999-99-99'))[0]
+
+    const ts   = tarefas.filter(t => String(t.entidade_id) === String(acao.id) && t.entidade_tipo === 'acao')
+    const done = ts.filter(t => t.status === 'concluida').length
+    const pct  = ts.length ? Math.round((done / ts.length) * 100) : null
+
     return (
-      <div onClick={() => { setEditando(acao); setSlideOpen(true) }}
-        style={{ background:'var(--surface)', border:'1px solid var(--border2)', borderRadius:10,
-          padding:'14px 16px', cursor:'pointer', boxShadow:'var(--shadow)',
-          display:'flex', flexDirection:'column', gap:10, borderTop:`3px solid ${tipoCfg.color}` }}>
-        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:8 }}>
-          <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', lineHeight:1.3, flex:1 }}>{acao.titulo}</div>
+      <div style={{ padding:'14px 16px', display:'flex', flexDirection:'column', gap:8 }}>
+        {/* Título — maior destaque, único elemento em negrito forte */}
+        <div style={{ fontSize:14.5, fontWeight:700, color:'var(--text)', lineHeight:1.35 }}>
+          {acao.titulo}
+        </div>
+
+        {/* Tipo + Franquia (uma única vez) — texto discreto, sem chips */}
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap', fontSize:11.5, color:'var(--text-muted)' }}>
           <TipoBadge tipo={acao.tipo} tiposMap={tiposMap} />
+          {!hideFranquia && acao.empresa_nome && (
+            <>
+              <span style={{ color:'var(--border)' }}>·</span>
+              <span>{acao.empresa_nome}</span>
+            </>
+          )}
         </div>
-        <div style={{ fontSize:12, color:'var(--text-muted)' }}>🏢 {acao.empresa_nome}</div>
-        {acao.local && <div style={{ fontSize:11, color:'var(--text-muted)' }}>📍 {acao.local}</div>}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginTop:'auto', paddingTop:8, borderTop:'1px solid var(--border2)' }}>
+
+        {/* Status + período + responsável — uma linha só, discreta */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, marginTop:2 }}>
+          <StatusBadge status={acao.status} dense />
+          <span style={{ fontSize:11.5, fontWeight:600, color: atrasado ? 'var(--red)' : 'var(--text-muted)' }}>
+            {atrasado && '⚠ '}{fmtPeriodoCurto(acao.data_inicio, acao.data_fim)}
+          </span>
+        </div>
+
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', paddingTop:8, borderTop:'1px solid var(--border2)' }}>
           <AvatarCell nome={acao.responsavel_nome} />
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <span style={{ fontSize:11, fontFamily:'var(--mono)', color: atrasado ? 'var(--red)' : 'var(--text-muted)' }}>
-              {atrasado && '⚠ '}{fmtPeriodo(acao.data_inicio, acao.data_fim)}
+          {pct !== null && (
+            <span style={{ fontSize:11, fontWeight:700, color: pct===100 ? '#10B981' : 'var(--text-muted)' }}>
+              {pct}% · {done}/{ts.length}
             </span>
-            <StatusBadge status={acao.status} />
-          </div>
+          )}
         </div>
-        {acao.vagas && <VagasBar vagas={acao.vagas} inscritos={acao.inscritos} />}
-        {(() => {
-          const ts = tarefas.filter(t => String(t.entidade_id) === String(acao.id) && t.entidade_tipo === 'acao')
-          if (!ts.length) return null
-          const done = ts.filter(t => t.status === 'concluida').length
-          const pct = Math.round((done / ts.length) * 100)
+
+        {pct !== null && (
+          <div style={{ height:4, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+            <div style={{ height:'100%', background: pct===100 ? '#10B981' : 'var(--accent)', borderRadius:99, width:`${pct}%`, transition:'width .3s' }} />
+          </div>
+        )}
+
+        {/* Próxima tarefa — só quando existir, sinaliza atraso em vermelho */}
+        {proximaTarefa && (() => {
+          const tarefaAtrasada = proximaTarefa.prazo && proximaTarefa.prazo < hoje
           return (
-            <div>
-              <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                <span style={{ fontSize:10, color:'var(--text-muted)' }}>✅ {done}/{ts.length} tarefas</span>
-                <span style={{ fontSize:10, fontWeight:700, color: pct===100 ? '#10B981' : 'var(--accent)' }}>{pct}%</span>
-              </div>
-              <div style={{ height:4, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
-                <div style={{ height:'100%', background: pct===100 ? '#10B981' : 'var(--accent)', borderRadius:99, width:`${pct}%`, transition:'width .3s' }} />
-              </div>
+            <div style={{ fontSize:11, color: tarefaAtrasada ? 'var(--red)' : 'var(--text-muted)', display:'flex', gap:5, alignItems:'center' }}>
+              <span style={{ opacity:0.7 }}>Próxima:</span>
+              <span style={{ fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{proximaTarefa.titulo}</span>
+              {proximaTarefa.prazo && <span style={{ flexShrink:0 }}>· {fmtDataCurta(proximaTarefa.prazo)}</span>}
             </div>
           )
         })()}
+      </div>
+    )
+  }
+
+  // ── linha compacta de ação — usada só na visão Por Franquia, pra não virar
+  // um card enorme dentro de outro card. Título / status / período /
+  // responsável / progresso / próxima tarefa, tudo numa linha só.
+  function renderAcaoCompacta(acao) {
+    const hoje = new Date().toISOString().slice(0, 10)
+    const atrasado = acao.status === 'agendado' && acao.data_inicio < hoje
+    const ts   = tarefas.filter(t => String(t.entidade_id) === String(acao.id) && t.entidade_tipo === 'acao')
+    const done = ts.filter(t => t.status === 'concluida').length
+    const pct  = ts.length ? Math.round((done / ts.length) * 100) : null
+    const proximaTarefa = ts
+      .filter(t => t.status !== 'concluida' && t.status !== 'cancelada')
+      .sort((a, b) => (a.prazo || '9999-99-99').localeCompare(b.prazo || '9999-99-99'))[0]
+
+    return (
+      <div key={acao.id} onClick={() => { setEditando(acao); setSlideOpen(true) }}
+        style={{ display:'flex', alignItems:'center', gap:12, padding:'9px 14px', cursor:'pointer',
+          borderRadius:8, border:'1px solid var(--border2)', background:'var(--surface)' }}>
+        <StatusBadge status={acao.status} dense />
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+            {acao.titulo}
+          </div>
+          {proximaTarefa && (
+            <div style={{ fontSize:10.5, color:'var(--text-muted)', marginTop:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+              Próxima: {proximaTarefa.titulo}
+            </div>
+          )}
+        </div>
+        <span style={{ fontSize:11, fontWeight:600, color: atrasado ? 'var(--red)' : 'var(--text-muted)', flexShrink:0, whiteSpace:'nowrap' }}>
+          {atrasado && '⚠ '}{fmtPeriodoCurto(acao.data_inicio, acao.data_fim)}
+        </span>
+        <span style={{ flexShrink:0 }}><AvatarCell nome={acao.responsavel_nome} /></span>
+        {pct !== null && (
+          <span style={{ fontSize:11, fontWeight:700, color: pct===100 ? '#10B981' : 'var(--text-muted)', flexShrink:0, width:36, textAlign:'right' }}>
+            {pct}%
+          </span>
+        )}
       </div>
     )
   }
@@ -1351,6 +1583,23 @@ export default function Acoes() {
     log('excluir', 'acao', id, { descricao: `Ação excluída: ${a?.titulo || a?.tipo || id}` })
     setSlideOpen(false)
     setEditando(null)
+  }
+
+  async function handleDuplicate() {
+    if (!editando) return
+    const { id: _oldId, criado_em: _c, custos, ...rest } = editando
+    const copia = {
+      ...rest,
+      id: novoId(acoes),
+      titulo: `${editando.titulo} (cópia)`,
+      status: 'agendado',
+      custos: (custos || []).map(c => ({ ...c, aprovacoes: [] })),
+      criado_em: new Date().toISOString(),
+    }
+    const res = await saveAcao(copia)
+    if (res && res.ok === false) { alert('Erro ao duplicar: ' + (res.message || 'tente novamente')); return }
+    log('duplicar', 'acao', copia.id, { descricao: `Ação duplicada a partir de "${editando.titulo}"` })
+    setEditando(copia)
   }
 
   // ── View por Franquias ────────────────────────────────────────────────────
@@ -1391,68 +1640,131 @@ export default function Acoes() {
         </div>
       )}
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(480px, 1fr))', gap:16 }}>
+      {/* Grid com espaçamento generoso — cada franquia é um bloco claramente
+          independente, e todas compartilham exatamente a mesma estrutura pra
+          permitir comparação visual direta. */}
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(420px, 1fr))', gap:28 }}>
       {porFranquia.map(grupo => {
-        const agendadas  = grupo.acoes.filter(a => a.status === 'agendado').length
-        const realizadas = grupo.acoes.filter(a => a.status === 'realizado').length
-        const canceladas = grupo.acoes.filter(a => a.status === 'cancelado').length
+        const hoje = new Date().toISOString().slice(0, 10)
+
+        const agendadas    = grupo.acoes.filter(a => a.status === 'agendado').length
+        const emAndamento  = grupo.acoes.filter(a => a.status === 'em_andamento').length
+        const realizadas   = grupo.acoes.filter(a => a.status === 'realizado').length
+        const canceladas   = grupo.acoes.filter(a => a.status === 'cancelado').length
+        const atrasadas    = grupo.acoes.filter(a => a.status === 'agendado' && a.data_inicio && a.data_inicio.slice(0,10) < hoje).length
 
         // tarefas de todas as ações deste grupo
-        const idsAcoes = new Set(grupo.acoes.map(a => String(a.id)))
-        const tarefasGrupo = tarefas.filter(t => t.entidade_tipo === 'acao' && idsAcoes.has(String(t.entidade_id)))
-        const tPendentes   = tarefasGrupo.filter(t => t.status === 'pendente').length
-        const tAndamento   = tarefasGrupo.filter(t => t.status === 'em_andamento').length
-        const tConcluidas  = tarefasGrupo.filter(t => t.status === 'concluida').length
+        const idsAcoes      = new Set(grupo.acoes.map(a => String(a.id)))
+        const tarefasGrupo  = tarefas.filter(t => t.entidade_tipo === 'acao' && idsAcoes.has(String(t.entidade_id)))
+        const tPendentes    = tarefasGrupo.filter(t => t.status === 'pendente').length
+        const tConcluidas   = tarefasGrupo.filter(t => t.status === 'concluida').length
+        const pctExecucao   = tarefasGrupo.length ? Math.round((tConcluidas / tarefasGrupo.length) * 100) : null
+
+        const saude = calcSaudeFranquia({ atrasadas, pendentes: tPendentes, pct: pctExecucao })
+
+        // Próxima entrega = data de início mais próxima entre as ações ainda
+        // não realizadas/canceladas.
+        const proximaEntrega = grupo.acoes
+          .filter(a => a.status !== 'realizado' && a.status !== 'cancelado' && a.data_inicio)
+          .sort((a, b) => a.data_inicio.localeCompare(b.data_inicio))[0]
+
+        // Última atualização = a mais recente entre criado_em das ações do grupo
+        const ultimaAtualizacao = grupo.acoes
+          .map(a => a.updated_at || a.criado_em)
+          .filter(Boolean)
+          .sort()
+          .reverse()[0]
+
+        const expandido = franquiasExpandidas.has(grupo.id)
+        const acoesVisiveis = expandido ? grupo.acoes : grupo.acoes.slice(0, 3)
+        const restantes = grupo.acoes.length - acoesVisiveis.length
 
         return (
           <div key={grupo.id} style={{ border:'1px solid var(--border)', borderRadius:12,
-            background:'var(--surface)', boxShadow:'var(--shadow)', overflow:'hidden' }}>
-            {/* Cabeçalho do grupo */}
-            <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border2)',
-              background:'var(--surface2)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                <div style={{ width:36, height:36, borderRadius:10, background:'var(--accent-glow)',
-                  display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, flexShrink:0 }}>🏢</div>
-                <div>
-                  <div style={{ fontSize:15, fontWeight:800, color:'var(--text)' }}>{grupo.nome}</div>
-                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1 }}>
-                    {grupo.acoes.length} ação{grupo.acoes.length !== 1 ? 'ões' : ''}
-                    {tarefasGrupo.length > 0 && ` · ${tarefasGrupo.length} tarefa${tarefasGrupo.length !== 1 ? 's' : ''}`}
-                  </div>
+            background:'var(--surface)', boxShadow:'var(--shadow)', overflow:'hidden', display:'flex', flexDirection:'column' }}>
+
+            {/* ── 1. Franquia + 3. Saúde + alertas ── */}
+            <div style={{ padding:'16px 20px', borderBottom:'1px solid var(--border2)', background:'var(--surface2)' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:12 }}>
+                <div style={{ display:'flex', alignItems:'center', gap:10, minWidth:0 }}>
+                  <span style={{ fontSize:16, flexShrink:0 }}>🏢</span>
+                  <span style={{ fontSize:15, fontWeight:800, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {grupo.nome}
+                  </span>
                 </div>
+                <span style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, fontWeight:700, color:saude.color, flexShrink:0, whiteSpace:'nowrap' }}>
+                  {saude.emoji} {saude.label}
+                </span>
               </div>
-              <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                {/* Indicadores de ações */}
-                {[{ label:'Agendadas', val:agendadas, color:'#F59E0B' },
-                  { label:'Realizadas', val:realizadas, color:'#10B981' },
-                  { label:'Canceladas', val:canceladas, color:'#EF4444' }].map(k => k.val > 0 && (
-                  <div key={k.label} style={{ textAlign:'center', padding:'4px 12px', borderRadius:8,
-                    background:`${k.color}14`, border:`1px solid ${k.color}44` }}>
-                    <div style={{ fontSize:16, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.val}</div>
-                    <div style={{ fontSize:9, color:k.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em' }}>{k.label}</div>
-                  </div>
-                ))}
-                {/* Separador + indicadores de tarefas */}
-                {tarefasGrupo.length > 0 && (
-                  <>
-                    <div style={{ width:1, background:'var(--border)', alignSelf:'stretch', margin:'0 4px' }} />
-                    {[{ label:'Pendentes', val:tPendentes, color:'#F59E0B', bg:'#FEF3C7' },
-                      { label:'Andamento', val:tAndamento, color:'#3B82F6', bg:'#DBEAFE' },
-                      { label:'Concluídas', val:tConcluidas, color:'#10B981', bg:'#D1FAE5' }].map(k => k.val > 0 && (
-                      <div key={k.label} style={{ textAlign:'center', padding:'4px 12px', borderRadius:8,
-                        background:k.bg, border:`1px solid ${k.color}44`, display:'flex', flexDirection:'column', alignItems:'center' }}>
-                        <div style={{ fontSize:9, color:k.color, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:1 }}>📋 {k.label}</div>
-                        <div style={{ fontSize:16, fontWeight:800, color:k.color, fontFamily:'var(--mono)' }}>{k.val}</div>
-                      </div>
-                    ))}
-                  </>
+
+              {/* Alertas discretos — só aparecem quando há algo relevante */}
+              {(atrasadas > 0 || tPendentes > 0) && (
+                <div style={{ display:'flex', gap:12, marginTop:6, fontSize:11.5, fontWeight:600 }}>
+                  {atrasadas > 0 && <span style={{ color:'#EF4444' }}>🔴 {atrasadas} atrasada{atrasadas!==1?'s':''}</span>}
+                  {tPendentes > 0 && <span style={{ color:'#F59E0B' }}>🟡 {tPendentes} pendente{tPendentes!==1?'s':''}</span>}
+                </div>
+              )}
+            </div>
+
+            {/* ── 2. Indicadores da franquia — KPIs pequenos, sem caixas coloridas ── */}
+            <div style={{ display:'flex', gap:16, padding:'12px 20px', borderBottom:'1px solid var(--border2)', flexWrap:'wrap' }}>
+              {[
+                { dot:'#F59E0B', val:agendadas,   label:'Agendadas'    },
+                { dot:'#3B82F6', val:emAndamento, label:'Em andamento' },
+                { dot:'#10B981', val:realizadas,  label:'Realizadas'   },
+                { dot:'#9CA3AF', val:canceladas,  label:'Canceladas'   },
+              ].map(k => (
+                <div key={k.label} style={{ display:'flex', alignItems:'center', gap:6 }}>
+                  <span style={{ width:7, height:7, borderRadius:'50%', background:k.dot, flexShrink:0 }} />
+                  <span style={{ fontSize:12.5, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{k.val}</span>
+                  <span style={{ fontSize:10.5, color:'var(--text-muted)' }}>{k.label}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Resumo executivo: volume + progresso + score de execução ── */}
+            <div style={{ padding:'14px 20px', borderBottom:'1px solid var(--border2)', display:'flex', flexDirection:'column', gap:8 }}>
+              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'baseline', gap:10, flexWrap:'wrap' }}>
+                <span style={{ fontSize:11.5, color:'var(--text-muted)' }}>
+                  {grupo.acoes.length} ação{grupo.acoes.length!==1?'ões':''} · {tarefasGrupo.length} tarefa{tarefasGrupo.length!==1?'s':''}
+                </span>
+                {pctExecucao !== null && (
+                  <span style={{ fontSize:13, fontWeight:800, fontFamily:'var(--mono)', color:saude.color }}>
+                    Execução: {pctExecucao}%
+                  </span>
                 )}
               </div>
+              {pctExecucao !== null && (
+                <div style={{ height:6, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+                  <div style={{ height:'100%', borderRadius:99, background:saude.color, width:`${pctExecucao}%`, transition:'width .4s' }} />
+                </div>
+              )}
+              <div style={{ display:'flex', justifyContent:'space-between', gap:10, fontSize:10.5, color:'var(--text-muted)', flexWrap:'wrap' }}>
+                <span>Próxima entrega: <b style={{ color:'var(--text-soft)' }}>{proximaEntrega ? fmtDataCurta(proximaEntrega.data_inicio) : '—'}</b></span>
+                <span>Última atualização: <b style={{ color:'var(--text-soft)' }}>{fmtRelativo(ultimaAtualizacao)}</b></span>
+              </div>
             </div>
-            {/* Cards das ações */}
-            <div style={{ padding:'16px 20px', display:'grid',
-              gridTemplateColumns:'repeat(auto-fill, minmax(270px, 1fr))', gap:12 }}>
-              {grupo.acoes.map(acao => renderCard(acao))}
+
+            {/* ── 4. Lista de ações — compacta, só as 3 primeiras por padrão ── */}
+            <div style={{ padding:'12px 20px 16px', display:'flex', flexDirection:'column', gap:6 }}>
+              {acoesVisiveis.map(acao => renderAcaoCompacta(acao))}
+              {restantes > 0 && (
+                <button onClick={() => setFranquiasExpandidas(prev => new Set(prev).add(grupo.id))}
+                  style={{ padding:'7px 0', background:'none', border:'none', cursor:'pointer',
+                    fontSize:12, fontWeight:700, color:'var(--accent)', fontFamily:'var(--font)', textAlign:'left' }}>
+                  + {restantes} ação{restantes!==1?'ões':''}
+                </button>
+              )}
+              {expandido && grupo.acoes.length > 3 && (
+                <button onClick={() => setFranquiasExpandidas(prev => { const n=new Set(prev); n.delete(grupo.id); return n })}
+                  style={{ padding:'7px 0', background:'none', border:'none', cursor:'pointer',
+                    fontSize:12, fontWeight:600, color:'var(--text-muted)', fontFamily:'var(--font)', textAlign:'left' }}>
+                  Mostrar menos
+                </button>
+              )}
+              {grupo.acoes.length === 0 && (
+                <div style={{ textAlign:'center', padding:'10px 0', fontSize:12, color:'var(--text-muted)' }}>Sem ações no período.</div>
+              )}
             </div>
           </div>
         )
@@ -1462,20 +1774,35 @@ export default function Acoes() {
   )
 
   const toggleVisao = (
-    <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
-      padding:3, border:'1px solid var(--border)' }}>
-      {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
-        <button key={t.id} type="button" onClick={() => setVisao(t.id)}
-          style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
-            fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
-            background: visao === t.id ? 'var(--surface)' : 'none',
-            color: visao === t.id ? 'var(--text)' : 'var(--text-muted)',
-            boxShadow: visao === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
-            transition:'all 0.15s' }}>
-          {t.label}
-        </button>
-      ))}
-    </div>
+    <>
+      {/* "Agrupar por" — só afeta a visão em Lista (tabela); Cards e Por
+          Franquia já têm seu próprio agrupamento fixo. */}
+      {visao === 'lista' && (
+        <select value={groupByKey} onChange={e => setGroupByKey(e.target.value)}
+          style={{ height:36, padding:'0 10px', borderRadius:8, border:'1px solid var(--border)',
+            background:'var(--surface)', color:'var(--text-soft)', fontSize:12, fontWeight:600,
+            fontFamily:'var(--font)', cursor:'pointer' }}>
+          <option value="none">Agrupar: Nenhum</option>
+          <option value="empresa_nome">Agrupar: Franquia</option>
+          <option value="responsavel_nome">Agrupar: Responsável</option>
+          <option value="status">Agrupar: Status</option>
+        </select>
+      )}
+      <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
+        padding:3, border:'1px solid var(--border)' }}>
+        {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
+          <button key={t.id} type="button" onClick={() => setVisao(t.id)}
+            style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
+              fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
+              background: visao === t.id ? 'var(--surface)' : 'none',
+              color: visao === t.id ? 'var(--text)' : 'var(--text-muted)',
+              boxShadow: visao === t.id ? '0 1px 3px rgba(0,0,0,0.12)' : 'none',
+              transition:'all 0.15s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+    </>
   )
 
   return (
@@ -1506,6 +1833,9 @@ export default function Acoes() {
             ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
           }
           renderCard={renderCard}
+          groupBy={groupByKey === 'none' ? undefined : (row => groupByKey === 'status'
+            ? (STATUS_ACAO[row.status]?.label || row.status)
+            : (row[groupByKey] || '—'))}
           secondaryActions={toggleVisao}
           emptyState={
             <div style={{ textAlign:'center', padding:'56px 0', color:'var(--text-muted)' }}>
@@ -1522,6 +1852,7 @@ export default function Acoes() {
         initial={editando}
         onSave={handleSave}
         onDelete={handleDelete}
+        onDuplicate={handleDuplicate}
         onClose={() => { setSlideOpen(false); setEditando(null) }}
         tiposMap={tiposMap}
         empresasOpts={empresasOpts}
