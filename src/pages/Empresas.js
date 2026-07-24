@@ -1266,6 +1266,57 @@ export default function Empresas() {
     liberadas.forEach(c => log('excluir', 'empresa', c.id, { descricao: `Empresa excluída: ${c.emp?.razao || c.emp?.nome || c.id}` }))
   }
 
+  // Validação em lote de CNPJ (Receita Federal, via BrasilAPI) — pensada pra
+  // rodar depois de uma importação, sem travar o navegador: roda em segundo
+  // plano (mesmo widget flutuante dos imports), uma empresa de cada vez com
+  // um pequeno intervalo entre chamadas pra não estourar o rate-limit da API.
+  async function bulkValidarCNPJ(ids) {
+    const jobId = startImportJob({ label: 'Validação de CNPJ', total: ids.length })
+    let okCount = 0, falhas = 0
+    for (let i = 0; i < ids.length; i++) {
+      const emp = empresas.find(e => e.id === ids[i])
+      updateImportJob(jobId, { current: i, subLabel: `${emp?.fantasia || emp?.razao || 'empresa'} (${i + 1}/${ids.length})…` })
+      const raw = (emp?.cnpj || '').replace(/\D/g, '')
+      if (raw.length !== 14) { falhas++; continue }
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${raw}`)
+        if (!res.ok) throw new Error()
+        const data = await res.json()
+        const situacao   = data.descricao_situacao_cadastral?.toLowerCase() || ''
+        const novoStatus = situacao.includes('ativa') ? 'ativo' : situacao.includes('baixada') ? 'inativo' : emp.status
+        const cnaeCode   = data.cnae_fiscal?.toString() || ''
+        const segAuto    = cnaeToSegmento(cnaeCode) || emp.segmento
+        const tel        = data.ddd_telefone_1 ? fmtPhone(data.ddd_telefone_1.replace(/\D/g, '')) : emp.telefone
+        await updateEmpresa(emp.id, {
+          razao:          data.razao_social        || emp.razao,
+          fantasia:       data.nome_fantasia        || emp.fantasia,
+          cep:            fmtCEP(data.cep?.replace(/\D/g, '') || '') || emp.cep,
+          logradouro:     data.logradouro           || emp.logradouro,
+          bairro:         data.bairro               || emp.bairro,
+          cidade:         data.municipio            || emp.cidade,
+          uf:             data.uf                   || emp.uf,
+          numero:         data.numero               || emp.numero,
+          complemento:    data.complemento          || emp.complemento,
+          email:          data.email?.toLowerCase() || emp.email,
+          telefone:       tel,
+          segmento:       segAuto,
+          status:         novoStatus,
+          cnae_codigo:    cnaeCode ? fmtCNAE(cnaeCode) : emp.cnae_codigo,
+          cnae_descricao: data.cnae_fiscal_descricao || emp.cnae_descricao,
+        })
+        log('editar', 'empresa', emp.id, { descricao: `CNPJ validado na Receita Federal: ${emp.razao || emp.fantasia || raw}` })
+        okCount++
+      } catch {
+        falhas++
+      }
+      if (i < ids.length - 1) await new Promise(r => setTimeout(r, 350))
+    }
+    finishImportJob(jobId, {
+      status: okCount === 0 ? 'error' : undefined,
+      subLabel: `Concluído: ${okCount} validada${okCount !== 1 ? 's' : ''}${falhas > 0 ? `, ${falhas} com erro` : ''}.`,
+    })
+  }
+
   // Reset soTab ao abrir modal
   useEffect(() => { if (modal) setSoTab('dados') }, [!!modal])
 
@@ -1392,7 +1443,7 @@ export default function Empresas() {
           { key: 'responsavel', label: 'Responsável', type: 'text' },
         ]}
         onBulkEdit={(ids, changes) =>
-          ids.forEach(id => { const e = empresas.find(e => e.id === id); if (e) updateEmpresa({ ...e, ...changes }) })
+          ids.forEach(id => updateEmpresa(id, changes))
         }
         renderCard={row => {
           const nome = row.fantasia || row.razao
@@ -1442,6 +1493,7 @@ export default function Empresas() {
           )
         }}
         bulkActions={[
+          { label: '🔍 Validar CNPJ (Receita Federal)', onClick: (ids) => bulkValidarCNPJ(ids) },
           { label: '→ Ativo',      onClick: (ids) => { bulkSetStatus(ids, 'ativo') } },
           { label: '→ Negociação', onClick: (ids) => { bulkSetStatus(ids, 'negociacao') } },
           { label: '→ Inativo',    onClick: (ids) => { bulkSetStatus(ids, 'inativo') } },
