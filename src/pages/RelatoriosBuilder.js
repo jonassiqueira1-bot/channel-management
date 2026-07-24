@@ -315,7 +315,9 @@ export default function RelatoriosBuilder() {
 
   // ── Painel lateral: null | 'dados' | { blockId } ─────────────────────────
   const [painel, setPainel] = useState('dados')
-  const [pickerAberto, setPickerAberto] = useState(false)
+  // null = fechado; 'end' = adicionar no fim; número = inserir nesse índice
+  // (usado pelo "+" que aparece ao passar o mouse entre dois blocos).
+  const [pickerAberto, setPickerAberto] = useState(null)
 
   // ── Persistência ──────────────────────────────────────────────────────────
   const [titulo, setTitulo]           = useState('Novo relatório')
@@ -462,9 +464,14 @@ export default function RelatoriosBuilder() {
       imagem:  { url: '' },
     }
     const novo = { id: uid('blk'), tipo, config: defaults[tipo] }
-    setBlocks(prev => [...prev, novo])
+    setBlocks(prev => {
+      if (typeof pickerAberto !== 'number') return [...prev, novo]
+      const next = [...prev]
+      next.splice(pickerAberto, 0, novo)
+      return next
+    })
     setPainel({ blockId: novo.id })
-    setPickerAberto(false)
+    setPickerAberto(null)
   }
   function updateBlockConfig(id, patch) {
     setBlocks(prev => prev.map(b => b.id === id ? { ...b, config: { ...b.config, ...patch } } : b))
@@ -555,38 +562,41 @@ export default function RelatoriosBuilder() {
           {!entidadeId ? (
             <EscolherFonte onEscolher={escolherEntidade} />
           ) : blocks.length === 0 ? (
-            <EmptyBlocks onAdd={() => setPickerAberto(true)} />
+            <EmptyBlocks onAdd={() => setPickerAberto('end')} />
           ) : (
             <div style={s.blocosLista}>
               {agruparParaRender(blocks).map((grupo, gi) => {
                 const emLinha = grupo.itens.length > 1
                 return (
-                  <div key={gi} style={emLinha ? s.kpiRowWrap : undefined}>
-                    {grupo.itens.map(({ blk, idx }) => (
-                      <BlockWrapper key={blk.id} idx={idx} total={blocks.length}
-                        emLinha={emLinha} emLinhaGrafico={emLinha && grupo.tipo === 'grafico'}
-                        colapsado={blk.colapsado} onToggleColapsar={() => toggleColapsarBlock(blk.id)}
-                        selecionado={painel?.blockId === blk.id}
-                        onSelect={() => setPainel({ blockId: blk.id })}
-                        onMoveUp={() => moverBlock(idx, -1)}
-                        onMoveDown={() => moverBlock(idx, 1)}
-                        onDuplicate={() => duplicarBlock(blk.id)}
-                        onRemove={() => removerBlock(blk.id)}>
-                        {blk.colapsado
-                          ? <div style={s.blockColapsadoResumo}>{resumoBloco(blk, linhas)}</div>
-                          : <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />}
-                      </BlockWrapper>
-                    ))}
+                  <div key={gi}>
+                    <InsertBetween onAdd={() => setPickerAberto(grupo.itens[0].idx)} />
+                    <div style={emLinha ? s.kpiRowWrap : undefined}>
+                      {grupo.itens.map(({ blk, idx }) => (
+                        <BlockWrapper key={blk.id} idx={idx} total={blocks.length}
+                          emLinha={emLinha} emLinhaGrafico={emLinha && grupo.tipo === 'grafico'}
+                          colapsado={blk.colapsado} onToggleColapsar={() => toggleColapsarBlock(blk.id)}
+                          selecionado={painel?.blockId === blk.id}
+                          onSelect={() => setPainel({ blockId: blk.id })}
+                          onMoveUp={() => moverBlock(idx, -1)}
+                          onMoveDown={() => moverBlock(idx, 1)}
+                          onDuplicate={() => duplicarBlock(blk.id)}
+                          onRemove={() => removerBlock(blk.id)}>
+                          {blk.colapsado
+                            ? <div style={s.blockColapsadoResumo}>{resumoBloco(blk, linhas)}</div>
+                            : <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />}
+                        </BlockWrapper>
+                      ))}
+                    </div>
                   </div>
                 )
               })}
-              <button style={s.addBlockInline} onClick={() => setPickerAberto(true)}>
+              <button style={s.addBlockInline} onClick={() => setPickerAberto('end')}>
                 <Plus size={14} /> Adicionar bloco
               </button>
             </div>
           )}
 
-          {pickerAberto && <BlockPicker onPick={addBlock} onClose={() => setPickerAberto(false)} />}
+          {pickerAberto !== null && <BlockPicker onPick={addBlock} onClose={() => setPickerAberto(null)} />}
         </div>
 
         {/* ── Painel lateral ── */}
@@ -627,6 +637,23 @@ function EscolherFonte({ onEscolher }) {
           </button>
         ))}
       </div>
+    </div>
+  )
+}
+
+// Zona de inserção entre dois blocos — some quando o mouse não está por
+// perto (mesmo padrão do SharePoint/Notion: só aparece no hover, não ocupa
+// espaço visual o resto do tempo).
+function InsertBetween({ onAdd }) {
+  const [hover, setHover] = useState(false)
+  return (
+    <div style={s.insertZone} onMouseEnter={() => setHover(true)} onMouseLeave={() => setHover(false)}>
+      {hover && (
+        <div style={s.insertLine}>
+          <button onClick={onAdd} style={s.insertBtn} title="Adicionar bloco aqui"><Plus size={12} /></button>
+          <div style={s.insertRule} />
+        </div>
+      )}
     </div>
   )
 }
@@ -1327,6 +1354,10 @@ const s = {
   blockColapsadoResumo: { padding: '8px 2px', fontSize: 12.5, color: 'var(--text-muted)' },
 
   addBlockInline: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px', borderRadius: 8, border: '1.5px dashed var(--border2)', background: 'none', color: 'var(--text-muted)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font)' },
+  insertZone: { height: 16, margin: '-8px 0', position: 'relative', zIndex: 4 },
+  insertLine: { display: 'flex', alignItems: 'center', gap: 8, height: '100%', padding: '0 2px' },
+  insertBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: 18, height: 18, borderRadius: '50%', border: 'none', background: 'var(--accent)', color: '#fff', cursor: 'pointer', flexShrink: 0 },
+  insertRule: { flex: 1, height: 1, background: 'var(--accent)' },
 
   pickerOverlay: { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200 },
   pickerBox: { width: 380, background: 'var(--surface)', borderRadius: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.25)', overflow: 'hidden' },
