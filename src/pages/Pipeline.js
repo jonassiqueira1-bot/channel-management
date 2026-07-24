@@ -56,7 +56,7 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useProjects } from '../hooks/useProjects'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
-import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Filter, X, Check, Download } from 'lucide-react'
+import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, MoreHorizontal, Filter, X, Check, Download, Search, Columns, ChevronDown } from 'lucide-react'
 import BrowseLayout from '../components/BrowseLayout'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
@@ -7392,6 +7392,22 @@ export default function Pipeline() {
   // esperam um Set com .has()/.size.
   const [bulkModalIds, setBulkModalIds] = useState(new Set())
   // trayRef removido — ExportTray agora é flutuante (fixed)
+  // mesma chave que o BrowseLayout usa internamente (storageKey="pipeline_browse")
+  // pra manter recolhido/expandido em sincronia entre as duas visões
+  const [kanbanKpisOpen, setKanbanKpisOpen] = useLocalState('browse_layout_pipeline_browse_kpis', true)
+  // mesma chave usada por MotivoPerdaField — lista de motivos de perda
+  // configurável, reaproveitada aqui só pras opções do "Editar em lote"
+  const [motivosPerdaBulk] = useLocalState('pipeline:motivosPerda', MOTIVOS_PERDA_PADRAO)
+  // menu ••• da barra do kanban — mesmo botão/posição do ••• nativo do
+  // BrowseLayout (sem ele, o grupo de botões à direita perde ~40px de largura
+  // e desalinha em relação à visão em lista, já que o grupo é ancorado à direita)
+  const [kanbanMoreOpen, setKanbanMoreOpen] = useState(false)
+  const kanbanMoreRef = useRef(null)
+  useEffect(() => {
+    function h(e) { if (kanbanMoreRef.current && !kanbanMoreRef.current.contains(e.target)) setKanbanMoreOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
 
   const funil  = FUNIS_ATIVOS.find(f => String(f.id) === String(funilAtivo))
   const etapas = funil?.etapas || []
@@ -7525,6 +7541,15 @@ export default function Pipeline() {
     removeManyOpps(ids)
   }
   function abrirBulkModal(ids, setModalFn) { setBulkModalIds(new Set(ids)); setModalFn(true) }
+
+  // Editar em lote (BrowseLayout) — cada oportunidade recebe as mesmas
+  // alterações via save() já existente, um id por vez.
+  function bulkEditar(ids, changes) {
+    ids.forEach(id => {
+      const o = opps.find(x => x.id === id)
+      if (o) saveOpp({ ...o, ...changes })
+    })
+  }
 
   // ── export ────────────────────────────────────────────────────────────────
   // ids=null exporta tudo que está filtrado; um array exporta só esses.
@@ -7671,6 +7696,63 @@ export default function Pipeline() {
     { key: 'responsavel', label: 'Responsável', render: v => <span style={{ fontSize:12, color:'var(--text-soft)' }}>{v||'—'}</span> },
   ], [etapas, FUNIS_ATIVOS])
 
+  // ── Funil + Filtros + toggle de visão + Rotinas: mesmo bloco, mesma posição
+  //    (dentro da barra de ações), pras duas visões — evita duas barras
+  //    empilhadas na lista e falta de barra no kanban. ─────────────────────
+  const toolbarExtras = (
+    <>
+      <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa('') }} locked={isParceiro} />
+      {!isParceiro && (
+        <button
+          onClick={() => setFiltrosOpen(v => !v)}
+          style={{
+            display:'flex', alignItems:'center', gap:7,
+            padding:'0 13px', height:36, borderRadius:8,
+            border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
+            background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
+            color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
+            fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+            transition:'all 0.15s',
+          }}>
+          <SlidersHorizontal size={14} />
+          Filtros
+          {advancedFilterCount > 0 && (
+            <span style={{
+              background:'var(--accent)', color:'#fff', borderRadius:10,
+              fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
+            }}>
+              {advancedFilterCount}
+            </span>
+          )}
+        </button>
+      )}
+      {!isParceiro && (
+        <div style={p.viewToggle}>
+          <button style={{ ...p.viewBtn, ...(viewEfetiva==='list'?p.viewBtnOn:{}) }} onClick={()=>setView('list')} title="Lista">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="12" height="2" rx="1" fill="currentColor"/></svg>
+          </button>
+          <button style={{ ...p.viewBtn, ...(viewEfetiva==='kanban'?p.viewBtnOn:{}) }} onClick={()=>setView('kanban')} title="Kanban">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
+          </button>
+        </div>
+      )}
+      {!isParceiro && (
+        <button
+          onClick={() => setShowRotinas(true)}
+          style={{
+            display:'flex', alignItems:'center', gap:7,
+            padding:'0 13px', height:36, borderRadius:8,
+            border:'1.5px solid var(--border)',
+            background:'var(--surface)',
+            color:'var(--text-soft)',
+            fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+          }}>
+          ⚙ Rotinas
+        </button>
+      )}
+    </>
+  )
+
   if (FUNIS_ATIVOS.length===0) {
     return (
       <div style={{ textAlign:'center', padding:'80px 20px' }}>
@@ -7684,47 +7766,7 @@ export default function Pipeline() {
   }
 
   return (
-    <div style={{ ...p.page, ...(viewEfetiva==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
-
-
-      {/* ── Barra persistente: funil + view toggle + rotinas (vale pras duas visões) ── */}
-      <div style={{ ...p.toolbar, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: isMobile ? '8px' : '8px 12px' }}>
-        <div style={{ ...p.tbLeft, flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : undefined }}>
-          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa('') }} locked={isParceiro} />
-        </div>
-
-        <div style={p.tbDivider} />
-
-        <div style={{ ...p.tbRight, flexWrap:'wrap' }}>
-          {/* View toggle — Contato Canal só navega em lista, sem opção de trocar */}
-          {!isParceiro && (
-          <div style={p.viewToggle}>
-            <button style={{ ...p.viewBtn, ...(viewEfetiva==='list'?p.viewBtnOn:{}) }} onClick={()=>setView('list')} title="Lista">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="6" width="12" height="2" rx="1" fill="currentColor"/><rect x="1" y="10" width="12" height="2" rx="1" fill="currentColor"/></svg>
-            </button>
-            <button style={{ ...p.viewBtn, ...(viewEfetiva==='kanban'?p.viewBtnOn:{}) }} onClick={()=>setView('kanban')} title="Kanban">
-              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="4" height="12" rx="1" fill="currentColor"/><rect x="5.5" y="1" width="3" height="9" rx="1" fill="currentColor"/><rect x="9" y="1" width="4" height="11" rx="1" fill="currentColor"/></svg>
-            </button>
-          </div>
-          )}
-
-          {/* Botão Rotinas — ação administrativa — não disponível pra Contato Canal */}
-          {!isParceiro && (
-          <button
-            onClick={() => setShowRotinas(true)}
-            style={{
-              display:'flex', alignItems:'center', gap:7,
-              padding:'0 13px', height:36, borderRadius:8,
-              border:'1.5px solid var(--border)',
-              background:'var(--surface)',
-              color:'var(--text-soft)',
-              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
-            }}>
-            ⚙ Rotinas
-          </button>
-          )}
-        </div>
-      </div>
+    <div style={{ display:'flex', flexDirection:'column', gap:16, ...(viewEfetiva==='kanban' ? { height:'calc(100vh - 56px)', overflow:'hidden' } : {}) }}>
 
       {/* ── Export Tray (flutuante) ── */}
       {showTray && (
@@ -7733,74 +7775,202 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* ── Views ── */}
-      {viewEfetiva==='list' && (
-        <BrowseLayout
-          modulo="pipeline"
-          storageKey="pipeline_browse"
-          columns={pipelineColumns}
-          data={filtered}
-          keyField="id"
-          search={search}
-          onSearchChange={setSearch}
-          onRowClick={o=>setModal(o)}
-          onNew={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}
-          newLabel="Nova oportunidade"
-          onImport={()=>setImportModal(true)}
-          onExportCsv={()=>handleExport(null)}
-          kpis={can('pipeline', 'ver_indicadores') ? () => (
-            <>
-              <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
-                <KpiCard label="Oportunidades"   value={filtered.length} />
-                <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
-                <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
-                <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+      {/* ── Faixa com largura constante (maxWidth:1200) nas duas visões — as
+             barras de indicadores/ações (e o BrowseLayout inteiro, na lista)
+             vivem aqui, garantindo o mesmo posicionamento ao trocar de visão.
+             Só o board do kanban (abaixo) usa a largura total da tela. ── */}
+      <div style={{ ...p.page, flexShrink:0 }}>
+        {viewEfetiva==='list' && (
+          <BrowseLayout
+            modulo="pipeline"
+            storageKey="pipeline_browse"
+            columns={pipelineColumns}
+            data={filtered}
+            keyField="id"
+            search={search}
+            onSearchChange={setSearch}
+            onRowClick={o=>setModal(o)}
+            onNew={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}
+            newLabel="Nova oportunidade"
+            onImport={()=>setImportModal(true)}
+            onExportCsv={()=>handleExport(null)}
+            kpis={can('pipeline', 'ver_indicadores') ? () => (
+              <>
+                <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
+                  <KpiCard label="Oportunidades"   value={filtered.length} />
+                  <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
+                  <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
+                  <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+                </div>
+                <MetricasStrip modulo="pipeline" />
+              </>
+            ) : undefined}
+            secondaryActions={toolbarExtras}
+            bulkEditFields={[
+              { key: 'titulo',       label: 'Título',              type: 'text' },
+              { key: 'situacao',     label: 'Situação',            type: 'select', options: [
+                { value: 'em_andamento', label: 'Em andamento' },
+                { value: 'ganha',        label: 'Ganha' },
+                { value: 'perdida',      label: 'Perdida' },
+              ] },
+              { key: 'etapa_id',     label: 'Etapa',               type: 'select', options: etapas.map(e => ({ value: e.id, label: e.nome })) },
+              { key: 'responsavel',  label: 'Responsável',         type: 'text' },
+              { key: 'origem',       label: 'Origem',               type: 'select', options: ORIGENS.map(o => ({ value: o, label: o })) },
+              { key: 'valor',        label: 'Valor MRR',           type: 'number' },
+              { key: 'prazo',        label: 'Prazo',                type: 'date' },
+              { key: 'motivo_perda', label: 'Motivo da perda',     type: 'select', options: motivosPerdaBulk.map(m => ({ value: m, label: m })) },
+              { key: 'categoria_forecast', label: 'Categoria de forecast', type: 'select', options: CATEGORIAS_FORECAST.map(c => ({ value: c.value, label: c.label })) },
+            ]}
+            onBulkEdit={bulkEditar}
+            bulkActions={(!isParceiro || can('pipeline', 'excluir')) ? [
+              { type:'dropdown', label:'Mover para etapa →', options: etapas.map(e => ({ label:`→ ${e.nome}`, onClick: ids=>bulkMoverEtapa(ids, e.id) })) },
+              { label:'✓ Tarefa',    onClick: ids=>abrirBulkModal(ids, setBulkTaskModal) },
+              { label:'📋 Playbook', onClick: ids=>abrirBulkModal(ids, setBulkPlaybookModal) },
+              { label:'👥 Equipe',   onClick: ids=>abrirBulkModal(ids, setBulkEquipeModal) },
+              { label:'🏷 Origem',   onClick: ids=>abrirBulkModal(ids, setBulkOrigemModal) },
+              { label:'📦 Produtos', onClick: ids=>abrirBulkModal(ids, setBulkProdutosModal) },
+              { label:'Exportar selecionados', icon:<Download size={13} />, onClick: ids=>handleExport(ids) },
+              { label:'Excluir', variant:'danger', onClick: ids=>bulkExcluir(ids) },
+            ] : []}
+            emptyState={
+              <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:14, fontWeight:600 }}>
+                Nenhuma oportunidade encontrada
               </div>
-              <MetricasStrip modulo="pipeline" />
-            </>
-          ) : undefined}
-          secondaryActions={!isParceiro && (
-            <button
-              onClick={() => setFiltrosOpen(v => !v)}
-              style={{
-                display:'flex', alignItems:'center', gap:7,
-                padding:'0 13px', height:36, borderRadius:8,
-                border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
-                background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
-                color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
-                fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
-                transition:'all 0.15s',
-              }}>
-              <SlidersHorizontal size={14} />
-              Filtros
-              {advancedFilterCount > 0 && (
-                <span style={{
-                  background:'var(--accent)', color:'#fff', borderRadius:10,
-                  fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
-                }}>
-                  {advancedFilterCount}
-                </span>
-              )}
-            </button>
-          )}
-          bulkActions={(!isParceiro || can('pipeline', 'excluir')) ? [
-            { type:'dropdown', label:'Mover para etapa →', options: etapas.map(e => ({ label:`→ ${e.nome}`, onClick: ids=>bulkMoverEtapa(ids, e.id) })) },
-            { label:'✓ Tarefa',    onClick: ids=>abrirBulkModal(ids, setBulkTaskModal) },
-            { label:'📋 Playbook', onClick: ids=>abrirBulkModal(ids, setBulkPlaybookModal) },
-            { label:'👥 Equipe',   onClick: ids=>abrirBulkModal(ids, setBulkEquipeModal) },
-            { label:'🏷 Origem',   onClick: ids=>abrirBulkModal(ids, setBulkOrigemModal) },
-            { label:'📦 Produtos', onClick: ids=>abrirBulkModal(ids, setBulkProdutosModal) },
-            { label:'Exportar selecionados', icon:<Download size={13} />, onClick: ids=>handleExport(ids) },
-            { label:'Excluir', variant:'danger', onClick: ids=>bulkExcluir(ids) },
-          ] : []}
-          emptyState={
-            <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:14, fontWeight:600 }}>
-              Nenhuma oportunidade encontrada
-            </div>
-          }
-        />
-      )}
+            }
+          />
+        )}
 
+        {viewEfetiva==='kanban' && (
+          // wrapper único (não Fragment) — p.page tem gap:16 entre filhos diretos;
+          // na lista só existe 1 filho (BrowseLayout, sem gap interno), então o
+          // gap não aparece. Com 2 filhos soltos aqui, esse gap de 16px entrava
+          // entre Indicadores e a barra de ações, empurrando-a pra baixo em
+          // relação à lista — daí o desalinhamento.
+          <div>
+            {/* ── Indicadores + barra de ações — replica o chrome (paddings,
+                   alturas, bordas) do BrowseLayout pra não haver "salto" visual
+                   ao trocar de visão. ── */}
+            {can('pipeline', 'ver_indicadores') && (
+              <div style={{ borderBottom:'1px solid var(--border)', background:'var(--surface)', flexShrink:0 }}>
+                <button
+                  onClick={() => setKanbanKpisOpen(v => !v)}
+                  style={{
+                    display:'flex', alignItems:'center', justifyContent:'space-between',
+                    padding:'8px 20px', cursor:'pointer', userSelect:'none',
+                    background:'none', border:'none', width:'100%', fontFamily:'var(--font)',
+                  }}>
+                  <span style={{
+                    fontSize:'var(--text-xs)', fontWeight:700, letterSpacing:'0.07em',
+                    textTransform:'uppercase', color:'var(--text-muted)',
+                    display:'flex', alignItems:'center', gap:8,
+                  }}>
+                    <span style={{ width:3, height:12, borderRadius:2, background:'var(--accent)', flexShrink:0 }} />
+                    Indicadores
+                  </span>
+                </button>
+                {kanbanKpisOpen && (
+                  <div style={{ padding:'0 20px 16px' }}>
+                    <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
+                      <KpiCard label="Oportunidades"   value={filtered.length} />
+                      <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
+                      <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
+                      <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+                    </div>
+                    <MetricasStrip modulo="pipeline" />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div style={{
+              display:'flex', alignItems:'center', gap:8,
+              padding:'10px 20px', borderBottom:'1px solid var(--border)',
+              background:'var(--surface)', flexShrink:0, flexWrap:'wrap',
+            }}>
+              <div style={{ display:'flex', alignItems:'center', gap:6, flex:1, minWidth:180 }}>
+                <div style={{
+                  display:'flex', alignItems:'center', gap:7,
+                  background:'#fff', border:'1.5px solid var(--border)',
+                  borderRadius:'var(--radius-md)', padding:'0 10px',
+                  height:32, minWidth:200, maxWidth:300,
+                }}>
+                  <Search size={13} color="var(--text-muted)" />
+                  <input
+                    style={{ border:'none', outline:'none', background:'transparent', fontFamily:'var(--font)', fontSize:'var(--text-sm)', color:'var(--text)', flex:1, minWidth:0 }}
+                    placeholder="Buscar…"
+                    value={search}
+                    onChange={e=>setSearch(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div style={{ display:'flex', alignItems:'center', gap:6, marginLeft:'auto', flexWrap:'wrap' }}>
+                {/* Espaçador invisível — mesmo tamanho do botão "Colunas" nativo
+                    do BrowseLayout (que só existe na lista, sem equivalente no
+                    kanban). Sem ele, o grupo à direita fica ~145px mais estreito
+                    aqui e desalinha em relação à lista. */}
+                <div aria-hidden="true" style={{
+                  visibility:'hidden', pointerEvents:'none',
+                  height:36, display:'flex', alignItems:'center', gap:5, padding:'0 10px',
+                  border:'1px solid var(--border)', borderRadius:7, fontSize:12, fontWeight:500,
+                  whiteSpace:'nowrap', flexShrink:0,
+                }}>
+                  <Columns size={13} />
+                  Colunas
+                  <ChevronDown size={12} />
+                </div>
+                {toolbarExtras}
+                <div ref={kanbanMoreRef} style={{ position:'relative' }}>
+                  <button
+                    onClick={() => setKanbanMoreOpen(v => !v)}
+                    title="Mais ações"
+                    style={{
+                      display:'flex', alignItems:'center', justifyContent:'center',
+                      width:36, height:36, borderRadius:8,
+                      border:'1.5px solid var(--border)', background:'var(--surface)',
+                      color:'var(--text-soft)', cursor:'pointer',
+                    }}>
+                    <MoreHorizontal size={15} />
+                  </button>
+                  {kanbanMoreOpen && (
+                    <div style={{
+                      position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:500,
+                      width:200, background:'var(--surface)', borderRadius:10,
+                      border:'1px solid var(--border)', boxShadow:'0 8px 28px rgba(0,0,0,0.13)',
+                      padding:6, overflow:'hidden',
+                    }}>
+                      <button
+                        onClick={() => { setKanbanMoreOpen(false); handleExport(null) }}
+                        style={{
+                          display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 14px',
+                          background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:500,
+                          color:'var(--text)', fontFamily:'var(--font)', textAlign:'left', borderRadius:7,
+                        }}>
+                        <Download size={13} style={{ color:'var(--text-muted)' }} />
+                        Exportar CSV
+                      </button>
+                      <button
+                        onClick={() => { setKanbanMoreOpen(false); setImportModal(true) }}
+                        style={{
+                          display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 14px',
+                          background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:500,
+                          color:'var(--text)', fontFamily:'var(--font)', textAlign:'left', borderRadius:7,
+                        }}>
+                        Importar dados
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {can('pipeline', 'criar_editar') && (
+                  <button style={p.newBtn} onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>Nova oportunidade</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Board do kanban: fora da faixa de largura constante, usa o espaço
+             total disponível pra caber mais etapas sem scroll excessivo ── */}
       {viewEfetiva==='kanban' && (
         <KanbanBoard
           etapas={etapas}
