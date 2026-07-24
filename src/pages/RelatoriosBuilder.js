@@ -271,12 +271,17 @@ function migrarParaBlocos(b) {
 // Agrupa blocos de KPI ADJACENTES numa mesma linha (faixa de indicadores),
 // sem posicionamento livre — é puramente sobre a ordem da sequência, não
 // coordenadas. Qualquer outro tipo de bloco quebra o agrupamento.
+// Blocos ADJACENTES do mesmo tipo (kpi ou gráfico) se agrupam numa linha —
+// puramente pela ordem da sequência, sem posicionamento livre. Um kpi do
+// lado de um gráfico não agrupa (tipos diferentes); qualquer outro bloco no
+// meio quebra o agrupamento.
+const TIPOS_AGRUPAVEIS = new Set(['kpi', 'grafico'])
 function agruparParaRender(blocks) {
   const grupos = []
   let atual = null
   blocks.forEach((blk, idx) => {
-    if (blk.tipo === 'kpi' && atual) atual.push({ blk, idx })
-    else { atual = [{ blk, idx }]; grupos.push(atual) }
+    if (TIPOS_AGRUPAVEIS.has(blk.tipo) && atual?.tipo === blk.tipo) atual.itens.push({ blk, idx })
+    else { atual = { tipo: blk.tipo, itens: [{ blk, idx }] }; grupos.push(atual) }
   })
   return grupos
 }
@@ -553,24 +558,28 @@ export default function RelatoriosBuilder() {
             <EmptyBlocks onAdd={() => setPickerAberto(true)} />
           ) : (
             <div style={s.blocosLista}>
-              {agruparParaRender(blocks).map((grupo, gi) => (
-                <div key={gi} style={grupo.length > 1 ? s.kpiRowWrap : undefined}>
-                  {grupo.map(({ blk, idx }) => (
-                    <BlockWrapper key={blk.id} idx={idx} total={blocks.length} emLinha={grupo.length > 1}
-                      colapsado={blk.colapsado} onToggleColapsar={() => toggleColapsarBlock(blk.id)}
-                      selecionado={painel?.blockId === blk.id}
-                      onSelect={() => setPainel({ blockId: blk.id })}
-                      onMoveUp={() => moverBlock(idx, -1)}
-                      onMoveDown={() => moverBlock(idx, 1)}
-                      onDuplicate={() => duplicarBlock(blk.id)}
-                      onRemove={() => removerBlock(blk.id)}>
-                      {blk.colapsado
-                        ? <div style={s.blockColapsadoResumo}>{resumoBloco(blk, linhas)}</div>
-                        : <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />}
-                    </BlockWrapper>
-                  ))}
-                </div>
-              ))}
+              {agruparParaRender(blocks).map((grupo, gi) => {
+                const emLinha = grupo.itens.length > 1
+                return (
+                  <div key={gi} style={emLinha ? s.kpiRowWrap : undefined}>
+                    {grupo.itens.map(({ blk, idx }) => (
+                      <BlockWrapper key={blk.id} idx={idx} total={blocks.length}
+                        emLinha={emLinha} emLinhaGrafico={emLinha && grupo.tipo === 'grafico'}
+                        colapsado={blk.colapsado} onToggleColapsar={() => toggleColapsarBlock(blk.id)}
+                        selecionado={painel?.blockId === blk.id}
+                        onSelect={() => setPainel({ blockId: blk.id })}
+                        onMoveUp={() => moverBlock(idx, -1)}
+                        onMoveDown={() => moverBlock(idx, 1)}
+                        onDuplicate={() => duplicarBlock(blk.id)}
+                        onRemove={() => removerBlock(blk.id)}>
+                        {blk.colapsado
+                          ? <div style={s.blockColapsadoResumo}>{resumoBloco(blk, linhas)}</div>
+                          : <BlockView blk={blk} linhas={linhas} campos={campos} agrupamento={agrupamento} titulo={titulo} />}
+                      </BlockWrapper>
+                    ))}
+                  </div>
+                )
+              })}
               <button style={s.addBlockInline} onClick={() => setPickerAberto(true)}>
                 <Plus size={14} /> Adicionar bloco
               </button>
@@ -661,14 +670,14 @@ function BlockPicker({ onPick, onClose }) {
 }
 
 // ─── Invólucro de bloco — toolbar discreta ao passar o mouse ─────────────────
-function BlockWrapper({ children, idx, total, emLinha, colapsado, onToggleColapsar, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
+function BlockWrapper({ children, idx, total, emLinha, emLinhaGrafico, colapsado, onToggleColapsar, selecionado, onSelect, onMoveUp, onMoveDown, onDuplicate, onRemove }) {
   const [hover, setHover] = useState(false)
   return (
     <div
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       onClick={onSelect}
-      style={{ ...s.blockWrap, ...(emLinha ? s.blockWrapEmLinha : {}), ...(selecionado ? s.blockWrapSel : {}) }}>
+      style={{ ...s.blockWrap, ...(emLinha ? (emLinhaGrafico ? s.blockWrapEmLinhaGrafico : s.blockWrapEmLinha) : {}), ...(selecionado ? s.blockWrapSel : {}) }}>
       {(hover || selecionado) && (
         <div style={s.blockToolbar} onClick={e => e.stopPropagation()}>
           <span style={s.blockDragHint}><GripVertical size={12} /></span>
@@ -1310,6 +1319,7 @@ const s = {
   kpiRowWrap: { display: 'flex', flexWrap: 'wrap', gap: 14 },
   blockWrap: { position: 'relative', borderRadius: 10, border: '1.5px solid transparent', padding: 16, cursor: 'pointer', transition: 'border-color 0.12s, background 0.12s' },
   blockWrapEmLinha: { flex: '0 0 auto' },
+  blockWrapEmLinhaGrafico: { flex: '1 1 380px', minWidth: 320 },
   blockWrapSel: { borderColor: 'var(--accent)', background: 'var(--surface)' },
   blockToolbar: { position: 'absolute', top: -14, right: 8, display: 'flex', alignItems: 'center', gap: 2, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: 3, boxShadow: '0 2px 8px rgba(0,0,0,0.08)', zIndex: 5 },
   blockDragHint: { color: 'var(--border2)', display: 'flex', padding: '0 2px' },
