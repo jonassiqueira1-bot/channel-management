@@ -161,5 +161,34 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
     }
   }, [])
 
-  return { contratos, setContratos, loading, reload: load, save, remove, bulkSetStatus }
+  // Insere em blocos, igual ao padrão de useCompanies().importMany — evita um
+  // único insert gigante e permite reportar progresso incremental pro widget
+  // global de import.
+  const IMPORT_CHUNK_SIZE = 300
+  const importMany = useCallback(async (rows, onProgress) => {
+    if (isMockMode.current) {
+      const novos = rows.map(r => ({ ...r, id: Date.now() + Math.random(), criado: new Date().toISOString().slice(0, 10) }))
+      setContratos(prev => [...prev, ...novos])
+      onProgress?.(novos.length, novos.length)
+      return { ok: true, count: novos.length }
+    }
+
+    const inseridos = []
+    for (let i = 0; i < rows.length; i += IMPORT_CHUNK_SIZE) {
+      const chunk = rows.slice(i, i + IMPORT_CHUNK_SIZE)
+      const dbRows = chunk.map(r => contratoToRow(r, tenantId, branchId))
+      const { data, error } = await supabase.from('contracts').insert(dbRows).select('*, companies(nome_fantasia, razao_social)')
+      if (error) {
+        if (inseridos.length) setContratos(prev => [...prev, ...inseridos])
+        return { ok: false, message: error.message, count: inseridos.length }
+      }
+      inseridos.push(...(data || []).map(rowToContrato))
+      onProgress?.(Math.min(i + IMPORT_CHUNK_SIZE, rows.length), rows.length)
+    }
+
+    setContratos(prev => [...prev, ...inseridos])
+    return { ok: true, count: inseridos.length }
+  }, [tenantId, branchId])
+
+  return { contratos, setContratos, loading, reload: load, save, remove, bulkSetStatus, importMany }
 }

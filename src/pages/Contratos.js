@@ -10,7 +10,7 @@ import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import { PROVISOES_LS_KEY } from '../hooks/usePayments'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
-import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
+import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
 import BrowseLayout from '../components/BrowseLayout'
 import { DeleteZone } from '../components/NotionDrawer'
 import ActionFeedback from '../components/ActionFeedback'
@@ -19,6 +19,8 @@ import { useProfile } from '../hooks/useProfile'
 import { useBranchContext } from '../contexts/BranchContext'
 import { usePlaybooks } from '../hooks/usePlaybooks'
 import SearchSelect from '../components/SearchSelect'
+import { useCompanies } from '../hooks/useCompanies'
+import { startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUS_CONTRATO = [
@@ -1544,19 +1546,449 @@ function getInadimplentesIds() {
   } catch { return new Set() }
 }
 
+// ─── Importação (padrão igual ao de Empresas.js) ──────────────────────────────
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').trim().split('\n')
+  if (lines.length < 2) return { headers: [], rows: [] }
+  const sep = lines[0].includes(';') ? ';' : ','
+  const headers = lines[0].split(sep).map(h => h.trim().replace(/^"|"$/g, ''))
+  const rows = lines.slice(1).map(line => {
+    const cells = []
+    let cur = '', inQ = false
+    for (const ch of line) {
+      if (ch === '"') { inQ = !inQ }
+      else if (ch === sep && !inQ) { cells.push(cur.trim()); cur = '' }
+      else cur += ch
+    }
+    cells.push(cur.trim())
+    return Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']))
+  })
+  return { headers, rows }
+}
+
+// Colunas fixas — cobrem todos os campos editáveis do cadastro de contrato
+// (aba Dados) exceto "Oportunidade de origem", que não é um campo de
+// formulário: só aparece já vinculado quando o contrato nasce do Pipeline.
+// Um produto por slot (Adesão/MRR/Serviço), cada um em 4 colunas próprias —
+// mais claro numa planilha do que um código compacto numa célula só. Reflete
+// o mesmo modelo de slots já usado no restante do módulo (const SLOTS acima).
+const ITEM_SLOTS = ['adesao', 'mrr', 'servico']
+const ITEM_SLOT_COLS = ITEM_SLOTS.flatMap(s => [`${s}_produto`, `${s}_qtd`, `${s}_valor`, `${s}_desconto`])
+
+const IMPORT_COLS_BASE = [
+  'numero', 'empresa_cnpj', 'status', 'vigencia_inicio', 'vigencia_fim',
+  'responsavel', 'vendedor', 'origem', 'tipo_venda', 'inconsistencia_status',
+  'observacoes', ...ITEM_SLOT_COLS,
+]
+const STATUS_CONTRATO_VALUES = STATUS_CONTRATO.map(s => s.value)
+const ORIGEM_CONTRATO_VALUES = ['direta', 'indireta', 'incentivada']
+const INCONSISTENCIA_VALUES = INCONSISTENCIA_OPTS.map(o => o.value)
+const PREVIEW_ROW_LIMIT = 500
+
+// Lê os 3 grupos de colunas (adesao_*/mrr_*/servico_*) e monta o array
+// `itens` do contrato — cada slot é opcional; só vira item se `<slot>_produto`
+// vier preenchido. Resolve o produto pelo `codigo` cadastrado em Produtos
+// (ou pelo nome exato, como alternativa).
+function buildItensFromRow(row, productMap) {
+  const itens = [], errors = []
+  ITEM_SLOTS.forEach(slot => {
+    const codigoOuNome = row[`${slot}_produto`]?.trim()
+    if (!codigoOuNome) return
+    const produto = productMap.get(codigoOuNome.toLowerCase())
+    if (!produto) { errors.push(`Produto não encontrado (${slot}): "${codigoOuNome}"`); return }
+    const qtdStr = row[`${slot}_qtd`]?.trim()
+    const valorStr = row[`${slot}_valor`]?.trim()
+    const descStr = row[`${slot}_desconto`]?.trim()
+    itens.push({
+      produto_id: produto.id, nome: produto.nome, tipo_produto: produto.tipo,
+      quantidade: qtdStr ? Number(qtdStr) || 1 : 1,
+      valor: valorStr ? Number(valorStr) || 0 : (produto.preco || 0),
+      tabela: produto.preco || null,
+      desconto_pct: descStr ? Number(descStr) || 0 : 0,
+      desconto_autorizado: false, status_item: 'ativo',
+      vencimento_primeiro_pagamento: '',
+    })
+  })
+  return { itens, errors }
+}
+
+// companyCnpjMap/productMap: pré-computados uma única vez pro arquivo
+// inteiro; seenNumero: Set<numero> das linhas já processadas do próprio
+// arquivo — mesmo raciocínio O(1)-por-linha do import de Empresas.
+function validateImportRow(row, companyCnpjMap, productMap, existingNumeros, seenNumero) {
+  const errors = []
+  const cnpjRaw = (row.empresa_cnpj || '').replace(/\D/g, '')
+  if (!cnpjRaw) errors.push('CNPJ da empresa é obrigatório')
+  else if (cnpjRaw.length !== 14) errors.push('CNPJ inválido (precisa de 14 dígitos)')
+  else if (!companyCnpjMap.has(cnpjRaw)) errors.push(`Empresa não encontrada para o CNPJ ${row.empresa_cnpj}`)
+
+  if (row.numero?.trim()) {
+    if (existingNumeros.has(row.numero.trim())) errors.push(`Número de contrato já existe: ${row.numero}`)
+    if (seenNumero.has(row.numero.trim())) errors.push('Número de contrato duplicado no arquivo')
+  }
+  if (row.status && !STATUS_CONTRATO_VALUES.includes(row.status))
+    errors.push(`Status inválido: "${row.status}". Use: ${STATUS_CONTRATO_VALUES.join(', ')}`)
+  if (row.origem && !ORIGEM_CONTRATO_VALUES.includes(row.origem))
+    errors.push(`Origem inválida: "${row.origem}". Use: ${ORIGEM_CONTRATO_VALUES.join(', ')}`)
+  if (row.inconsistencia_status && !INCONSISTENCIA_VALUES.includes(row.inconsistencia_status))
+    errors.push(`Inconsistência inválida: "${row.inconsistencia_status}". Use: ${INCONSISTENCIA_VALUES.join(', ')}`)
+  if (row.vigencia_inicio && !/^\d{4}-\d{2}-\d{2}$/.test(row.vigencia_inicio))
+    errors.push('Data de início inválida (use AAAA-MM-DD)')
+  if (row.vigencia_fim && !/^\d{4}-\d{2}-\d{2}$/.test(row.vigencia_fim))
+    errors.push('Data de fim inválida (use AAAA-MM-DD)')
+  errors.push(...buildItensFromRow(row, productMap).errors)
+  return errors
+}
+
+function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos, customFieldKeys, contratosExistentes, onImport }) {
+  const existingNumeros = useMemo(() => new Set(contratosExistentes.map(c => c.numero)), [contratosExistentes])
+  const importCols = useMemo(() => [...IMPORT_COLS_BASE, ...customFieldKeys], [customFieldKeys])
+  const [step, setStep]           = useState('upload') // 'upload' | 'preview'
+  const [parsed, setParsed]       = useState(null)
+  const [dragging, setDragging]   = useState(false)
+  const [importing, setImporting] = useState(false)
+  const [importError, setImportError] = useState(null)
+  const fileRef = useRef(null)
+
+  function processFile(file) {
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = e => {
+      const { rows } = parseCSV(e.target.result)
+      const companyCnpjMap = new Map(companies.map(c => [c.cnpj.replace(/\D/g, ''), c]))
+      const productMap = new Map()
+      produtos.forEach(p => {
+        if (p.codigo) productMap.set(String(p.codigo).toLowerCase(), p)
+        productMap.set(String(p.nome).toLowerCase(), p)
+      })
+      const seenNumero = new Set()
+      const rowResults = rows.map((row, i) => {
+        const errors = validateImportRow(row, companyCnpjMap, productMap, existingNumeros, seenNumero)
+        const ok = errors.length === 0
+        if (ok && row.numero?.trim()) seenNumero.add(row.numero.trim())
+        return { row, errors, ok, line: i + 2 }
+      })
+      setParsed({ fileName: file.name, rowResults, companyCnpjMap, productMap })
+      setStep('preview')
+    }
+    reader.readAsText(file, 'UTF-8')
+  }
+
+  function handleDrop(e) {
+    e.preventDefault(); setDragging(false)
+    processFile(e.dataTransfer.files[0])
+  }
+
+  async function handleConfirmImport() {
+    // gerarNumero olha só pra `contratosExistentes` — se várias linhas do
+    // arquivo vierem sem número, precisa ir "crescendo" a lista conforme gera
+    // cada uma, senão todas ganhariam o mesmo número auto.
+    const geradosAteAgora = [...contratosExistentes]
+    const okRows = parsed.rowResults.filter(r => r.ok).map(r => {
+      const empresa = parsed.companyCnpjMap.get((r.row.empresa_cnpj || '').replace(/\D/g, ''))
+      let numero = r.row.numero?.trim()
+      if (!numero) { numero = gerarNumero(geradosAteAgora); geradosAteAgora.push({ numero }) }
+      const { itens } = buildItensFromRow(r.row, parsed.productMap)
+      const custom_fields = Object.fromEntries(
+        customFieldKeys.filter(k => r.row[k]?.trim()).map(k => [k, r.row[k]])
+      )
+      return {
+        ...EMPTY_FORM,
+        numero,
+        empresa_id:            empresa?.id || null,
+        empresa_nome:          empresa?.fantasia || empresa?.razao || '',
+        status:                r.row.status || 'ativo',
+        vigencia_inicio:       r.row.vigencia_inicio || '',
+        vigencia_fim:          r.row.vigencia_fim || '',
+        responsavel:           r.row.responsavel || '',
+        vendedor:              r.row.vendedor || '',
+        origem:                r.row.origem || '',
+        tipo_venda:            r.row.tipo_venda || '',
+        inconsistencia_status: r.row.inconsistencia_status || 'sem_inconsistencia',
+        observacoes:           r.row.observacoes || '',
+        itens,
+        custom_fields,
+      }
+    })
+    const log = {
+      id: Date.now(),
+      fileName: parsed.fileName,
+      date: new Date().toLocaleString('pt-BR'),
+      total: parsed.rowResults.length,
+      imported: okRows.length,
+      errors: parsed.rowResults.filter(r => !r.ok).length,
+      rows: parsed.rowResults,
+    }
+    setImportError(null)
+    setImporting(true)
+    const result = await onImport(okRows, log)
+    setImporting(false)
+    if (result?.ok === false) setImportError(result.message || 'Erro desconhecido ao importar.')
+    else onClose()
+  }
+
+  const okCount  = parsed?.rowResults.filter(r => r.ok).length ?? 0
+  const errCount = parsed?.rowResults.filter(r => !r.ok).length ?? 0
+
+  return (
+    <div style={impM.overlay} onClick={e => { if (e.target === e.currentTarget && !importing) onClose() }}>
+      <div style={{ ...impM.modal, maxWidth: 700 }}>
+        <div style={impM.header}>
+          <div>
+            <div style={impM.title}>Importar contratos</div>
+            <div style={impM.subtitle}>
+              {importing ? 'Importando — acompanhe o progresso no canto da tela…' : 'Arquivo CSV com separador ponto-e-vírgula (;) — UTF-8'}
+            </div>
+          </div>
+          <button style={{ ...impM.closeBtn, opacity: importing ? 0.4 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}
+            onClick={() => !importing && onClose()} disabled={importing}>✕</button>
+        </div>
+
+        {step === 'upload' && (
+          <div style={{ padding: 24 }}>
+            <div style={imp.templateBox}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>Template CSV</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  {importCols.length} colunas — inclui linha de exemplo
+                </div>
+              </div>
+              <Button size="sm" onClick={onDownloadTemplate}>↓ Baixar template</Button>
+            </div>
+
+            <div
+              style={{ ...imp.dropzone, ...(dragging ? imp.dropzoneActive : {}) }}
+              onDragOver={e => { e.preventDefault(); setDragging(true) }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={handleDrop}
+              onClick={() => fileRef.current?.click()}
+            >
+              <span style={{ fontSize: 28 }}>📂</span>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>
+                Arraste o arquivo aqui ou clique para selecionar
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Apenas arquivos .csv</div>
+              <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }}
+                onChange={e => processFile(e.target.files[0])} />
+            </div>
+
+            <div style={imp.colsBox}>
+              <div style={imp.colsLabel}>Colunas esperadas</div>
+              <div style={imp.colsList}>
+                {importCols.map(c => <span key={c} style={imp.colTag}>{c}</span>)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
+                A empresa é resolvida pelo CNPJ — cadastre-a antes em Empresas caso ainda não exista.<br/>
+                Produtos: um por slot, em colunas separadas — <code>adesao_produto</code>/<code>adesao_qtd</code>/<code>adesao_valor</code>/<code>adesao_desconto</code>,
+                o mesmo padrão para <code>mrr_*</code> e <code>servico_*</code>. Só <code>*_produto</code> é obrigatório
+                pra contar (resolvido pelo código ou nome exato cadastrado em Produtos); os demais assumem quantidade 1,
+                preço de tabela e 0% de desconto quando vazios. Deixe o slot todo em branco se o contrato não tiver esse tipo de produto.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 'preview' && parsed && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden' }}>
+            <div style={imp.summary}>
+              <div style={imp.summaryItem}>
+                <span style={imp.summaryVal}>{parsed.rowResults.length}</span>
+                <span style={imp.summaryLbl}>linhas</span>
+              </div>
+              <div style={imp.summaryItem}>
+                <span style={{ ...imp.summaryVal, color: 'var(--green)' }}>{okCount}</span>
+                <span style={imp.summaryLbl}>prontas</span>
+              </div>
+              <div style={imp.summaryItem}>
+                <span style={{ ...imp.summaryVal, color: errCount > 0 ? 'var(--red)' : 'var(--text-muted)' }}>{errCount}</span>
+                <span style={imp.summaryLbl}>com erro</span>
+              </div>
+              <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                {parsed.fileName}
+              </div>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, padding: '0 24px' }}>
+              {parsed.rowResults.length > PREVIEW_ROW_LIMIT && (
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', padding: '8px 0' }}>
+                  Mostrando as primeiras {PREVIEW_ROW_LIMIT} de {parsed.rowResults.length} linhas — a importação processa o arquivo inteiro.
+                </div>
+              )}
+              <table style={impTable.table}>
+                <thead>
+                  <tr>
+                    <th style={impTable.th}>Linha</th>
+                    <th style={impTable.th}>Número</th>
+                    <th style={impTable.th}>CNPJ</th>
+                    <th style={impTable.th}>Status</th>
+                    <th style={impTable.th}>Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {parsed.rowResults.slice(0, PREVIEW_ROW_LIMIT).map(({ row, errors, ok, line }) => (
+                    <tr key={line} style={{ ...impTable.tr, background: ok ? undefined : 'rgba(220,38,38,0.03)' }}>
+                      <td style={{ ...impTable.td, fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--text-muted)', width: 50 }}>{line}</td>
+                      <td style={{ ...impTable.td, fontSize: 12 }}>{row.numero || <span style={{ color: 'var(--text-muted)' }}>auto</span>}</td>
+                      <td style={{ ...impTable.td, fontFamily: 'var(--mono)', fontSize: 11 }}>{row.empresa_cnpj || '—'}</td>
+                      <td style={{ ...impTable.td, fontSize: 11 }}>{row.status || 'ativo'}</td>
+                      <td style={impTable.td}>
+                        {ok
+                          ? <span style={{ color: 'var(--green)', fontSize: 11, fontWeight: 600 }}>✓ OK</span>
+                          : <div>{errors.map((e, i) => <div key={i} style={{ color: 'var(--red)', fontSize: 11 }}>✕ {e}</div>)}</div>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {importError && (
+              <div style={{ margin: '0 24px 12px', padding: '10px 14px', borderRadius: 8,
+                background: 'rgba(220,38,38,0.06)', border: '1px solid rgba(220,38,38,0.2)',
+                color: 'var(--red)', fontSize: 12.5 }}>
+                ✕ A importação falhou: {importError} — nenhum contrato a mais foi criado além do que já aparecer na lista. Tente novamente ou reduza o arquivo.
+              </div>
+            )}
+            <div style={{ ...impM.footer, padding: '14px 24px', borderTop: '1px solid var(--border2)' }}>
+              <Button variant="secondary" disabled={importing} onClick={() => setStep('upload')}>← Voltar</Button>
+              <div style={{ flex: 1 }} />
+              {errCount > 0 && okCount === 0 && (
+                <span style={{ fontSize: 12, color: 'var(--red)' }}>Nenhuma linha válida para importar</span>
+              )}
+              {errCount > 0 && okCount > 0 && (
+                <span style={{ fontSize: 12, color: 'var(--yellow-text)' }}>{errCount} linha{errCount > 1 ? 's' : ''} serão ignoradas</span>
+              )}
+              <Button disabled={okCount === 0 || importing} onClick={handleConfirmImport}>
+                {importing ? 'Importando…' : `Importar ${okCount} contrato${okCount !== 1 ? 's' : ''}`}
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function ImportContratosLogModal({ logs, onClose }) {
+  const [expanded, setExpanded] = useState(null)
+  return (
+    <div style={impM.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ ...impM.modal, maxWidth: 720 }}>
+        <div style={impM.header}>
+          <div>
+            <div style={impM.title}>Log de importações</div>
+            <div style={impM.subtitle}>{logs.length} operação{logs.length !== 1 ? 'ões' : ''} registrada{logs.length !== 1 ? 's' : ''}</div>
+          </div>
+          <button style={impM.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ overflowY: 'auto', flex: 1, padding: '16px 24px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {logs.map(log => (
+            <div key={log.id} style={imp.logEntry}>
+              <div style={imp.logHeader} onClick={() => setExpanded(expanded === log.id ? null : log.id)}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+                  <span style={{ fontSize: 14 }}>📄</span>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', fontFamily: 'var(--mono)' }}>{log.fileName}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{log.date}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                  <span style={imp.logPill}>{log.total} total</span>
+                  <span style={{ ...imp.logPill, background: 'var(--green-bg)', color: 'var(--green-text)' }}>✓ {log.imported}</span>
+                  {log.errors > 0 && <span style={{ ...imp.logPill, background: 'var(--red-bg)', color: 'var(--red-text)' }}>✕ {log.errors}</span>}
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{expanded === log.id ? '▲' : '▼'}</span>
+                </div>
+              </div>
+              {expanded === log.id && (
+                <div style={{ borderTop: '1px solid var(--border2)', overflowX: 'auto' }}>
+                  <table style={{ ...impTable.table, fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={impTable.th}>Linha</th>
+                        <th style={impTable.th}>Número</th>
+                        <th style={impTable.th}>CNPJ</th>
+                        <th style={impTable.th}>Resultado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {log.rows.map(({ row, errors, ok, line }) => (
+                        <tr key={line} style={impTable.tr}>
+                          <td style={{ ...impTable.td, fontFamily: 'var(--mono)', fontSize: 10, color: 'var(--text-muted)' }}>{line}</td>
+                          <td style={{ ...impTable.td, fontSize: 11 }}>{row.numero || 'auto'}</td>
+                          <td style={{ ...impTable.td, fontFamily: 'var(--mono)', fontSize: 10 }}>{row.empresa_cnpj || '—'}</td>
+                          <td style={impTable.td}>
+                            {ok
+                              ? <span style={{ color: 'var(--green)', fontSize: 10, fontWeight: 600 }}>✓ Importado</span>
+                              : <div>{errors.map((e, i) => <div key={i} style={{ color: 'var(--red)', fontSize: 10 }}>✕ {e}</div>)}</div>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div style={{ padding: '14px 24px', borderTop: '1px solid var(--border2)' }}>
+          <Button variant="secondary" onClick={onClose}>Fechar</Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const imp = {
+  templateBox:    { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: 'var(--surface2)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 },
+  dropzone:       { border: '2px dashed var(--border)', borderRadius: 10, padding: '40px 24px', textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10, marginBottom: 16, transition: 'all 0.15s', background: 'var(--surface2)' },
+  dropzoneActive: { borderColor: 'var(--accent)', background: 'var(--accent-glow)' },
+  colsBox:        { background: 'var(--surface2)', borderRadius: 8, padding: '12px 14px', border: '1px solid var(--border)' },
+  colsLabel:      { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 },
+  colsList:       { display: 'flex', flexWrap: 'wrap', gap: 5 },
+  colTag:         { padding: '2px 8px', background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 4, fontSize: 11, fontFamily: 'var(--mono)', color: 'var(--text-soft)' },
+  summary:        { display: 'flex', alignItems: 'center', gap: 20, padding: '12px 24px', borderBottom: '1px solid var(--border2)', background: 'var(--surface2)' },
+  summaryItem:    { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 },
+  summaryVal:     { fontSize: 22, fontWeight: 700, fontFamily: 'var(--mono)', lineHeight: 1 },
+  summaryLbl:     { fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' },
+  logEntry:       { border: '1px solid var(--border2)', borderRadius: 8, overflow: 'hidden' },
+  logHeader:      { display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', cursor: 'pointer', background: 'var(--surface2)' },
+  logPill:        { padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 600, fontFamily: 'var(--mono)', background: 'var(--surface3)', color: 'var(--text-muted)' },
+}
+
+const impTable = {
+  table: { width: '100%', borderCollapse: 'collapse' },
+  th:    { padding: '8px 12px', textAlign: 'left', fontSize: 10.5, fontWeight: 600, color: 'var(--text-muted)', fontFamily: 'var(--mono)', textTransform: 'uppercase', letterSpacing: '0.06em', background: 'var(--surface2)', borderBottom: '1px solid var(--border)' },
+  tr:    { borderBottom: '1px solid var(--border2)' },
+  td:    { padding: '9px 12px', fontSize: 12.5, verticalAlign: 'middle' },
+}
+
+const impM = {
+  overlay:  { position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 24 },
+  modal:    { background: 'var(--surface)', borderRadius: 14, width: '100%', maxWidth: 680, boxShadow: '0 20px 60px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', maxHeight: '90vh' },
+  header:   { display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', padding: '20px 24px 16px', borderBottom: '1px solid var(--border2)' },
+  title:    { fontSize: 16, fontWeight: 700, color: 'var(--text)', margin: 0 },
+  subtitle: { fontSize: 13, color: 'var(--text-muted)', marginTop: 3 },
+  closeBtn: { background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: 16, cursor: 'pointer', padding: 4, lineHeight: 1 },
+  footer:   { display: 'flex', alignItems: 'center', gap: 10, padding: '14px 24px', borderTop: '1px solid var(--border2)', flexShrink: 0 },
+}
+
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
-  const { contratos, setContratos, save: saveContrato, remove: removeContrato } = useContracts()
+  const { contratos, setContratos, save: saveContrato, remove: removeContrato, importMany } = useContracts()
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
+  const { companies } = useCompanies()
   const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
   const [contratoTab, setContratoTab] = useState('dados')
   const contratoSaveRef = useRef(null)
   const [feedbackSteps, setFeedbackSteps] = useState(null)
+  const [importModal, setImportModal] = useState(false)
+  const [importLogs, setImportLogs]   = useState([])
+  const [showImportLog, setShowImportLog] = useState(false)
 
   const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
 
@@ -1650,6 +2082,26 @@ export default function Contratos() {
     a.click()
   }
 
+  function handleDownloadTemplate() {
+    const customKeys = getEntityCustomFieldKeys('contracts')
+    const headers = [...IMPORT_COLS_BASE, ...customKeys]
+    const example = [
+      'CTR-2026-001', '11.222.333/0001-44', 'ativo', '2026-01-01', '2026-12-31',
+      'João Silva', 'Maria Souza', 'direta', 'Nova venda', 'sem_inconsistencia',
+      'Observação opcional',
+      'LIC001', '1', '500', '10',   // adesão
+      'SAAS002', '2', '300', '0',   // mrr
+      '', '', '', '',               // serviço (vazio — sem esse produto)
+    ]
+    const csv  = [headers.join(';'), example.join(';')].join('\n')
+    const bom  = '﻿'
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = 'template_contratos.csv'
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   const isNew = editando && !editando.id
 
   return (
@@ -1669,6 +2121,10 @@ export default function Contratos() {
         onNew={() => setEditando({ ...EMPTY_FORM, numero: gerarNumero(contratos) })}
         newLabel="Novo contrato"
         onExportCsv={handleExport}
+        onImport={() => setImportModal(true)}
+        extraMenuItems={importLogs.length > 0 ? [
+          { label: 'Ver log de importações', onClick: () => setShowImportLog(true), dividerBefore: true },
+        ] : []}
         kpis={kpisNode}
         bulkActions={[
           { label: 'Ativar',     onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'ativo' }     : c)) },
@@ -1757,6 +2213,32 @@ export default function Contratos() {
           autoClose={0}
         />
       )}
+
+      {importModal && (
+        <ImportContratosModal
+          onClose={() => setImportModal(false)}
+          onDownloadTemplate={handleDownloadTemplate}
+          companies={companies}
+          produtos={produtos}
+          customFieldKeys={getEntityCustomFieldKeys('contracts')}
+          contratosExistentes={contratos}
+          onImport={async (rows, logEntry) => {
+            const jobId = startImportJob({ label: 'Contratos', total: rows.length })
+            const result = await importMany(rows, (current, total) => {
+              updateImportJob(jobId, { current, subLabel: `${current} de ${total}…` })
+            })
+            if (result.ok) {
+              finishImportJob(jobId, { subLabel: `Concluído! ${result.count} contrato${result.count !== 1 ? 's' : ''} importado${result.count !== 1 ? 's' : ''}.` })
+              setImportLogs(prev => [{ ...logEntry, imported: result.count }, ...prev])
+            } else {
+              finishImportJob(jobId, { status: 'error', subLabel: `Erro: ${result.message}` })
+              setImportLogs(prev => [{ ...logEntry, imported: result.count || 0, erro: result.message }, ...prev])
+            }
+            return result
+          }}
+        />
+      )}
+      {showImportLog && <ImportContratosLogModal logs={importLogs} onClose={() => setShowImportLog(false)} />}
     </>
   )
 }
