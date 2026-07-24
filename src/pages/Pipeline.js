@@ -56,7 +56,8 @@ import { useParceiros } from '../hooks/useParceiros'
 import { useProjects } from '../hooks/useProjects'
 import { useQuestionnaires } from '../hooks/useQuestionnaires'
 import DynamicFormLayout from '../components/DynamicFormLayout'
-import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Filter, X, Check } from 'lucide-react'
+import { StickyNote, Mail, MessageCircle, Phone, SlidersHorizontal, ChevronDown, ChevronUp, MoreHorizontal, Filter, X, Check, Download } from 'lucide-react'
+import BrowseLayout from '../components/BrowseLayout'
 import Button from '../components/Button'
 import SlideOver from '../components/ui/SlideOver'
 import PageHeader from '../components/ui/PageHeader'
@@ -6597,18 +6598,6 @@ const imp = {
   summaryLbl:    { fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)' },
 }
 
-// ─── Checkbox ─────────────────────────────────────────────────────────────────
-function Checkbox({ checked, indeterminate, onChange, title }) {
-  return (
-    <label title={title} style={{ display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', width:18, height:18 }}>
-      <input type="checkbox" checked={checked}
-        ref={el => { if (el) el.indeterminate = !!indeterminate }}
-        onChange={onChange}
-        style={{ width:15, height:15, cursor:'pointer', accentColor:'var(--accent)' }} />
-    </label>
-  )
-}
-
 // ─── KPI Card ─────────────────────────────────────────────────────────────────
 function KpiCard({ label, value, accent, mono }) {
   return (
@@ -6948,158 +6937,6 @@ const k = {
   addBtn: { margin:'4px 8px 8px', padding:'7px 0', borderRadius:8, border:'1px dashed rgba(0,0,0,0.12)', background:'rgba(255,255,255,0.5)', fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)', flexShrink:0, transition:'all 0.15s' },
 }
 
-// ─── List View ────────────────────────────────────────────────────────────────
-function ListView({ opps, etapas, funis = [], onEdit, selected, onToggleAll, onToggleOne, allSelected, someSelected, hideSelect }) {
-  return (
-    <div style={{ ...p.tableWrap, overflowX:'auto' }}>
-      <table style={{ ...p.table, minWidth: 700 }}>
-        <thead>
-          <tr>
-            {!hideSelect && (
-            <th style={{ ...p.th, width:40, textAlign:'center' }}>
-              <Checkbox checked={allSelected} indeterminate={someSelected} onChange={onToggleAll} title={allSelected?'Desmarcar todos':'Selecionar todos'} />
-            </th>
-            )}
-            {['Oportunidade','Funil','Situação','Qualificação','Etapa','Valor MRR','Prazo','Origem','Responsável',''].map(h => (
-              <th key={h} style={p.th}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {opps.length===0 && (
-            <tr><td colSpan={11} style={{ ...p.td, textAlign:'center', color:'var(--text-muted)', padding:40 }}>Nenhuma oportunidade encontrada</td></tr>
-          )}
-          {opps.map(o => {
-            const etapa    = etapas.find(e => e.id===o.etapa_id)
-            const funilOpp = funis.find(f => String(f.id) === String(o.funil_id))
-            const isSel    = selected.has(o.id)
-            const dias     = diasRestantes(o.prazo)
-            const atrasado = dias!==null && dias<0
-            const urgente  = dias!==null && dias>=0 && dias<=7
-            return (
-              <tr key={o.id} style={{ ...p.tr, ...(isSel?p.trSelected:{}) }}>
-                {!hideSelect && (
-                <td style={{ ...p.td, textAlign:'center', width:40 }}>
-                  <Checkbox checked={isSel} onChange={()=>onToggleOne(o.id)} />
-                </td>
-                )}
-                <td style={p.td}>
-                  <div style={{ fontWeight:600, color:'var(--text)', fontSize:13 }}>{o.titulo}</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
-                    <div style={{ width:18, height:18, borderRadius:4, background:'var(--blue-bg)', color:'var(--blue-text)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, fontFamily:'var(--mono)', border:'1px solid rgba(30,58,95,0.12)', flexShrink:0 }}>
-                      {o.empresa_nome.slice(0,2).toUpperCase()}
-                    </div>
-                    <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.empresa_nome}</span>
-                  </div>
-                </td>
-                <td style={p.td}>
-                  {funilOpp ? (
-                    <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20,
-                      background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)',
-                      whiteSpace:'nowrap' }}>
-                      {funilOpp.nome}
-                    </span>
-                  ) : (
-                    <span style={{ fontSize:11, color:'var(--red)', fontWeight:600 }}>Sem funil</span>
-                  )}
-                </td>
-                <td style={p.td}><SituacaoBadge situacao={o.situacao||'em_andamento'} /></td>
-                <td style={p.td}>
-                  {o.qualificacao_desqualificada ? (
-                    <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#FEE2E2', color:'#991B1B', whiteSpace:'nowrap' }}>🚫 Desqualificada</span>
-                  ) : o.qualificacao_score > 0 ? (
-                    <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:20, whiteSpace:'nowrap',
-                      background: o.qualificacao_score >= 70 ? '#D1FAE5' : o.qualificacao_score >= 40 ? '#FEF3C7' : '#FEE2E2',
-                      color:      o.qualificacao_score >= 70 ? '#065F46' : o.qualificacao_score >= 40 ? '#92400E' : '#991B1B' }}>
-                      🎯 {o.qualificacao_score}%
-                    </span>
-                  ) : (
-                    <span style={{ fontSize:11, color:'var(--border2)' }}>—</span>
-                  )}
-                </td>
-                <td style={p.td}><EtapaBadge etapa={etapa} /></td>
-                <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:13, fontWeight:600, color:o.valor>0?'var(--accent)':'var(--text-muted)' }}>
-                  {o.valor>0 ? fmtMoeda(o.valor) : '—'}
-                </td>
-                <td style={{ ...p.td, fontFamily:'var(--mono)', fontSize:12, color: atrasado?'var(--red)':urgente?'#D97706':'var(--text-soft)', fontWeight: (atrasado||urgente)?700:400 }}>
-                  {o.prazo ? (atrasado?'⚠ ':urgente?'⏰ ':'')+fmtData(o.prazo) : '—'}
-                </td>
-                <td style={p.td}><OrigemBadge origem={o.origem} /></td>
-                <td style={{ ...p.td, fontSize:12, color:'var(--text-soft)' }}>{o.responsavel||'—'}</td>
-                <td style={{ ...p.td, textAlign:'right' }}>
-                  <button style={p.editBtn} onClick={()=>onEdit(o)}>Editar</button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
-  )
-}
-
-// ─── Menu de Ações (⋯) ───────────────────────────────────────────────────────
-function AcoesMenu({ onExport, onImport, onClose, anchorRef, selected, exportLogs, showTray, setShowTray, setExportLogs, isParceiro }) {
-  const ref = useRef(null)
-
-  useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target) &&
-          anchorRef.current && !anchorRef.current.contains(e.target)) {
-        onClose()
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [onClose, anchorRef])
-
-  const itemStyle = {
-    display:'flex', alignItems:'center', gap:10, width:'100%', padding:'9px 14px',
-    background:'none', border:'none', cursor:'pointer', fontSize:13, fontWeight:500,
-    color:'var(--text)', fontFamily:'var(--font)', textAlign:'left', borderRadius:7,
-    transition:'background 0.12s',
-  }
-
-  return (
-    <div ref={ref} style={{
-      position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:500,
-      width:220, background:'var(--surface)', borderRadius:10,
-      border:'1px solid var(--border)', boxShadow:'0 8px 28px rgba(0,0,0,0.13)',
-      padding:6, overflow:'hidden',
-    }}>
-      {onImport && (
-        <button style={itemStyle}
-          onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-          onMouseLeave={e => e.currentTarget.style.background='none'}
-          onClick={onImport}>
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 11V4M3 7l3-3 3 3M1 2h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          Importar dados
-        </button>
-      )}
-      {onExport && (
-        <button style={itemStyle}
-          onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-          onMouseLeave={e => e.currentTarget.style.background='none'}
-          onClick={onExport}>
-          <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          {selected?.size > 0 ? `Exportar selecionados (${selected.size})` : 'Exportar dados'}
-        </button>
-      )}
-      {exportLogs?.length > 0 && (
-        <>
-          <div style={{ height:1, background:'var(--border)', margin:'4px 0' }} />
-          <button style={{ ...itemStyle, color:'var(--text-muted)', fontSize:12 }}
-            onMouseEnter={e => e.currentTarget.style.background='var(--surface2)'}
-            onMouseLeave={e => e.currentTarget.style.background='none'}
-            onClick={() => { setShowTray(true); onClose() }}>
-            <svg width="14" height="14" viewBox="0 0 12 12" fill="none"><path d="M6 1v7M3 5l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-            Ver exportações ({exportLogs.length})
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
 
 // ─── Painel de Filtros (drawer lateral direito, padrão BrowseLayout) ──────────
 function FiltrosPanel({
@@ -7502,7 +7339,6 @@ export default function Pipeline() {
   const [filterTarefa, setFilterTarefa]           = useLocalState('pipeline:filterTarefa', '')
   const [filterCF, setFilterCF]                   = useLocalState('pipeline:filterCF', {})
   const [sortBy, setSortBy]                   = useLocalState('pipeline:sortBy', 'criado')
-  const [showMetrics, setShowMetrics]         = useLocalState('pipeline:showMetrics', true)
   const [showRotinas, setShowRotinas]         = useState(false)
   // Quando parceiro tem funil definido, força o funil ativo para o dele
   useEffect(() => {
@@ -7539,8 +7375,6 @@ export default function Pipeline() {
   const { add: addMembroOpp } = useOppMembros()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
-  const [acoesOpen, setAcoesOpen]       = useState(false)
-  const acoesRef                        = useRef(null)
   const [modal, setModal]               = useState(null)
   const [fechamentoModal, setFechamentoModal] = useState(null)
   const [importModal, setImportModal]   = useState(false)
@@ -7552,7 +7386,11 @@ export default function Pipeline() {
   const [bulkProdutosModal, setBulkProdutosModal]     = useState(false)
   const [exportLogs, setExportLogs]     = useState([])
   const [showTray, setShowTray]         = useState(false)
-  const [selected, setSelected]         = useState(new Set())
+  // ids selecionados no momento em que uma ação em lote é disparada pelo
+  // BrowseLayout (que gerencia a seleção internamente) — usado só pra
+  // alimentar os modais de ação em lote (Tarefa/Playbook/Equipe/etc.), que
+  // esperam um Set com .has()/.size.
+  const [bulkModalIds, setBulkModalIds] = useState(new Set())
   // trayRef removido — ExportTray agora é flutuante (fixed)
 
   const funil  = FUNIS_ATIVOS.find(f => String(f.id) === String(funilAtivo))
@@ -7678,34 +7516,21 @@ export default function Pipeline() {
   const valorPonderado  = filtered.reduce((s,o)=>{ const e=etapas.find(e=>e.id===o.etapa_id); return s+(parseFloat(o.valor)||0)*(e?.probabilidade||0)/100 },0)
   const qtdFechadas     = opps.filter(o=>String(o.funil_id)===String(funilAtivo) && etapas.find(e=>String(e.id)===String(o.etapa_id)&&e.probabilidade===100)).length
 
-  // ── seleção ───────────────────────────────────────────────────────────────
-  const allFilteredIds = filtered.map(o=>o.id)
-  const allSelected    = allFilteredIds.length>0 && allFilteredIds.every(id=>selected.has(id))
-  const someSelected   = allFilteredIds.some(id=>selected.has(id)) && !allSelected
-
-  function toggleAll() {
-    if (allSelected) setSelected(prev=>{ const s=new Set(prev); allFilteredIds.forEach(id=>s.delete(id)); return s })
-    else setSelected(prev=>new Set([...prev,...allFilteredIds]))
-  }
-  function toggleOne(id) { setSelected(prev=>{ const s=new Set(prev); s.has(id)?s.delete(id):s.add(id); return s }) }
-  function clearSelection() { setSelected(new Set()) }
-
   // ── ações em lote ─────────────────────────────────────────────────────────
-  function applyBulk(action) {
-    const ids = [...selected]
-    if (action==='delete') {
-      if (!window.confirm(`Excluir ${ids.length} oportunidade(s) permanentemente?`)) return
-      removeManyOpps(ids); clearSelection()
-    } else {
-      const etapaId = parseInt(action)
-      bulkMoveToStage(ids, etapaId); clearSelection()
-    }
+  // Seleção agora é gerenciada pelo BrowseLayout internamente — cada ação em
+  // lote recebe os ids selecionados só no momento do clique.
+  function bulkMoverEtapa(ids, etapaId) { bulkMoveToStage(ids, etapaId) }
+  function bulkExcluir(ids) {
+    if (!window.confirm(`Excluir ${ids.length} oportunidade(s) permanentemente?`)) return
+    removeManyOpps(ids)
   }
+  function abrirBulkModal(ids, setModalFn) { setBulkModalIds(new Set(ids)); setModalFn(true) }
 
   // ── export ────────────────────────────────────────────────────────────────
-  function handleExport() {
-    const scope = selected.size>0 ? 'selecionados' : hasFilter ? 'filtrados' : 'todos'
-    const rows  = selected.size>0 ? opps.filter(o=>selected.has(o.id)) : filtered
+  // ids=null exporta tudo que está filtrado; um array exporta só esses.
+  function handleExport(ids) {
+    const scope = ids ? 'selecionados' : hasFilter ? 'filtrados' : 'todos'
+    const rows  = ids ? opps.filter(o=>ids.includes(o.id)) : filtered
     const headers = ['titulo','empresa_nome','funil','etapa','valor','prazo','responsavel','origem','criado']
     const fileName = `pipeline_${new Date().toISOString().slice(0,10)}.csv`
     const csv = [
@@ -7801,6 +7626,51 @@ export default function Pipeline() {
     setFilterTarefa(''); setFilterCF({})
   }
 
+  // ── Colunas da visão em lista (BrowseLayout) ─────────────────────────────
+  const pipelineColumns = useMemo(() => [
+    { key: 'titulo', label: 'Oportunidade', render: (_, o) => (
+      <div>
+        <div style={{ fontWeight:600, color:'var(--text)', fontSize:13 }}>{o.titulo}</div>
+        <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:3 }}>
+          <div style={{ width:18, height:18, borderRadius:4, background:'var(--blue-bg)', color:'var(--blue-text)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700, fontFamily:'var(--mono)', border:'1px solid rgba(30,58,95,0.12)', flexShrink:0 }}>
+            {o.empresa_nome.slice(0,2).toUpperCase()}
+          </div>
+          <span style={{ fontSize:11, color:'var(--text-muted)' }}>{o.empresa_nome}</span>
+        </div>
+      </div>
+    ) },
+    { key: '_funil', label: 'Funil', sortable: false, render: (_, o) => {
+      const funilOpp = FUNIS_ATIVOS.find(f => String(f.id) === String(o.funil_id))
+      return funilOpp ? (
+        <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)', whiteSpace:'nowrap' }}>{funilOpp.nome}</span>
+      ) : <span style={{ fontSize:11, color:'var(--red)', fontWeight:600 }}>Sem funil</span>
+    } },
+    { key: 'situacao', label: 'Situação', render: v => <SituacaoBadge situacao={v||'em_andamento'} /> },
+    { key: '_qualificacao', label: 'Qualificação', sortable: false, render: (_, o) => (
+      o.qualificacao_desqualificada ? (
+        <span style={{ fontSize:11, fontWeight:700, padding:'2px 8px', borderRadius:20, background:'#FEE2E2', color:'#991B1B', whiteSpace:'nowrap' }}>🚫 Desqualificada</span>
+      ) : o.qualificacao_score > 0 ? (
+        <span style={{ fontSize:11, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 8px', borderRadius:20, whiteSpace:'nowrap',
+          background: o.qualificacao_score >= 70 ? '#D1FAE5' : o.qualificacao_score >= 40 ? '#FEF3C7' : '#FEE2E2',
+          color:      o.qualificacao_score >= 70 ? '#065F46' : o.qualificacao_score >= 40 ? '#92400E' : '#991B1B' }}>
+          🎯 {o.qualificacao_score}%
+        </span>
+      ) : <span style={{ fontSize:11, color:'var(--border2)' }}>—</span>
+    ) },
+    { key: 'etapa_id', label: 'Etapa', sortable: false, render: v => <EtapaBadge etapa={etapas.find(e=>e.id===v)} /> },
+    { key: 'valor', label: 'Valor MRR', render: v => (
+      <span style={{ fontFamily:'var(--mono)', fontSize:13, fontWeight:600, color: v>0?'var(--accent)':'var(--text-muted)' }}>{v>0?fmtMoeda(v):'—'}</span>
+    ) },
+    { key: 'prazo', label: 'Prazo', render: v => {
+      const dias = diasRestantes(v)
+      const atrasado = dias!==null && dias<0
+      const urgente  = dias!==null && dias>=0 && dias<=7
+      return <span style={{ fontFamily:'var(--mono)', fontSize:12, color: atrasado?'var(--red)':urgente?'#D97706':'var(--text-soft)', fontWeight:(atrasado||urgente)?700:400 }}>{v?(atrasado?'⚠ ':urgente?'⏰ ':'')+fmtData(v):'—'}</span>
+    } },
+    { key: 'origem', label: 'Origem', render: v => <OrigemBadge origem={v} /> },
+    { key: 'responsavel', label: 'Responsável', render: v => <span style={{ fontSize:12, color:'var(--text-soft)' }}>{v||'—'}</span> },
+  ], [etapas, FUNIS_ATIVOS])
+
   if (FUNIS_ATIVOS.length===0) {
     return (
       <div style={{ textAlign:'center', padding:'80px 20px' }}>
@@ -7817,94 +7687,15 @@ export default function Pipeline() {
     <div style={{ ...p.page, ...(viewEfetiva==='kanban' ? { height:'calc(100vh - 56px)', maxWidth:'none', overflow:'hidden' } : {}) }}>
 
 
-      {/* ── KPIs retráteis (padrão BrowseLayout) ── */}
-      {can('pipeline', 'ver_indicadores') && (
-      <div style={{ borderBottom:'1px solid var(--border)' }}>
-        <button
-          type="button"
-          onClick={() => setShowMetrics(v => !v)}
-          style={{
-            display:'flex', alignItems:'center', justifyContent:'space-between',
-            width:'100%', padding:'8px 20px', border:'none', background:'none',
-            cursor:'pointer', fontFamily:'var(--font)',
-          }}>
-          <span style={{ display:'flex', alignItems:'center', gap:8, fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
-            <span style={{ width:3, height:12, borderRadius:2, background:'var(--accent)', flexShrink:0, display:'inline-block' }} />
-            Indicadores
-          </span>
-          {showMetrics
-            ? <ChevronUp   size={13} color="var(--text-muted)" />
-            : <ChevronDown size={13} color="var(--text-muted)" />}
-        </button>
-        {showMetrics && (
-          <div style={{ padding:'0 20px 12px' }}>
-            <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)', paddingTop:4, paddingBottom:0 }}>
-              <KpiCard label="Oportunidades"   value={filtered.length} />
-              <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
-              <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
-              <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
-            </div>
-            <MetricasStrip modulo="pipeline" />
-          </div>
-        )}
-      </div>
-      )}
-
-      {/* ── Toolbar ── */}
+      {/* ── Barra persistente: funil + view toggle + rotinas (vale pras duas visões) ── */}
       <div style={{ ...p.toolbar, flexWrap: isMobile ? 'wrap' : 'nowrap', padding: isMobile ? '8px' : '8px 12px' }}>
-
-        {/* ── Lado Esquerdo: funil + busca + responsável ── */}
         <div style={{ ...p.tbLeft, flexWrap: isMobile ? 'wrap' : 'nowrap', width: isMobile ? '100%' : undefined }}>
-          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa(''); clearSelection() }} locked={isParceiro} />
-
-          <div style={{ ...p.searchWrap, width: isMobile ? '100%' : 240 }}>
-            <span style={p.searchIcon}>⌕</span>
-            <input style={p.searchInput} placeholder="Buscar oportunidade ou empresa…" value={search} onChange={e=>setSearch(e.target.value)} />
-          </div>
-
+          <FunilDropdown funis={FUNIS_ATIVOS} funilAtivo={funilAtivo} onChange={id=>{ setFunilAtivo(id); setFilterEtapa('') }} locked={isParceiro} />
         </div>
 
-        {/* ── Separador ── */}
         <div style={p.tbDivider} />
 
-        {/* ── Lado Direito: filtros + ordenação + view + ações ── */}
-        <div style={{ ...p.tbRight, flexWrap:'wrap', width: isMobile ? '100%' : undefined, justifyContent: isMobile ? 'flex-start' : undefined }}>
-
-          {/* Botão Filtros — ação de uso diário, vem antes de Rotinas — não disponível pra Contato Canal */}
-          {!isParceiro && (
-          <button
-            onClick={() => setFiltrosOpen(v => !v)}
-            style={{
-              display:'flex', alignItems:'center', gap:7,
-              padding:'0 13px', height:36, borderRadius:8,
-              border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
-              background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
-              color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
-              fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
-              transition:'all 0.15s',
-            }}>
-            <SlidersHorizontal size={14} />
-            Filtros
-            {advancedFilterCount > 0 && (
-              <span style={{
-                background:'var(--accent)', color:'#fff', borderRadius:10,
-                fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
-              }}>
-                {advancedFilterCount}
-              </span>
-            )}
-          </button>
-          )}
-
-          {/* Ordenação */}
-          <select style={{ ...p.select, color:'var(--text-muted)' }} value={sortBy} onChange={e=>setSortBy(e.target.value)}>
-            <option value="criado">Mais recentes</option>
-            <option value="valor_desc">Maior valor</option>
-            <option value="valor_asc">Menor valor</option>
-            <option value="prazo">Prazo mais próximo</option>
-            <option value="titulo">Título A–Z</option>
-          </select>
-
+        <div style={{ ...p.tbRight, flexWrap:'wrap' }}>
           {/* View toggle — Contato Canal só navega em lista, sem opção de trocar */}
           {!isParceiro && (
           <div style={p.viewToggle}>
@@ -7917,7 +7708,7 @@ export default function Pipeline() {
           </div>
           )}
 
-          {/* Botão Rotinas — ação administrativa, depois das ações de uso diário — não disponível pra Contato Canal */}
+          {/* Botão Rotinas — ação administrativa — não disponível pra Contato Canal */}
           {!isParceiro && (
           <button
             onClick={() => setShowRotinas(true)}
@@ -7932,48 +7723,7 @@ export default function Pipeline() {
             ⚙ Rotinas
           </button>
           )}
-
-          {/* Nova oportunidade — ação principal, mantém destaque visual */}
-          <Button onClick={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}>Nova oportunidade</Button>
-
-          {/* ⋯ Menu de ações */}
-          <div ref={acoesRef} style={{ position:'relative' }}>
-            <button
-              onClick={() => setAcoesOpen(v => !v)}
-              style={{ display:'flex', alignItems:'center', justifyContent:'center',
-                width:36, height:36, borderRadius:8, border:'1px solid var(--border)',
-                background:'var(--surface)', color:'var(--text-soft)', cursor:'pointer',
-                transition:'all 0.15s',
-              }}>
-              <MoreHorizontal size={16} />
-            </button>
-
-            {acoesOpen && (
-              <AcoesMenu
-                onExport={can('pipeline', 'exportar') ? () => { handleExport(); setAcoesOpen(false) } : undefined}
-                onImport={can('pipeline', 'importar') ? () => { setImportModal(true); setAcoesOpen(false) } : undefined}
-                onClose={() => setAcoesOpen(false)}
-                anchorRef={acoesRef}
-                selected={selected}
-                exportLogs={exportLogs}
-                showTray={showTray}
-                setShowTray={setShowTray}
-                exportLogs2={exportLogs}
-                setExportLogs={setExportLogs}
-              />
-            )}
-          </div>
         </div>
-      </div>
-
-      {/* ── Result row ── */}
-      <div style={p.resultRow}>
-        <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-muted)' }}>
-          {filtered.length} oportunidade{filtered.length!==1?'s':''} encontrada{filtered.length!==1?'s':''}
-        </span>
-        {hasFilter && (
-          <button style={p.clearBtn} onClick={clearAllFilters}>Limpar filtros</button>
-        )}
       </div>
 
       {/* ── Export Tray (flutuante) ── */}
@@ -7983,50 +7733,71 @@ export default function Pipeline() {
         </div>
       )}
 
-      {/* ── Bulk bar ── */}
-      {(!isParceiro || can('pipeline', 'excluir')) && selected.size>0 && (
-        <div style={p.bulkBar}>
-          <span style={p.bulkCount}><span style={p.bulkDot} />{selected.size} selecionada{selected.size>1?'s':''}</span>
-          <div style={p.bulkActions}>
-            <span style={{ fontSize:12, color:'rgba(255,255,255,0.75)' }}>Mover para:</span>
-            {etapas.map(e=>(
-              <button key={e.id} style={p.bulkBtn} onClick={()=>applyBulk(String(e.id))}>
-                → {e.nome}
-              </button>
-            ))}
-            <div style={{ width:1, background:'rgba(255,255,255,0.2)', alignSelf:'stretch', margin:'0 4px' }} />
-            <button style={p.bulkBtn} onClick={()=>setBulkTaskModal(true)} title="Criar tarefa para todas selecionadas">
-              ✓ Tarefa
-            </button>
-            <button style={p.bulkBtn} onClick={()=>setBulkPlaybookModal(true)} title="Relacionar playbook">
-              📋 Playbook
-            </button>
-            <button style={p.bulkBtn} onClick={()=>setBulkEquipeModal(true)} title="Adicionar membros à equipe">
-              👥 Equipe
-            </button>
-            <button style={p.bulkBtn} onClick={()=>setBulkOrigemModal(true)} title="Editar Origem e Campanha">
-              🏷 Origem
-            </button>
-            <button style={p.bulkBtn} onClick={()=>setBulkProdutosModal(true)} title="Adicionar produtos">
-              📦 Produtos
-            </button>
-            <div style={{ width:1, background:'rgba(255,255,255,0.2)', alignSelf:'stretch', margin:'0 4px' }} />
-            <button style={{ ...p.bulkBtn, color:'#FCA5A5', borderColor:'rgba(252,165,165,0.3)' }} onClick={()=>applyBulk('delete')}>
-              Excluir
-            </button>
-          </div>
-          <button style={p.bulkClear} onClick={clearSelection}>✕ Limpar seleção</button>
-        </div>
-      )}
-
       {/* ── Views ── */}
       {viewEfetiva==='list' && (
-        <ListView
-          opps={filtered} etapas={etapas} funis={FUNIS_ATIVOS}
-          onEdit={o=>setModal(o)}
-          selected={selected} onToggleAll={toggleAll} onToggleOne={toggleOne}
-          allSelected={allSelected} someSelected={someSelected}
-          hideSelect={isParceiro}
+        <BrowseLayout
+          modulo="pipeline"
+          storageKey="pipeline_browse"
+          columns={pipelineColumns}
+          data={filtered}
+          keyField="id"
+          search={search}
+          onSearchChange={setSearch}
+          onRowClick={o=>setModal(o)}
+          onNew={()=>setModal({ _new:true, etapa_id:etapas[0]?.id })}
+          newLabel="Nova oportunidade"
+          onImport={()=>setImportModal(true)}
+          onExportCsv={()=>handleExport(null)}
+          kpis={can('pipeline', 'ver_indicadores') ? () => (
+            <>
+              <div style={{ ...p.kpis, gridTemplateColumns: isMobile ? 'repeat(2,1fr)' : 'repeat(4,1fr)' }}>
+                <KpiCard label="Oportunidades"   value={filtered.length} />
+                <KpiCard label="Valor total"      value={fmtMoeda(totalValor)} mono />
+                <KpiCard label="Valor ponderado"  value={fmtMoeda(valorPonderado)} mono accent />
+                <KpiCard label="Fechadas (ganho)" value={qtdFechadas} />
+              </div>
+              <MetricasStrip modulo="pipeline" />
+            </>
+          ) : undefined}
+          secondaryActions={!isParceiro && (
+            <button
+              onClick={() => setFiltrosOpen(v => !v)}
+              style={{
+                display:'flex', alignItems:'center', gap:7,
+                padding:'0 13px', height:36, borderRadius:8,
+                border:`1.5px solid ${advancedFilterCount > 0 ? 'var(--accent)' : 'var(--border)'}`,
+                background: advancedFilterCount > 0 ? 'var(--accent-glow)' : 'var(--surface)',
+                color: advancedFilterCount > 0 ? 'var(--accent)' : 'var(--text-soft)',
+                fontSize:13, fontWeight:600, cursor:'pointer', whiteSpace:'nowrap',
+                transition:'all 0.15s',
+              }}>
+              <SlidersHorizontal size={14} />
+              Filtros
+              {advancedFilterCount > 0 && (
+                <span style={{
+                  background:'var(--accent)', color:'#fff', borderRadius:10,
+                  fontSize:10, fontWeight:700, padding:'1px 6px', lineHeight:'16px',
+                }}>
+                  {advancedFilterCount}
+                </span>
+              )}
+            </button>
+          )}
+          bulkActions={(!isParceiro || can('pipeline', 'excluir')) ? [
+            { type:'dropdown', label:'Mover para etapa →', options: etapas.map(e => ({ label:`→ ${e.nome}`, onClick: ids=>bulkMoverEtapa(ids, e.id) })) },
+            { label:'✓ Tarefa',    onClick: ids=>abrirBulkModal(ids, setBulkTaskModal) },
+            { label:'📋 Playbook', onClick: ids=>abrirBulkModal(ids, setBulkPlaybookModal) },
+            { label:'👥 Equipe',   onClick: ids=>abrirBulkModal(ids, setBulkEquipeModal) },
+            { label:'🏷 Origem',   onClick: ids=>abrirBulkModal(ids, setBulkOrigemModal) },
+            { label:'📦 Produtos', onClick: ids=>abrirBulkModal(ids, setBulkProdutosModal) },
+            { label:'Exportar selecionados', icon:<Download size={13} />, onClick: ids=>handleExport(ids) },
+            { label:'Excluir', variant:'danger', onClick: ids=>bulkExcluir(ids) },
+          ] : []}
+          emptyState={
+            <div style={{ textAlign:'center', padding:'48px 20px', color:'var(--text-muted)', fontSize:14, fontWeight:600 }}>
+              Nenhuma oportunidade encontrada
+            </div>
+          }
         />
       )}
 
@@ -8087,7 +7858,7 @@ export default function Pipeline() {
 
       {bulkTaskModal && (
         <BulkTaskModal
-          oppIds={selected}
+          oppIds={bulkModalIds}
           opps={opps}
           onClose={()=>setBulkTaskModal(false)}
           saveTask={saveTask}
@@ -8096,7 +7867,7 @@ export default function Pipeline() {
 
       {bulkPlaybookModal && (
         <BulkPlaybookModal
-          oppIds={selected}
+          oppIds={bulkModalIds}
           opps={opps}
           onClose={()=>setBulkPlaybookModal(false)}
           saveOpp={saveOpp}
@@ -8105,7 +7876,7 @@ export default function Pipeline() {
 
       {bulkEquipeModal && (
         <BulkEquipeModal
-          oppIds={selected}
+          oppIds={bulkModalIds}
           opps={opps}
           onClose={()=>setBulkEquipeModal(false)}
           addMembro={addMembroOpp}
@@ -8114,7 +7885,7 @@ export default function Pipeline() {
 
       {bulkOrigemModal && (
         <BulkOrigemCampanhaModal
-          oppIds={selected}
+          oppIds={bulkModalIds}
           opps={opps}
           onClose={()=>setBulkOrigemModal(false)}
           saveOpp={saveOpp}
@@ -8122,7 +7893,7 @@ export default function Pipeline() {
       )}
       {bulkProdutosModal && (
         <BulkProdutosModal
-          oppIds={selected}
+          oppIds={bulkModalIds}
           opps={opps}
           onClose={()=>setBulkProdutosModal(false)}
           saveOpp={saveOpp}
