@@ -951,6 +951,16 @@ export default function BrowseLayout({
     })
   }
 
+  // Selecionar/marcar todos os registros FILTRADOS, não só os da página atual
+  // — só faz sentido quando os dados já estão todos em memória (não em modo
+  // servidor, onde `sorted` não tem a lista completa) e sem agrupamento.
+  const podeSelecionarTudo   = !isServerPaged && !hasGrouping
+  const totalFiltrado        = sorted.length
+  const todosFiltradosSelecionados = podeSelecionarTudo && totalFiltrado > 0 && sorted.every(r => selected.has(r[keyField]))
+  const mostrarSelecionarTudo = podeSelecionarTudo && allPageSelected && totalFiltrado > pageRows.length && !todosFiltradosSelecionados
+
+  const selecionarTodosFiltrados = () => setSelected(new Set(sorted.map(r => r[keyField])))
+
   const toggleRow = (id) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -1262,6 +1272,30 @@ export default function BrowseLayout({
           </>
         )}
       </div>
+
+      {/* ── Banner "selecionar todos os N registros" ──────────────────────── */}
+      {(mostrarSelecionarTudo || todosFiltradosSelecionados) && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          padding: '8px 16px', background: 'var(--accent-lite, #EEF2FF)',
+          borderBottom: '1px solid var(--border)', fontSize: 12.5, color: 'var(--text)',
+        }}>
+          {todosFiltradosSelecionados ? (
+            <span>Todos os <b>{totalFiltrado}</b> registros estão selecionados.</span>
+          ) : (
+            <>
+              <span>Todos os {pageRows.length} registros desta página estão selecionados.</span>
+              <button
+                type="button"
+                onClick={selecionarTodosFiltrados}
+                style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent)', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', textDecoration: 'underline', fontFamily: 'var(--font)' }}
+              >
+                Selecionar todos os {totalFiltrado} registros
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* ── Chips de filtros ativos ──────────────────────────────────────── */}
       {filters.length > 0 && (
