@@ -1662,7 +1662,7 @@ function validateImportRow(row, productMap, existingNumeros, seenNumero) {
   return errors
 }
 
-function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos, customFieldKeys, contratosExistentes, onCreateCompany, onImport }) {
+function ImportContratosModal({ onClose, onDownloadTemplate, onDownloadErrors, companies, produtos, customFieldKeys, contratosExistentes, onCreateMissingCompanies, onImport }) {
   const existingNumeros = useMemo(() => new Set(contratosExistentes.map(c => c.numero)), [contratosExistentes])
   const importCols = useMemo(() => [...IMPORT_COLS_BASE, ...customFieldKeys], [customFieldKeys])
   const [step, setStep]           = useState('upload') // 'upload' | 'preview'
@@ -1710,16 +1710,14 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
 
     // Empresa não cadastrada pra esse CNPJ → cria automaticamente (tipo
     // "rascunho", pra ser validada/completada depois via Receita Federal em
-    // Empresas). Cria uma vez por CNPJ distinto, mesmo que várias linhas do
-    // arquivo apontem pro mesmo CNPJ novo.
-    const criadasPorCnpj = new Map()
+    // Empresas). Uma vez por CNPJ distinto, mesmo que várias linhas do
+    // arquivo apontem pro mesmo CNPJ novo — o próprio progresso dessa etapa
+    // aparece no widget flutuante (mesmo padrão do import em si).
     setImporting(true)
-    for (const r of okResults) {
-      const cnpjRaw = (r.row.empresa_cnpj || '').replace(/\D/g, '')
-      if (parsed.companyCnpjMap.has(cnpjRaw) || criadasPorCnpj.has(cnpjRaw)) continue
-      const resultCriacao = await onCreateCompany(cnpjRaw)
-      if (resultCriacao?.ok) criadasPorCnpj.set(cnpjRaw, resultCriacao.data)
-    }
+    const cnpjsFaltantes = [...new Set(
+      okResults.map(r => (r.row.empresa_cnpj || '').replace(/\D/g, '')).filter(c => !parsed.companyCnpjMap.has(c))
+    )]
+    const criadasPorCnpj = await onCreateMissingCompanies(cnpjsFaltantes)
 
     const okRows = okResults.map(r => {
       const cnpjRaw = (r.row.empresa_cnpj || '').replace(/\D/g, '')
@@ -1843,6 +1841,13 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
                 <span style={{ ...imp.summaryVal, color: errCount > 0 ? 'var(--red)' : 'var(--text-muted)' }}>{errCount}</span>
                 <span style={imp.summaryLbl}>com erro</span>
               </div>
+              {errCount > 0 && (
+                <button type="button" onClick={() => onDownloadErrors(parsed.rowResults, parsed.fileName)}
+                  style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px',
+                    fontSize: 11.5, fontWeight: 600, color: 'var(--text-soft)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                  ↓ Baixar erros (CSV)
+                </button>
+              )}
               <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
                 {parsed.fileName}
               </div>
@@ -1909,7 +1914,7 @@ function ImportContratosModal({ onClose, onDownloadTemplate, companies, produtos
   )
 }
 
-function ImportContratosLogModal({ logs, onClose }) {
+function ImportContratosLogModal({ logs, onClose, onDownloadErrors }) {
   const [expanded, setExpanded] = useState(null)
   return (
     <div style={impM.overlay} onClick={e => { if (e.target === e.currentTarget) onClose() }}>
@@ -1936,6 +1941,13 @@ function ImportContratosLogModal({ logs, onClose }) {
                   <span style={imp.logPill}>{log.total} total</span>
                   <span style={{ ...imp.logPill, background: 'var(--green-bg)', color: 'var(--green-text)' }}>✓ {log.imported}</span>
                   {log.errors > 0 && <span style={{ ...imp.logPill, background: 'var(--red-bg)', color: 'var(--red-text)' }}>✕ {log.errors}</span>}
+                  {log.errors > 0 && (
+                    <button type="button" onClick={e => { e.stopPropagation(); onDownloadErrors(log.rows, log.fileName) }}
+                      style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 8px',
+                        fontSize: 11, fontWeight: 600, color: 'var(--text-soft)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      ↓ CSV
+                    </button>
+                  )}
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{expanded === log.id ? '▲' : '▼'}</span>
                 </div>
               </div>
@@ -2142,6 +2154,54 @@ export default function Contratos() {
     a.click(); URL.revokeObjectURL(url)
   }
 
+  // Cria as empresas que faltam (uma por CNPJ distinto) com progresso visível
+  // no widget flutuante — mesmo padrão do import de contratos em si. O
+  // dedup por CNPJ é garantido em dois níveis: `cnpjsFaltantes` já chega sem
+  // repetição (Set, montado no modal) e aqui checamos de novo contra um
+  // `Set` local conforme vamos criando, pra nunca criar duas empresas com o
+  // mesmo CNPJ mesmo se a lista de entrada tiver alguma repetição.
+  async function criarEmpresasFaltantes(cnpjsFaltantes) {
+    if (cnpjsFaltantes.length === 0) return new Map()
+    const jobId = startImportJob({ label: 'Empresas (novas)', total: cnpjsFaltantes.length })
+    const criadas = new Map()
+    for (let i = 0; i < cnpjsFaltantes.length; i++) {
+      const cnpjRaw = cnpjsFaltantes[i]
+      if (criadas.has(cnpjRaw)) continue
+      updateImportJob(jobId, { current: i, subLabel: `${fmtCNPJ(cnpjRaw)} (${i + 1}/${cnpjsFaltantes.length})…` })
+      const result = await addCompany({
+        razao: `Empresa ${fmtCNPJ(cnpjRaw)}`, fantasia: '',
+        cnpj: fmtCNPJ(cnpjRaw), tipo: 'rascunho', status: 'negociacao',
+      })
+      if (result?.ok) criadas.set(cnpjRaw, result.data)
+    }
+    finishImportJob(jobId, {
+      status: criadas.size === 0 ? 'error' : undefined,
+      subLabel: `${criadas.size} empresa${criadas.size !== 1 ? 's' : ''} criada${criadas.size !== 1 ? 's' : ''} automaticamente (tipo Rascunho).`,
+    })
+    return criadas
+  }
+
+  // Log de erros da importação em CSV — linha, número, CNPJ e cada motivo
+  // de erro (uma coluna por erro, já que uma linha pode ter mais de um).
+  function downloadErrorsCsv(rowResults, fileName) {
+    const comErro = rowResults.filter(r => !r.ok)
+    if (comErro.length === 0) return
+    const maxErros = Math.max(...comErro.map(r => r.errors.length))
+    const headers = ['linha', 'numero', 'empresa_cnpj', ...Array.from({ length: maxErros }, (_, i) => `erro_${i + 1}`)]
+    const toCsvCell = v => `"${String(v ?? '').replace(/"/g, '""')}"`
+    const rows = comErro.map(r => [
+      r.line, r.row.numero || '', r.row.empresa_cnpj || '',
+      ...Array.from({ length: maxErros }, (_, i) => r.errors[i] || ''),
+    ].map(toCsvCell).join(';'))
+    const bom  = '﻿'
+    const csv  = bom + [headers.join(';'), ...rows].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a')
+    a.href = url; a.download = `erros_${fileName || 'importacao_contratos'}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   const isNew = editando && !editando.id
 
   return (
@@ -2258,14 +2318,12 @@ export default function Contratos() {
         <ImportContratosModal
           onClose={() => setImportModal(false)}
           onDownloadTemplate={handleDownloadTemplate}
+          onDownloadErrors={downloadErrorsCsv}
           companies={companies}
           produtos={produtos}
           customFieldKeys={getEntityCustomFieldKeys('contracts')}
           contratosExistentes={contratos}
-          onCreateCompany={cnpjRaw => addCompany({
-            razao: `Empresa ${fmtCNPJ(cnpjRaw)}`, fantasia: '',
-            cnpj: fmtCNPJ(cnpjRaw), tipo: 'rascunho', status: 'negociacao',
-          })}
+          onCreateMissingCompanies={criarEmpresasFaltantes}
           onImport={async (rows, logEntry) => {
             const jobId = startImportJob({ label: 'Contratos', total: rows.length })
             const result = await importMany(rows, (current, total) => {
@@ -2282,7 +2340,7 @@ export default function Contratos() {
           }}
         />
       )}
-      {showImportLog && <ImportContratosLogModal logs={importLogs} onClose={() => setShowImportLog(false)} />}
+      {showImportLog && <ImportContratosLogModal logs={importLogs} onClose={() => setShowImportLog(false)} onDownloadErrors={downloadErrorsCsv} />}
     </>
   )
 }
