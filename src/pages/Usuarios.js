@@ -176,14 +176,9 @@ function Avatar({ nome, size = 36 }) {
 }
 
 function RoleBadge({ role }) {
-  const cfg = ROLES[role] || { label: role, color: '#94A3B8', bg: '#F1F5F9', text: '#475569' }
+  const cfg = ROLES[role] || { label: role, color: '#94A3B8' }
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '3px 9px', borderRadius: 20,
-      background: cfg.bg, color: cfg.text,
-      fontSize: 11, fontWeight: 700, letterSpacing: '0.02em',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: cfg.color, fontSize: 11, fontWeight: 700, letterSpacing: '0.02em' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
       {cfg.label}
     </span>
@@ -193,12 +188,7 @@ function RoleBadge({ role }) {
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.inativo
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '3px 9px', borderRadius: 20,
-      background: cfg.bg, color: cfg.text,
-      fontSize: 11, fontWeight: 700,
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, color: cfg.color, fontSize: 11, fontWeight: 700 }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.color, flexShrink: 0 }} />
       {cfg.label}
     </span>

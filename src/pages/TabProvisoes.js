@@ -365,9 +365,7 @@ function valorPorTipo(prod) {
 function StatusBadge({ status }) {
   const cfg = STATUS_PAGAMENTO[status] || STATUS_PAGAMENTO.pendente
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px',
-      borderRadius:20, fontSize:11, fontWeight:700, background:cfg.bg, color:cfg.text,
-      whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, color:cfg.color, whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
@@ -394,9 +392,7 @@ const INCONSISTENCIA_OPTS = [
 function InconsistenciaBadge({ value }) {
   const opt = INCONSISTENCIA_OPTS.find(o => o.value === value) || INCONSISTENCIA_OPTS[0]
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px',
-      borderRadius:20, fontSize:11, fontWeight:700, background:opt.bg, color:opt.text,
-      whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, color:opt.color, whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:opt.color, flexShrink:0 }} />
       {opt.label}
     </span>

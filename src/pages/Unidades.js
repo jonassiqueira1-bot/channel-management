@@ -14,8 +14,8 @@ const STATUS_MAP = {
 function StatusBadge({ status }) {
   const cfg = STATUS_MAP[status] || STATUS_MAP.inativo
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block' }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block', flexShrink:0 }} />
       {cfg.label}
     </span>
   )
