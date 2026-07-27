@@ -101,17 +101,31 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
   const tenantId = profile?.tenant_id
   const branchId = profile?.branch_id || null
 
+  // PostgREST corta em 1000 linhas por padrão sem `.range()` — com a base
+  // passando disso (ex: import de teste com 3000+ contratos), a tela parava
+  // de mostrar o resto silenciosamente. Busca em blocos de 1000 até a
+  // página vir incompleta.
+  const PAGE_SIZE = 1000
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = true; setLoading(false); return }
 
-    let _q = supabase.from('contracts').select('*, companies(nome_fantasia, razao_social)')
-    const { data, error } = await _q.order('created_at', { ascending: false })
+    const all = []
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('contracts')
+        .select('*, companies(nome_fantasia, razao_social)')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1)
 
-    if (error) { captureError('useContracts', error); isMockMode.current = true; setLoading(false); return }
+      if (error) { captureError('useContracts', error); isMockMode.current = true; setLoading(false); return }
+
+      all.push(...(data || []))
+      if (!data || data.length < PAGE_SIZE) break
+    }
 
     isMockMode.current = false
-    setContratos((data || []).map(rowToContrato))
+    setContratos(all.map(rowToContrato))
     setLoading(false)
   }, [session, activeBranchId])
 
