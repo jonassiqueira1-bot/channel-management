@@ -103,25 +103,30 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
 
   // PostgREST corta em 1000 linhas por padrão sem `.range()` — com a base
   // passando disso (ex: import de teste com 3000+ contratos), a tela parava
-  // de mostrar o resto silenciosamente. Busca em blocos de 1000 até a
-  // página vir incompleta.
+  // de mostrar o resto silenciosamente. Busca em blocos de 1000; o primeiro
+  // bloco já traz o total (`count: 'exact'`), e os blocos restantes saem
+  // todos em paralelo (Promise.all) em vez de um por vez — com ~11 mil
+  // linhas isso é a diferença entre ~12 requisições em fila (15-30s) e
+  // ~12 em paralelo (tempo da mais lenta, ~1-2s).
   const PAGE_SIZE = 1000
+  const contractsSelect = (opts) => supabase.from('contracts').select('*, companies(nome_fantasia, razao_social)', opts).order('created_at', { ascending: false })
   const load = useCallback(async () => {
     setLoading(true)
     if (!session?.user) { isMockMode.current = true; setLoading(false); return }
 
-    const all = []
-    for (let from = 0; ; from += PAGE_SIZE) {
-      const { data, error } = await supabase
-        .from('contracts')
-        .select('*, companies(nome_fantasia, razao_social)')
-        .order('created_at', { ascending: false })
-        .range(from, from + PAGE_SIZE - 1)
+    const first = await contractsSelect({ count: 'exact' }).range(0, PAGE_SIZE - 1)
+    if (first.error) { captureError('useContracts', first.error); isMockMode.current = true; setLoading(false); return }
 
-      if (error) { captureError('useContracts', error); isMockMode.current = true; setLoading(false); return }
-
-      all.push(...(data || []))
-      if (!data || data.length < PAGE_SIZE) break
+    const all = [...(first.data || [])]
+    const total = first.count ?? all.length
+    if (total > PAGE_SIZE) {
+      const restas = []
+      for (let from = PAGE_SIZE; from < total; from += PAGE_SIZE) restas.push(contractsSelect().range(from, from + PAGE_SIZE - 1))
+      const results = await Promise.all(restas)
+      for (const r of results) {
+        if (r.error) { captureError('useContracts', r.error); isMockMode.current = true; setLoading(false); return }
+        all.push(...(r.data || []))
+      }
     }
 
     isMockMode.current = false
