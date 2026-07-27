@@ -629,9 +629,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
 function SituacaoBadge({ situacao }) {
   const cfg = SITUACOES[situacao] || SITUACOES.em_andamento
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:20,
-      background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:700, whiteSpace:'nowrap',
-      border:`1px solid ${cfg.color}44` }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, color:cfg.color, fontSize:11, fontWeight:700, whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
@@ -831,8 +829,7 @@ function TipoTarefaField({ value, onChange }) {
 function TarefaStatusBadge({ status }) {
   const cfg = STATUS_TAREFA[status] || STATUS_TAREFA.pendente
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'1px 7px', borderRadius:20,
-      background:cfg.bg, color:cfg.text, fontSize:10, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, color:cfg.color, fontSize:10, fontWeight:600, whiteSpace:'nowrap' }}>
       <span style={{ width:5, height:5, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />{cfg.label}
     </span>
   )
@@ -1711,17 +1708,14 @@ function PapelBadge({ papel, tipoMembro }) {
   if (tipoMembro === 'externo') {
     const p = PERSONAS.find(x => x.value === papel) || PERSONAS[0]
     return (
-      <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:6,
-        background:p.bg, color:p.color, whiteSpace:'nowrap', fontFamily:'var(--mono)',
-        border:`1px solid ${p.color}33` }}>
+      <span style={{ fontSize:10, fontWeight:700, color:p.color, whiteSpace:'nowrap' }}>
         {p.label}
       </span>
     )
   }
   const cfg = PAPEL_CFG[papel] || PAPEL_CFG.outro
   return (
-    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:6,
-      background:cfg.bg, color:cfg.color, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+    <span style={{ fontSize:10, fontWeight:700, color:cfg.color, whiteSpace:'nowrap' }}>
       {cfg.label}
     </span>
   )
@@ -1730,11 +1724,7 @@ function PapelBadge({ papel, tipoMembro }) {
 function TipoMemboBadge({ tipo }) {
   const interno = tipo === 'interno'
   return (
-    <span style={{ fontSize:9, fontWeight:700, padding:'1px 6px', borderRadius:4,
-      background: interno ? '#1E3A5F22' : '#F59E0B18',
-      color:      interno ? '#1E3A5F'   : '#D97706',
-      border:     `1px solid ${interno ? '#1E3A5F44' : '#F59E0B44'}`,
-      fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+    <span style={{ fontSize:9, fontWeight:700, color: interno ? '#1E3A5F' : '#D97706', whiteSpace:'nowrap' }}>
       {interno ? 'ISV' : 'Parceiro'}
     </span>
   )
@@ -2020,14 +2010,12 @@ function OppEquipeTab({ oppId, opp, etapas }) {
   function ComissaoBadge({ elegibilidade }) {
     if (!elegibilidade) return null
     const cor = elegibilidade.elegivel ? '#065F46' : '#92400E'
-    const bg  = elegibilidade.elegivel ? '#D1FAE5' : '#FEF3C7'
     return (
       <span
         title={elegibilidade.elegivel
           ? `Elegível — regra "${elegibilidade.regra}"`
           : `Não elegível — ${elegibilidade.motivo}`}
-        style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:'var(--radius-sm, 6px)',
-          background:bg, color:cor, whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+        style={{ fontSize:10, fontWeight:700, color:cor, whiteSpace:'nowrap' }}>
         Comissão: {elegibilidade.elegivel ? 'Sim' : 'Não'}
       </span>
     )
@@ -6612,10 +6600,8 @@ function KpiCard({ label, value, accent, mono }) {
 function EtapaBadge({ etapa }) {
   if (!etapa) return <span style={{ color:'var(--text-muted)', fontSize:11 }}>—</span>
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20,
-      background: etapa.cor+'22', color: etapa.cor, fontSize:11, fontWeight:600, fontFamily:'var(--mono)',
-      whiteSpace:'nowrap', border:`1px solid ${etapa.cor}44` }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:etapa.cor, display:'inline-block' }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color: etapa.cor, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:etapa.cor, display:'inline-block', flexShrink:0 }} />
       {etapa.nome}
     </span>
   )
@@ -6642,9 +6628,8 @@ function ForecastBadge({ opp, etapaCat, onChange }) {
     <div style={{ position:'relative' }} onClick={e => e.stopPropagation()}>
       <button
         onClick={e => { e.stopPropagation(); setOpen(o => !o) }}
-        style={{ fontSize:10, fontWeight:600, padding:'2px 7px', borderRadius:10,
-          background: cfg.color + '18', color: cfg.color,
-          border:`1px solid ${cfg.color}44`, cursor:'pointer', whiteSpace:'nowrap' }}
+        style={{ fontSize:10, fontWeight:600, padding:0, background:'none', border:'none',
+          color: cfg.color, cursor:'pointer', whiteSpace:'nowrap', textDecoration:'underline dotted', textUnderlineOffset:2 }}
       >
         {cfg.label}
       </button>
