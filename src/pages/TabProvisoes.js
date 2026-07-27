@@ -35,10 +35,16 @@ function parseCSVProv(text) {
   return { rows }
 }
 
-function validateImportRowProv(row) {
+// `produtoMap` resolve por código ou nome exato (igual ao import de
+// Contratos) — sem produto, a provisão fica sem lastro nenhum, por isso é
+// obrigatório e precisa bater com um produto cadastrado.
+function validateImportRowProv(row, produtoMap) {
   const errors = []
   if (!row.contract_numero?.trim()) errors.push('contract_numero obrigatório')
   if (!row.company_nome?.trim())    errors.push('company_nome obrigatório')
+  if (!row.produto_nome?.trim())    errors.push('produto_nome obrigatório — provisão sem produto não é permitida')
+  else if (!produtoMap.get(row.produto_nome.trim().toLowerCase()))
+    errors.push(`Produto não encontrado: "${row.produto_nome}"`)
   if (!row.reference_month || !/^\d{4}-\d{2}(-\d{2})?$/.test(row.reference_month))
     errors.push('reference_month inválido (AAAA-MM ou AAAA-MM-DD)')
   if (row.status && !STATUS_PAGAMENTO[row.status])
@@ -64,12 +70,21 @@ const OV = {
             cursor:'pointer', padding:'4px 6px', borderRadius:6 },
 }
 
-function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, contratos, saveContrato }) {
+function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, updateCompany, contratos, saveContrato, produtos }) {
   const [step, setStep]         = useState('upload')
   const [parsed, setParsed]     = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, label:'' })
+  const [progress, setProgress] = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, empresasPromovidas:0, label:'' })
   const fileRef = useRef(null)
+
+  const produtoMap = useMemo(() => {
+    const m = new Map()
+    ;(produtos||[]).forEach(p => {
+      if (p.codigo) m.set(String(p.codigo).toLowerCase(), p)
+      if (p.nome) m.set(String(p.nome).toLowerCase(), p)
+    })
+    return m
+  }, [produtos])
 
   // Índice de duplicatas existentes no banco
   const existingKeys = useMemo(() => {
@@ -96,7 +111,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       // Detecta duplicatas dentro do próprio arquivo
       const seenInFile = new Set()
       const rowResults = rows.map((row, i) => {
-        const errors = validateImportRowProv(row)
+        const errors = validateImportRowProv(row, produtoMap)
         const key = dupKey(row)
         const dupInFile = seenInFile.has(key)
         const dupInDB   = existingKeys.has(key)
@@ -138,13 +153,43 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       return null
     }
 
-    async function resolveContrato(numero, companyId, companyNome) {
+    // Slot do produto — mesmo mapeamento de Contratos.js (CATEGORIA_POR_TIPO):
+    // saas → mrr; licença/hardware → adesão; serviço/consultoria → serviço.
+    function slotDoProduto(produto) {
+      const t = (produto?.tipo || '').toLowerCase()
+      if (t === 'saas') return 'mrr'
+      if (t === 'servico' || t === 'consultoria') return 'servico'
+      return 'adesao'
+    }
+
+    // Contrato criado pela importação de Provisões nunca pode ficar sem
+    // produto — usa o próprio produto/valor da linha de provisão como item
+    // único do contrato (no slot correspondente ao tipo do produto).
+    function buildItemDoContrato(row) {
+      const produto = produtoMap.get((row.produto_nome||'').trim().toLowerCase())
+      const valor = (parseFloat(row.amount_cdu)||0) + (parseFloat(row.amount_sms)||0) + (parseFloat(row.amount_services)||0)
+      const item = {
+        produto_id: produto?.id || null, nome: produto?.nome || row.produto_nome,
+        tipo_produto: produto?.tipo || null, quantidade: 1,
+        valor: valor || produto?.preco || 0, tabela: produto?.preco || null,
+        desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo',
+        vencimento_primeiro_pagamento: '',
+      }
+      const slot = slotDoProduto(produto)
+      return { item, slot }
+    }
+
+    async function resolveContrato(numero, companyId, companyNome, row) {
       const key = numero.toLowerCase()
       if(ctrByNum[key]) return ctrByNum[key].id
       if(createdCtr[key]) return createdCtr[key]
+      const { item, slot } = buildItemDoContrato(row)
+      const itensPorSlot = { adesao: [], mrr: [], servico: [] }
+      itensPorSlot[slot] = [item]
       const result = await saveContrato({
         numero, empresa_id:companyId, empresa_nome:companyNome,
-        status:'ativo', vigencia_inicio:'', vigencia_fim:'', itens:[], itens_adesao:[], itens_mrr:[], itens_servico:[],
+        status:'ativo', vigencia_inicio:'', vigencia_fim:'',
+        itens:[item], itens_adesao:itensPorSlot.adesao, itens_mrr:itensPorSlot.mrr, itens_servico:itensPorSlot.servico,
         responsavel:'', observacoes:'', origem:'', opportunity_id:null, opportunity_titulo:'', inconsistencia_status:'sem_inconsistencia',
       })
       if(result?.ok) {
@@ -155,11 +200,13 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
     }
 
     let imported = 0
+    const empresasTocadas = new Set()
     for (let i=0; i<okRows.length; i++) {
       const { row } = okRows[i]
       setProgress({ current:i+1, total, empresasCriadas, contratosCriados, label:`${row.company_nome} — ${row.contract_numero}` })
       const company_id  = await resolveEmpresa(row.company_nome, row.company_cnpj)
-      const contract_id = await resolveContrato(row.contract_numero, company_id, row.company_nome)
+      const contract_id = await resolveContrato(row.contract_numero, company_id, row.company_nome, row)
+      if (company_id) empresasTocadas.add(company_id)
       const periodo = row.reference_month.length === 7 ? row.reference_month + '-01' : row.reference_month
       const cdu = parseFloat(row.amount_cdu)||0
       const sms = parseFloat(row.amount_sms)||0
@@ -180,7 +227,18 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       })
       if (res?.ok) imported++
     }
-    setProgress(p=>({...p, current:imported, empresasCriadas, contratosCriados, label:'Concluído!'}))
+
+    // Toda empresa tocada aqui ganhou (ou já tinha) um contrato ativo — vira
+    // Cliente Final, igual ao import de Contratos.
+    let empresasPromovidas = 0
+    for (const id of empresasTocadas) {
+      const emp = companies.find(c => c.id === id)
+      if (emp && emp.tipo === 'cliente_final') continue
+      const r = await updateCompany(id, { tipo: 'cliente_final' })
+      if (r?.ok !== false) empresasPromovidas++
+    }
+
+    setProgress(p=>({...p, current:imported, empresasCriadas, contratosCriados, empresasPromovidas, label:'Concluído!'}))
     setStep('done')
   }
 
@@ -222,6 +280,12 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
               </div>
               <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', overflowX:'auto', whiteSpace:'nowrap' }}>
                 {IMPORT_BASE_KEYS.join(' · ')}
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:8, lineHeight:1.6 }}>
+                <b>produto_nome é obrigatório</b> e precisa bater com um produto cadastrado (código ou nome exato)
+                — provisão sem produto não é permitida. Empresa resolvida por CNPJ/nome (cria automaticamente se não existir)
+                e contrato resolvido por <code>contract_numero</code> (cria automaticamente, sempre ativo, com o próprio produto
+                da linha como item). Empresa nova ou já cadastrada com contrato ativo vira tipo <b>Cliente Final</b>.
               </div>
             </div>
             <div style={impBox}
@@ -304,11 +368,13 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
               {progress.current} provisão{progress.current!==1?'ões':''} importada{progress.current!==1?'s':''}
             </div>
-            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
+            {(progress.empresasCriadas>0||progress.contratosCriados>0||progress.empresasPromovidas>0) && (
               <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>
                 {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa(s) criada(s)`}
                 {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
                 {progress.contratosCriados>0 && `${progress.contratosCriados} contrato(s) criado(s)`}
+                {(progress.empresasCriadas>0||progress.contratosCriados>0) && progress.empresasPromovidas>0 && ' · '}
+                {progress.empresasPromovidas>0 && `${progress.empresasPromovidas} empresa(s) promovida(s) a Cliente Final`}
               </div>
             )}
           </div>
@@ -747,8 +813,9 @@ function NovaProvisaoForm({ form, onChange }) {
 // ─── TabProvisoes ─────────────────────────────────────────────────────────────
 export default function TabProvisoes() {
   const { provisoes, save, removeMany, bulkSetStatus } = useProvisoes()
-  const { companies, add: addCompany } = useCompanies()
+  const { companies, add: addCompany, update: updateCompany } = useCompanies()
   const { contratos, save: saveContrato } = useContracts()
+  const { produtos } = useProducts()
 
   const [search,                  setSearch]                  = useLocalState('provisoes:search', '')
   const [filtroStatus,            setFiltroStatus]            = useLocalState('provisoes:filtroStatus', '')
@@ -987,8 +1054,10 @@ export default function TabProvisoes() {
           save={save}
           companies={companies}
           addCompany={addCompany}
+          updateCompany={updateCompany}
           contratos={contratos}
           saveContrato={saveContrato}
+          produtos={produtos}
         />
       )}
 

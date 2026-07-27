@@ -1659,7 +1659,12 @@ function validateImportRow(row, productMap, existingNumeros, seenNumero) {
     errors.push('Data de início inválida (use DD/MM/AAAA ou AAAA-MM-DD)')
   if (row.vigencia_fim && parseDataFlexivel(row.vigencia_fim) === undefined)
     errors.push('Data de fim inválida (use DD/MM/AAAA ou AAAA-MM-DD)')
-  errors.push(...buildItensFromRow(row, productMap).errors)
+  const { itens, errors: itensErrors } = buildItensFromRow(row, productMap)
+  errors.push(...itensErrors)
+  // Um contrato sem nenhum produto não é um contrato válido pro sistema —
+  // pelo menos um dos 3 slots (adesão/mrr/serviço) precisa vir preenchido.
+  if (itens.length === 0 && itensErrors.length === 0)
+    errors.push('Contrato sem produtos — preencha ao menos um slot (adesao_produto, mrr_produto ou servico_produto)')
   return errors
 }
 
@@ -1816,12 +1821,13 @@ function ImportContratosModal({ onClose, onDownloadTemplate, onDownloadErrors, c
               </div>
               <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, lineHeight: 1.6 }}>
                 A empresa é resolvida pelo CNPJ. Se não existir nenhuma cadastrada com esse CNPJ, ela é
-                criada automaticamente (tipo <b>Rascunho</b>) — depois é só validar/completar os dados em
-                Empresas usando a edição em lote com consulta à Receita Federal.<br/>
-                Produtos: um por slot, em colunas separadas — <code>adesao_produto</code>/<code>adesao_qtd</code>/<code>adesao_valor</code>/<code>adesao_desconto</code>,
-                o mesmo padrão para <code>mrr_*</code> e <code>servico_*</code>. Só <code>*_produto</code> é obrigatório
+                criada automaticamente — com contrato <b>ativo</b> (padrão quando a coluna <code>status</code> vem vazia),
+                a empresa já entra/fica como tipo <b>Cliente Final</b> direto (nova ou já cadastrada). Sem contrato ativo, fica <b>Rascunho</b> até validar/completar via Receita Federal em Empresas.<br/>
+                <b>Produtos são obrigatórios</b> — todo contrato precisa de pelo menos um produto num dos 3 slots (adesão/MRR/serviço),
+                em colunas separadas: <code>adesao_produto</code>/<code>adesao_qtd</code>/<code>adesao_valor</code>/<code>adesao_desconto</code>,
+                mesmo padrão para <code>mrr_*</code> e <code>servico_*</code>. Só <code>*_produto</code> é obrigatório
                 pra contar (resolvido pelo código ou nome exato cadastrado em Produtos); os demais assumem quantidade 1,
-                preço de tabela e 0% de desconto quando vazios. Deixe o slot todo em branco se o contrato não tiver esse tipo de produto.
+                preço de tabela e 0% de desconto quando vazios. Linhas sem nenhum produto preenchido em nenhum slot são rejeitadas.
               </div>
             </div>
           </div>
@@ -2043,7 +2049,7 @@ export default function Contratos() {
   const { produtos } = useProducts()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
-  const { companies, add: addCompany } = useCompanies()
+  const { companies, add: addCompany, update: updateCompany } = useCompanies()
   const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
@@ -2215,6 +2221,25 @@ export default function Contratos() {
     return criadas
   }
 
+  // Qualquer empresa (nova ou já cadastrada) que fica com um contrato ATIVO
+  // vinculado pela importação passa a ser tipo "Cliente Final" — não faz
+  // sentido continuar Rascunho/outro tipo tendo um contrato ativo de verdade.
+  // Recebe os `okRows` (já com empresa_id resolvido) da importação.
+  async function promoverEmpresasParaClienteFinal(rowsImportados) {
+    const idsAtivos = [...new Set(
+      rowsImportados.filter(r => r.status === 'ativo' && r.empresa_id).map(r => r.empresa_id)
+    )]
+    if (idsAtivos.length === 0) return 0
+    let promovidas = 0
+    for (const id of idsAtivos) {
+      const emp = companies.find(c => c.id === id)
+      if (emp && emp.tipo === 'cliente_final') continue
+      const result = await updateCompany(id, { tipo: 'cliente_final' })
+      if (result?.ok !== false) promovidas++
+    }
+    return promovidas
+  }
+
   // Log de erros da importação em CSV — linha, número, CNPJ e cada motivo
   // de erro (uma coluna por erro, já que uma linha pode ter mais de um).
   function downloadErrorsCsv(rowResults, fileName) {
@@ -2379,7 +2404,11 @@ export default function Contratos() {
               updateImportJob(jobId, { current, subLabel: `${current} de ${total}…` })
             })
             if (result.ok) {
-              finishImportJob(jobId, { subLabel: `Concluído! ${result.count} contrato${result.count !== 1 ? 's' : ''} importado${result.count !== 1 ? 's' : ''}.` })
+              const promovidas = await promoverEmpresasParaClienteFinal(rows)
+              finishImportJob(jobId, {
+                subLabel: `Concluído! ${result.count} contrato${result.count !== 1 ? 's' : ''} importado${result.count !== 1 ? 's' : ''}.`
+                  + (promovidas > 0 ? ` ${promovidas} empresa(s) promovida(s) a Cliente Final.` : ''),
+              })
               setImportLogs(prev => [{ ...logEntry, imported: result.count }, ...prev])
               reloadPaged()
             } else {
