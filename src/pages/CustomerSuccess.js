@@ -38,14 +38,7 @@ function daysUntil(iso) {
 function LaerBadge({ stage }) {
   const cfg = LAER_STAGES.find(s => s.value === stage) || LAER_STAGES[0]
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '2px 9px', borderRadius: 20,
-      fontSize: 10, fontWeight: 700, fontFamily: 'var(--mono)',
-      background: cfg.bg, color: cfg.color,
-      border: `1px solid ${cfg.color}33`,
-      whiteSpace: 'nowrap',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 700, color: cfg.color, whiteSpace: 'nowrap' }}>
       {cfg.label}
     </span>
   )
@@ -55,14 +48,7 @@ function TouchBadge({ model }) {
   const cfg = TOUCH_MODELS.find(t => t.value === model)
   if (!cfg) return null
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center',
-      padding: '2px 8px', borderRadius: 20,
-      fontSize: 10, fontWeight: 600, fontFamily: 'var(--mono)',
-      background: `${cfg.color}18`, color: cfg.color,
-      border: `1px solid ${cfg.color}33`,
-      whiteSpace: 'nowrap',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 10, fontWeight: 600, color: cfg.color, whiteSpace: 'nowrap' }}>
       {cfg.label}
     </span>
   )

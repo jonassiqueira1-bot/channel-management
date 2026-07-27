@@ -38,8 +38,8 @@ const STATUS_CFG = {
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.aberto
   return (
-    <span style={{ padding: '3px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700,
-      color: cfg.color, background: cfg.bg, border: `1px solid ${cfg.border}` }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize: 11, fontWeight: 700, color: cfg.color }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
   )

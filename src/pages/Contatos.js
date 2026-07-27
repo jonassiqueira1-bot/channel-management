@@ -116,9 +116,16 @@ function ListSelect({ value, onChange, opcoes, setOpcoes, placeholder = 'Selecio
 function StatusBadge({ status, em_nutricao }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.lead
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
-      <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text }}>{cfg.label}</span>
-      {em_nutricao && <span style={{ fontSize:11, fontWeight:600, padding:'2px 8px', borderRadius:20, background:'#EDE9FE', color:'var(--accent)' }}>🌱 Em nutrição</span>}
+    <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+      <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, color:cfg.text }}>
+        <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.text, flexShrink:0 }} />
+        {cfg.label}
+      </span>
+      {em_nutricao && (
+        <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, color:'var(--accent)' }}>
+          🌱 Em nutrição
+        </span>
+      )}
     </div>
   )
 }

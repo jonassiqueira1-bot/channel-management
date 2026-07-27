@@ -159,9 +159,7 @@ const INCONSISTENCIA_OPTS = [
 function StatusBadge({ status }) {
   const cfg = STATUS_PAGAMENTO[status] || STATUS_PAGAMENTO.pendente
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px',
-      borderRadius:20, fontSize:11, fontWeight:700, background:cfg.bg, color:cfg.text,
-      whiteSpace:'nowrap', fontFamily:'var(--mono)' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, color:cfg.color, whiteSpace:'nowrap' }}>
       <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
@@ -169,9 +167,7 @@ function StatusBadge({ status }) {
 }
 function ProcessadoBadge({ processed }) {
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 10px',
-      borderRadius:20, fontSize:11, fontWeight:700, fontFamily:'var(--mono)',
-      background:processed?'#D1FAE5':'#F1F5F9', color:processed?'#065F46':'#64748B' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, color:processed?'#065F46':'#64748B' }}>
       {processed ? '✓ Gerado' : '— Pendente'}
     </span>
   )

@@ -197,9 +197,7 @@ function AlvoBadge({ tipoAlvo }) {
   const cfg = TIPOS_ALVO[tipoAlvo]
   if (!cfg) return null
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center',
-      fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 20,
-      background: cfg.badgeBg, color: cfg.badgeColor, border: `1px solid ${cfg.badgeBorder}` }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: 9, fontWeight: 700, color: cfg.badgeColor }}>
       {cfg.badgeLabel}
     </span>
   )

@@ -47,8 +47,8 @@ const APROV_STATUS_CFG = {
 function AprovStatusBadge({ status }) {
   const cfg = APROV_STATUS_CFG[status] || APROV_STATUS_CFG.aberto
   return (
-    <span style={{ padding:'3px 10px', borderRadius:6, fontSize:11, fontWeight:700,
-      color:cfg.color, background:cfg.bg, border:`1px solid ${cfg.border}` }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:700, color:cfg.color }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
       {cfg.label}
     </span>
   )
@@ -212,7 +212,7 @@ function PersonaTag({ personaId, personas }) {
   const p = personas.find(x => x.id === personaId || x.slug === personaId)
   if (!p) return <span style={{ fontSize:11, color:'var(--text-muted)' }}>{personaId}</span>
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, padding:'2px 8px', borderRadius:6, fontSize:11, fontWeight:600, color:p.cor, background:p.cor + '22' }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:11, fontWeight:600, color:p.cor }}>
       {p.label}
     </span>
   )
@@ -221,14 +221,14 @@ function PersonaTag({ personaId, personas }) {
 function StatusTag({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente
   const Icon = status === 'pago' ? CheckCircle2 : status === 'cancelado' ? XCircle : Clock
-  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'3px 9px', borderRadius:6, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={11} strokeWidth={2.5} />{cfg.label}</span>
+  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, color:cfg.color }}><Icon size={11} strokeWidth={2.5} />{cfg.label}</span>
 }
 
 const TIPO_ICON = { cadeia_repasse: Link2, escalonado: BarChart2, split: GitMerge, override: Crown, draw: CreditCard, acelerador: Rocket }
 function TipoBadge({ tipoId }) {
   const cfg = TIPO_CALCULO_CFG[tipoId] || TIPO_CALCULO_CFG.percentual_fixo
   const Icon = TIPO_ICON[tipoId] || Percent
-  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6, fontSize:11, fontWeight:600, color:cfg.color, background:cfg.bg }}><Icon size={10} strokeWidth={2.5} />{cfg.label}</span>
+  return <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11, fontWeight:600, color:cfg.color }}><Icon size={10} strokeWidth={2.5} />{cfg.label}</span>
 }
 
 // ─── PeriodPopover ────────────────────────────────────────────────────────────
@@ -694,9 +694,8 @@ function ElegibilidadePanel({ rule, ctx }) {
 }
 
 function InfoPill({ icon, label, color }) {
-  const rgb = color==='#10B981'?'16,185,129':color==='#F59E0B'?'245,158,11':'239,68,68'
   return (
-    <div style={{ display:'flex', alignItems:'center', gap:6, padding:'6px 12px', borderRadius:8, background:`rgba(${rgb},0.08)`, border:`1px solid rgba(${rgb},0.2)`, fontSize:11, fontWeight:600, color }}>
+    <div style={{ display:'flex', alignItems:'center', gap:6, fontSize:11, fontWeight:600, color }}>
       {icon}{label}
     </div>
   )

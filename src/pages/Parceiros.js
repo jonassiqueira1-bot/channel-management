@@ -454,15 +454,10 @@ function TabHabilitacoes({ parceiro_id }) {
   )
 }
 
-const STATUS_BADGE_DEFAULT = { bg: '#F3F4F6', text: '#374151' }
-
 function StatusPill({ label }) {
   if (!label) return null
   return (
-    <span style={{
-      fontSize: 10, fontWeight: 600, padding: '2px 8px', borderRadius: 20,
-      background: STATUS_BADGE_DEFAULT.bg, color: STATUS_BADGE_DEFAULT.text, whiteSpace: 'nowrap',
-    }}>
+    <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
       {label}
     </span>
   )

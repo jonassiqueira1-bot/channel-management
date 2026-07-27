@@ -125,8 +125,8 @@ const EMPTY_FORM = {
 function StatusBadge({ status }) {
   const cfg = STATUS_MAP[status] || STATUS_MAP.inativo
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block' }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block', flexShrink:0 }} />
       {cfg.label}
     </span>
   )
@@ -135,9 +135,7 @@ function StatusBadge({ status }) {
 function TipoBadge({ tipo }) {
   const cfg = TIPOS.find(t => t.value === tipo) || TIPOS[0]
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:20,
-      background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap',
-      ...(cfg.draft ? { border:'1px dashed #CBD5E1' } : {}) }}>
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
       {cfg.draft && <span style={{ fontSize:10 }}>✏️</span>}
       {cfg.label}
     </span>
@@ -2037,7 +2035,13 @@ function KpiCard({ label, value, accent, mono }) {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 const p = {
-  page:       { display:'flex', flexDirection:'column', gap:16, maxWidth:1200 },
+  // flex:1 + minHeight:0 — sem isso esse wrapper crescia pro tamanho do
+  // conteúdo (BrowseLayout inteiro, incl. todas as linhas da página) em vez
+  // de esticar até a altura do <main>, quebrando o scroll interno da tabela.
+  // Resultado: rodapé/paginação só aparecia rolando a página inteira até o
+  // fim, em vez de ficar fixo embaixo como nas outras telas (Pipeline,
+  // Ações, Contratos, que não usam esse wrapper).
+  page:       { display:'flex', flexDirection:'column', gap:16, maxWidth:1200, flex:1, minHeight:0 },
   pageHeader: { display:'flex', alignItems:'flex-start', justifyContent:'space-between' },
   breadcrumb: { display:'flex', alignItems:'center', gap:4, fontSize:12, fontFamily:'var(--mono)', color:'var(--text-muted)', marginBottom:4 },
   sep:        { color:'var(--border)' },

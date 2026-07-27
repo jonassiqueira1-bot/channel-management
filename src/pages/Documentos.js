@@ -27,11 +27,7 @@ function fmtBytes(b) {
 function CategoriaBadge({ categoria }) {
   const cfg = CATEGORIA_CFG[categoria] || CATEGORIA_CFG.outro
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
-      borderRadius: 20, fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)',
-      background: cfg.bg, color: cfg.text, border: `1px solid ${cfg.color}33`, whiteSpace: 'nowrap',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: cfg.text, whiteSpace: 'nowrap' }}>
       {cfg.icon} {cfg.label}
     </span>
   )
@@ -40,11 +36,7 @@ function CategoriaBadge({ categoria }) {
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.rascunho
   return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px',
-      borderRadius: 20, fontSize: 11, fontWeight: 700, fontFamily: 'var(--mono)',
-      background: cfg.bg, color: cfg.text, whiteSpace: 'nowrap',
-    }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 700, color: cfg.text, whiteSpace: 'nowrap' }}>
       <span style={{ width: 6, height: 6, borderRadius: '50%', background: cfg.dot, flexShrink: 0 }} />
       {cfg.label}
     </span>
