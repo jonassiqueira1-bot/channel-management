@@ -22,7 +22,7 @@ function migrarSlotLegado(cf, slot) {
   }]
 }
 
-function rowToContrato(row) {
+export function rowToContrato(row) {
   const cf = row.custom_fields || {}
   // Unifica os três slots legados em `itens` (novo formato unificado)
   const itensLegados = [
@@ -89,13 +89,17 @@ function contratoToRow(c, tenantId, branchId) {
   }
 }
 
-export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
+// `lazy: true` pula o fetch automático da tabela inteira no mount — pra
+// telas como Contratos.js, que usam useContractsPaged (rápido, paginado no
+// servidor) pra listagem e só precisam do array completo em segundo plano
+// (exportação, lookups). Mesmo padrão de useCompanies({ lazy: true }).
+export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK, { lazy = false } = {}) {
   const { session } = useAuth()
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
 
   const [contratos, setContratos] = useState(mockFallback)
-  const [loading,   setLoading]   = useState(true)
+  const [loading,   setLoading]   = useState(!lazy)
   const isMockMode                = useRef(true)
 
   const tenantId = profile?.tenant_id
@@ -134,7 +138,7 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
     setLoading(false)
   }, [session, activeBranchId])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { if (!lazy) load() }, [load, lazy])
 
   // Sync para localStorage — permite que Indicadores leiam os dados. Com
   // muitos contratos (ex: milhares) o JSON pode estourar a cota do

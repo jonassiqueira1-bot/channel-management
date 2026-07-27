@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useContracts } from '../hooks/useContracts'
+import { useContractsPaged } from '../hooks/useContractsPaged'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useProducts } from '../hooks/useProducts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
@@ -2026,7 +2027,18 @@ const impM = {
 
 // ─── Página Principal ─────────────────────────────────────────────────────────
 export default function Contratos() {
-  const { contratos, setContratos, save: saveContrato, remove: removeContrato, importMany } = useContracts()
+  // useContracts({lazy:true}) só serve pra exportação/lookups em segundo
+  // plano (carregado 400ms depois, sem competir com a busca paginada) —
+  // igual ao padrão de useCompanies em Empresas.js. A listagem em si vem de
+  // useContractsPaged, que busca/filtra/pagina direto no Postgres: com a
+  // base de dev passando de ~11 mil contratos (import de teste), carregar
+  // tudo de uma vez pra filtrar em JS travava a tela por dezenas de
+  // segundos mesmo com os índices certos no banco.
+  const { contratos, reload: reloadContratos, save: saveContrato, remove: removeContrato, bulkSetStatus, importMany } = useContracts(undefined, { lazy: true })
+  useEffect(() => {
+    const t = setTimeout(() => { reloadContratos() }, 400)
+    return () => clearTimeout(t)
+  }, [reloadContratos])
   const { registrar: log } = useAuditLog()
   const { produtos } = useProducts()
   const { profile } = useProfile()
@@ -2044,7 +2056,19 @@ export default function Contratos() {
 
   const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
 
-  const filtered = useMemo(() => {
+  // ── Paginação server-side da tabela (ver useContractsPaged.js) ───────────
+  const [browsePage, setBrowsePage]         = useState(1)
+  const [browsePageSize, setBrowsePageSize] = useLocalState('contratos_browse_ps', 20)
+  const pagedFilters = useMemo(() => ({ status: activeFilters.status || [] }), [activeFilters.status])
+  const { rows: pagedRows, total: pagedTotal, reload: reloadPaged } = useContractsPaged({
+    page: browsePage, pageSize: browsePageSize, search, filters: pagedFilters, sortBy: 'criado',
+  })
+  function changeBrowsePageSize(n) { setBrowsePageSize(n); setBrowsePage(1) }
+
+  // Exportação continua operando sobre o array completo (em segundo plano,
+  // via useContracts) — igual ao padrão de Empresas.js — já que precisa de
+  // TODOS os registros filtrados, não só a página visível.
+  const filteredParaExport = useMemo(() => {
     const q = search.toLowerCase()
     const statusFilter = activeFilters.status || []
     return contratos.filter(c => {
@@ -2056,8 +2080,13 @@ export default function Contratos() {
       return true
     })
   }, [contratos, search, activeFilters])
+  useEffect(() => { setBrowsePage(1) }, [search, pagedFilters])
 
-  const kpisNode = (data) => {
+  const kpisNode = () => {
+    // KPIs seguem vindo do array completo (carregado em segundo plano) —
+    // decorativos, não bloqueiam a lista; podem levar um instante a mais
+    // pra aparecer/atualizar do que a tabela em si.
+    const data = contratos
     const ativos           = data.filter(c => c.status === 'ativo').length
     const totalMRR         = data.filter(c => c.status === 'ativo').reduce((s, c) => s + [...(c.itens_mrr||[]), ...(c.itens_servico||[])].reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
     const totalAdesao      = data.filter(c => c.status === 'ativo').reduce((s, c) => s + (c.itens_adesao||[]).reduce((a,i) => a + (parseFloat(i.valor)||0), 0), 0)
@@ -2081,12 +2110,16 @@ export default function Contratos() {
   }
 
   async function handleSave(data, opts = {}) {
-    const anterior = contratos.find(c => c.id === data.id)
+    // `editando` é o registro que abriu o SlideOver — usa ele em vez de
+    // procurar em `contratos` (que agora carrega em segundo plano e pode
+    // ainda não ter esse contrato quando a base é grande).
+    const anterior = editando?.id === data.id ? editando : null
     const isNew = !anterior
     const ativando = !isNew && anterior?.status === 'rascunho' && data.status === 'ativo'
 
     const result = await saveContrato(data)
     const contratoFinal = { ...data, id: result?.data?.id || data.id }
+    reloadPaged()
 
     log(isNew ? 'criar' : 'editar', 'contrato', contratoFinal.id, {
       descricao: `Contrato ${isNew ? 'criado' : 'editado'}: ${data.numero || ''} — ${data.empresa_nome || ''}`,
@@ -2110,8 +2143,9 @@ export default function Contratos() {
   }
 
   async function handleDelete(id) {
-    const c = contratos.find(x => x.id === id)
+    const c = editando?.id === id ? editando : contratos.find(x => x.id === id)
     await removeContrato(id)
+    reloadPaged()
     log('excluir', 'contrato', id, { descricao: `Contrato excluído: ${c?.numero || id}` })
     setEditando(null)
   }
@@ -2126,7 +2160,7 @@ export default function Contratos() {
       return [...base, ...prods].join(';')
     }
     const header = [...cols, 'itens_adesao','itens_mrr','itens_servico'].join(';')
-    const csv  = bom + [header, ...filtered.map(toRow)].join('\n')
+    const csv  = bom + [header, ...filteredParaExport.map(toRow)].join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
     const a    = document.createElement('a')
     a.href = URL.createObjectURL(blob)
@@ -2208,7 +2242,12 @@ export default function Contratos() {
     <>
       <BrowseLayout
         modulo="contratos"
-        data={filtered}
+        data={pagedRows}
+        totalCount={pagedTotal}
+        page={browsePage}
+        onPageChange={setBrowsePage}
+        pageSize={browsePageSize}
+        onPageSizeChange={changeBrowsePageSize}
         columns={buildColumns(inadimplentesIds)}
         filters={FILTERS}
         activeFilters={activeFilters}
@@ -2227,17 +2266,27 @@ export default function Contratos() {
         ] : []}
         kpis={kpisNode}
         bulkActions={[
-          { label: 'Ativar',     onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'ativo' }     : c)) },
-          { label: 'Suspender',  onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'suspenso' }  : c)) },
-          { label: 'Encerrar',   onClick: ids => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, status: 'encerrado' } : c)) },
-          { label: 'Excluir',    onClick: ids => { if (window.confirm(`Excluir ${ids.length} contrato(s)?`)) setContratos(prev => prev.filter(c => !ids.includes(c.id))) } },
+          { label: 'Ativar',     onClick: async ids => { await bulkSetStatus(ids, 'ativo');     reloadPaged() } },
+          { label: 'Suspender',  onClick: async ids => { await bulkSetStatus(ids, 'suspenso');  reloadPaged() } },
+          { label: 'Encerrar',   onClick: async ids => { await bulkSetStatus(ids, 'encerrado'); reloadPaged() } },
+          { label: 'Excluir',    onClick: async ids => {
+              if (!window.confirm(`Excluir ${ids.length} contrato(s)?`)) return
+              await Promise.all(ids.map(id => removeContrato(id)))
+              reloadPaged()
+            } },
         ]}
         bulkEditFields={[
           { key: 'responsavel',  label: 'Responsável',   type: 'text' },
           { key: 'vigencia_fim', label: 'Fim de vigência', type: 'date' },
           { key: 'observacoes',  label: 'Observações',   type: 'textarea' },
         ]}
-        onBulkEdit={(ids, changes) => setContratos(prev => prev.map(c => ids.includes(c.id) ? { ...c, ...changes } : c))}
+        onBulkEdit={async (ids, changes) => {
+          await Promise.all(ids.map(id => {
+            const c = pagedRows.find(x => x.id === id) || contratos.find(x => x.id === id)
+            return c ? saveContrato({ ...c, ...changes }) : null
+          }))
+          reloadPaged()
+        }}
         renderCard={row => {
           const stCfg = STATUS_CONTRATO.find(s => s.value === row.status) || STATUS_CONTRATO[0]
           return (
@@ -2332,6 +2381,7 @@ export default function Contratos() {
             if (result.ok) {
               finishImportJob(jobId, { subLabel: `Concluído! ${result.count} contrato${result.count !== 1 ? 's' : ''} importado${result.count !== 1 ? 's' : ''}.` })
               setImportLogs(prev => [{ ...logEntry, imported: result.count }, ...prev])
+              reloadPaged()
             } else {
               finishImportJob(jobId, { status: 'error', subLabel: `Erro: ${result.message}` })
               setImportLogs(prev => [{ ...logEntry, imported: result.count || 0, erro: result.message }, ...prev])
