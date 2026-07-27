@@ -192,7 +192,7 @@ function ProgressBar({ executed, estimated, thin }) {
 
 function StatusBadge({ status }) {
   const cfg = STATUS_PROJETO[status] || STATUS_PROJETO.em_andamento
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: cfg.bg, color: cfg.text }}>{cfg.label}</span>
+  return <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
 }
 
 // ─── Célula de estatística do header do Drawer — dashboard denso, sem caixa
@@ -212,7 +212,7 @@ function HeaderStat({ label, value, dotColor }) {
 
 function CritBadge({ criticality }) {
   const cfg = CRITICALITY_CFG[criticality] || CRITICALITY_CFG.media
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: cfg.bg, color: cfg.text }}>{cfg.label}</span>
+  return <span style={{ fontSize: 10, fontWeight: 700, color: cfg.color }}>{cfg.label}</span>
 }
 
 // ─── Kanban card ──────────────────────────────────────────────────────────────

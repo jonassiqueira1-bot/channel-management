@@ -112,9 +112,8 @@ function novoId() { return Date.now() + Math.random() }
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.pendente
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6,
-      background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.dot }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.text, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.dot, flexShrink:0 }} />
       {cfg.label}
     </span>
   )
@@ -123,8 +122,7 @@ function StatusBadge({ status }) {
 function PrioridadeBadge({ prioridade }) {
   const cfg = PRIORIDADE_CFG[prioridade] || PRIORIDADE_CFG.media
   return (
-    <span style={{ fontSize:10, fontWeight:700, padding:'2px 7px', borderRadius:3,
-      background:cfg.bg, color:cfg.text, border:`1px solid ${cfg.color}44`, fontFamily:'var(--mono)' }}>
+    <span style={{ fontSize:10, fontWeight:700, color:cfg.color }}>
       {cfg.label.toUpperCase()}
     </span>
   )
@@ -135,8 +133,7 @@ function EntidadeTag({ tipo, nome }) {
   const icons = { oportunidade:'▷', empresa:'◈', contrato:'◉', contato:'◎', projeto:'◆' }
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:4, fontSize:11,
-      color:'var(--accent)', fontFamily:'var(--mono)', background:'var(--blue-bg)',
-      padding:'2px 7px', borderRadius:4, border:'1px solid rgba(30,58,95,0.12)', whiteSpace:'nowrap', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis' }}>
+      color:'var(--accent)', whiteSpace:'nowrap', maxWidth:160, overflow:'hidden', textOverflow:'ellipsis' }}>
       <span style={{ fontSize:10 }}>{icons[tipo]||'○'}</span>
       {nome}
     </span>

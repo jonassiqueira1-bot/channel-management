@@ -156,8 +156,8 @@ const EMPTY_FORM = {
 function StatusBadge({ status }) {
   const cfg = STATUS_CFG[status] || STATUS_CFG.inativo
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, padding:'2px 9px', borderRadius:6, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
-      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block' }} />
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+      <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, display:'inline-block', flexShrink:0 }} />
       {cfg.label}
     </span>
   )
@@ -165,16 +165,16 @@ function StatusBadge({ status }) {
 
 function RoleBadge({ role }) {
   const ROLE_COLORS = {
-    isv_admin:         { bg:'#EDE9FE', text:'#6D28D9' },
-    franchise_manager: { bg:'#DBEAFE', text:'#1E40AF' },
-    seller:            { bg:'#F1F5F9', text:'#475569' },
-    pre_sales:         { bg:'#FEF3C7', text:'#92400E' },
-    project_manager:   { bg:'#ECFDF5', text:'#065F46' },
+    isv_admin:         '#6D28D9',
+    franchise_manager: '#1E40AF',
+    seller:            '#475569',
+    pre_sales:         '#92400E',
+    project_manager:   '#065F46',
   }
-  const cfg = ROLE_COLORS[role] || { bg:'#F1F5F9', text:'#475569' }
+  const color = ROLE_COLORS[role] || '#475569'
   const label = ROLES[role]?.label || role
   return (
-    <span style={{ display:'inline-block', padding:'2px 8px', borderRadius:6, background:cfg.bg, color:cfg.text, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+    <span style={{ display:'inline-block', color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
       {label}
     </span>
   )
