@@ -131,9 +131,17 @@ export function useContracts(mockFallback = MOCK_CONTRATOS_FALLBACK) {
 
   useEffect(() => { load() }, [load])
 
-  // Sync para localStorage — permite que Indicadores leiam os dados
+  // Sync para localStorage — permite que Indicadores leiam os dados. Com
+  // muitos contratos (ex: milhares) o JSON pode estourar a cota do
+  // localStorage (5-10MB); sem o try/catch isso derrubava a tela inteira
+  // (erro sem tratamento dentro de um useEffect).
   useEffect(() => {
-    if (!loading) localStorage.setItem('crm:contratos_v2', JSON.stringify(contratos))
+    if (loading) return
+    try {
+      localStorage.setItem('crm:contratos_v2', JSON.stringify(contratos))
+    } catch (e) {
+      console.warn('[useContracts] não foi possível sincronizar com localStorage (provavelmente cota excedida):', e.message)
+    }
   }, [contratos, loading])
 
   const save = useCallback(async (c) => {
