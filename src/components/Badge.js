@@ -1,27 +1,29 @@
+// Sem pílula — texto colorido, sem fundo/borda. A cor semântica carrega o
+// significado (verde=ok, amarelo=atenção, vermelho=problema, azul=info,
+// cinza=neutro); o `dot` é opcional pra reforçar "status" quando fizer
+// sentido (ex: uma lista de registros), mas o badge em si nunca vira caixa.
 export default function Badge({
   children,
   variant,            // 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'accent'
   status,             // string do banco — faz o mapeamento automático
-  dot = false,        // mostra bolinha colorida antes do texto
+  dot = true,          // mostra bolinha colorida antes do texto
   style: extra = {},
 }) {
   const resolvedVariant = variant ?? statusMap[status] ?? 'neutral'
-  const { bg, color, border, dotColor } = tokens[resolvedVariant] ?? tokens.neutral
+  const { color } = tokens[resolvedVariant] ?? tokens.neutral
   const label = children ?? status
 
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
-      fontSize: 'var(--text-xs)', fontWeight: 500,
-      padding: '2px 8px', borderRadius: 6,
-      background: bg, color, border,
-      whiteSpace: 'nowrap', lineHeight: 1.6,
+      fontSize: 'var(--text-xs)', fontWeight: 600,
+      color, whiteSpace: 'nowrap', lineHeight: 1.4,
       ...extra,
     }}>
       {dot && (
         <span style={{
-          width: 5, height: 5, borderRadius: '50%',
-          background: dotColor ?? color, flexShrink: 0,
+          width: 6, height: 6, borderRadius: '50%',
+          background: color, flexShrink: 0,
         }} />
       )}
       {label}
@@ -40,11 +42,14 @@ const statusMap = {
   'Sem responsável': 'neutral', 'Não iniciado': 'neutral',
 }
 
+// Paleta semântica simples — mesmas 5 cores usadas no resto do sistema
+// (ver redesenho de Ações): verde=concluído, amarelo=atenção,
+// vermelho=problema, azul=navegação/info, cinza=secundário.
 const tokens = {
-  success: { bg: 'var(--success-bg)', color: '#065F46', border: '1px solid #A7F3D0', dotColor: 'var(--success)' },
-  warning: { bg: 'var(--warning-bg)', color: '#92400E', border: '1px solid #FDE68A', dotColor: 'var(--warning)' },
-  danger:  { bg: 'var(--danger-bg)',  color: '#991B1B', border: '1px solid #FECACA', dotColor: 'var(--danger)'  },
-  info:    { bg: 'var(--info-bg)',    color: '#1E40AF', border: '1px solid #BFDBFE', dotColor: 'var(--info)'    },
-  neutral: { bg: 'var(--surface2)',   color: 'var(--text-sec)', border: '1px solid var(--border)' },
-  accent:  { bg: 'var(--accent-lite)',color: 'var(--accent)',   border: '1px solid var(--accent-mid)' },
+  success: { color: 'var(--success, #059669)' },
+  warning: { color: 'var(--warning, #B45309)' },
+  danger:  { color: 'var(--danger, #DC2626)'  },
+  info:    { color: 'var(--info, #2563EB)'    },
+  neutral: { color: 'var(--text-muted)' },
+  accent:  { color: 'var(--accent)' },
 }
