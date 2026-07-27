@@ -468,14 +468,12 @@ const BADGE_TONES = {
   info:    { bg: '#DBEAFE',            color: '#1E40AF' },
   accent:  { bg: 'var(--accent-lite)', color: 'var(--accent)' },
 }
-export function TableBadge({ label, tone = 'neutral', dot = false }) {
+export function TableBadge({ label, tone = 'neutral', dot = true }) {
   const t = BADGE_TONES[tone] || BADGE_TONES.neutral
   return (
     <span style={{
       display: 'inline-flex', alignItems: 'center', gap: 5,
-      padding: '2px 8px', borderRadius: 'var(--radius-md, 6px)',
-      background: t.bg, color: t.color,
-      fontSize: 'var(--text-xs)', fontWeight: 600, whiteSpace: 'nowrap',
+      color: t.color, fontSize: 'var(--text-xs)', fontWeight: 600, whiteSpace: 'nowrap',
     }}>
       {dot && <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.color, flexShrink: 0 }} />}
       {label}
