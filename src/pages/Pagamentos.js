@@ -176,7 +176,7 @@ function ProcessadoBadge({ processed }) {
 
 // ─── ImportModal ──────────────────────────────────────────────────────────────
 const IMPORT_BASE_KEYS = new Set([
-  'contract_numero','company_nome','company_cnpj','num_documento','data_emissao','parcela',
+  'contract_numero','company_nome','company_cnpj','produto_nome','num_documento','data_emissao','parcela',
   'amount_cdu','amount_sms','amount_services','amount_discount',
   'reference_month','due_date','status','notes',
 ])
@@ -199,10 +199,16 @@ function parseCSVPag(text) {
   return { headers, rows }
 }
 
-function validateImportRowPag(row, cfFields=[]) {
+// `produtoMap` resolve por código ou nome exato — mesmo critério dos
+// importadores de Contratos e Provisões. Pagamento sem produto quebraria a
+// cadeia Oportunidade/Contrato/Provisão/Pagamento, então é obrigatório.
+function validateImportRowPag(row, cfFields=[], produtoMap) {
   const errors = []
   if (!row.contract_numero?.trim()) errors.push('contract_numero obrigatório')
   if (!row.company_nome?.trim())    errors.push('company_nome obrigatório')
+  if (!row.produto_nome?.trim())    errors.push('produto_nome obrigatório — pagamento sem produto não é permitido')
+  else if (!produtoMap.get(row.produto_nome.trim().toLowerCase()))
+    errors.push(`Produto não encontrado: "${row.produto_nome}"`)
   if (!row.reference_month || !/^\d{4}-\d{2}-\d{2}$/.test(row.reference_month))
     errors.push('reference_month inválido (AAAA-MM-DD)')
   if (row.status && !STATUS_PAGAMENTO[row.status])
@@ -220,13 +226,22 @@ function dupKeyPag(row) {
   return `${(row.contract_numero||'').toLowerCase()}|${periodo}|${doc || fallback}`
 }
 
-function ImportModal({ onClose, onImport, companies, addCompany, contratos, saveContrato, pagamentos, provisoes, saveProvisao }) {
+function ImportModal({ onClose, onImport, companies, addCompany, updateCompany, contratos, saveContrato, pagamentos, provisoes, saveProvisao, produtos }) {
   const { fieldById } = useFormLayout('payments')
   const customFormFields = useMemo(() => (
     Object.values(fieldById||{})
       .filter(f => f.entity === 'payments' && !IMPORT_BASE_KEYS.has(f.field_key))
       .map(f => ({ key: f.field_key, label: f.label, required: f.is_required||false }))
   ), [fieldById])
+
+  const produtoMap = useMemo(() => {
+    const m = new Map()
+    ;(produtos||[]).forEach(p => {
+      if (p.codigo) m.set(String(p.codigo).toLowerCase(), p)
+      if (p.nome) m.set(String(p.nome).toLowerCase(), p)
+    })
+    return m
+  }, [produtos])
 
   const allCols = useMemo(() => [
     ...Array.from(IMPORT_BASE_KEYS),
@@ -251,6 +266,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
   const [jobId, setJobId] = useState(null)
   const [empresasCriadas, setEmpresasCriadas] = useState(0)
   const [contratosCriados, setContratosCriados] = useState(0)
+  const [empresasPromovidas, setEmpresasPromovidas] = useState(0)
   const jobs = useImportJobs()
   const job = jobs.find(j => j.id === jobId)
   const [reconcData, setReconcData] = useState(null)    // { matched, unmatched, months }
@@ -259,7 +275,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
 
   function handleDownloadTemplate() {
     const cfEx = customFormFields.map(() => '')
-    const example = ['CTR-2026-001','Nexus Tech','12.345.678/0001-99','NF100200','2026-07-01','1/1','890','47','450','0','2026-07-01','2026-07-31','pendente','', ...cfEx]
+    const example = ['CTR-2026-001','Nexus Tech','12.345.678/0001-99','Produto SaaS','NF100200','2026-07-01','1/1','890','47','450','0','2026-07-01','2026-07-31','pendente','', ...cfEx]
     const csv = ['﻿'+allCols.join(';'), example.slice(0,allCols.length).join(';')].join('\n')
     const blob = new Blob([csv], { type:'text/csv;charset=utf-8;' })
     const url  = URL.createObjectURL(blob)
@@ -274,7 +290,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       const { rows } = parseCSVPag(e.target.result)
       const seenInFile = new Set()
       const rowResults = rows.map((row, i) => {
-        const errors    = validateImportRowPag(row, customFormFields)
+        const errors    = validateImportRowPag(row, customFormFields, produtoMap)
         const key       = dupKeyPag(row)
         const dupInFile = seenInFile.has(key)
         const dupInDB   = existingKeys.has(key)
@@ -319,14 +335,47 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       return null
     }
 
-    async function resolveContrato(numero, companyId, companyNome) {
+    // Slot do produto — mesmo mapeamento de Contratos.js/TabProvisoes.js:
+    // saas → mrr; licença/hardware → adesão; serviço/consultoria → serviço.
+    function slotDoProduto(produto) {
+      const t = (produto?.tipo || '').toLowerCase()
+      if (t === 'saas') return 'mrr'
+      if (t === 'servico' || t === 'consultoria') return 'servico'
+      return 'adesao'
+    }
+
+    function buildItemDoPagamento(row) {
+      const produto = produtoMap.get((row.produto_nome||'').trim().toLowerCase())
+      const valor = (parseFloat(row.amount_cdu)||0) + (parseFloat(row.amount_sms)||0) + (parseFloat(row.amount_services)||0)
+      const item = {
+        produto_id: produto?.id || null, nome: produto?.nome || row.produto_nome,
+        tipo_produto: produto?.tipo || null, quantidade: 1,
+        valor: valor || produto?.preco || 0, tabela: produto?.preco || null,
+        desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo',
+        vencimento_primeiro_pagamento: '',
+      }
+      return { item, slot: slotDoProduto(produto), produto }
+    }
+
+    // Contrato criado automaticamente pela importação de Pagamentos nunca
+    // pode ficar sem produto — mesma regra de Contratos/Provisões. Usa o
+    // produto/valor da própria linha de pagamento como item do contrato.
+    async function resolveContrato(numero, companyId, companyNome, row) {
       const key = numero.toLowerCase()
       if(ctrByNum[key]) return ctrByNum[key].id
       if(createdCtr[key]) return createdCtr[key]
+      const { item, slot } = buildItemDoPagamento(row)
+      const itensPorSlot = { adesao: [], mrr: [], servico: [] }
+      itensPorSlot[slot] = [item]
       const result = await saveContrato({
         id: 'imp_ctr_'+Date.now()+'_'+Math.random().toString(36).slice(2),
-        numero, company_id:companyId, company_nome:companyNome,
+        // saveContrato (useContracts) espera empresa_id/empresa_nome — não
+        // company_id/company_nome. Com os nomes errados, o contrato salvava
+        // sempre com o vínculo de empresa vazio (bug pré-existente, achado
+        // ao mexer aqui pra adicionar o produto obrigatório).
+        numero, empresa_id:companyId, empresa_nome:companyNome,
         status:'ativo', tipo:'', criado:new Date().toISOString().slice(0,10),
+        itens:[item], itens_adesao:itensPorSlot.adesao, itens_mrr:itensPorSlot.mrr, itens_servico:itensPorSlot.servico,
       })
       if(result?.ok) {
         const id = result?.data?.id || key
@@ -337,13 +386,16 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
 
     const hoje = new Date().toISOString().slice(0, 10)
     const importRows = []
+    const empresasTocadas = new Set()
     for (let i=0; i<okRows.length; i++) {
       const { row } = okRows[i]
       updateImportJob(id, { current:i+1, subLabel:`${row.company_nome} — ${row.contract_numero}` })
       setEmpresasCriadas(empresasCriadasCount)
       setContratosCriados(contratosCriadosCount)
       const empresa_id     = await resolveEmpresa(row.company_nome, row.company_cnpj)
-      const contract_id    = await resolveContrato(row.contract_numero, empresa_id, row.company_nome)
+      const contract_id    = await resolveContrato(row.contract_numero, empresa_id, row.company_nome, row)
+      if (empresa_id) empresasTocadas.add(empresa_id)
+      const { item } = buildItemDoPagamento(row)
       const custom_fields  = {}
       customFormFields.forEach(f => { if(row[f.key]!==undefined) custom_fields[f.key]=row[f.key] })
       const cdu=parseFloat(row.amount_cdu)||0, sms=parseFloat(row.amount_sms)||0
@@ -353,6 +405,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
         id: 'imp_'+Date.now()+'_'+Math.random().toString(36).slice(2),
         contract_id, contract_numero:row.contract_numero,
         company_id:empresa_id, company_nome:row.company_nome,
+        produto_id: item.produto_id, produto_nome: item.nome, itens: [item],
         num_documento:row.num_documento||null, data_emissao:row.data_emissao||null,
         parcela:row.parcela||'1/1',
         amount_cdu:cdu, amount_sms:sms, amount_services:services, amount_discount:discount,
@@ -364,6 +417,17 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
         criado:hoje,
       })
     }
+
+    // Toda empresa tocada aqui ganhou (ou já tinha) um contrato ativo — vira
+    // Cliente Final, igual aos importadores de Contratos e Provisões.
+    let promovidasCount = 0
+    for (const eid of empresasTocadas) {
+      const emp = companies.find(c => c.id === eid)
+      if (emp && emp.tipo === 'cliente_final') continue
+      const r = await updateCompany(eid, { tipo: 'cliente_final' })
+      if (r?.ok !== false) promovidasCount++
+    }
+    setEmpresasPromovidas(promovidasCount)
 
     updateImportJob(id, { current:total, subLabel:'Conciliando provisões…' })
     setEmpresasCriadas(empresasCriadasCount)
@@ -416,7 +480,7 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
       await saveProvisao({ ...p, inconsistencia_status: 'inconsistencia_pendente', inconsistencia: true })
     }
     setReconciling(false)
-    if (jobId) finishImportJob(jobId, { subLabel: `Concluído!${empresasCriadas > 0 ? ` · ${empresasCriadas} empresa(s) criada(s)` : ''}${contratosCriados > 0 ? ` · ${contratosCriados} contrato(s) criado(s)` : ''}` })
+    if (jobId) finishImportJob(jobId, { subLabel: `Concluído!${empresasCriadas > 0 ? ` · ${empresasCriadas} empresa(s) criada(s)` : ''}${contratosCriados > 0 ? ` · ${contratosCriados} contrato(s) criado(s)` : ''}${empresasPromovidas > 0 ? ` · ${empresasPromovidas} promovida(s) a Cliente Final` : ''}` })
     setStep('done')
   }
 
@@ -461,6 +525,12 @@ function ImportModal({ onClose, onImport, companies, addCompany, contratos, save
               </div>
               <div style={{ fontSize:11, color:'var(--text-muted)', fontFamily:'var(--mono)', overflowX:'auto', whiteSpace:'nowrap' }}>
                 {allCols.join(' · ')}
+              </div>
+              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:8, lineHeight:1.6 }}>
+                <b>produto_nome é obrigatório</b> e precisa bater com um produto cadastrado (código ou nome exato)
+                — pagamento sem produto não é permitido. Empresa/contrato resolvidos e criados automaticamente
+                quando não existem (contrato sempre com o produto da linha como item); empresa nova ou já
+                cadastrada com contrato ativo vira tipo <b>Cliente Final</b>.
               </div>
               {customFormFields.length>0 && (
                 <div style={{ marginTop:6, fontSize:11, color:'var(--accent)' }}>
@@ -1546,7 +1616,7 @@ export default function Pagamentos() {
   const { provisoes, save: saveProvisao } = useProvisoes()
   const { registrar: log } = useAuditLog()
   const { contratos, save: saveContrato } = useContracts()
-  const { companies, add: addCompany } = useCompanies()
+  const { companies, add: addCompany, update: updateCompany } = useCompanies()
   const { savePayment: saveCommissionPayment, rules: commissionRules, personas: commissionPersonas } = useCommissions()
   const { projetos } = useProjects()
   const { membros: oppMembros } = useOppMembros()
@@ -2533,11 +2603,13 @@ export default function Pagamentos() {
           onImport={handleImport}
           companies={companies}
           addCompany={addCompany}
+          updateCompany={updateCompany}
           contratos={contratos}
           saveContrato={saveContrato}
           pagamentos={pagamentos}
           provisoes={provisoes}
           saveProvisao={saveProvisao}
+          produtos={produtosReais}
         />
       )}
 
