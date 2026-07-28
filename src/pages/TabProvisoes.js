@@ -452,6 +452,15 @@ const EMPTY_PROV = {
   produto_id: null, produto_nome: '',
   num_documento: '', data_emissao: '', parcela: '',
   inconsistencia_status: 'sem_inconsistencia',
+  // Mais de um produto por provisão — mesma estrutura de itens usada em
+  // Contratos/Pagamentos (ver TabFaturas.js / usePayments.js).
+  itens: [],
+}
+
+function tipoLabelCurto(tipo) {
+  if (tipo === 'saas')    return 'MENSAL'
+  if (tipo === 'licenca') return 'LICENÇA'
+  return 'SERVIÇO'
 }
 
 const INCONSISTENCIA_OPTS = [
@@ -648,6 +657,9 @@ function NovaProvisaoForm({ form, onChange }) {
   const prodList = produtosRaw.filter(p => p.status === 'ativo')
   function set(k, v) { onChange({ ...form, [k]: v }) }
 
+  const [itemQuery, setItemQuery] = useState('')
+  const [itemOpen,  setItemOpen]  = useState(false)
+
   const contratosDisponiveis = contratos.filter(c =>
     c.status === 'ativo' &&
     (!form.company_id || String(c.empresa_id) === String(form.company_id))
@@ -664,14 +676,36 @@ function NovaProvisaoForm({ form, onChange }) {
         .filter(Boolean)
     : []
 
-  // Lista de produtos do SearchSelect: do contrato se houver, senão todos ativos
-  const prodOpcoes = produtosDoContrato.length > 0 ? produtosDoContrato : prodList
+  const itens = form.itens || []
+  const idsJaAdicionados = itens.map(i => String(i.produto_id))
+  // Lista de produtos disponíveis pra adicionar: do contrato se houver, senão todos ativos
+  const opcoesDisponiveis = (produtosDoContrato.length > 0 ? produtosDoContrato : prodList)
+    .filter(p => !idsJaAdicionados.includes(String(p.id)))
 
-  const cdu      = parseFloat(form.amount_cdu)      || 0
-  const sms      = parseFloat(form.amount_sms)      || 0
-  const services = parseFloat(form.amount_services) || 0
+  const cdu      = itens.filter(i => i.tipo_produto === 'licenca').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+  const sms      = itens.filter(i => i.tipo_produto === 'saas').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+  const services = itens.filter(i => !['licenca','saas'].includes(i.tipo_produto)).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
   const discount = parseFloat(form.amount_discount) || 0
   const liquido  = Math.max(0, cdu + sms + services - discount)
+
+  function addItemProv(prod) {
+    const itemContrato = (contratoSelecionado?.itens || []).find(i => String(i.produto_id) === String(prod.id))
+    onChange({
+      ...form,
+      itens: [...itens, {
+        produto_id: prod.id, nome: prod.nome, tipo_produto: prod.tipo || null,
+        quantidade: 1, valor: itemContrato ? parseFloat(itemContrato.valor)||0 : parseFloat(prod.preco)||0,
+        desconto_pct: 0,
+      }],
+    })
+    setItemQuery(''); setItemOpen(false)
+  }
+  function removeItemProv(idx) {
+    onChange({ ...form, itens: itens.filter((_, i) => i !== idx) })
+  }
+  function updateItemValorProv(idx, valor) {
+    onChange({ ...form, itens: itens.map((it, i) => i === idx ? { ...it, valor } : it) })
+  }
 
   function numVal(k) {
     return {
@@ -711,55 +745,74 @@ function NovaProvisaoForm({ form, onChange }) {
             placeholder={form.company_id ? 'Selecionar contrato…' : 'Selecione a empresa primeiro'}
             onChange={id => {
               const ctr = contratosDisponiveis.find(c => String(c.id) === id)
-              const itensAtivos = (ctr?.itens || [])
-                .map(item => prodList.find(p => String(p.id) === String(item.produto_id)))
-                .filter(Boolean)
-              // Auto-preenche produto se houver exatamente um
-              const autoProd = itensAtivos.length === 1 ? itensAtivos[0] : null
               onChange({
                 ...form,
                 contract_id:     id || null,
                 contract_numero: ctr?.numero || '',
-                // Limpa produto se o contrato mudou e havia seleção anterior incompatível
-                produto_id:   autoProd ? String(autoProd.id) : '',
-                produto_nome: autoProd ? autoProd.nome       : '',
-                ...(autoProd ? valorPorTipo(autoProd) : {}),
+                // Contrato mudou — a lista de itens anterior pode não pertencer a ele.
+                itens: [],
               })
-            }}
-          />
-        </FormField>
-        <FormField label="Produto">
-          <SearchSelect
-            options={prodOpcoes.map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))}
-            value={form.produto_id ? String(form.produto_id) : ''}
-            placeholder={contratoSelecionado && produtosDoContrato.length === 0
-              ? 'Sem produtos no contrato'
-              : 'Selecionar produto…'}
-            onChange={id => {
-              const prod = prodOpcoes.find(p => String(p.id) === id)
-              onChange({ ...form, produto_id: id || null, produto_nome: prod?.nome || '', ...valorPorTipo(prod) })
             }}
           />
         </FormField>
       </FormGrid>
 
+      <FormSection label="Produtos" />
+      <div style={{ margin:'0 24px 4px', border:'1px solid var(--border)', borderRadius:9, overflow:'hidden' }}>
+        {itens.map((item, idx) => (
+          <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 90px 28px', gap:6, alignItems:'center',
+            padding:'8px 12px', borderBottom: idx < itens.length - 1 ? '1px solid var(--border)' : 'none', background:'var(--surface)' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, overflow:'hidden' }}>
+              <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 6px', borderRadius:4,
+                whiteSpace:'nowrap', flexShrink:0, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)' }}>
+                {tipoLabelCurto(item.tipo_produto)}
+              </span>
+              <span style={{ fontSize:12.5, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.nome}</span>
+            </div>
+            <input type="number" min="0" step="0.01"
+              style={{ width:'100%', padding:'4px 6px', borderRadius:5, border:'1px solid var(--border)', fontSize:11,
+                fontFamily:'var(--mono)', fontWeight:600, color:'var(--text)', background:'var(--surface2)', boxSizing:'border-box', outline:'none' }}
+              value={item.valor} onChange={e => updateItemValorProv(idx, e.target.value)} placeholder="0" />
+            <button type="button" onClick={() => removeItemProv(idx)}
+              style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:13, padding:0, lineHeight:1 }}>✕</button>
+          </div>
+        ))}
+        <div style={{ position:'relative', padding:'6px 10px', background:'var(--surface2)',
+          borderTop: itens.length > 0 ? '1px solid var(--border)' : 'none' }}>
+          <input
+            style={{ width:'100%', padding:'5px 10px', borderRadius:6, border:'1px dashed var(--border)', fontSize:12,
+              color:'var(--text-muted)', background:'transparent', outline:'none', boxSizing:'border-box', fontFamily:'var(--font)' }}
+            placeholder={produtosDoContrato.length > 0 ? '+ Adicionar produto do contrato…' : '+ Adicionar produto…'}
+            value={itemQuery}
+            onChange={e => { setItemQuery(e.target.value); setItemOpen(true) }}
+            onFocus={() => setItemOpen(true)}
+          />
+          {itemOpen && opcoesDisponiveis.length > 0 && (
+            <div style={{ position:'absolute', top:'calc(100% + 2px)', left:10, right:10, background:'var(--surface)',
+              border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow-md)', zIndex:200, overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
+              {opcoesDisponiveis
+                .filter(p => !itemQuery || p.nome.toLowerCase().includes(itemQuery.toLowerCase()))
+                .map(p => (
+                  <button type="button" key={p.id}
+                    style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 12px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}
+                    onMouseDown={() => addItemProv(p)}>
+                    <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 6px', borderRadius:4,
+                      whiteSpace:'nowrap', flexShrink:0, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)' }}>
+                      {tipoLabelCurto(p.tipo)}
+                    </span>
+                    <span style={{ flex:1 }}>
+                      <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{p.nome}</div>
+                      <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{p.codigo} · {fmtMoeda(p.preco)}</div>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       <FormSection label="Valores" />
       <div style={{ padding:'0 24px 16px', display:'flex', flexDirection:'column', gap:12 }}>
-        <FormGrid cols={3}>
-          {[
-            { k:'amount_cdu',      label:'Licença' },
-            { k:'amount_sms',      label:'Mensalidade' },
-            { k:'amount_services', label:'Serviços' },
-          ].map(({ k, label }) => (
-            <FormField key={k} label={label}>
-              <div style={{ position:'relative' }}>
-                <span style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)',
-                  fontSize:11, fontWeight:600, color:'var(--text-muted)', pointerEvents:'none', fontFamily:'var(--mono)' }}>R$</span>
-                <input {...numVal(k)} className="so-field" style={rInp} />
-              </div>
-            </FormField>
-          ))}
-        </FormGrid>
         <FormField label="Desconto">
           <div style={{ position:'relative' }}>
             <span style={{ position:'absolute', left:8, top:'50%', transform:'translateY(-50%)',
@@ -870,13 +923,21 @@ export default function TabProvisoes() {
     const form = novaForm
     if (!form) return
     if (!form.company_nome?.trim()) return alert('Empresa é obrigatória')
+    if (!(form.itens||[]).length) return alert('Adicione ao menos um produto')
     setSavingNova(true)
+    const itens = form.itens
+    const primeiroItem = itens[0]
+    // Soma os itens nos 3 baldes por tipo — mesma distribuição de Pagamentos/Contratos.
+    const amount_cdu      = itens.filter(i => i.tipo_produto === 'licenca').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    const amount_sms      = itens.filter(i => i.tipo_produto === 'saas').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    const amount_services = itens.filter(i => !['licenca','saas'].includes(i.tipo_produto)).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    const amount_discount = Number(form.amount_discount) || 0
     const novo = {
       ...form,
-      amount_total_net: Math.max(0,
-        (Number(form.amount_cdu)||0) + (Number(form.amount_sms)||0) +
-        (Number(form.amount_services)||0) - (Number(form.amount_discount)||0)
-      ),
+      produto_id:   primeiroItem.produto_id || null,
+      produto_nome: primeiroItem.nome || '',
+      amount_cdu, amount_sms, amount_services, amount_discount,
+      amount_total_net: Math.max(0, amount_cdu + amount_sms + amount_services - amount_discount),
     }
     const res = await save(novo)
     setSavingNova(false)
