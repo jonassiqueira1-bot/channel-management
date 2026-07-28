@@ -64,6 +64,20 @@ Dentro do projeto, registre problemas e impedimentos com descrição e anexos.
 
 Clique em **Importar .xml** dentro do projeto para importar tarefas e fases de um arquivo exportado pelo MS Project.
 
+### Abas internas do projeto
+
+Ao abrir um projeto, um painel lateral organiza o detalhe em abas:
+
+| Aba | O que é |
+|-----|---------|
+| Projeto | Dados gerais, fase atual, criticidade e equipe |
+| Cronograma MIT | Tarefas e datas organizadas pela metodologia MIT, com suporte a importação do MS Project |
+| Proposta | Proposta comercial vinculada ao projeto (mesma origem da aba **Propostas**) |
+| Timesheet | Lançamento de horas trabalhadas por membro da equipe |
+| Financeiro | Custos, receita contratada e margem do projeto |
+| Bloqueios | Issues/impedimentos registrados, com status aberto/resolvido |
+| Documentos | Anexos vinculados ao projeto |
+
 ---
 
 ## Aba: Propostas

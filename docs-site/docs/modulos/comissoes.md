@@ -10,7 +10,7 @@ title: Comissões
 
 ## O que é
 
-Gerencia as regras de cálculo de comissões e o histórico de pagamentos de repasse aos vendedores e parceiros. As comissões são geradas automaticamente ao confirmar recebimentos em Pagamentos.
+Gerencia as regras de cálculo de comissão/repasse e o histórico de lançamentos pagos a vendedores, parceiros e demais beneficiários. Os lançamentos são gerados automaticamente ao confirmar um recebimento em **Pagamentos**. A tela reúne três abas: **Acompanhamento de Repasses**, **Aprovação de Lotes** e **Regras de Configuração**.
 
 ---
 
@@ -23,36 +23,27 @@ Gerencia as regras de cálculo de comissões e o histórico de pagamentos de rep
 
 ---
 
-## O que mostra
+## Conceito: Personas
 
-Duas visões: **Regras de comissão** e **Lançamentos de repasse**.
-
-**Regras:** Nome, modelo de cálculo (individual/equipe), percentual e condições de elegibilidade.
-
-**Lançamentos:** Beneficiário, contrato, valor, período e status (Calculado / Aprovado / Pago).
+Em vez de vincular uma regra direto a um usuário, a comissão é calculada por **persona** — um papel de beneficiário (ex: Executivo de Contas, Coordenador, Parceiro) configurado em **Personas**, cada uma associada opcionalmente a um usuário ou parceiro específico. Isso permite que uma mesma regra distribua percentuais diferentes entre várias personas na mesma venda (ex: 60% pro vendedor, 20% pro coordenador, 20% pro parceiro).
 
 ---
 
-## Como usar
+## Aba: Acompanhamento de Repasses
 
-### Criar regra de comissão
+### O que mostra
 
-1. Clique em **Nova Regra de Comissão**
-2. Configure o modelo de cálculo:
-   - **Escala individual** — percentual por faixa de valor
-   - **Bônus de equipe** — percentual adicional por meta de equipe
-3. Defina condições de elegibilidade (produtos, funis, etapas)
-4. Salva
+Lista de lançamentos de comissão com: Beneficiário/Persona, contrato, valor, período e status (Calculado → Aprovado → Pago).
 
-### Aprovar e pagar comissão
+### Como usar
 
-No lançamento gerado após confirmação de pagamento:
-- **Aprovar** → status muda para Aprovado
-- **Marcar como pago** → status muda para Pago
+- Lançamentos são gerados automaticamente ao confirmar um pagamento em **Pagamentos**
+- É possível criar um lançamento manual selecionando a persona, a regra aplicável e o valor
+- **Aprovar** individualmente muda o status para Aprovado; **Marcar como pago** muda para Pago
 
 ---
 
-## Aba: Aprovação em Lote
+## Aba: Aprovação de Lotes
 
 Permite revisar e aprovar comissões de múltiplos beneficiários de uma vez, agrupadas por período.
 
@@ -81,20 +72,37 @@ Lista de lotes de comissão com: Período, Beneficiário, Total calculado, Statu
 
 Define as regras de cálculo de comissão aplicadas aos lançamentos gerados em Pagamentos.
 
+### Fórmula de cálculo
+
+Cada combinação (produto ou categoria) de uma regra define três percentuais que se multiplicam em cascata:
+
+```
+Base de cálculo = Valor líquido × Repasse distribuidor (%) × Base de cálculo (%)
+Comissão        = Base de cálculo × % sobre a base
+```
+
+Dentro de uma combinação, o percentual "% sobre a base" pode ainda ser distribuído entre as **personas ativas**, com um percentual próprio por persona (ex: CDU/SMS/Serviços).
+
+### Modelos adicionais por combinação
+
+| Modelo | Uso |
+|--------|-----|
+| **Escala individual** | Percentual de comissão escalonado por faixa de valor recebido |
+| **Escala de equipe** | Bônus adicional por faixa, aplicado quando a equipe atinge uma meta coletiva |
+
 ### Como usar
 
 1. Clique em **Nova Regra**
-2. Defina o nome e o modelo de cálculo:
-   - **Escala individual** — percentual por faixa de valor recebido
-   - **Bônus de equipe** — percentual adicional ao atingir meta coletiva
-3. Configure condições de elegibilidade (produtos, funis, etapas do pipeline)
-4. Vincule a regra aos usuários em **Configurações → Usuários**
+2. Defina o nome e as condições de elegibilidade (produtos/categorias, funis, etapas)
+3. Para cada combinação de produto/categoria, configure: percentual de repasse do distribuidor, base de cálculo, percentual sobre a base e a distribuição entre personas
+4. Configure escalas individual e/ou de equipe, se aplicável
+5. Vincule as personas aos usuários/parceiros correspondentes em **Personas**
 
 ---
 
 ## Regras de negócio
 
-- Regras de comissão são vinculadas a usuários em `/settings/usuarios`
 - Lançamentos são gerados automaticamente ao confirmar recebimento em Pagamentos
 - O fluxo é: Calculado → Aprovado → Pago
 - A aprovação em lote não impede ajustes individuais antes da aprovação
+- Uma persona sem usuário/parceiro vinculado ainda pode receber lançamentos — fica identificada só pelo nome da persona até ser associada
