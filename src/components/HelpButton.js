@@ -1,10 +1,11 @@
-import { HelpCircle } from 'lucide-react'
+import { LifeBuoy } from 'lucide-react'
 import { DOCS_BASE_URL } from '../config/docs'
 
 // Acesso global e discreto à documentação de apoio (docs.boostly.com.br) —
 // presente em toda tela, fora da sidebar, no mesmo padrão de botão flutuante
-// circular usado por AlertsInbox/ImportProgressWidget. Fica no canto oposto
-// ao ImportProgressWidget (bottom-right) para nunca colidir com ele.
+// circular usado pelo sino de Pendências (AlertsInbox): mesmo tamanho/cores,
+// posicionado ao lado dele no canto superior direito — nunca sobre a sidebar
+// nem sobre o ImportProgressWidget (bottom-right).
 export default function HelpButton() {
   return (
     <a
@@ -14,7 +15,7 @@ export default function HelpButton() {
       title="Ajuda e documentação"
       aria-label="Ajuda e documentação"
       style={{
-        position: 'fixed', bottom: 12, left: 12, zIndex: 60,
+        position: 'fixed', top: 8, right: 44, zIndex: 60,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         width: 28, height: 28, borderRadius: '50%',
         background: 'var(--surface)',
@@ -23,7 +24,7 @@ export default function HelpButton() {
         cursor: 'pointer', textDecoration: 'none',
       }}
     >
-      <HelpCircle size={14} strokeWidth={1.75} color="var(--text-muted)" />
+      <LifeBuoy size={14} strokeWidth={1.75} color="var(--text-muted)" />
     </a>
   )
 }
