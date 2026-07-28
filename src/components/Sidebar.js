@@ -7,14 +7,12 @@ import { usePermissions } from '../hooks/usePermissions'
 import { useLocalState } from '../hooks/useLocalState'
 import { useBranchContext } from '../contexts/BranchContext'
 import { PAPEIS_ROTAS } from '../data/mockPerfis'
-import { DOCS_BASE_URL } from '../config/docs'
 import {
   LayoutDashboard, Users, TrendingUp, Zap, CheckSquare, Target, Network,
   Building2, UserCircle, FileText, CreditCard, FolderKanban,
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw, GitBranch, Menu,
-  LifeBuoy,
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -140,59 +138,6 @@ function DropdownItems({ branches, activeBranch, setActiveBranch, onClose }) {
         </button>
       ))}
     </>
-  )
-}
-
-// Mesmo padrão de dropdown do BranchSelector (abre pra cima, já que fica no
-// rodapé da sidebar) — reúne Documentação e Suporte (Crisp) num só item,
-// extensível pra novas opções sem precisar de mais espaço na sidebar.
-function AjudaMenu({ collapsed }) {
-  const [open, setOpen] = useState(false)
-  const ref = useRef(null)
-
-  useEffect(() => {
-    if (!open) return
-    function onClickOutside(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
-    document.addEventListener('mousedown', onClickOutside)
-    return () => document.removeEventListener('mousedown', onClickOutside)
-  }, [open])
-
-  const itemStyle = {
-    width: '100%', display: 'flex', alignItems: 'center', gap: 8,
-    padding: '9px 12px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
-    background: 'none', color: 'var(--sb-muted)', fontSize: 12, fontWeight: 400,
-    textAlign: 'left', textDecoration: 'none',
-  }
-
-  return (
-    <div ref={ref} style={{ position: 'relative', margin: collapsed ? '1px 6px' : '1px 8px' }}>
-      <button
-        title={collapsed ? 'Ajuda' : undefined}
-        onClick={() => setOpen(v => !v)}
-        onMouseDown={e => e.preventDefault()}
-        style={{
-          ...s.navItem,
-          ...(collapsed ? { ...s.navItemCollapsed, justifyContent: 'center' } : {}),
-          width: '100%', background: 'none', border: 'none',
-        }}
-      >
-        <LifeBuoy size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
-        {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Ajuda</span>}
-      </button>
-      {open && (
-        <div style={{
-          position: 'absolute', bottom: '100%', zIndex: 400, minWidth: 190,
-          left: collapsed ? '100%' : 0, marginLeft: collapsed ? 6 : 0, marginBottom: collapsed ? 0 : 4,
-          background: 'var(--sb-bg)', border: '1px solid var(--sb-border)', borderRadius: 8,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.3)', overflow: 'hidden', padding: 4,
-        }}>
-          <a href={DOCS_BASE_URL} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)} style={itemStyle}>
-            <BookOpen size={14} strokeWidth={1.75} />
-            Documentação
-          </a>
-        </div>
-      )}
-    </div>
   )
 }
 
@@ -570,9 +515,8 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
         {navScroll.bottom && <div style={s.navFadeBottom} />}
       </div>
 
-      {/* ── Bottom: Ajuda + Filial + Configurações + Recolher + Sair ── */}
+      {/* ── Bottom: Filial + Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
-        <AjudaMenu collapsed={collapsed} />
         <BranchSelector collapsed={collapsed} />
         <NavLink
           to={settingsTarget}

@@ -4,10 +4,16 @@ import { NavLink, Outlet, Navigate, useMatch, useResolvedPath, useNavigate } fro
 import { useProfile } from '../hooks/useProfile'
 import { usePermissions } from '../hooks/usePermissions'
 import { findRotaPermissao } from '../data/moduloRotas'
+import { DOCS_BASE_URL } from '../config/docs'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu, Receipt,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu, Receipt, BookOpen,
 } from 'lucide-react'
+
+// Opção fixa, sempre visível pra todo usuário (não passa pelo filtro de
+// permissões das outras seções) — abre a documentação em nova aba em vez
+// de navegar internamente.
+const DOCS_ITEM = { path: DOCS_BASE_URL, label: 'Documentação', Icon: BookOpen, external: true }
 
 const SECTIONS = [
   {
@@ -60,9 +66,20 @@ const SECTIONS = [
 ]
 
 function NavItem({ item }) {
-  const resolved = useResolvedPath(item.path)
+  // Hooks sempre no topo, incondicionais (regra dos hooks) — o item externo
+  // simplesmente ignora `isActive`/`resolved` no branch de render abaixo.
+  const resolved = useResolvedPath(item.external ? '' : item.path)
   const match = useMatch({ path: resolved.pathname, end: true })
-  const isActive = !!match
+  const isActive = !item.external && !!match
+
+  if (item.external) {
+    return (
+      <a href={item.path} target="_blank" rel="noopener noreferrer" style={{ ...s.item, outline: 'none' }}>
+        <item.Icon size={14} strokeWidth={1.75} style={{ flexShrink: 0, color: 'var(--text-muted)' }} />
+        {item.label}
+      </a>
+    )
+  }
   return (
     <NavLink
       to={item.path}
@@ -79,9 +96,22 @@ function NavItem({ item }) {
 }
 
 function NavItemCollapsed({ item }) {
-  const resolved = useResolvedPath(item.path)
+  const resolved = useResolvedPath(item.external ? '' : item.path)
   const match = useMatch({ path: resolved.pathname, end: true })
-  const isActive = !!match
+  const isActive = !item.external && !!match
+
+  if (item.external) {
+    return (
+      <a href={item.path} target="_blank" rel="noopener noreferrer" title={item.label}
+        style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '9px 0', textDecoration: 'none', outline: 'none',
+          borderLeft: '2px solid transparent',
+        }}>
+        <item.Icon size={14} strokeWidth={1.75} color="var(--text-muted)" />
+      </a>
+    )
+  }
   return (
     <NavLink
       to={item.path}
@@ -202,6 +232,10 @@ export default function Settings() {
                 ))}
               </div>
             ))}
+            {/* Opção fixa, sempre visível — não passa pelo filtro de permissões acima */}
+            <div style={s.section}>
+              <NavItem item={DOCS_ITEM} />
+            </div>
           </nav>
         )}
 
@@ -211,6 +245,7 @@ export default function Settings() {
             {visibleSections.flatMap(sec => sec.items).map(item => (
               <NavItemCollapsed key={item.path} item={item} />
             ))}
+            <NavItemCollapsed item={DOCS_ITEM} />
           </nav>
         )}
       </aside>
