@@ -1893,6 +1893,7 @@ export default function Pagamentos() {
       // Executa imediatamente — sem depender de confirmação manual
       gerarRepasses(pag)
       gerarProvisaoProximoMes(pag)
+      reconciliarProvisao(pag)
       // Mostra popup apenas como feedback visual (sem botão de confirmação necessário)
       setConfirmComissao(pag)
     }
@@ -2040,9 +2041,11 @@ export default function Pagamentos() {
       setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='receber' ? {...op,done:i+1} : op) }))
     }
 
-    // Etapa 2 — verificar inconsistências (já marcadas acima, só atualiza barra)
+    // Etapa 2 — concilia a provisão correspondente de cada pagamento (mesma
+    // busca por contrato+mês do cadastro manual) — sem isso a tabela de
+    // Provisões nunca sabia que esses pagamentos em lote já foram recebidos.
     for (let i = 0; i < pagosList.length; i++) {
-      await new Promise(r => setTimeout(r, 10))
+      reconciliarProvisao(pagosList[i])
       setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='inconsistencias' ? {...op,done:i+1} : op) }))
     }
 
@@ -2101,9 +2104,40 @@ export default function Pagamentos() {
     setRecebidoFeedback({ pag, steps })
   }
 
+  // Busca uma provisão correspondente (mesmo contrato + mês de referência) —
+  // mesmo critério usado na conciliação em lote do importador de Pagamentos,
+  // só que pra um único registro cadastrado a mão. Se achar e o pagamento já
+  // nasce como "pago", concilia na hora: marca a provisão como recebida (ou
+  // sinaliza divergência de valor, se o valor não bater).
+  function reconciliarProvisao(pag) {
+    if (!pag.contract_numero || !pag.reference_month) return
+    const mesRef = (pag.reference_month || '').slice(0, 7)
+    const provisao = provisoes.find(p =>
+      (p.contract_numero || '').toLowerCase() === (pag.contract_numero || '').toLowerCase() &&
+      (p.reference_month || '').slice(0, 7) === mesRef &&
+      p.status !== 'cancelado'
+    )
+    if (!provisao) return
+    const valorPago = parseFloat(pag.amount_total_net || 0)
+    const valorProv = parseFloat(provisao.amount_total_net || 0)
+    const divergente = Math.abs(valorPago - valorProv) > 0.01
+    const hoje = new Date().toISOString().slice(0, 10)
+    saveProvisao({
+      ...provisao,
+      status: 'pago',
+      data_baixa: provisao.data_baixa || hoje,
+      inconsistencia: divergente,
+      inconsistencia_status: divergente ? 'inconsistencia_pendente' : 'sem_inconsistencia',
+      notes: divergente
+        ? `${provisao.notes ? provisao.notes + '\n' : ''}[Conciliação manual] Valor divergente: recebido ${fmtMoeda(valorPago)} vs provisionado ${fmtMoeda(valorProv)}`
+        : provisao.notes,
+    })
+  }
+
   function handleNovoPagamento(pag) {
     const pagComOrigem = { ...pag, origin_type: pag.origin_type || 'manual' }
     savePagamento(pagComOrigem)
+    if (pagComOrigem.status === 'pago') reconciliarProvisao(pagComOrigem)
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
   }
 

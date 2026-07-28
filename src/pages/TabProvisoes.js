@@ -885,6 +885,13 @@ export default function TabProvisoes() {
     const emAberto = data.filter(p => p.status === 'pendente' || p.status === 'vencido')
                          .reduce((s,p) => s + (p.amount_total_net||0), 0)
     const recebido = data.filter(p => p.status === 'pago').length
+    // "Virou o mês e ninguém olhou pra isso ainda" — vencida (due_date no
+    // passado) E ainda sem nenhuma inconsistência registrada, ou seja, nem
+    // foi conciliada (pagamento bateu) nem foi flagada manualmente. É o
+    // indicador que a pergunta original pedia: provisões que passaram batido.
+    const vencidasSemConciliar = data.filter(p =>
+      p.status !== 'pago' && p.due_date && p.due_date < todayStr && p.inconsistencia_status === 'sem_inconsistencia'
+    ).length
     return (
       <div style={{ display:'flex', gap:12, flexWrap:'wrap', padding:'8px 0' }}>
         {[
@@ -892,6 +899,7 @@ export default function TabProvisoes() {
           { label:'Recebidas',       value:recebido,           color:'#10B981' },
           { label:'Total previsto',  value:fmtMoeda(previsto), color:ACCENT,     mono:true },
           { label:'Em aberto',       value:fmtMoeda(emAberto), color:'#EF4444',  mono:true },
+          { label:'Vencidas sem conciliação', value:vencidasSemConciliar, color: vencidasSemConciliar > 0 ? '#EF4444' : 'var(--text-muted)' },
         ].map(k => (
           <div key={k.label} style={{ background:'var(--surface)', border:'1px solid var(--border)',
             borderTop:`2px solid ${k.color}`, borderRadius:10, padding:'14px 20px',
