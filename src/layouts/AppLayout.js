@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
-import AlertsInbox from '../components/AlertsInbox'
+import UtilityMenu from '../components/UtilityMenu'
 import ImportProgressWidget from '../components/ImportProgressWidget'
-import HelpButton from '../components/HelpButton'
 
 function useBreakpoint() {
   const [bp, setBp] = useState(() => getBreakpoint(window.innerWidth))
@@ -36,14 +35,11 @@ export default function AppLayout() {
   return (
     <div style={s.shell}>
 
-      {/* ── Pendências: flutuante, presente em toda tela, fora da sidebar ── */}
-      <AlertsInbox />
+      {/* ── Pendências + Ajuda/documentação: um só ícone flutuante, fora da sidebar ── */}
+      <UtilityMenu />
 
       {/* ── Progresso de importações: sobrevive à troca de tela ── */}
       <ImportProgressWidget />
-
-      {/* ── Ajuda/documentação: acesso global discreto, presente em toda tela ── */}
-      <HelpButton />
 
       {/* ── Top bar (mobile only) ── */}
       {isMobile && (
