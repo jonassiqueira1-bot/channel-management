@@ -21,6 +21,12 @@ function rowToProvisao(row) {
     company_nome:     cf.company_nome || '',
     produto_id:       cf.produto_id || null,
     produto_nome:     cf.produto_nome || '',
+    // Mesma estrutura de `itens` usada em contratos (produto_id, nome,
+    // tipo_produto, quantidade, valor, desconto_pct) — provisão de um
+    // contrato sempre carrega o produto que a originou. Ainda não suporta
+    // múltiplos produtos numa provisão só (é sempre 1 cobrança = 1 item),
+    // mas o formato bate com o de Contratos pra manter compatibilidade.
+    itens:            Array.isArray(cf.itens) ? cf.itens : [],
     amount_cdu:       Number(row.amount_cdu)       || 0,
     amount_sms:       Number(row.amount_sms)       || 0,
     amount_services:  Number(row.amount_services)  || 0,
@@ -45,6 +51,18 @@ function rowToProvisao(row) {
 }
 
 function provisaoToRow(p, tenantId, branchId) {
+  // Se `itens` não veio explícito (ex: forms antigos, ou o produto único
+  // selecionado no form atual), monta um item único a partir de
+  // produto_id/produto_nome + o valor total já calculado — garante que toda
+  // provisão salva tenha a mesma estrutura de `itens` que um contrato.
+  const itens = Array.isArray(p.itens) && p.itens.length > 0
+    ? p.itens
+    : (p.produto_id ? [{
+        produto_id: p.produto_id, nome: p.produto_nome || '', tipo_produto: p.produto_tipo || null,
+        quantidade: 1,
+        valor: (Number(p.amount_cdu)||0) + (Number(p.amount_sms)||0) + (Number(p.amount_services)||0),
+        desconto_pct: 0,
+      }] : [])
   return {
     tenant_id:       tenantId,
     branch_id:       branchId || null,
@@ -70,6 +88,7 @@ function provisaoToRow(p, tenantId, branchId) {
       origin_type:     p.origin_type,
       produto_id:      p.produto_id,
       produto_nome:    p.produto_nome,
+      itens,
       num_documento:   p.num_documento,
       data_emissao:    p.data_emissao,
       data_baixa:      p.data_baixa,

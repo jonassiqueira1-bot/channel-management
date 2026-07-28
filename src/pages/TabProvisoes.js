@@ -212,10 +212,16 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       const sms = parseFloat(row.amount_sms)||0
       const srv = parseFloat(row.amount_services)||0
       const dsc = parseFloat(row.amount_discount)||0
+      // Mesmo item que vai pro contrato (buildItemDoContrato) — a provisão
+      // em si também precisa guardar `itens`, não só o contrato que ela
+      // ajudou a criar, senão a cadeia Contrato/Provisão/Pagamento fica
+      // com formatos diferentes de produto.
+      const { item: itemProvisao } = buildItemDoContrato(row)
       const res = await save({
         company_id, company_nome:row.company_nome,
         contract_id, contract_numero:row.contract_numero,
-        produto_nome: row.produto_nome||'',
+        produto_id: itemProvisao.produto_id, produto_nome: row.produto_nome||'',
+        itens: [itemProvisao],
         num_documento:row.num_documento||'', data_emissao:row.data_emissao||'',
         parcela:row.parcela||'1/1',
         amount_cdu:cdu, amount_sms:sms, amount_services:srv, amount_discount:dsc,

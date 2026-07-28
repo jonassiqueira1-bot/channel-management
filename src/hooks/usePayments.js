@@ -35,6 +35,11 @@ function rowToPayment(row) {
     company_nome:     row.companies?.nome_fantasia || row.companies?.razao_social || cf.company_nome || '',
     produto_id:       cf.produto_id || null,
     produto_nome:     cf.produto_nome || '',
+    // Mesma estrutura de `itens` de Contratos/Provisões — hoje sempre 1
+    // produto por pagamento (1 cobrança = 1 item), mas guardado no mesmo
+    // formato pra manter os 4 elos (Oportunidade/Contrato/Provisão/
+    // Pagamento) sempre compatíveis entre si.
+    itens:            Array.isArray(cf.itens) ? cf.itens : [],
     amount_cdu:       Number(row.amount_cdu)      || cf.amount_cdu      || 0,
     amount_sms:       Number(row.amount_sms)      || cf.amount_sms      || 0,
     amount_services:  Number(row.amount_services) || cf.amount_services || 0,
@@ -60,6 +65,17 @@ function rowToPayment(row) {
 }
 
 function paymentToRow(p, tenantId, branchId) {
+  // Mesma lógica de useProvisoes.js: se `itens` não vier explícito, monta um
+  // item único a partir de produto_id/produto_nome + valor total — todo
+  // pagamento salvo passa a ter a mesma estrutura de itens que um contrato.
+  const itens = Array.isArray(p.itens) && p.itens.length > 0
+    ? p.itens
+    : (p.produto_id ? [{
+        produto_id: p.produto_id, nome: p.produto_nome || '', tipo_produto: p.produto_tipo || null,
+        quantidade: 1,
+        valor: (Number(p.amount_cdu)||0) + (Number(p.amount_sms)||0) + (Number(p.amount_services)||0),
+        desconto_pct: 0,
+      }] : [])
   return {
     tenant_id:       tenantId,
     branch_id:       branchId || null,
@@ -89,6 +105,7 @@ function paymentToRow(p, tenantId, branchId) {
       origin_type:     p.origin_type,
       produto_id:      p.produto_id,
       produto_nome:    p.produto_nome,
+      itens,
       num_documento:   p.num_documento,
       data_emissao:    p.data_emissao,
       data_baixa:      p.data_baixa,
