@@ -3,6 +3,7 @@ import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import AlertsInbox from '../components/AlertsInbox'
 import ImportProgressWidget from '../components/ImportProgressWidget'
+import HelpButton from '../components/HelpButton'
 
 function useBreakpoint() {
   const [bp, setBp] = useState(() => getBreakpoint(window.innerWidth))
@@ -40,6 +41,9 @@ export default function AppLayout() {
 
       {/* ── Progresso de importações: sobrevive à troca de tela ── */}
       <ImportProgressWidget />
+
+      {/* ── Ajuda/documentação: acesso global discreto, presente em toda tela ── */}
+      <HelpButton />
 
       {/* ── Top bar (mobile only) ── */}
       {isMobile && (

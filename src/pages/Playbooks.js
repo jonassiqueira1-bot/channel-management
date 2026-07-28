@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
 import { Layers, CheckSquare, HelpCircle, Target, Users, FileText, MessageSquareWarning, ChevronRight, Pencil, Check as CheckIcon } from 'lucide-react'
+import DocsLink from '../components/DocsLink'
 import { STAGE_CFG, RESOURCE_CFG, REGION_OPTIONS } from '../data/mockPlaybooks'
 import { SEGMENTOS_PADRAO as SEGMENT_OPTIONS } from '../data/segmentos'
 import { useLocalState } from '../hooks/useLocalState'
@@ -1651,6 +1652,7 @@ function PlaybookList({ playbooks, steps, refs, resources, isISV, onOpen, onNew,
       renderCard={renderCard}
       onRowClick={onOpen}
       storageKey="playbooks"
+      secondaryActions={<DocsLink module="playbooks" />}
     />
   )
 }
