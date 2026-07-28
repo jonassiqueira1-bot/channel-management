@@ -23,6 +23,13 @@ function applyFilters(q, { search, filters }) {
   if (filters.uf)      q = q.eq('address->>uf', filters.uf)
   if (filters.origem)  q = q.eq('custom_fields->>origem', filters.origem)
   if (filters.resp)    q = q.eq('owner_id', filters.resp)
+  // Relação com contracts/payments — só dá pra expressar via a view
+  // companies_with_flags (ver migration 20260727000004), que calcula os 2
+  // booleanos com EXISTS.
+  if (filters.temContrato === 'sim')  q = q.eq('has_contract', true)
+  if (filters.temContrato === 'nao')  q = q.eq('has_contract', false)
+  if (filters.temPagamento === 'sim') q = q.eq('has_payment', true)
+  if (filters.temPagamento === 'nao') q = q.eq('has_payment', false)
   return q
 }
 
@@ -78,7 +85,12 @@ export function useCompaniesPaged({ page, pageSize, search, filters, sortBy }) {
       return
     }
 
-    let q = applyFilters(supabase.from('companies').select('*', { count: 'exact' }), { search, filters })
+    // companies_with_flags é a mesma tabela + has_contract/has_payment
+    // calculados (ver migration 20260727000004) — só precisa trocar a
+    // fonte quando esses 2 filtros estão em uso; direto em companies nos
+    // outros casos evita depender da view desnecessariamente.
+    const usaFlags = filters.temContrato || filters.temPagamento
+    let q = applyFilters(supabase.from(usaFlags ? 'companies_with_flags' : 'companies').select('*', { count: 'exact' }), { search, filters })
 
     if (sortBy === 'mrr_desc')      q = q.order('custom_fields->mrr', { ascending: false, nullsFirst: false })
     else if (sortBy === 'mrr_asc')  q = q.order('custom_fields->mrr', { ascending: true,  nullsFirst: true })

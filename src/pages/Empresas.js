@@ -9,6 +9,8 @@ import BrowseLayout from '../components/BrowseLayout'
 import { useContacts } from '../hooks/useContacts'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useContracts } from '../hooks/useContracts'
+import { usePayments } from '../hooks/usePayments'
+import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
 import { useProjects } from '../hooks/useProjects'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
@@ -245,6 +247,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const { contacts: allContacts, save: saveContact, remove: removeContact } = useContacts()
   const { opps: allOpps,         save: saveOpp,     remove: removeOpp }     = useOpportunities()
   const { contratos: allContratos, save: saveContrato, remove: removeContrato } = useContracts()
+  const { pagamentos: allPagamentos } = usePayments()
   const { projetos: allProjetos, save: saveProjeto } = useProjects()
   const { sellers } = useSellers()
   const { parceiros: franquias } = useParceiros()
@@ -257,6 +260,10 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
   const opps      = useMemo(() => allOpps.filter(o      => String(o.empresa_id)  === String(item?.id)), [allOpps,      item?.id])
   const contratos = useMemo(() => allContratos.filter(c => String(c.empresa_id)  === String(item?.id)), [allContratos, item?.id])
   const projetos  = useMemo(() => allProjetos.filter(p  => String(p.company_id)  === String(item?.id)), [allProjetos,  item?.id])
+  const pagamentos = useMemo(() =>
+    allPagamentos.filter(p => String(p.company_id) === String(item?.id))
+      .sort((a, b) => (b.reference_month || '').localeCompare(a.reference_month || '')),
+  [allPagamentos, item?.id])
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })) }
   function patch(field, val) {
@@ -913,6 +920,71 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
     )
   }
 
+  function TabPagamentos() {
+    const totalRecebido = pagamentos.filter(p => p.status === 'pago')
+      .reduce((s, p) => s + (Number(p.amount_total_net) || 0), 0)
+
+    return (
+      <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+        {pagamentos.length > 0 && (
+          <div style={{ display:'flex', gap:12 }}>
+            <div style={{ flex:1, background:'var(--surface)', borderRadius:10, padding:'12px 16px', border:'1px solid var(--border2)' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Total recebido</div>
+              <div style={{ fontSize:18, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)', marginTop:2 }}>
+                R$ {totalRecebido.toLocaleString('pt-BR', { minimumFractionDigits:2 })}
+              </div>
+            </div>
+            <div style={{ flex:1, background:'var(--surface)', borderRadius:10, padding:'12px 16px', border:'1px solid var(--border2)' }}>
+              <div style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>Pagamentos</div>
+              <div style={{ fontSize:18, fontWeight:800, color:'var(--text)', fontFamily:'var(--mono)', marginTop:2 }}>{pagamentos.length}</div>
+            </div>
+          </div>
+        )}
+
+        <div style={{ background:'var(--surface)', borderRadius:12, border:'1px solid var(--border2)',
+          boxShadow:'0 1px 3px rgba(0,0,0,0.06)', overflow:'hidden' }}>
+          <div style={{ padding:'14px 20px', borderBottom: pagamentos.length > 0 ? '1px solid var(--border2)' : 'none' }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>
+              {pagamentos.length} pagamento{pagamentos.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {pagamentos.map((p, i) => {
+            const cfg = STATUS_PAGAMENTO[p.status] || STATUS_PAGAMENTO.pendente
+            return (
+              <div key={p.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'12px 20px',
+                borderBottom: i < pagamentos.length - 1 ? '1px solid var(--border2)' : 'none' }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:13, fontWeight:700, color:'var(--text)', fontFamily:'var(--mono)' }}>{p.contract_numero || '—'}</span>
+                    {p.produto_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>{p.produto_nome}</span>}
+                  </div>
+                  <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:1, fontFamily:'var(--mono)' }}>
+                    {(p.reference_month || '').slice(0,7) || '—'}
+                    {p.due_date && ` · vence ${p.due_date}`}
+                  </div>
+                </div>
+                <span style={{ display:'inline-flex', alignItems:'center', gap:5, color:cfg.color, fontSize:11, fontWeight:600, whiteSpace:'nowrap' }}>
+                  <span style={{ width:6, height:6, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />
+                  {cfg.label}
+                </span>
+                <span style={{ fontSize:13, fontWeight:700, color:ACCENT, fontFamily:'var(--mono)', whiteSpace:'nowrap' }}>
+                  R$ {Number(p.amount_total_net || 0).toLocaleString('pt-BR', { minimumFractionDigits:2 })}
+                </span>
+              </div>
+            )
+          })}
+
+          {pagamentos.length === 0 && (
+            <div style={{ padding:'32px 20px', textAlign:'center', color:'var(--text-muted)', fontSize:13 }}>
+              Nenhum pagamento vinculado a esta empresa
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   function TabProjetos() {
     const FASES = [
       { value:'iniciacao',   label:'Iniciação'   },
@@ -1063,6 +1135,7 @@ function EmpresaDetail({ onClose, onSave, onDelete, item, empresas, tab = 'dados
         <div style={{ display: tab === 'contatos'  ? 'contents' : 'none' }}>{TabContatos()}</div>
         <div style={{ display: tab === 'opps'      ? 'contents' : 'none' }}>{TabOportunidades()}</div>
         <div style={{ display: tab === 'contratos' ? 'contents' : 'none' }}>{TabContratos()}</div>
+        <div style={{ display: tab === 'pagamentos' ? 'contents' : 'none' }}>{TabPagamentos()}</div>
         <div style={{ display: tab === 'projetos'  ? 'contents' : 'none' }}>{TabProjetos()}</div>
         <div style={{ display: tab === 'canal'     ? 'contents' : 'none' }}>{TabCanal()}</div>
       </div>
@@ -1083,6 +1156,8 @@ export default function Empresas() {
   const [filterOrigem, setFilterOrigem] = useLocalState('empresas:filterOrigem', '')
   const [filterResp, setFilterResp]     = useLocalState('empresas:filterResp', '')
   const [filterUnidade, setFilterUnidade] = useLocalState('empresas:filterUnidade', '')
+  const [filterTemContrato, setFilterTemContrato]   = useLocalState('empresas:filterTemContrato', '')
+  const [filterTemPagamento, setFilterTemPagamento] = useLocalState('empresas:filterTemPagamento', '')
   const [sortBy, setSortBy]             = useLocalState('empresas:sortBy', 'razao')
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   // lazy: true — a tabela em si vem de useCompaniesPaged (rápido, paginado
@@ -1156,8 +1231,8 @@ export default function Empresas() {
   const pagedFilters = useMemo(() => ({
     status: filterStatus, tipo: filterTipo, seg: filterSeg, porte: filterPorte,
     receita: filterReceita, uf: filterUf, origem: filterOrigem, resp: filterResp,
-    unidade: filterUnidade,
-  }), [filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade])
+    unidade: filterUnidade, temContrato: filterTemContrato, temPagamento: filterTemPagamento,
+  }), [filterStatus, filterTipo, filterSeg, filterPorte, filterReceita, filterUf, filterOrigem, filterResp, filterUnidade, filterTemContrato, filterTemPagamento])
   const { rows: pagedRows, total: pagedTotal, kpis: pagedKpis } = useCompaniesPaged({
     page: browsePage, pageSize: browsePageSize, search, filters: pagedFilters, sortBy,
   })
@@ -1386,6 +1461,12 @@ export default function Empresas() {
       { value: 'matriz',       label: 'Matriz' },
       { value: 'filial',       label: 'Filial' },
     ] },
+    { key: 'temContrato',  label: 'Tem contratos',  options: [
+      { value: 'sim', label: 'Sim' }, { value: 'nao', label: 'Não' },
+    ] },
+    { key: 'temPagamento', label: 'Tem pagamentos', options: [
+      { value: 'sim', label: 'Sim' }, { value: 'nao', label: 'Não' },
+    ] },
   ]
 
   const browseActiveFilters = {
@@ -1398,6 +1479,8 @@ export default function Empresas() {
     origem:   filterOrigem  ? [filterOrigem]  : [],
     resp:     filterResp    ? [filterResp]    : [],
     unidade:  filterUnidade ? [filterUnidade] : [],
+    temContrato:  filterTemContrato  ? [filterTemContrato]  : [],
+    temPagamento: filterTemPagamento ? [filterTemPagamento] : [],
   }
 
   function handleBrowseFilterChange(newFilters) {
@@ -1410,6 +1493,8 @@ export default function Empresas() {
     setFilterOrigem( (newFilters.origem  || [])[0] || '')
     setFilterResp(   (newFilters.resp    || [])[0] || '')
     setFilterUnidade((newFilters.unidade || [])[0] || '')
+    setFilterTemContrato( (newFilters.temContrato  || [])[0] || '')
+    setFilterTemPagamento((newFilters.temPagamento || [])[0] || '')
   }
 
   return (
@@ -1511,6 +1596,7 @@ export default function Empresas() {
           { key: 'contatos',   label: 'Contatos' },
           { key: 'opps',       label: 'Oportunidades' },
           { key: 'contratos',  label: 'Contratos' },
+          { key: 'pagamentos', label: 'Pagamentos' },
           { key: 'projetos',   label: 'Projetos' },
           { key: 'canal',      label: 'Canal' },
         ] : undefined}
