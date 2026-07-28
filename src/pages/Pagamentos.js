@@ -25,12 +25,15 @@ import BatchProgress from '../components/BatchProgress'
 import { useAuth } from '../contexts/AuthContext'
 import { useCompanies } from '../hooks/useCompanies'
 import TabProvisoes from './TabProvisoes'
+import TabFaturas from './TabFaturas'
 import { useProvisoes } from '../hooks/useProvisoes'
+import { useFaturas } from '../hooks/useFaturas'
 import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
 const TABS_PAG = [
   { id: 'pagamentos', label: 'Pagamentos' },
   { id: 'provisoes',  label: 'Provisões'  },
+  { id: 'faturas',    label: 'Faturas'    },
 ]
 
 const ACCENT = 'var(--accent)'
@@ -1614,6 +1617,7 @@ export default function Pagamentos() {
   const { session } = useAuth()
   const { pagamentos, setPagamentos, save: savePagamento } = usePayments()
   const { provisoes, save: saveProvisao } = useProvisoes()
+  const { bulkSetStatus: bulkSetFaturaStatus } = useFaturas()
   const { registrar: log } = useAuditLog()
   const { contratos, save: saveContrato } = useContracts()
   const { companies, add: addCompany, update: updateCompany } = useCompanies()
@@ -1964,6 +1968,7 @@ export default function Pagamentos() {
       gerarRepasses(pag)
       gerarProvisaoProximoMes(pag)
       reconciliarProvisao(pag)
+      marcarFaturaPaga(pag)
       // Mostra popup apenas como feedback visual (sem botão de confirmação necessário)
       setConfirmComissao(pag)
     }
@@ -2116,6 +2121,7 @@ export default function Pagamentos() {
     // Provisões nunca sabia que esses pagamentos em lote já foram recebidos.
     for (let i = 0; i < pagosList.length; i++) {
       reconciliarProvisao(pagosList[i])
+      marcarFaturaPaga(pagosList[i])
       setBatchProgress(prev => ({ operations: prev.operations.map(op => op.id==='inconsistencias' ? {...op,done:i+1} : op) }))
     }
 
@@ -2204,10 +2210,17 @@ export default function Pagamentos() {
     })
   }
 
+  // Quando um pagamento vinculado a uma fatura é recebido, a fatura passa
+  // pra 'paga' — é ela quem representa a cobrança enviada ao cliente final.
+  function marcarFaturaPaga(pag) {
+    if (!pag.fatura_id) return
+    bulkSetFaturaStatus([pag.fatura_id], 'paga')
+  }
+
   function handleNovoPagamento(pag) {
     const pagComOrigem = { ...pag, origin_type: pag.origin_type || 'manual' }
     savePagamento(pagComOrigem)
-    if (pagComOrigem.status === 'pago') reconciliarProvisao(pagComOrigem)
+    if (pagComOrigem.status === 'pago') { reconciliarProvisao(pagComOrigem); marcarFaturaPaga(pagComOrigem) }
     log('criar', 'pagamento', pag.id, { descricao: `Pagamento criado: ${pag.company_nome || ''} — ${pag.reference_month || ''}` })
   }
 
@@ -2349,6 +2362,8 @@ export default function Pagamentos() {
       </div>
 
       {tab === 'provisoes' && <TabProvisoes />}
+
+      {tab === 'faturas' && <TabFaturas />}
 
       {tab === 'pagamentos' && <BrowseLayout
         modulo="pagamentos"

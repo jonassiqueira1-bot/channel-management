@@ -29,6 +29,7 @@ function rowToPayment(row) {
     id:               row.id,
     contract_id:      cf.contract_id || null,
     contract_numero:  cf.contract_numero || '',
+    fatura_id:        cf.fatura_id || null,
     project_id:       cf.project_id || null,
     origin_type:      cf.origin_type || cf._origem || null,
     company_id:       row.company_id || null,
@@ -100,6 +101,7 @@ function paymentToRow(p, tenantId, branchId) {
     custom_fields: {
       contract_id:     p.contract_id,
       contract_numero: p.contract_numero,
+      fatura_id:       p.fatura_id || null,
       company_nome:    p.company_nome,
       project_id:      p.project_id,
       origin_type:     p.origin_type,
