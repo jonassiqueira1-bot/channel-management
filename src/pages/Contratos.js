@@ -534,6 +534,82 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   return qtd
 }
 
+// ─── Faturas (cobrança ao cliente final) ─────────────────────────────────────
+// Mesma derivação de candidatos de gerarProvisoesPagamento, mas gera uma
+// Fatura (cobrança) por item em vez de uma provisão (repasse do parceiro).
+// cadencia: mrr → recorrente (cobrança mensal), demais → avulsa (cobrança única).
+async function gerarFaturas(contrato, tenantId, branchId) {
+  const tid = tenantId || 't1'
+
+  const allItens = contrato.itens?.length > 0
+    ? contrato.itens
+    : [
+        ...(contrato.itens_adesao  || []).map(i => ({ ...i, tipo_produto: 'licenca' })),
+        ...(contrato.itens_mrr     || []).map(i => ({ ...i, tipo_produto: 'saas' })),
+        ...(contrato.itens_servico || []).map(i => ({ ...i, tipo_produto: 'servico' })),
+      ]
+  const slots = allItens.map(i => ({
+    ...i,
+    tipo_item: i.tipo_produto === 'saas' ? 'mrr' : ['servico','consultoria'].includes(i.tipo_produto) ? 'servico' : 'adesao',
+  }))
+
+  const candidatos = slots.filter(
+    i => i.status_item !== 'inativo' && i.vencimento_primeiro_pagamento && (parseFloat(i.valor) || 0) > 0
+  )
+
+  if (!candidatos.length) return 0
+
+  try {
+    const { data: existentes } = await supabase
+      .from('faturas')
+      .select('id, custom_fields')
+      .eq('company_id', String(contrato.empresa_id))
+
+    const jaExiste = (produtoId, vencimento) =>
+      (existentes || []).some(f =>
+        (f.custom_fields?.itens || []).some(it => String(it.produto_id) === String(produtoId)) &&
+        f.due_date === vencimento
+      )
+
+    let seq = (existentes || []).length + 1
+    const inserir = candidatos
+      .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+      .map(i => ({
+        tenant_id:        tid,
+        branch_id:        branchId || null,
+        company_id:       contrato.empresa_id || null,
+        contract_id:      contrato.id,
+        numero:           `FAT-${contrato.numero}-${String(seq++).padStart(3, '0')}`,
+        cadencia:         i.tipo_item === 'mrr' ? 'recorrente' : 'avulsa',
+        origem_cobranca:  'parceiro',
+        status:           'gerada',
+        competencia:      i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
+        due_date:         i.vencimento_primeiro_pagamento,
+        amount_total:     parseFloat(i.valor) || 0,
+        custom_fields: {
+          company_nome:    contrato.empresa_nome || '',
+          contract_numero: contrato.numero,
+          itens: [{
+            produto_id:   i.produto_id || null,
+            nome:         i.nome || '',
+            tipo_produto: i.tipo_produto || null,
+            quantidade:   i.quantidade || 1,
+            valor:        parseFloat(i.valor) || 0,
+            desconto_pct: i.desconto_pct || 0,
+          }],
+        },
+      }))
+
+    if (!inserir.length) return 0
+    const { error } = await supabase.from('faturas').insert(inserir)
+    if (error) throw new Error(error.message)
+    return inserir.length
+  } catch (err) {
+    console.error('[gerarFaturas]', err.message)
+    return -1
+  }
+}
+
 // ─── Provisões de comissão (Supabase) ────────────────────────────────────────
 async function gerarProvisoesComissao(contrato, tenantId, branchId) {
   // Busca oportunidade relacionada para pegar equipe interna
@@ -2137,13 +2213,16 @@ export default function Contratos() {
     const jaAtivoEditado = !isNew && !ativando && anterior?.status === 'ativo' && data.status === 'ativo'
     if ((ativando || (isNew && data.status === 'ativo') || jaAtivoEditado) && opts.gerarProvisao !== false) {
       const steps = []
-      const [qtdPag, qtdCom] = await Promise.all([
+      const [qtdPag, qtdCom, qtdFat] = await Promise.all([
         gerarProvisoesPagamento(contratoFinal, tenantId, branchId),
         gerarProvisoesComissao(contratoFinal, tenantId, branchId),
+        gerarFaturas(contratoFinal, tenantId, branchId),
       ])
       if (qtdPag > 0)  steps.push({ id: 'pag', label: `${qtdPag} provisão(ões) de pagamento gerada(s)`, sublabel: 'Status: Pendente — visível em Pagamentos' })
       if (qtdPag < 0)  steps.push({ id: 'pag_err', label: '⚠ Erro ao gerar provisão de pagamento', sublabel: 'Veja o console do navegador (F12) para o detalhe' })
       if (qtdCom > 0)  steps.push({ id: 'com', label: `${qtdCom} provisão(ões) de repasse gerada(s)`, sublabel: 'Status: Pendente — visível em Comissões' })
+      if (qtdFat > 0)  steps.push({ id: 'fat', label: `${qtdFat} fatura(s) gerada(s)`, sublabel: 'Status: Gerada — visível em Faturas' })
+      if (qtdFat < 0)  steps.push({ id: 'fat_err', label: '⚠ Erro ao gerar fatura', sublabel: 'Veja o console do navegador (F12) para o detalhe' })
       if (steps.length && opts.onFeedback) opts.onFeedback(steps)
     }
   }
