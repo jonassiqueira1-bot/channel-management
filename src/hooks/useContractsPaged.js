@@ -31,7 +31,27 @@ export function useContractsPaged({ page, pageSize, search, filters, sortBy }) {
 
     if (search?.trim()) {
       const term = search.replace(/[,()*]/g, '').trim()
-      if (term) q = q.or(`numero.ilike.*${term}*,companies.razao_social.ilike.*${term}*,companies.nome_fantasia.ilike.*${term}*`)
+      if (term) {
+        // Filtro em embed (`companies.razao_social...` dentro de um .or())
+        // não é confiável no PostgREST sem !inner — resolve os ids das
+        // empresas batidas numa query separada e usa `company_id.in.(...)`,
+        // que é um filtro direto e sempre funciona.
+        const { data: empresasBatidas } = await supabase
+          .from('companies').select('id')
+          .or(`razao_social.ilike.*${term}*,nome_fantasia.ilike.*${term}*`)
+          .limit(200)
+        const orParts = [
+          `numero.ilike.*${term}*`,
+          `observacoes.ilike.*${term}*`,
+          // custom_fields guarda responsável, origem, tipo_venda e os
+          // produtos/itens do contrato — castar pra texto e comparar tudo de
+          // uma vez é mais simples (e mais completo) do que apontar campo
+          // por campo dentro do JSONB.
+          `custom_fields::text.ilike.*${term}*`,
+        ]
+        if (empresasBatidas?.length) orParts.push(`company_id.in.(${empresasBatidas.map(c => c.id).join(',')})`)
+        q = q.or(orParts.join(','))
+      }
     }
     if (filters.status?.length) q = q.in('status', filters.status)
 
