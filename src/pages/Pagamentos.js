@@ -1194,6 +1194,14 @@ const EMPTY_PAG = {
   reference_month: new Date().toISOString().slice(0, 7) + '-01',
   amount_cdu: '', amount_sms: '', amount_services: '', amount_discount: '',
   due_date: '', status: 'pendente', notes: '',
+  // Mais de um produto por pagamento — mesma estrutura de itens de Contratos.
+  itens: [],
+}
+
+function tipoLabelCurto(tipo) {
+  if (tipo === 'saas')     return 'MENSAL'
+  if (tipo === 'licenca')  return 'LICENÇA'
+  return 'SERVIÇO'
 }
 
 function NovoPagamentoModal({ onClose, onSave, periodo, pagamentosExistentes = [] }) {
@@ -1641,6 +1649,8 @@ export default function Pagamentos() {
   const pagSaveRef = useRef(null)
   const [gerarTodosModal, setGerarTodosModal] = useState(false)
   const [novoPagForm, setNovoPagForm]         = useState(null)
+  const [novoPagItemQuery, setNovoPagItemQuery] = useState('')
+  const [novoPagItemOpen,  setNovoPagItemOpen]  = useState(false)
   const [savingNovo, setSavingNovo]           = useState(false) // eslint-disable-line no-unused-vars
   const [importModal, setImportModal]         = useState(false)
   const [recebidoFeedback, setRecebidoFeedback] = useState(null) // { pag, steps }
@@ -1712,17 +1722,21 @@ export default function Pagamentos() {
     if (!form) return
     if (!form.contract_numero.trim()) return alert('Número do contrato é obrigatório')
     if (!form.company_nome.trim())    return alert('Empresa é obrigatória')
-    if (form.produto_id && form.company_id && form.due_date) {
+    if (!(form.itens||[]).length)     return alert('Adicione ao menos um produto')
+    const primeiroItem = form.itens[0]
+    if (primeiroItem.produto_id && form.company_id && form.due_date) {
       const dup = pagamentos.find(p =>
-        String(p.produto_id) === String(form.produto_id) &&
+        String(p.produto_id) === String(primeiroItem.produto_id) &&
         String(p.company_id) === String(form.company_id) &&
         p.due_date === form.due_date
       )
       if (dup) return alert(`Já existe um pagamento deste produto para ${form.company_nome} com vencimento em ${form.due_date}.`)
     }
-    const licenca  = parseFloat(form.amount_cdu)      || 0
-    const mensalid = parseFloat(form.amount_sms)      || 0
-    const services = parseFloat(form.amount_services) || 0
+    // Soma os itens nos 3 baldes por tipo, igual à distribuição usada em
+    // Contratos/Provisões — cada produto cai no bucket certo (adesão/mensal/serviço).
+    const licenca  = form.itens.filter(i => i.tipo_produto === 'licenca').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    const mensalid = form.itens.filter(i => i.tipo_produto === 'saas').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+    const services = form.itens.filter(i => !['licenca','saas'].includes(i.tipo_produto)).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
     const discount = parseFloat(form.amount_discount) || 0
     handleNovoPagamento({
       id: 'man_' + Date.now(),
@@ -1740,8 +1754,9 @@ export default function Pagamentos() {
       status: form.status,
       processed: false,
       notes: form.notes,
-      produto_id: form.produto_id || null,
-      produto_nome: form.produto_nome || '',
+      produto_id: primeiroItem.produto_id || null,
+      produto_nome: primeiroItem.nome || '',
+      itens: form.itens,
       tenant_id: 't1',
       criado: new Date().toISOString().slice(0, 10),
     })
@@ -2496,11 +2511,42 @@ export default function Pagamentos() {
         {novoPagForm && (() => {
           const form = novoPagForm
           const set = (k, v) => setNovoPagForm(f => ({ ...f, [k]: v }))
-          const licenca  = parseFloat(form.amount_cdu)      || 0
-          const mensalid = parseFloat(form.amount_sms)      || 0
-          const services = parseFloat(form.amount_services) || 0
+          const itens    = form.itens || []
+          const licenca  = itens.filter(i => i.tipo_produto === 'licenca').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+          const mensalid = itens.filter(i => i.tipo_produto === 'saas').reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
+          const services = itens.filter(i => !['licenca','saas'].includes(i.tipo_produto)).reduce((s,i) => s + (parseFloat(i.valor)||0), 0)
           const discount = parseFloat(form.amount_discount) || 0
           const liquido  = Math.max(0, licenca + mensalid + services - discount)
+
+          const contratoSel = form.contract_id ? contratos.find(c => c.id === form.contract_id) : null
+          const itensDoContrato = contratoSel
+            ? [...(contratoSel.itens_adesao||[]), ...(contratoSel.itens_mrr||[]), ...(contratoSel.itens_servico||[])]
+            : []
+          const idsJaAdicionados = itens.map(i => String(i.produto_id))
+          const opcoesDisponiveis = (itensDoContrato.length > 0
+            ? produtosAtivos.filter(p => itensDoContrato.some(i => String(i.produto_id) === String(p.id)))
+            : produtosAtivos
+          ).filter(p => !idsJaAdicionados.includes(String(p.id)))
+
+          function addItemPag(prod) {
+            const itemContrato = itensDoContrato.find(i => String(i.produto_id) === String(prod.id))
+            setNovoPagForm(f => ({
+              ...f,
+              itens: [...(f.itens||[]), {
+                produto_id: prod.id, nome: prod.nome, tipo_produto: prod.tipo || null,
+                quantidade: 1, valor: itemContrato ? parseFloat(itemContrato.valor)||0 : parseFloat(prod.preco)||0,
+                desconto_pct: 0,
+              }],
+            }))
+            setNovoPagItemQuery(''); setNovoPagItemOpen(false)
+          }
+          function removeItemPag(idx) {
+            setNovoPagForm(f => ({ ...f, itens: (f.itens||[]).filter((_, i) => i !== idx) }))
+          }
+          function updateItemValorPag(idx, valor) {
+            setNovoPagForm(f => ({ ...f, itens: (f.itens||[]).map((it, i) => i === idx ? { ...it, valor } : it) }))
+          }
+
           return (
             <div style={{ flex:1, overflowY:'auto', minHeight:0, display:'flex', flexDirection:'column', gap:0 }}>
               <FormSection label="Identificação" />
@@ -2517,7 +2563,7 @@ export default function Pagamentos() {
                       const mantemContrato = contratoAtual && String(contratoAtual.empresa_id) === String(id)
                       return {
                         ...f, company_id: id, company_nome: nome,
-                        ...(mantemContrato ? {} : { contract_id: null, contract_numero: '', produto_id: null, produto_nome: '' }),
+                        ...(mantemContrato ? {} : { contract_id: null, contract_numero: '', itens: [] }),
                       }
                     })}
                   />
@@ -2533,46 +2579,10 @@ export default function Pagamentos() {
                       setNovoPagForm(f => ({
                         ...f, contract_id: id || null, contract_numero: c?.numero || '',
                         company_id: c?.empresa_id || f.company_id, company_nome: c?.empresa_nome || f.company_nome,
-                        produto_id: null, produto_nome: '',
-                        amount_cdu: 0, amount_sms: 0, amount_services: 0, amount_discount: 0,
+                        itens: [], amount_discount: 0,
                       }))
                     }}
                   />
-                </FormField>
-                <FormField label="Produto">
-                  {(() => {
-                    const contratoSel = form.contract_id ? contratos.find(c => c.id === form.contract_id) : null
-                    const idsDoContrato = contratoSel
-                      ? [...(contratoSel.itens_adesao||[]), ...(contratoSel.itens_mrr||[]), ...(contratoSel.itens_servico||[])]
-                          .map(i => String(i.produto_id)).filter(Boolean)
-                      : []
-                    const opcoesDisponiveis = idsDoContrato.length > 0
-                      ? produtosAtivos.filter(p => idsDoContrato.includes(String(p.id)))
-                      : produtosAtivos
-                    return (
-                      <SearchSelect
-                        options={opcoesDisponiveis.map(p => ({ id: String(p.id), label: p.nome, sublabel: p.codigo || '' }))}
-                        value={form.produto_id ? String(form.produto_id) : null}
-                        onChange={id => {
-                          const prod = opcoesDisponiveis.find(p => String(p.id) === id)
-                          // Busca o valor deste produto no contrato selecionado
-                          const contratoSel2 = form.contract_id ? contratos.find(c => c.id === form.contract_id) : null
-                          let amount_cdu = 0, amount_sms = 0, amount_services = 0
-                          if (contratoSel2 && id) {
-                            const itemAdesao  = (contratoSel2.itens_adesao  || []).find(i => String(i.produto_id) === id)
-                            const itemMrr     = (contratoSel2.itens_mrr     || []).find(i => String(i.produto_id) === id)
-                            const itemServico = (contratoSel2.itens_servico || []).find(i => String(i.produto_id) === id)
-                            amount_cdu      = parseFloat(itemAdesao?.valor)  || 0
-                            amount_sms      = parseFloat(itemMrr?.valor)     || 0
-                            amount_services = parseFloat(itemServico?.valor) || 0
-                          }
-                          setNovoPagForm(f => ({ ...f, produto_id: id || null, produto_nome: prod?.nome || '', amount_cdu, amount_sms, amount_services }))
-                        }}
-                        placeholder={idsDoContrato.length > 0 ? `${idsDoContrato.length} produto(s) do contrato…` : 'Buscar produto…'}
-                        inputStyle={{ height:40, border:'1px solid var(--border)', borderRadius:7, padding:'0 12px', fontSize:13, width:'100%', boxSizing:'border-box', background:'var(--surface2)', fontFamily:'var(--font)', color:'var(--text)' }}
-                      />
-                    )
-                  })()}
                 </FormField>
                 <FormField label="Status">
                   <select className="so-field" value={form.status} onChange={e => set('status', e.target.value)}>
@@ -2589,18 +2599,63 @@ export default function Pagamentos() {
                   <input className="so-field" value={form.notes||''} placeholder="Observações opcionais…" onChange={e => set('notes', e.target.value)} />
                 </FormField>
               </FormGrid>
-              <FormSection label="Composição de valores" />
-              <FormGrid cols={2}>
-                {[
-                  { k:'amount_cdu',      label:'Licença' },
-                  { k:'amount_sms',      label:'Mensalidade' },
-                  { k:'amount_services', label:'Serviços' },
-                  { k:'amount_discount', label:'Desconto', hint:'Aplicado sobre o total' },
-                ].map(({ k, label, hint }) => (
-                  <FormField key={k} label={label} hint={hint}>
-                    <input type="number" min="0" step="0.01" className="so-field" value={form[k]} placeholder="0,00" onChange={e => set(k, e.target.value)} />
-                  </FormField>
+              <FormSection label="Produtos" />
+              <div style={{ margin:'0 24px 4px', border:'1px solid var(--border)', borderRadius:9, overflow:'hidden' }}>
+                {itens.map((item, idx) => (
+                  <div key={idx} style={{ display:'grid', gridTemplateColumns:'1fr 90px 28px', gap:6, alignItems:'center',
+                    padding:'8px 12px', borderBottom: idx < itens.length - 1 ? '1px solid var(--border)' : 'none', background:'var(--surface)' }}>
+                    <div style={{ display:'flex', alignItems:'center', gap:6, overflow:'hidden' }}>
+                      <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 6px', borderRadius:4,
+                        whiteSpace:'nowrap', flexShrink:0, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)' }}>
+                        {tipoLabelCurto(item.tipo_produto)}
+                      </span>
+                      <span style={{ fontSize:12.5, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{item.nome}</span>
+                    </div>
+                    <input type="number" min="0" step="0.01"
+                      style={{ width:'100%', padding:'4px 6px', borderRadius:5, border:'1px solid var(--border)', fontSize:11,
+                        fontFamily:'var(--mono)', fontWeight:600, color:'var(--text)', background:'var(--surface2)', boxSizing:'border-box', outline:'none' }}
+                      value={item.valor} onChange={e => updateItemValorPag(idx, e.target.value)} placeholder="0" />
+                    <button type="button" onClick={() => removeItemPag(idx)}
+                      style={{ background:'none', border:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:13, padding:0, lineHeight:1 }}>✕</button>
+                  </div>
                 ))}
+                <div style={{ position:'relative', padding:'6px 10px', background:'var(--surface2)',
+                  borderTop: itens.length > 0 ? '1px solid var(--border)' : 'none' }}>
+                  <input
+                    style={{ width:'100%', padding:'5px 10px', borderRadius:6, border:'1px dashed var(--border)', fontSize:12,
+                      color:'var(--text-muted)', background:'transparent', outline:'none', boxSizing:'border-box', fontFamily:'var(--font)' }}
+                    placeholder={itensDoContrato.length > 0 ? `+ Adicionar produto do contrato…` : '+ Adicionar produto…'}
+                    value={novoPagItemQuery}
+                    onChange={e => { setNovoPagItemQuery(e.target.value); setNovoPagItemOpen(true) }}
+                    onFocus={() => setNovoPagItemOpen(true)}
+                  />
+                  {novoPagItemOpen && opcoesDisponiveis.length > 0 && (
+                    <div style={{ position:'absolute', top:'calc(100% + 2px)', left:10, right:10, background:'var(--surface)',
+                      border:'1px solid var(--border)', borderRadius:8, boxShadow:'var(--shadow-md)', zIndex:200, overflow:'hidden', maxHeight:240, overflowY:'auto' }}>
+                      {opcoesDisponiveis
+                        .filter(p => !novoPagItemQuery || p.nome.toLowerCase().includes(novoPagItemQuery.toLowerCase()))
+                        .map(p => (
+                          <button type="button" key={p.id}
+                            style={{ display:'flex', alignItems:'center', gap:8, width:'100%', padding:'7px 12px', background:'none', border:'none', cursor:'pointer', textAlign:'left' }}
+                            onMouseDown={() => addItemPag(p)}>
+                            <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', padding:'2px 6px', borderRadius:4,
+                              whiteSpace:'nowrap', flexShrink:0, background:'var(--surface2)', color:'var(--text-muted)', border:'1px solid var(--border)' }}>
+                              {tipoLabelCurto(p.tipo)}
+                            </span>
+                            <span style={{ flex:1 }}>
+                              <div style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{p.nome}</div>
+                              <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>{p.codigo} · {fmtMoeda(p.preco)}</div>
+                            </span>
+                          </button>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <FormGrid cols={2}>
+                <FormField label="Desconto" hint="Aplicado sobre o total">
+                  <input type="number" min="0" step="0.01" className="so-field" value={form.amount_discount} placeholder="0,00" onChange={e => set('amount_discount', e.target.value)} />
+                </FormField>
               </FormGrid>
               <div style={{ margin:'4px 24px 20px', background:'var(--surface2)', border:'1px solid var(--border)',
                 borderRadius:8, padding:'10px 14px', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
