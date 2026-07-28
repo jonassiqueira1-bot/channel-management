@@ -7,8 +7,8 @@ import { useProducts } from '../hooks/useProducts'
 import { MOCK_PRODUTOS } from '../data/mockProdutos'
 import { useGoals } from '../hooks/useGoals'
 import EmpresaSearch from '../components/EmpresaSearch'
-import { PAGAMENTOS_STORAGE_KEY, MOCK_PAGAMENTOS } from '../data/mockPagamentos'
 import { PROVISOES_LS_KEY } from '../hooks/usePayments'
+import { useFaturas } from '../hooks/useFaturas'
 import Button from '../components/Button'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import { useEntityCustomFields, getEntityCustomFieldKeys } from '../hooks/useEntityCustomFields'
@@ -1706,20 +1706,19 @@ const FILTERS = [
 ]
 
 // ─── Inadimplência D+1 ───────────────────────────────────────────────────────
-function getInadimplentesIds() {
-  try {
-    const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
-    const ontemStr = ontem.toISOString().slice(0, 10)
-    const raw = localStorage.getItem(PAGAMENTOS_STORAGE_KEY)
-    const pags = raw ? JSON.parse(raw) : MOCK_PAGAMENTOS
-    const ids = new Set()
-    pags.forEach(p => {
-      if ((p.status === 'pendente' || p.status === 'vencido') && p.due_date && p.due_date < ontemStr && p.contract_id) {
-        ids.add(String(p.contract_id))
-      }
-    })
-    return ids
-  } catch { return new Set() }
+// Antes lia de um mock em localStorage (nunca refletia dados reais); agora usa
+// as Faturas reais — cada ocorrência do calendário de cobrança (à vista,
+// parcelado ou recorrente) vencida e não paga marca o contrato como inadimplente.
+function getInadimplentesIds(faturas) {
+  const ontem = new Date(); ontem.setDate(ontem.getDate() - 1)
+  const ontemStr = ontem.toISOString().slice(0, 10)
+  const ids = new Set()
+  ;(faturas || []).forEach(f => {
+    if (f.status !== 'paga' && f.status !== 'cancelada' && f.due_date && f.due_date < ontemStr && f.contract_id) {
+      ids.add(String(f.contract_id))
+    }
+  })
+  return ids
 }
 
 // ─── Importação (padrão igual ao de Empresas.js) ──────────────────────────────
@@ -2217,6 +2216,7 @@ export default function Contratos() {
   const { profile } = useProfile()
   const { activeBranchId } = useBranchContext()
   const { companies, add: addCompany, update: updateCompany } = useCompanies()
+  const { faturas } = useFaturas()
   const [search, setSearch]           = useLocalState('browse:contratos_browse:search', '')
   const [activeFilters, setActiveFilters] = useLocalState('browse:contratos_browse:filters', {})
   const [editando, setEditando]       = useState(null)
@@ -2227,7 +2227,7 @@ export default function Contratos() {
   const [importLogs, setImportLogs]   = useState([])
   const [showImportLog, setShowImportLog] = useState(false)
 
-  const inadimplentesIds = useMemo(() => getInadimplentesIds(), [contratos])
+  const inadimplentesIds = useMemo(() => getInadimplentesIds(faturas), [faturas])
 
   // ── Paginação server-side da tabela (ver useContractsPaged.js) ───────────
   const [browsePage, setBrowsePage]         = useState(1)
