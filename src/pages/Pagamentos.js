@@ -2420,11 +2420,29 @@ export default function Pagamentos() {
             <div style={{ flex:1, overflowY:'auto', minHeight:0, display:'flex', flexDirection:'column', gap:0 }}>
               <FormSection label="Identificação" />
               <FormGrid cols={2}>
+                <FormField label="Empresa" required>
+                  <EmpresaSearch
+                    value={form.company_id}
+                    label={form.company_nome}
+                    onChange={(id, nome) => setNovoPagForm(f => {
+                      // Trocar de empresa invalida o contrato selecionado se ele
+                      // não for dela — evita ficar com contrato de uma empresa e
+                      // "empresa" preenchida com outra.
+                      const contratoAtual = f.contract_id ? contratos.find(c => c.id === f.contract_id) : null
+                      const mantemContrato = contratoAtual && String(contratoAtual.empresa_id) === String(id)
+                      return {
+                        ...f, company_id: id, company_nome: nome,
+                        ...(mantemContrato ? {} : { contract_id: null, contract_numero: '', produto_id: null, produto_nome: '' }),
+                      }
+                    })}
+                  />
+                </FormField>
                 <FormField label="Nº do contrato" required>
                   <SearchSelect
-                    options={contratos.map(c => ({ id: c.id, label: c.numero, sublabel: c.empresa_nome || '' }))}
+                    options={(form.company_id ? contratos.filter(c => String(c.empresa_id) === String(form.company_id)) : contratos)
+                      .map(c => ({ id: c.id, label: c.numero, sublabel: c.empresa_nome || '' }))}
                     value={form.contract_id || null}
-                    placeholder="Buscar contrato…"
+                    placeholder={form.company_id ? 'Buscar contrato desta empresa…' : 'Selecione a empresa primeiro (ou busque por qualquer contrato)…'}
                     onChange={id => {
                       const c = contratos.find(ct => ct.id === id)
                       setNovoPagForm(f => ({
@@ -2434,13 +2452,6 @@ export default function Pagamentos() {
                         amount_cdu: 0, amount_sms: 0, amount_services: 0, amount_discount: 0,
                       }))
                     }}
-                  />
-                </FormField>
-                <FormField label="Empresa" required>
-                  <EmpresaSearch
-                    value={form.company_id}
-                    label={form.company_nome}
-                    onChange={(id, nome) => setNovoPagForm(f => ({ ...f, company_id: id, company_nome: nome }))}
                   />
                 </FormField>
                 <FormField label="Produto">
