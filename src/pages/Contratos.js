@@ -204,6 +204,17 @@ const STATUS_ITEM_OPTS = [
   { value: 'cancelado',  label: 'Cancelado' },
 ]
 
+// Como o item é cobrado — igual ao conceito de Billing Type (Salesforce) /
+// billing frequency + number of payments (HubSpot): define quantas
+// ocorrências de provisão/fatura são pré-geradas de uma vez, em vez de
+// criar só a próxima depois que a anterior for paga.
+const TIPO_COBRANCA_OPTS = [
+  { value: 'avista',     label: 'À vista (1x)' },
+  { value: 'parcelado',  label: 'Parcelado' },
+  { value: 'recorrente', label: 'Recorrente (mensal)' },
+]
+const DEFAULT_DURACAO_MESES = 12
+
 function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, contratos }) {
   const [addingQuery, setAddingQuery] = useState('')
   const [addingOpen,  setAddingOpen]  = useState(false)
@@ -246,6 +257,11 @@ function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, cont
       desconto_pct: 0, desconto_autorizado: false, status_item: 'ativo',
       vencimento_primeiro_pagamento: '',
       primeira_compra: primeiraCompraDefault(p.id),
+      // SaaS nasce recorrente por padrão; os demais nascem à vista — o
+      // usuário pode trocar pra parcelado quando fizer sentido.
+      tipo_cobranca:  p.tipo === 'saas' ? 'recorrente' : 'avista',
+      numero_parcelas: 1,
+      duracao_meses:   DEFAULT_DURACAO_MESES,
       _cat_label: cat.label,
     }])
     setAddingQuery(''); setAddingOpen(false)
@@ -356,6 +372,32 @@ function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, cont
               </select>
             </div>
 
+            {/* cobrança: à vista / parcelado / recorrente — define quantas
+                ocorrências de provisão/fatura são pré-geradas de uma vez */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', flexWrap: 'wrap' }}>
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Cobrança:</label>
+              <select value={item.tipo_cobranca || 'avista'} onChange={e => updateItem(idx, { tipo_cobranca: e.target.value })}
+                style={{ fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--font)', outline: 'none', cursor: 'pointer' }}>
+                {TIPO_COBRANCA_OPTS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {item.tipo_cobranca === 'parcelado' && (
+                <>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Nº parcelas:</label>
+                  <input type="number" min="2" step="1" value={item.numero_parcelas || 2}
+                    onChange={e => updateItem(idx, { numero_parcelas: Math.max(2, parseInt(e.target.value, 10) || 2) })}
+                    style={{ width: 50, fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }} />
+                </>
+              )}
+              {item.tipo_cobranca === 'recorrente' && (
+                <>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Gerar meses à frente:</label>
+                  <input type="number" min="1" step="1" value={item.duracao_meses || DEFAULT_DURACAO_MESES}
+                    onChange={e => updateItem(idx, { duracao_meses: Math.max(1, parseInt(e.target.value, 10) || DEFAULT_DURACAO_MESES) })}
+                    style={{ width: 50, fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }} />
+                </>
+              )}
+            </div>
+
             {/* autorização de desconto */}
             {desc > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px 6px', background: item.desconto_autorizado ? 'var(--green-bg)' : 'var(--red-bg)' }}>
@@ -414,6 +456,44 @@ function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, cont
 }
 
 
+// ─── Calendário de ocorrências (à vista / parcelado / recorrente) ────────────
+// Mesmo padrão de Salesforce Billing (BillingSchedule) e HubSpot (Subscription
+// number of payments): o plano de cobrança inteiro é pré-gerado de uma vez no
+// momento da venda, em vez de criar a próxima ocorrência só depois que a
+// anterior for paga — assim dá pra saber que uma mensalidade "está em dia"
+// mesmo que nenhum pagamento anterior tenha sido processado ainda.
+function addMonths(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const total = m - 1 + n
+  const newY  = y + Math.floor(total / 12)
+  const newM  = ((total % 12) + 12) % 12
+  const lastDay = new Date(newY, newM + 1, 0).getDate()
+  const newD = Math.min(d, lastDay)
+  return `${newY}-${String(newM + 1).padStart(2, '0')}-${String(newD).padStart(2, '0')}`
+}
+
+function expandirOcorrencias(item) {
+  const base       = item.vencimento_primeiro_pagamento
+  const valorTotal = parseFloat(item.valor) || 0
+  const tipo       = item.tipo_cobranca || 'avista'
+
+  if (tipo === 'parcelado') {
+    const n = Math.max(2, parseInt(item.numero_parcelas, 10) || 2)
+    const valorParcela = Math.round((valorTotal / n) * 100) / 100
+    return Array.from({ length: n }, (_, idx) => ({
+      due_date: addMonths(base, idx), valor: valorParcela, parcela_label: `${idx + 1}/${n}`,
+    }))
+  }
+  if (tipo === 'recorrente') {
+    const n = Math.max(1, parseInt(item.duracao_meses, 10) || DEFAULT_DURACAO_MESES)
+    return Array.from({ length: n }, (_, idx) => ({
+      due_date: addMonths(base, idx), valor: valorTotal, parcela_label: `${idx + 1}/${n}`,
+    }))
+  }
+  // avista — uma única ocorrência
+  return [{ due_date: base, valor: valorTotal, parcela_label: '1/1' }]
+}
+
 // ─── Provisões de pagamento ───────────────────────────────────────────────────
 async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   const tid = tenantId || 't1'
@@ -437,19 +517,23 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
 
   if (!candidatos.length) return 0
 
+  // Expande cada item no calendário completo de ocorrências (1 se à vista,
+  // N se parcelado/recorrente) — cada ocorrência vira uma provisão própria.
+  const ocorrencias = candidatos.flatMap(i => expandirOcorrencias(i).map(oc => ({ ...i, ...oc })))
+
   // Tenta inserir via Supabase
   let qtd = 0
   try {
     // Checa duplicatas já no banco (filtra por company_id; contract_id fica em custom_fields)
     const { data: existentes } = await supabase
       .from('provisoes')
-      .select('id, custom_fields')
+      .select('id, custom_fields, due_date')
       .eq('company_id', String(contrato.empresa_id))
 
     const jaExiste = (produtoId, vencimento) =>
       (existentes || []).some(p =>
         String(p.custom_fields?.produto_id) === String(produtoId) &&
-        p.custom_fields?.vencimento_primeiro_pagamento === vencimento
+        p.due_date === vencimento
       )
 
     const base = {
@@ -461,15 +545,15 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
       descricao:   `Provisão automática — contrato ${contrato.numero}`,
     }
 
-    const inserir = candidatos
-      .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+    const inserir = ocorrencias
+      .filter(i => !jaExiste(i.produto_id, i.due_date))
       .map(i => ({
         ...base,
-        reference_month: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
-        due_date:        i.vencimento_primeiro_pagamento,
-        amount_cdu:      i.tipo_item === 'adesao'  ? parseFloat(i.valor) || 0 : 0,
-        amount_sms:      i.tipo_item === 'mrr'     ? parseFloat(i.valor) || 0 : 0,
-        amount_services: i.tipo_item === 'servico' ? parseFloat(i.valor) || 0 : 0,
+        reference_month: i.due_date.slice(0, 7) + '-01',
+        due_date:        i.due_date,
+        amount_cdu:      i.tipo_item === 'adesao'  ? i.valor : 0,
+        amount_sms:      i.tipo_item === 'mrr'     ? i.valor : 0,
+        amount_services: i.tipo_item === 'servico' ? i.valor : 0,
         amount_discount: 0,
         custom_fields: {
           contract_id:                   contrato.id,
@@ -480,6 +564,7 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
           tipo_item:                     i.tipo_item,
           primeira_compra:               i.primeira_compra || false,
           vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
+          parcela:                       i.parcela_label,
         },
       }))
 
@@ -497,11 +582,11 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
   try {
     const raw = localStorage.getItem(PROVISOES_LS_KEY)
     const existentesLS = raw ? JSON.parse(raw) : []
-    const novos = candidatos
+    const novos = ocorrencias
       .filter(i => !existentesLS.some(p =>
         p.contract_id === contrato.id &&
         p.produto_id  === i.produto_id &&
-        p.due_date    === i.vencimento_primeiro_pagamento
+        p.due_date    === i.due_date
       ))
       .map(i => ({
         id:              `prov_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -511,13 +596,14 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
         company_nome:    contrato.empresa_nome || '',
         produto_id:      i.produto_id || null,
         produto_nome:    i.nome || '',
-        amount_cdu:      i.tipo_item === 'adesao' ? parseFloat(i.valor) || 0 : 0,
-        amount_sms:      i.tipo_item === 'mrr'    ? parseFloat(i.valor) || 0 : 0,
-        amount_services: i.tipo_item === 'servico' ? parseFloat(i.valor) || 0 : 0,
+        amount_cdu:      i.tipo_item === 'adesao' ? i.valor : 0,
+        amount_sms:      i.tipo_item === 'mrr'    ? i.valor : 0,
+        amount_services: i.tipo_item === 'servico' ? i.valor : 0,
         amount_discount: 0,
-        amount_total_net: parseFloat(i.valor) || 0,
-        reference_month: i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
-        due_date:        i.vencimento_primeiro_pagamento,
+        amount_total_net: i.valor,
+        reference_month: i.due_date.slice(0, 7) + '-01',
+        due_date:        i.due_date,
+        parcela:         i.parcela_label,
         status:          'pendente',
         processed:       false,
         notes:           `Provisão automática — contrato ${contrato.numero}`,
@@ -559,10 +645,14 @@ async function gerarFaturas(contrato, tenantId, branchId) {
 
   if (!candidatos.length) return 0
 
+  // Mesmo calendário de ocorrências de gerarProvisoesPagamento — uma fatura
+  // por ocorrência (1 se à vista, N se parcelado/recorrente).
+  const ocorrencias = candidatos.flatMap(i => expandirOcorrencias(i).map(oc => ({ ...i, ...oc })))
+
   try {
     const { data: existentes } = await supabase
       .from('faturas')
-      .select('id, custom_fields')
+      .select('id, custom_fields, due_date')
       .eq('company_id', String(contrato.empresa_id))
 
     const jaExiste = (produtoId, vencimento) =>
@@ -572,8 +662,8 @@ async function gerarFaturas(contrato, tenantId, branchId) {
       )
 
     let seq = (existentes || []).length + 1
-    const inserir = candidatos
-      .filter(i => !jaExiste(i.produto_id, i.vencimento_primeiro_pagamento))
+    const inserir = ocorrencias
+      .filter(i => !jaExiste(i.produto_id, i.due_date))
       .map(i => ({
         tenant_id:        tid,
         branch_id:        branchId || null,
@@ -583,18 +673,19 @@ async function gerarFaturas(contrato, tenantId, branchId) {
         cadencia:         i.tipo_item === 'mrr' ? 'recorrente' : 'avulsa',
         origem_cobranca:  'parceiro',
         status:           'gerada',
-        competencia:      i.vencimento_primeiro_pagamento.slice(0, 7) + '-01',
-        due_date:         i.vencimento_primeiro_pagamento,
-        amount_total:     parseFloat(i.valor) || 0,
+        competencia:      i.due_date.slice(0, 7) + '-01',
+        due_date:         i.due_date,
+        amount_total:     i.valor,
         custom_fields: {
           company_nome:    contrato.empresa_nome || '',
           contract_numero: contrato.numero,
+          parcela:         i.parcela_label,
           itens: [{
             produto_id:   i.produto_id || null,
             nome:         i.nome || '',
             tipo_produto: i.tipo_produto || null,
             quantidade:   i.quantidade || 1,
-            valor:        parseFloat(i.valor) || 0,
+            valor:        i.valor,
             desconto_pct: i.desconto_pct || 0,
           }],
         },
