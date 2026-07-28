@@ -14,7 +14,7 @@ import {
   ClipboardList, FileStack, BookOpen, DollarSign, HeartPulse,
   Settings, ShieldAlert, ChevronDown, BarChart2, TimerReset,
   Pencil, Check, X, GripVertical, Plus, Trash2, RotateCcw, GitBranch, Menu,
-  LifeBuoy, MessageCircle,
+  LifeBuoy,
 } from 'lucide-react'
 
 const ICON_MAP = {
@@ -157,11 +157,6 @@ function AjudaMenu({ collapsed }) {
     return () => document.removeEventListener('mousedown', onClickOutside)
   }, [open])
 
-  function abrirSuporte() {
-    setOpen(false)
-    if (window.$crisp) window.$crisp.push(['do', 'chat:open'])
-  }
-
   const itemStyle = {
     width: '100%', display: 'flex', alignItems: 'center', gap: 8,
     padding: '9px 12px', border: 'none', cursor: 'pointer', fontFamily: 'var(--font)',
@@ -195,10 +190,6 @@ function AjudaMenu({ collapsed }) {
             <BookOpen size={14} strokeWidth={1.75} />
             Documentação
           </a>
-          <button onClick={abrirSuporte} style={itemStyle}>
-            <MessageCircle size={14} strokeWidth={1.75} />
-            Obter suporte
-          </button>
         </div>
       )}
     </div>
@@ -218,6 +209,27 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const [dragSrc,  setDragSrc]  = useState(null)
   const [dragOver, setDragOver] = useState(null)
   const [menuEditMode, setMenuEditMode] = useState(false)
+
+  // Indicador de rolagem — sem isso, uma lista de itens cortada no fim
+  // parece só "acabar ali", sem sinalizar que dá pra rolar pra ver mais.
+  const navRef = useRef(null)
+  const [navScroll, setNavScroll] = useState({ top: false, bottom: false })
+  const updateNavScroll = () => {
+    const el = navRef.current
+    if (!el) return
+    setNavScroll({
+      top: el.scrollTop > 2,
+      bottom: el.scrollTop + el.clientHeight < el.scrollHeight - 2,
+    })
+  }
+  useEffect(() => {
+    updateNavScroll()
+    const el = navRef.current
+    if (!el) return
+    const ro = new ResizeObserver(updateNavScroll)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [groups, openGroups, collapsed])
 
   const { signOut } = useAuth()
   const { profile, loading: profileLoading } = useProfile()
@@ -359,7 +371,9 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
       </div>
 
       {/* ── Nav ── */}
-      <nav style={s.nav}>
+      <div style={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+        {navScroll.top && <div style={s.navFadeTop} />}
+        <nav ref={navRef} style={s.nav} onScroll={updateNavScroll}>
         {groups.map((group, gIdx) => {
           const isEditing      = editingGroup === group.id
           const isHovered      = hoveredGroup === group.id
@@ -552,12 +566,14 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
             )}
           </div>
         )}
-      </nav>
+        </nav>
+        {navScroll.bottom && <div style={s.navFadeBottom} />}
+      </div>
 
-      {/* ── Bottom: Filial + Ajuda + Configurações + Recolher + Sair ── */}
+      {/* ── Bottom: Ajuda + Filial + Configurações + Recolher + Sair ── */}
       <div style={s.bottom}>
-        <BranchSelector collapsed={collapsed} />
         <AjudaMenu collapsed={collapsed} />
+        <BranchSelector collapsed={collapsed} />
         <NavLink
           to={settingsTarget}
           title={collapsed ? 'Configurações' : undefined}
@@ -626,6 +642,16 @@ const s = {
   },
 
   nav: { flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '4px 0 8px' },
+  navFadeTop: {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 20, zIndex: 5,
+    background: 'linear-gradient(to bottom, var(--sb-bg), transparent)',
+    pointerEvents: 'none',
+  },
+  navFadeBottom: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, height: 20, zIndex: 5,
+    background: 'linear-gradient(to top, var(--sb-bg), transparent)',
+    pointerEvents: 'none',
+  },
   group: { marginBottom: 0 },
 
   groupHeader: {
