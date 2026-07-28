@@ -1025,7 +1025,16 @@ export default function TabProvisoes() {
       },
     },
     { key:'reference_month', label:'Competência', render: v => <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-soft)' }}>{v ? periodoLabel(parsePeriodo(v)) : '—'}</span> },
-    { key:'status', label:'Status', render: v => <StatusBadge status={v} /> },
+    { key:'status', label:'Status', render: (v, row) => (
+      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+        <StatusBadge status={v} />
+        {row.percentual_baixa != null && row.percentual_baixa < 99.5 && row.percentual_baixa > 0 && (
+          <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', color:'#D97706' }}>
+            {row.percentual_baixa}% baixado
+          </span>
+        )}
+      </div>
+    )},
     { key:'inconsistencia_status', label:'Inconsistência', render: v => <InconsistenciaBadge value={v} /> },
   ]
 

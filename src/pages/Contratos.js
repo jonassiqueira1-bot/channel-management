@@ -262,6 +262,10 @@ function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, cont
       tipo_cobranca:  p.tipo === 'saas' ? 'recorrente' : 'avista',
       numero_parcelas: 1,
       duracao_meses:   DEFAULT_DURACAO_MESES,
+      // Rastreabilidade — qual proposta/aditivo comercial originou este item
+      // (mesmo papel do campo PROPOSTA no extrato da TOTVS): não é chave de
+      // nada, só metadado de origem.
+      proposta_id: '',
       _cat_label: cat.label,
     }])
     setAddingQuery(''); setAddingOpen(false)
@@ -396,6 +400,10 @@ function ProdutosList({ itens, onChange, produtos: produtosReal, empresaId, cont
                     style={{ width: 50, fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }} />
                 </>
               )}
+              <label style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Proposta:</label>
+              <input type="text" value={item.proposta_id || ''} placeholder="nº da proposta/aditivo (opcional)"
+                onChange={e => updateItem(idx, { proposta_id: e.target.value })}
+                style={{ width: 150, fontSize: 11, padding: '3px 6px', borderRadius: 5, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontFamily: 'var(--mono)', outline: 'none' }} />
             </div>
 
             {/* autorização de desconto */}
@@ -565,6 +573,7 @@ async function gerarProvisoesPagamento(contrato, tenantId, branchId) {
           primeira_compra:               i.primeira_compra || false,
           vencimento_primeiro_pagamento: i.vencimento_primeiro_pagamento,
           parcela:                       i.parcela_label,
+          proposta_id:                   i.proposta_id || null,
         },
       }))
 
@@ -680,6 +689,7 @@ async function gerarFaturas(contrato, tenantId, branchId) {
           company_nome:    contrato.empresa_nome || '',
           contract_numero: contrato.numero,
           parcela:         i.parcela_label,
+          proposta_id:     i.proposta_id || null,
           itens: [{
             produto_id:   i.produto_id || null,
             nome:         i.nome || '',
@@ -1753,7 +1763,7 @@ const ITEM_SLOT_COLS = ITEM_SLOTS.flatMap(s => [`${s}_produto`, `${s}_qtd`, `${s
 const IMPORT_COLS_BASE = [
   'numero', 'empresa_cnpj', 'status', 'vigencia_inicio', 'vigencia_fim',
   'responsavel', 'vendedor', 'origem', 'tipo_venda', 'inconsistencia_status',
-  'observacoes', ...ITEM_SLOT_COLS,
+  'observacoes', 'proposta_id', ...ITEM_SLOT_COLS,
 ]
 const STATUS_CONTRATO_VALUES = STATUS_CONTRATO.map(s => s.value)
 const ORIGEM_CONTRATO_VALUES = ['direta', 'indireta', 'incentivada']
@@ -1782,6 +1792,12 @@ function buildItensFromRow(row, productMap) {
       desconto_pct: descStr ? Number(descStr) || 0 : 0,
       desconto_autorizado: false, status_item: 'ativo',
       vencimento_primeiro_pagamento: '',
+      // Mesmo default de addItem (edição manual): SaaS nasce recorrente,
+      // demais nascem à vista — o CSV não tem coluna própria pra isso ainda.
+      tipo_cobranca:   produto.tipo === 'saas' ? 'recorrente' : 'avista',
+      numero_parcelas: 1,
+      duracao_meses:   DEFAULT_DURACAO_MESES,
+      proposta_id:     row.proposta_id?.trim() || '',
     })
   })
   return { itens, errors }

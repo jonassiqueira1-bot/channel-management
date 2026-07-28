@@ -37,6 +37,11 @@ function rowToProvisao(row) {
     data_baixa:       cf.data_baixa || '',
     valor_recebido:   cf.valor_recebido ?? null,
     parcela:          cf.parcela || '',
+    // % efetivamente recebido em relação ao previsto — mesmo conceito do
+    // campo PERCBAIXA da TOTVS; permite representar baixa parcial em vez de
+    // só pago/não-pago binário.
+    percentual_baixa: cf.percentual_baixa ?? null,
+    proposta_id:      cf.proposta_id || '',
     reference_month:  row.reference_month || cf.reference_month || '',
     due_date:         row.due_date        || cf.due_date        || '',
     data_fechamento:  row.data_fechamento || cf.data_fechamento || null,
@@ -94,6 +99,8 @@ function provisaoToRow(p, tenantId, branchId) {
       data_baixa:      p.data_baixa,
       valor_recebido:  p.valor_recebido,
       parcela:         p.parcela,
+      percentual_baixa: p.percentual_baixa ?? null,
+      proposta_id:      p.proposta_id || null,
     },
   }
 }

@@ -2200,27 +2200,65 @@ export default function Pagamentos() {
   // só que pra um único registro cadastrado a mão. Se achar e o pagamento já
   // nasce como "pago", concilia na hora: marca a provisão como recebida (ou
   // sinaliza divergência de valor, se o valor não bater).
+  // Conciliação em camadas — da chave mais precisa pra mais genérica, igual
+  // ao que o extrato da TOTVS nos mostrou: NF+parcela é a chave real deles
+  // (não contrato+mês, que colide quando há mais de uma cobrança no mês).
   function reconciliarProvisao(pag) {
-    if (!pag.contract_numero || !pag.reference_month) return
-    const mesRef = (pag.reference_month || '').slice(0, 7)
-    const provisao = provisoes.find(p =>
-      (p.contract_numero || '').toLowerCase() === (pag.contract_numero || '').toLowerCase() &&
-      (p.reference_month || '').slice(0, 7) === mesRef &&
-      p.status !== 'cancelado'
-    )
+    if (!pag.contract_numero) return
+    const numDoc = (pag.num_documento || '').trim().toLowerCase()
+    const parcelaPag = pag.parcela || '1/1'
+
+    let provisao = null
+
+    // 1) Documento fiscal + parcela — chave mais precisa, mesmo padrão de
+    //    NOTAFISCAL+SERIENF+PARCELANF do extrato da TOTVS.
+    if (numDoc) {
+      provisao = provisoes.find(p =>
+        (p.num_documento || '').trim().toLowerCase() === numDoc &&
+        (p.parcela || '1/1') === parcelaPag &&
+        p.status !== 'cancelado'
+      )
+    }
+    // 2) Ocorrência exata do calendário: contrato + produto + vencimento —
+    //    cada parcela/mês pré-gerado tem due_date único, então essa tripla
+    //    já não tem ambiguidade mesmo sem NF preenchida.
+    if (!provisao && pag.produto_id && pag.due_date) {
+      provisao = provisoes.find(p =>
+        (p.contract_numero || '').toLowerCase() === (pag.contract_numero || '').toLowerCase() &&
+        String(p.produto_id) === String(pag.produto_id) &&
+        p.due_date === pag.due_date &&
+        p.status !== 'cancelado'
+      )
+    }
+    // 3) Fallback legado — contrato + competência, ambíguo se houver mais de
+    //    uma cobrança no mês; só usado quando faltam produto/NF no pagamento.
+    if (!provisao && pag.reference_month) {
+      const mesRef = (pag.reference_month || '').slice(0, 7)
+      provisao = provisoes.find(p =>
+        (p.contract_numero || '').toLowerCase() === (pag.contract_numero || '').toLowerCase() &&
+        (p.reference_month || '').slice(0, 7) === mesRef &&
+        p.status !== 'cancelado'
+      )
+    }
     if (!provisao) return
+
     const valorPago = parseFloat(pag.amount_total_net || 0)
     const valorProv = parseFloat(provisao.amount_total_net || 0)
-    const divergente = Math.abs(valorPago - valorProv) > 0.01
+    // % baixado — mesmo conceito do campo PERCBAIXA da TOTVS: em vez de só
+    // pago/não pago, registra quanto da provisão foi efetivamente recebido.
+    const percentualBaixa = valorProv > 0 ? Math.round((valorPago / valorProv) * 10000) / 100 : 100
+    const parcial     = percentualBaixa < 99.5
+    const divergente  = Math.abs(percentualBaixa - 100) > 0.5
     const hoje = new Date().toISOString().slice(0, 10)
     saveProvisao({
       ...provisao,
-      status: 'pago',
-      data_baixa: provisao.data_baixa || hoje,
+      status: parcial ? provisao.status : 'pago',
+      data_baixa: parcial ? provisao.data_baixa : (provisao.data_baixa || hoje),
+      percentual_baixa: percentualBaixa,
       inconsistencia: divergente,
       inconsistencia_status: divergente ? 'inconsistencia_pendente' : 'sem_inconsistencia',
       notes: divergente
-        ? `${provisao.notes ? provisao.notes + '\n' : ''}[Conciliação manual] Valor divergente: recebido ${fmtMoeda(valorPago)} vs provisionado ${fmtMoeda(valorProv)}`
+        ? `${provisao.notes ? provisao.notes + '\n' : ''}[Conciliação ${numDoc ? 'por documento' : 'automática'}] Recebido ${fmtMoeda(valorPago)} de ${fmtMoeda(valorProv)} previstos (${percentualBaixa}%)`
         : provisao.notes,
     })
   }
