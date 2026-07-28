@@ -1,8 +1,8 @@
 // Central de documentação de apoio do Boostly — hospedada separadamente
-// (Docusaurus) em docs.boostly.com.br. Este arquivo é o único lugar que deve
+// (Docusaurus) em help.boostly.com.br. Este arquivo é o único lugar que deve
 // conhecer essas URLs; nenhum outro componente deve hardcodá-las.
 
-export const DOCS_BASE_URL = 'https://docs.boostly.com.br'
+export const DOCS_BASE_URL = 'https://help.boostly.com.br'
 
 // URL contextual por módulo — a chave é livre, usada via <DocsLink module="chave" />.
 // Basta adicionar uma entrada aqui para habilitar o link contextual daquele

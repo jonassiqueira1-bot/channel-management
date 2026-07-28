@@ -12,7 +12,7 @@ const config: Config = {
 
   future: { v4: true },
 
-  url: 'https://docs.boostly.com.br',
+  url: 'https://help.boostly.com.br',
   baseUrl: '/',
 
   onBrokenLinks: 'throw',
