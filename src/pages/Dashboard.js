@@ -388,14 +388,15 @@ const ST_CFG = {
 }
 
 function ActivityWidget({ widget, data }) {
+  const atividades = data || []
   return (
     <div style={{ ...s.card, height:'100%' }}>
       <div style={s.wTitle}>{widget.settings?.label || 'Atividades Recentes'}</div>
       <div style={{ display:'flex', flexDirection:'column', marginTop:12 }}>
-        {data.map((atv,i) => {
+        {atividades.map((atv,i) => {
           const ac = ATI_CFG[atv.tipo]||ATI_CFG.oportunidade, sc = ST_CFG[atv.status]||ST_CFG.pendente
           return (
-            <div key={atv.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:i<data.length-1?'1px solid var(--border2)':'none' }}>
+            <div key={atv.id} style={{ display:'flex', alignItems:'center', gap:12, padding:'10px 0', borderBottom:i<atividades.length-1?'1px solid var(--border2)':'none' }}>
               <div style={{ width:30, height:30, borderRadius:8, background:`${ac.color}14`, color:ac.color, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                 <ac.Icon size={13} strokeWidth={1.75}/>
               </div>
@@ -1413,7 +1414,7 @@ export default function Dashboard() {
   }
 
   const baseData    = liveAnalytics || (isISV
-    ? { cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, por_franquia:[], pipeline:[] }
+    ? { cdu_receita:0, sms_receita:0, servicos_receita:0, franquias_ativas:0, oportunidades:0, projetos_ativos:0, contratos_ativos:0, taxa_conversao:0, ticket_medio:0, contratos_inadimplentes:0, valor_inadimplencia:0, por_franquia:[], pipeline:[], atividades_recentes:[] }
     : { oportunidades:0, projetos_ativos:0, questionarios:0, cdu_receita:0, sms_receita:0, servicos_receita:0, taxa_conversao:0, ticket_medio:0, contratos_ativos:0, contratos_inadimplentes:0, valor_inadimplencia:0, pipeline:[], atividades_recentes:[] })
   const configSlot  = configSlotId ? currentSec.flatMap(s => s.slots).find(sl => sl.id===configSlotId) : null
   const franchises  = isISV ? (baseData.por_franquia||[]).map(f => f.nome) : []
