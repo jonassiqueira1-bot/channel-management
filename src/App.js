@@ -4,6 +4,8 @@ import { AuthProvider } from './contexts/AuthContext'
 import { BranchProvider } from './contexts/BranchContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import AppLayout from './layouts/AppLayout'
+import { usePermissions } from './hooks/usePermissions'
+import { firstAllowedRoute } from './data/moduloRotas'
 
 // Code-splitting por rota — antes todas as ~50 páginas eram importadas de
 // forma estática aqui, então o navegador baixava/parseava o bundle inteiro
@@ -81,6 +83,14 @@ function RouteFallback() {
   )
 }
 
+// "/" não tinha rota própria — caía no coringa (*) e ia sempre pro /login,
+// mesmo com sessão ativa. Agora, dentro do ProtectedRoute (que já garante
+// sessão válida), manda pra primeira rota permitida pro papel do usuário.
+function RootRedirect() {
+  const { can } = usePermissions()
+  return <Navigate to={firstAllowedRoute(can)} replace />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -103,6 +113,7 @@ export default function App() {
               </ProtectedRoute>
             }
           >
+            <Route path="/" element={<RootRedirect />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/franquias" element={<Franquias />} />
             {/* /unidades removido — gerenciado via Cadastro Unificado de Empresas */}
