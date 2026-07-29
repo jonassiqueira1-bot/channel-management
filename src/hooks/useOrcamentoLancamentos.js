@@ -15,14 +15,19 @@ function rowToLancamento(row) {
     centro_custo_id: row.centro_custo_id,
     competencia:     row.competencia,
     data_lancamento: row.data_lancamento,
+    tipo:            row.tipo || 'despesa',
     descricao:       row.descricao || '',
-    valor:           Number(row.valor) || 0,
+    valor_previsto:  Number(row.valor_previsto) || 0,
+    valor_realizado: Number(row.valor_realizado) || 0,
+    executado:       row.executado || false,
+    aprovacoes:      row.aprovacoes || [],
     observacoes:     row.observacoes || '',
   }
 }
 
-// Lançamentos manuais de realizado — complementam o realizado automático
-// (Campanhas/Ações), pra despesas que não passam por nenhum dos dois módulos.
+// Lançamentos manuais de Orçamento — mesmo fluxo de Ações → Custos:
+// classificação (despesa/receita), previsto x realizado, execução e
+// aprovação (admin/financeiro) antes de contar como realizado.
 export function useOrcamentoLancamentos() {
   const { session } = useAuth()
   const { profile }  = useProfile()
@@ -53,7 +58,12 @@ export function useOrcamentoLancamentos() {
       tenant_id: tenantId, branch_id: branchId || null,
       centro_custo_id: l.centro_custo_id, competencia: l.competencia,
       data_lancamento: l.data_lancamento || l.competencia,
-      descricao: l.descricao || '', valor: Number(l.valor) || 0,
+      tipo: l.tipo || 'despesa',
+      descricao: l.descricao || '',
+      valor_previsto: Number(l.valor_previsto) || 0,
+      valor_realizado: Number(l.valor_realizado) || 0,
+      executado: l.executado || false,
+      aprovacoes: l.aprovacoes || [],
       observacoes: l.observacoes || null,
     }
     if (isUuid(l.id)) {

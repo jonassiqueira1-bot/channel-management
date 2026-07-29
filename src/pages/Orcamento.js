@@ -55,7 +55,6 @@ export default function Orcamento() {
   const [periodoDe, setPeriodoDe] = useLocalState('orcamento:periodoDe', '')
   const [periodoAte, setPeriodoAte] = useLocalState('orcamento:periodoAte', '')
   const [detalhe, setDetalhe] = useState(null) // { centro, competencia }
-  const [novoLancForm, setNovoLancForm] = useState(null)
 
   const custosAuto = useMemo(() => ({
     ...agruparCustosExecutados(campanhas || [], 'start_date'),
@@ -72,10 +71,14 @@ export default function Orcamento() {
   }, [custosAuto, custosAcoes])
 
   const realizadoManualPorChave = useMemo(() => {
+    // Só conta como realizado o que já foi executado (mesma regra de Ações
+    // → Custos) — despesa soma, receita subtrai do total gasto contra o centro.
     const totais = {}
     ;(lancamentos || []).forEach(l => {
+      if (!l.executado) return
       const key = `${l.centro_custo_id}|${l.competencia?.slice(0, 7)}`
-      totais[key] = (totais[key] || 0) + l.valor
+      const sinal = l.tipo === 'receita' ? -1 : 1
+      totais[key] = (totais[key] || 0) + sinal * l.valor_realizado
     })
     return totais
   }, [lancamentos])
@@ -283,7 +286,7 @@ export default function Orcamento() {
       )}
 
       {detalhe && (
-        <SlideOver open title={`${detalhe.centro.nome} — ${fmtCompetencia(detalhe.competencia)}`} onClose={() => setDetalhe(null)} defaultWidth="480">
+        <SlideOver open title={`${detalhe.centro.nome} — ${fmtCompetencia(detalhe.competencia)}`} onClose={() => setDetalhe(null)} defaultWidth={720}>
           <FormGrid>
             <FormSection title="Planejado">
               <FormField label="Valor planejado">
@@ -302,50 +305,14 @@ export default function Orcamento() {
               </FormField>
             </FormSection>
 
-            <FormSection title="Lançamentos manuais">
-              <FormField label="">
-                <div style={{ border: '1px solid var(--border)', borderRadius: 9, overflow: 'hidden' }}>
-                  {lancamentosDoDetalhe.map(l => (
-                    <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)' }}>{l.descricao}</div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>{l.data_lancamento}</div>
-                      </div>
-                      <div style={{ fontFamily: 'var(--mono)', fontWeight: 700, fontSize: 12, color: 'var(--text)' }}>{fmtMoeda(l.valor)}</div>
-                      <button onClick={() => removeLancamento(l.id)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>✕</button>
-                    </div>
-                  ))}
-                  {lancamentosDoDetalhe.length === 0 && (
-                    <div style={{ padding: '14px 12px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Nenhum lançamento manual neste mês.</div>
-                  )}
-                  <div style={{ padding: '8px 12px', background: 'var(--surface2)' }}>
-                    {novoLancForm ? (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <input placeholder="Descrição" value={novoLancForm.descricao} onChange={e => setNovoLancForm(f => ({ ...f, descricao: e.target.value }))}
-                          style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 }} />
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          <input type="number" min="0" step="0.01" placeholder="Valor" value={novoLancForm.valor} onChange={e => setNovoLancForm(f => ({ ...f, valor: e.target.value }))}
-                            style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)' }} />
-                          <input type="date" value={novoLancForm.data_lancamento} onChange={e => setNovoLancForm(f => ({ ...f, data_lancamento: e.target.value }))}
-                            style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)' }} />
-                        </div>
-                        <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                          <button onClick={() => setNovoLancForm(null)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>Cancelar</button>
-                          <button onClick={async () => {
-                            if (!novoLancForm.descricao || !novoLancForm.valor) return
-                            await saveLancamento({ ...novoLancForm, centro_custo_id: detalhe.centroId, competencia: detalhe.competencia + '-01' })
-                            setNovoLancForm(null)
-                          }} style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: ACCENT, border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>Adicionar</button>
-                        </div>
-                      </div>
-                    ) : (
-                      <button onClick={() => setNovoLancForm({ descricao: '', valor: '', data_lancamento: new Date().toISOString().slice(0, 10) })}
-                        style={{ width: '100%', textAlign: 'left', padding: '5px 8px', borderRadius: 6, border: '1px dashed var(--border)', background: 'transparent', color: 'var(--text-muted)', fontSize: 12, cursor: 'pointer' }}>
-                        + Adicionar lançamento manual
-                      </button>
-                    )}
-                  </div>
-                </div>
+            <FormSection title="Lançamentos manuais" description="Mesmo fluxo de Ações → Custos: classifique, informe previsto/realizado e solicite aprovação antes de executar.">
+              <FormField label="" span={2}>
+                <LancamentosSection
+                  lancamentos={lancamentosDoDetalhe}
+                  onSave={l => saveLancamento({ ...l, centro_custo_id: detalhe.centroId, competencia: detalhe.competencia + '-01' })}
+                  onRemove={removeLancamento}
+                  profile={profile}
+                />
               </FormField>
             </FormSection>
           </FormGrid>
@@ -354,3 +321,203 @@ export default function Orcamento() {
     </>
   )
 }
+
+const APROVACAO_CFG = {
+  aguardando: { label: 'Aguardando aprovação', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
+  aprovado:   { label: 'Aprovado',             color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
+  rejeitado:  { label: 'Rejeitado',            color: '#EF4444', bg: '#FEE2E2', text: '#991B1B' },
+}
+const TIPO_CFG = {
+  despesa: { label: 'Despesa', color: '#EF4444' },
+  receita: { label: 'Receita', color: '#10B981' },
+}
+
+// Mesmo padrão de Ações → aba Custos: classificação (despesa/receita) →
+// previsto/realizado → solicitar aprovação → admin/financeiro aprova ou
+// rejeita → só então dá pra marcar como executado (o que conta no realizado).
+function LancamentosSection({ lancamentos, onSave, onRemove, profile }) {
+  const [novo, setNovo] = useState(null)
+  const [abertoId, setAbertoId] = useState(null)
+  const [obsInput, setObsInput] = useState({})
+
+  const isAdmin = profile?.papel === 'admin_isv' || profile?.role === 'admin_isv'
+  const podeAprovar = isAdmin || profile?.papel === 'financeiro'
+  const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
+
+  const totalPrev = lancamentos.reduce((s, l) => s + (Number(l.valor_previsto) || 0), 0)
+  const totalExec = lancamentos.reduce((s, l) => s + (l.executado ? (Number(l.valor_realizado) || 0) : 0), 0)
+
+  function solicitarAprovacao(l) {
+    const entrada = { id: crypto.randomUUID(), status: 'aguardando', obs: '', por: nomeUsuario, em: new Date().toISOString() }
+    onSave({ ...l, aprovacoes: [entrada] })
+  }
+  function aprovar(l, status) {
+    const entrada = { id: crypto.randomUUID(), status, obs: obsInput[l.id] || '', por: nomeUsuario, em: new Date().toISOString() }
+    onSave({ ...l, aprovacoes: [...(l.aprovacoes || []), entrada] })
+    setObsInput(o => ({ ...o, [l.id]: '' }))
+  }
+  function marcarExecutado(l, executado) {
+    onSave({ ...l, executado })
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {lancamentos.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[['Total previsto', fmtMoeda(totalPrev), false], ['Total executado', fmtMoeda(totalExec), totalExec > totalPrev]].map(([lbl, val, red]) => (
+            <div key={lbl} style={{ padding: '8px 12px', background: 'var(--surface2)', borderRadius: 7, border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{lbl}</div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: red ? '#EF4444' : 'var(--text)', marginTop: 2 }}>{val}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {lancamentos.map((l, idx) => {
+        const ultima = (l.aprovacoes || []).slice(-1)[0]
+        const cfgAp = ultima ? (APROVACAO_CFG[ultima.status] || APROVACAO_CFG.aguardando) : null
+        const aprovado = ultima?.status === 'aprovado'
+        const isOpen = abertoId === l.id
+        return (
+          <div key={l.id} style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--surface2)', cursor: 'pointer' }}
+              onClick={() => setAbertoId(isOpen ? null : l.id)}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', flexShrink: 0 }}>#{idx + 1}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: TIPO_CFG[l.tipo]?.color, flexShrink: 0 }}>{TIPO_CFG[l.tipo]?.label}</span>
+              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {l.descricao || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Sem descrição</span>}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmtMoeda(l.valor_previsto)}</span>
+              {cfgAp && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 20, background: cfgAp.bg, color: cfgAp.text, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
+                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: cfgAp.color }} />{cfgAp.label}
+                </span>
+              )}
+              {aprovado && (
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 20,
+                  background: l.executado ? '#EDE9FE' : 'var(--surface)', color: l.executado ? '#5B21B6' : 'var(--text-muted)',
+                  fontSize: 10, fontWeight: 700, border: '1px solid var(--border)', flexShrink: 0 }}>
+                  {l.executado ? '✔ Executado' : '— Não executado'}
+                </span>
+              )}
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
+              <button onClick={e => { e.stopPropagation(); if (window.confirm('Remover lançamento?')) onRemove(l.id) }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 2px', lineHeight: 1, flexShrink: 0 }}>×</button>
+            </div>
+
+            {isOpen && (
+              <>
+                <div style={{ padding: '8px 10px', display: 'grid', gridTemplateColumns: '110px 1fr', gap: 8 }}>
+                  <div>
+                    <label style={lblS}>Classificação</label>
+                    <select className="so-field" value={l.tipo} onChange={e => onSave({ ...l, tipo: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }}>
+                      {Object.entries(TIPO_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={lblS}>Descrição / Justificativa</label>
+                    <input className="so-field" value={l.descricao} onChange={e => onSave({ ...l, descricao: e.target.value })} placeholder="Finalidade do lançamento…" style={{ width: '100%', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+                <div style={{ padding: '0 10px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  <div>
+                    <label style={lblS}>Previsto (R$)</label>
+                    <input className="so-field" type="number" min="0" step="0.01" value={l.valor_previsto} onChange={e => onSave({ ...l, valor_previsto: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={lblS}>Realizado (R$)</label>
+                    <input className="so-field" type="number" min="0" step="0.01" value={l.valor_realizado} onChange={e => onSave({ ...l, valor_realizado: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
+                  </div>
+                  <div>
+                    <label style={lblS}>Data</label>
+                    <input className="so-field" type="date" value={l.data_lancamento} onChange={e => onSave({ ...l, data_lancamento: e.target.value })} style={{ width: '100%', boxSizing: 'border-box' }} />
+                  </div>
+                </div>
+
+                {aprovado && (
+                  <div style={{ padding: '0 10px 8px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input type="checkbox" id={`exec-${l.id}`} checked={!!l.executado} onChange={e => marcarExecutado(l, e.target.checked)} style={{ cursor: 'pointer' }} />
+                    <label htmlFor={`exec-${l.id}`} style={{ fontSize: 12, fontWeight: 600, color: l.executado ? '#5B21B6' : 'var(--text)', cursor: 'pointer' }}>
+                      {l.executado ? 'Lançamento executado' : 'Marcar como executado'}
+                    </label>
+                  </div>
+                )}
+
+                {(l.aprovacoes || []).length > 0 && (
+                  <div style={{ margin: '0 10px 6px', background: 'var(--surface2)', borderRadius: 6, padding: '6px 8px' }}>
+                    {(l.aprovacoes || []).map(ap => {
+                      const ac = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
+                      return (
+                        <div key={ap.id} style={{ display: 'flex', gap: 6, fontSize: 10, marginBottom: 2, color: 'var(--text-muted)' }}>
+                          <span style={{ color: ac.color, fontWeight: 700 }}>{ap.status === 'aprovado' ? '✓' : ap.status === 'rejeitado' ? '✗' : '⏳'}</span>
+                          <span><b style={{ color: 'var(--text)' }}>{ac.label}</b> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}{ap.obs ? ` — ${ap.obs}` : ''}</span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+
+                {(l.aprovacoes || []).length === 0 ? (
+                  <div style={{ padding: '0 10px 8px' }}>
+                    <button onClick={() => solicitarAprovacao(l)}
+                      style={{ padding: '5px 12px', borderRadius: 6, border: '1px solid var(--accent)', background: 'none', color: 'var(--accent)', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)' }}>
+                      Solicitar aprovação
+                    </button>
+                  </div>
+                ) : podeAprovar && !aprovado ? (
+                  <div style={{ display: 'flex', gap: 6, padding: '0 10px 8px', alignItems: 'center' }}>
+                    <input className="so-field" value={obsInput[l.id] || ''} onChange={e => setObsInput(o => ({ ...o, [l.id]: e.target.value }))}
+                      placeholder="Observação (opcional)…" style={{ flex: 1, fontSize: 11 }} />
+                    <button onClick={() => aprovar(l, 'aprovado')}
+                      style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#10B981', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                      ✓ Aprovar
+                    </button>
+                    <button onClick={() => aprovar(l, 'rejeitado')}
+                      style={{ padding: '5px 10px', borderRadius: 6, border: 'none', background: '#EF4444', color: '#fff', fontWeight: 700, fontSize: 11, cursor: 'pointer', fontFamily: 'var(--font)', whiteSpace: 'nowrap' }}>
+                      ✗ Rejeitar
+                    </button>
+                  </div>
+                ) : !podeAprovar && !aprovado ? (
+                  <div style={{ padding: '4px 10px 8px', fontSize: 11, color: 'var(--text-muted)' }}>Aguardando aprovação do administrador ou financeiro.</div>
+                ) : null}
+              </>
+            )}
+          </div>
+        )
+      })}
+
+      {novo ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px', border: '1px dashed var(--border)', borderRadius: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: 6 }}>
+            <select className="so-field" value={novo.tipo} onChange={e => setNovo(f => ({ ...f, tipo: e.target.value }))}>
+              {Object.entries(TIPO_CFG).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+            </select>
+            <input placeholder="Descrição / justificativa" value={novo.descricao} onChange={e => setNovo(f => ({ ...f, descricao: e.target.value }))}
+              style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12 }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <input type="number" min="0" step="0.01" placeholder="Previsto" value={novo.valor_previsto} onChange={e => setNovo(f => ({ ...f, valor_previsto: e.target.value }))}
+              style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)' }} />
+            <input type="date" value={novo.data_lancamento} onChange={e => setNovo(f => ({ ...f, data_lancamento: e.target.value }))}
+              style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--mono)' }} />
+          </div>
+          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+            <button onClick={() => setNovo(null)} style={{ fontSize: 11, color: 'var(--text-muted)', background: 'none', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>Cancelar</button>
+            <button onClick={() => {
+              if (!novo.descricao || !novo.valor_previsto) return
+              onSave({ ...novo, valor_realizado: 0, executado: false, aprovacoes: [] })
+              setNovo(null)
+            }} style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: ACCENT, border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer' }}>Adicionar</button>
+          </div>
+        </div>
+      ) : (
+        <button onClick={() => setNovo({ tipo: 'despesa', descricao: '', valor_previsto: '', data_lancamento: new Date().toISOString().slice(0, 10) })}
+          style={{ padding: '6px 0', borderRadius: 7, border: '1px dashed var(--border)', background: 'none', fontSize: 12, fontWeight: 600, color: 'var(--accent)', cursor: 'pointer', fontFamily: 'var(--font)' }}>
+          + Adicionar item de custo
+        </button>
+      )}
+    </div>
+  )
+}
+
+const lblS = { fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: 3 }
