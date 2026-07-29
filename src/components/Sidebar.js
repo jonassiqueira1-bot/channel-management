@@ -43,6 +43,7 @@ const INITIAL_GROUPS = [
       { path: '/contratos',        label: 'Contratos',          iconKey: 'FileText'        },
       { path: '/pagamentos',       label: 'Pagamentos',         iconKey: 'CreditCard'      },
       { path: '/comissoes',        label: 'Comissões',          iconKey: 'DollarSign'      },
+      { path: '/orcamento',        label: 'Orçamento',          iconKey: 'BarChart2'       },
       { path: '/questionarios',    label: 'Questionários',      iconKey: 'ClipboardList'   },
       { path: '/documentos',       label: 'Documentos',         iconKey: 'FileStack'       },
     ],

@@ -32,6 +32,7 @@ const Pagamentos          = lazy(() => import('./pages/Pagamentos'))
 const Projetos            = lazy(() => import('./pages/Projetos'))
 const Playbooks           = lazy(() => import('./pages/Playbooks'))
 const Comissoes           = lazy(() => import('./pages/Comissoes'))
+const Orcamento           = lazy(() => import('./pages/Orcamento'))
 const CustomerSuccess     = lazy(() => import('./pages/CustomerSuccess'))
 const SettingsModule      = lazy(() => import('./pages/Settings'))
 const SettingsCampanhas   = lazy(() => import('./pages/settings/Campanhas'))
@@ -136,6 +137,7 @@ export default function App() {
             <Route path="/documentos"   element={<Documentos />} />
             <Route path="/playbooks"     element={<Playbooks />} />
             <Route path="/comissoes"   element={<Comissoes />} />
+            <Route path="/orcamento"   element={<Orcamento />} />
             <Route path="/customer-success" element={<CustomerSuccess />} />
             <Route path="/relatorios" element={<Relatorios />} />
             <Route path="/relatorios/novo-construtor" element={<RelatoriosBuilder />} />
