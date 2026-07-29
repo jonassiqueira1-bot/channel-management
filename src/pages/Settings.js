@@ -24,7 +24,6 @@ const SECTIONS = [
       { path: '/settings/assinatura',  label: 'Assinatura',       Icon: DollarSign, adminOnly: true },
       { path: '/settings/franquias',             label: 'Parceiros',            Icon: Store    },
       { path: '/settings/maturidade-parceiros', label: 'Maturidade Parceiros', Icon: Network  },
-      { path: '/settings/maturidade-vendedores', label: 'Maturidade Vendedores', Icon: Network  },
     ],
   },
   {

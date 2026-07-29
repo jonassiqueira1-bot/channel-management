@@ -32,7 +32,6 @@ export const MODULO_ROTAS = [
   { path: '/settings/assinatura',           modulo: 'assinatura',           acao: 'acessar' },
   { path: '/settings/franquias',            modulo: 'parceiros',            acao: 'visualizar' },
   { path: '/settings/maturidade-parceiros', modulo: 'maturidade_parceiros', acao: 'acessar' },
-  { path: '/settings/maturidade-vendedores', modulo: 'maturidade_vendedores', acao: 'acessar' },
   { path: '/settings/usuarios',    modulo: 'usuarios',      acao: 'acessar' },
   { path: '/settings/perfis',      modulo: 'perfis',        acao: 'acessar' },
   { path: '/settings/equipes',     modulo: 'equipes',       acao: 'acessar' },

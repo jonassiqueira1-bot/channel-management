@@ -1,9 +1,21 @@
 import { useState, useMemo } from 'react'
-import { usePartnerMaturity, ORIGENS, CONDICOES } from '../../hooks/usePartnerMaturity'
+import { usePartnerMaturity, ORIGENS as ORIGENS_PARCEIROS, CONDICOES } from '../../hooks/usePartnerMaturity'
+import { useSellerMaturity, ORIGENS as ORIGENS_VENDEDORES } from '../../hooks/useSellerMaturity'
 import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
+// Um só cadastro de parâmetros de maturidade — o campo "escopo" decide se o
+// parâmetro vale pra Parceiros (franquias e canais, usePartnerMaturity) ou
+// pra Vendedores (contatos canal externos, useSellerMaturity). Cada hook
+// continua com sua própria tabela/engine de cálculo (usados em Parceiros.js
+// e Vendedores.js) — esta tela só unifica o cadastro/edição dos parâmetros.
+const ESCOPOS = [
+  { value: 'parceiros',  label: 'Parceiros (franquias e canais)' },
+  { value: 'vendedores', label: 'Vendedores (externos)' },
+]
+
 const EMPTY_PARAM = {
+  escopo:      'parceiros',
   nome:        '',
   descricao:   '',
   origem:      'contacts',
@@ -15,11 +27,20 @@ const EMPTY_PARAM = {
   ordem:       0,
 }
 
-function origemLabel(v) { return ORIGENS.find(o => o.value === v)?.label || v }
+function origensDe(escopo) { return escopo === 'vendedores' ? ORIGENS_VENDEDORES : ORIGENS_PARCEIROS }
+function origemLabel(escopo, v) { return origensDe(escopo).find(o => o.value === v)?.label || v }
 function condicaoLabel(v) { return CONDICOES.find(c => c.value === v)?.label || v }
+function escopoLabel(v) { return ESCOPOS.find(e => e.value === v)?.label || v }
 
 export default function MaturidadeParceiros() {
-  const { params, loading, save, remove } = usePartnerMaturity()
+  const partnerHook = usePartnerMaturity()
+  const sellerHook  = useSellerMaturity()
+
+  const params = useMemo(() => [
+    ...partnerHook.params.map(p => ({ ...p, escopo: 'parceiros' })),
+    ...sellerHook.params.map(p => ({ ...p, escopo: 'vendedores' })),
+  ], [partnerHook.params, sellerHook.params])
+  const loading = partnerHook.loading || sellerHook.loading
 
   const [editando, setEditando]   = useState(null)
   const [slideOpen, setSlideOpen] = useState(false)
@@ -27,6 +48,8 @@ export default function MaturidadeParceiros() {
   const [errs, setErrs]           = useState({})
   const [form, setForm]           = useState({ ...EMPTY_PARAM })
   const [search, setSearch]       = useState('')
+
+  function hookDoEscopo(escopo) { return escopo === 'vendedores' ? sellerHook : partnerHook }
 
   const totalPeso = useMemo(
     () => params.filter(p => p.ativo).reduce((s, p) => s + p.peso, 0),
@@ -48,7 +71,13 @@ export default function MaturidadeParceiros() {
   }
 
   function set(k, v) {
-    setForm(f => ({ ...f, [k]: v }))
+    setForm(f => {
+      const next = { ...f, [k]: v }
+      // Trocar de escopo muda o catálogo de origens — evita salvar uma
+      // origem que não existe no hook de destino.
+      if (k === 'escopo') next.origem = origensDe(v)[0]?.value || ''
+      return next
+    })
     if (errs[k]) setErrs(e => ({ ...e, [k]: '' }))
   }
 
@@ -58,22 +87,31 @@ export default function MaturidadeParceiros() {
     if (form.peso < 1) e.peso = 'Peso mínimo é 1'
     if (Object.keys(e).length) { setErrs(e); return }
     setSaving(true)
-    const res = await save({ ...form, id: editando?.id })
+    const { escopo, ...paramSemEscopo } = form
+    // Se o escopo mudou numa edição existente, o parâmetro precisa migrar de
+    // tabela: remove do hook antigo e cria novo no hook do escopo atual.
+    if (editando && editando.escopo !== escopo) {
+      await hookDoEscopo(editando.escopo).remove(editando.id)
+      await hookDoEscopo(escopo).save({ ...paramSemEscopo, id: undefined })
+    } else {
+      await hookDoEscopo(escopo).save({ ...paramSemEscopo, id: editando?.id })
+    }
     setSaving(false)
-    if (res.ok) { setSlideOpen(false); setEditando(null) }
+    setSlideOpen(false)
+    setEditando(null)
   }
 
   async function handleRemove() {
     if (!editando) return
     if (!window.confirm('Remover este parâmetro?')) return
-    await remove(editando.id)
+    await hookDoEscopo(editando.escopo).remove(editando.id)
     setSlideOpen(false)
     setEditando(null)
   }
 
   async function toggleAtivo(p, e) {
     e.stopPropagation()
-    await save({ ...p, ativo: !p.ativo })
+    await hookDoEscopo(p.escopo).save({ ...p, ativo: !p.ativo })
   }
 
   const filtered = params.filter(p =>
@@ -92,9 +130,22 @@ export default function MaturidadeParceiros() {
       ),
     },
     {
+      key: 'escopo',
+      label: 'Aplicação',
+      render: val => (
+        <span style={{
+          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20,
+          background: val === 'vendedores' ? '#EFF6FF' : '#F0FDF4',
+          color: val === 'vendedores' ? '#1D4ED8' : '#15803D',
+        }}>
+          {val === 'vendedores' ? 'Vendedores' : 'Parceiros'}
+        </span>
+      ),
+    },
+    {
       key: 'origem',
       label: 'Origem',
-      render: val => <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{origemLabel(val)}</span>,
+      render: (val, row) => <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{origemLabel(row.escopo, val)}</span>,
     },
     {
       key: 'condicao',
@@ -152,6 +203,11 @@ export default function MaturidadeParceiros() {
         onDelete={editando ? handleRemove : undefined}
       >
         <FPESection title="Identificação">
+          <FPEField label="Aplicação *" span={2}>
+            <select value={form.escopo} onChange={e => set('escopo', e.target.value)} style={inputS}>
+              {ESCOPOS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </FPEField>
           <FPEField label="Nome *" error={errs.nome} span={2}>
             <input
               value={form.nome}
@@ -173,7 +229,7 @@ export default function MaturidadeParceiros() {
         <FPESection title="Regra de avaliação">
           <FPEField label="Origem dos dados" span={2}>
             <select value={form.origem} onChange={e => set('origem', e.target.value)} style={inputS}>
-              {ORIGENS.map(o => (
+              {origensDe(form.escopo).map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
               ))}
             </select>
@@ -233,25 +289,22 @@ export default function MaturidadeParceiros() {
   }
 
   return (
-    <>
-      <SettingsLayout
-        modulo="maturidade_parceiros"
-        title="Maturidade de Parceiros"
-        description={`Configure os parâmetros que definem o score de maturidade de cada parceiro.${totalPeso > 0 ? `  Peso total ativo: ${totalPeso}pts` : ''}`}
-        columns={columns}
-        data={filtered}
-        keyField="id"
-        loading={loading}
-        onNew={openNew}
-        newLabel="Novo parâmetro"
-        rowActions={rowActions}
-        onRowClick={openEdit}
-        search={search}
-        onSearchChange={setSearch}
-        emptyLabel="Nenhum parâmetro configurado. Crie parâmetros para calcular a maturidade dos parceiros."
-      />
-
-    </>
+    <SettingsLayout
+      modulo="maturidade_parceiros"
+      title="Maturidade de Parceiros"
+      description={`Configure os parâmetros que definem o score de maturidade de Parceiros e Vendedores.${totalPeso > 0 ? `  Peso total ativo: ${totalPeso}pts` : ''}`}
+      columns={columns}
+      data={filtered}
+      keyField="id"
+      loading={loading}
+      onNew={openNew}
+      newLabel="Novo parâmetro"
+      rowActions={rowActions}
+      onRowClick={openEdit}
+      search={search}
+      onSearchChange={setSearch}
+      emptyLabel="Nenhum parâmetro configurado. Crie parâmetros para calcular a maturidade de Parceiros e Vendedores."
+    />
   )
 }
 
