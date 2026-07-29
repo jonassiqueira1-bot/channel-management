@@ -181,7 +181,7 @@ export default function TabFaturas() {
       />
 
       {detalhe && (
-        <SlideOver title={`Fatura ${detalhe.numero}`} onClose={() => setDetalhe(null)} defaultWidth="480">
+        <SlideOver open title={`Fatura ${detalhe.numero}`} onClose={() => setDetalhe(null)} defaultWidth="480">
           <FormGrid>
             <FormSection title="Cobrança">
               <FormField label="Empresa"><div>{detalhe.company_nome || '—'}</div></FormField>

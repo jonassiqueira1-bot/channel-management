@@ -283,7 +283,7 @@ export default function Orcamento() {
       )}
 
       {detalhe && (
-        <SlideOver title={`${detalhe.centro.nome} — ${fmtCompetencia(detalhe.competencia)}`} onClose={() => setDetalhe(null)} defaultWidth="480">
+        <SlideOver open title={`${detalhe.centro.nome} — ${fmtCompetencia(detalhe.competencia)}`} onClose={() => setDetalhe(null)} defaultWidth="480">
           <FormGrid>
             <FormSection title="Planejado">
               <FormField label="Valor planejado">
