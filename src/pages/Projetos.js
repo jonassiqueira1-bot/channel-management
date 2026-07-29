@@ -21,6 +21,7 @@ import EmpresaSearch from '../components/EmpresaSearch'
 import { STORAGE_KEY as CS_STORAGE_KEY, MOCK_CUSTOMER_HEALTH } from '../data/mockCustomerSuccess'
 import { useProducts } from '../hooks/useProducts'
 import { useCompanies } from '../hooks/useCompanies'
+import { useCentrosCusto } from '../hooks/useCentrosCusto'
 import ActionFeedback from '../components/ActionFeedback'
 import { useAuditLog } from '../hooks/useAuditLog'
 import { useTimeLogs } from '../hooks/useTimeLogs'
@@ -1779,6 +1780,7 @@ function fmtBRL(v) {
 
 function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   const myLogs = timeLogs.filter(l => l.project_id === projeto.id)
+  const { centros: centrosCusto } = useCentrosCusto()
 
   // Custo/hora por projeto — salvo em localStorage
   const [custoHoraMap, setCustoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
@@ -1948,6 +1950,14 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Custo/hora (R$)</div>
             <input type="number" value={custoHora} onChange={e => setCustoHora(e.target.value)} min={0}
               style={{ ...ms.inp, width: 100, fontFamily: 'var(--mono)' }} />
+          </div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Centro de Custo</div>
+            <select value={projeto.centro_custo_id || ''} onChange={e => onUpdate({ ...projeto, centro_custo_id: e.target.value })}
+              style={{ ...ms.inp, width: 180 }}>
+              <option value="">— Nenhum —</option>
+              {(centrosCusto || []).filter(c => c.status === 'ativo').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
           </div>
           <div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, marginBottom: 4 }}>Valor do contrato (R$)</div>

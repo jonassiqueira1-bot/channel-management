@@ -125,6 +125,7 @@ export function useCampanhas(seeds = []) {
       meta:                  Number(record.meta_valor || 0),
       meta_oportunidades:    Number(record.meta_oportunidades || 0),
       custos:                (record.custos || []).map(({ _obsInput, _open, ...rest }) => rest),
+      centro_custo_id:       record.centro_custo_id || null,
       updated_at:   new Date().toISOString(),
     }
     const { error } = await supabase.from('campanhas').upsert(row, { onConflict: 'id' })

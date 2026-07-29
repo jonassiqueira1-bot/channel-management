@@ -24,6 +24,9 @@ function rowToProduct(row) {
     visivel_canal:       cf.visivel_canal ?? true,
     contratos:           cf.contratos || 0,
     criado:              row.created_at?.slice(0, 10) || '',
+    // Vínculo com Centro de Custo — governança financeira/gerencial: define
+    // pra qual centro a receita desse produto é contabilizada.
+    centro_custo_id:     cf.centro_custo_id || '',
   }
 }
 
@@ -48,6 +51,7 @@ function productToRow(p, tenantId, branchId) {
       features:           p.features,
       visivel_canal:      p.visivel_canal,
       contratos:          p.contratos,
+      centro_custo_id:    p.centro_custo_id || null,
     },
   }
 }

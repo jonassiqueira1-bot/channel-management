@@ -39,6 +39,7 @@ function rowToProject(row) {
     fin_horas_aprovadas:     cf.fin_horas_aprovadas  ?? null,
     fin_horas_executadas:    cf.fin_horas_executadas ?? null,
     fin_atualizado_em:       cf.fin_atualizado_em    || null,
+    centro_custo_id:         cf.centro_custo_id      || '',
   }
 }
 
@@ -61,6 +62,7 @@ function projectToRow(p, tenantId, branchId) {
       current_phase_index:   PHASE_ORDER[p.phase] || 1,
       total_hours_estimated: Number(p.total_hours_estimated) || 0,
       total_hours_executed:  Number(p.total_hours_executed)  || 0,
+      centro_custo_id:       p.centro_custo_id || null,
     },
   }
 }

@@ -14,6 +14,7 @@ import { useUsuarios } from '../hooks/useUsuarios'
 import { useSellers } from '../hooks/useSellers'
 import { useAcaoMembros } from '../hooks/useAcaoMembros'
 import { useDocuments } from '../hooks/useDocuments'
+import { useCentrosCusto } from '../hooks/useCentrosCusto'
 import { CATEGORIA_CFG } from '../data/mockDocumentos'
 import { MultiSelect } from './Playbooks'
 import BrowseLayout from '../components/BrowseLayout'
@@ -132,6 +133,7 @@ const EMPTY_ACAO = {
   tenant_id: 't1',
   custo_previsto: '',
   custos: [],
+  centro_custo_id: '',
   documento_ids: [],
   anexos: [],
 }
@@ -646,6 +648,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
   const [custosSelected, setCustosSelected] = useState([])
   const { profile, isAdmin } = useProfile()
   const { docs: allDocs } = useDocuments()
+  const { centros: centrosCusto } = useCentrosCusto()
 
   useMemo(() => {
     setForm(initial
@@ -870,6 +873,13 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                   <div className="so-field" style={{ background:'var(--surface)', color:'var(--text-muted)', cursor:'default', display:'flex', alignItems:'center' }}>
                     {fmtMoeda((form.custos || []).reduce((s, c) => s + (c.executado ? (Number(c.valor_realizado) || 0) : 0), 0))}
                   </div>
+                </FormField>
+
+                <FormField label="Centro de Custo" hint="Governança financeira — alimenta o Orçamento">
+                  <select className="so-field" value={form.centro_custo_id || ''} onChange={e => set('centro_custo_id', e.target.value)}>
+                    <option value="">— Nenhum —</option>
+                    {(centrosCusto || []).filter(c => c.status === 'ativo').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                  </select>
                 </FormField>
               </FormGrid>
             </Bloco>

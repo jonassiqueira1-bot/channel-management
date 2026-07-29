@@ -10,6 +10,7 @@ import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../components/ui'
 import { useFormLayout } from '../hooks/useFormLayout'
 import DynamicFormLayout from '../components/DynamicFormLayout'
 import { useProductCategories } from '../hooks/useProductCategories'
+import { useCentrosCusto } from '../hooks/useCentrosCusto'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const TIPOS_PRODUTO = [
@@ -43,6 +44,7 @@ const EMPTY_FORM = {
   features: '',
   visivel_canal: true,
   observacoes: '',
+  centro_custo_id: '',
 }
 
 const IMPORT_COLS = ['nome','codigo','tipo','categoria','status','cobranca','preco','setup','desconto_max','usuarios_incluidos','features','visivel_canal','descricao','observacoes']
@@ -329,6 +331,7 @@ const im = {
 export default function Produtos() {
   const [search, setSearch] = useLocalState('produtos:search', '')
   const { categorias, setCategorias } = useProductCategories()
+  const { centros: centrosCusto } = useCentrosCusto()
   const { produtos, save: saveProduto, remove: deleteProduto, importMany: importProdutos } = useProducts()
   const { registrar: log } = useAuditLog()
   const { profile } = useProfile()
@@ -426,6 +429,14 @@ export default function Produtos() {
               </FPEField>
               <FPEField label="Categoria">
                 <CategoriaSelect value={form.categoria} onChange={v => set('categoria', v)} categorias={categorias} setCategorias={setCategorias} />
+              </FPEField>
+            </FPEGrid>
+            <FPEGrid>
+              <FPEField label="Centro de Custo" hint="Governança financeira — pra qual centro a receita desse produto é contabilizada">
+                <select className="fpe-field" value={form.centro_custo_id} onChange={e => set('centro_custo_id', e.target.value)}>
+                  <option value="">— Nenhum —</option>
+                  {centrosCusto.filter(c => c.status === 'ativo').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </select>
               </FPEField>
             </FPEGrid>
             <FPEGrid>

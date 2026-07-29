@@ -17,6 +17,7 @@ import {
   EMPTY_RULE,
 } from '../data/mockComissoes'
 import { useProducts } from '../hooks/useProducts'
+import { useCentrosCusto } from '../hooks/useCentrosCusto'
 import { useCommissions } from '../hooks/useCommissions'
 import { useUsuarios } from '../hooks/useUsuarios'
 import { useContacts } from '../hooks/useContacts'
@@ -1348,6 +1349,7 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
   const [err, setErr]       = useState(null)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const { produtos } = useProducts()
+  const { centros: centrosCusto } = useCentrosCusto()
   const isNew = !form.id
 
   const combinacoes = form.combinacoes || []
@@ -1419,6 +1421,14 @@ function RuleForm({ form, setForm, personas, contatos, onSave, onClose, usuarios
             </FormField>
             <FormField label="Vigência fim">
               <input type="date" className="so-field" value={form.vigencia_fim||''} onChange={e=>set('vigencia_fim',e.target.value||null)} />
+            </FormField>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:10 }}>
+            <FormField label="Centro de Custo" hint="Governança financeira — alimenta o Orçamento (planejado x realizado)">
+              <select className="so-field" value={form.centro_custo_id||''} onChange={e=>set('centro_custo_id',e.target.value)}>
+                <option value="">— Nenhum —</option>
+                {(centrosCusto||[]).filter(c=>c.status==='ativo').map(c=><option key={c.id} value={c.id}>{c.nome}</option>)}
+              </select>
             </FormField>
           </div>
         </div>

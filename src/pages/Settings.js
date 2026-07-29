@@ -7,7 +7,7 @@ import { findRotaPermissao } from '../data/moduloRotas'
 import { DOCS_BASE_URL } from '../config/docs'
 import {
   Building2, UserCircle, Store, Users, ShieldCheck,
-  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu, Receipt, BookOpen,
+  ToggleRight, Package, Activity, Megaphone, Layout, Plug, Terminal, Share2, Filter, BarChart2, UsersRound, DollarSign, TrendingUp, Bell, Network, Menu, Receipt, BookOpen, Wallet,
 } from 'lucide-react'
 
 // Opção fixa, sempre visível pra todo usuário (não passa pelo filtro de
@@ -46,6 +46,7 @@ const SECTIONS = [
       { path: '/settings/campanhas',    label: 'Campanhas',  Icon: Megaphone   },
       { path: '/settings/indicadores',  label: 'Indicadores',             Icon: TrendingUp  },
       { path: '/settings/metas',        label: 'Metas e KPIs',            Icon: BarChart2   },
+      { path: '/settings/centros-custo', label: 'Centros de Custo',       Icon: Wallet      },
     ],
   },
   {

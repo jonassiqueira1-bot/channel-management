@@ -38,6 +38,7 @@ const SettingsCampanhas   = lazy(() => import('./pages/settings/Campanhas'))
 const SettingsParceiros   = lazy(() => import('./pages/settings/Franquias'))
 const SettingsIndicadores = lazy(() => import('./pages/settings/Indicadores'))
 const SettingsMetas       = lazy(() => import('./pages/settings/Metas'))
+const SettingsCentrosCusto = lazy(() => import('./pages/settings/CentrosCusto'))
 const SettingsHabilitacoes= lazy(() => import('./pages/settings/Habilitacoes'))
 const SettingsUsuarios    = lazy(() => import('./pages/settings/Usuarios'))
 const SettingsTiposAcao   = lazy(() => import('./pages/settings/TiposAcao'))
@@ -162,6 +163,7 @@ export default function App() {
               <Route path="maturidade-vendedores" element={<SettingsMaturidadeVendedores />} />
               <Route path="indicadores"  element={<SettingsIndicadores />} />
               <Route path="metas"        element={<SettingsMetas />} />
+              <Route path="centros-custo" element={<SettingsCentrosCusto />} />
               <Route path="compartilhamento" element={<BranchSharing />} />
               <Route path="equipes"          element={<SettingsEquipes />} />
               <Route path="assinatura"       element={<SettingsAssinatura />} />

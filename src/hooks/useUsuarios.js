@@ -89,6 +89,7 @@ export function useUsuarios() {
       p_branch_id:           usuario.branch_id           || null,
       p_perfis_acesso_ids:   usuario.perfis_acesso_ids   || [],
       p_regras_comissao_ids: usuario.regras_comissao_ids || [],
+      p_centro_custo_id:     usuario.centro_custo_id     || null,
     })
 
     if (error) return { ok: false, message: error.message }

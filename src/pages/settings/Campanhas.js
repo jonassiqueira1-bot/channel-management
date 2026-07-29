@@ -8,6 +8,7 @@ import { useContacts } from '../../hooks/useContacts'
 import { useCompanies } from '../../hooks/useCompanies'
 import { usePlaybooks } from '../../hooks/usePlaybooks'
 import { useFunnels } from '../../hooks/useFunnels'
+import { useCentrosCusto } from '../../hooks/useCentrosCusto'
 import { SEGMENTOS_PADRAO } from '../../data/segmentos'
 import { checkEmUso } from '../../lib/checkUsage'
 import SettingsLayout from '../../components/ui/SettingsLayout'
@@ -228,6 +229,7 @@ const EMPTY_FORM = {
   meta_valor: '',
   meta_oportunidades: '',
   custos: [],
+  centro_custo_id: '',
 }
 
 const APROVACAO_CFG = {
@@ -475,6 +477,7 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
   const { companies } = useCompanies()
   const { playbooks }  = usePlaybooks()
   const { funis }      = useFunnels()
+  const { centros: centrosCusto } = useCentrosCusto()
   const { profile, isAdmin } = useProfile()
   const nomeUsuario = profile?.full_name || profile?.nome || profile?.email || 'Usuário'
 
@@ -578,6 +581,12 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
       </FPESection>
 
       <FPESection title="Custos">
+        <FPEField label="Centro de Custo" hint="Governança financeira — alimenta o Orçamento (planejado x realizado)">
+          <select className="fpe-field" value={form.centro_custo_id || ''} onChange={e => set('centro_custo_id', e.target.value)}>
+            <option value="">— Nenhum —</option>
+            {centrosCusto.filter(c => c.status === 'ativo').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+          </select>
+        </FPEField>
         <FPEField label="" span={2}>
           <CustosSection custos={form.custos || []} onChange={v => set('custos', v)}
             isAdmin={isAdmin} papel={profile?.papel} nomeUsuario={nomeUsuario} />

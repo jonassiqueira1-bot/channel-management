@@ -15,6 +15,7 @@ import { FullPageEdit, FPESection, FPEField, FPEGrid } from '../../components/ui
 import { useBranches } from '../../hooks/useBranches'
 import { useBranchContext } from '../../contexts/BranchContext'
 import { useParceiros } from '../../hooks/useParceiros'
+import { useCentrosCusto } from '../../hooks/useCentrosCusto'
 
 const ACCENT = 'var(--accent)'
 
@@ -417,6 +418,7 @@ function ChoiceList({ options, value, onChange, multi = false, disabled = false 
 
 // ─── Editar usuário (página inteira) ─────────────────────────────────────────
 function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
+  const { centros: centrosCusto } = useCentrosCusto()
   const [form, setForm] = useState({
     nome:                perfil.nome,
     papel:               perfil.papel,
@@ -431,6 +433,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
     tipo_recurso:        perfil.tipo_recurso || 'interno',
     billing_rate:        perfil.billing_rate ?? '',
     custo_hora:          perfil.custo_hora ?? '',
+    centro_custo_id:     perfil.centro_custo_id || '',
     horas_semana:        perfil.horas_semana ?? 40,
     habilidades:         perfil.habilidades || [],
     linkedin_url:        perfil.linkedin_url || '',
@@ -507,6 +510,7 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
       tipo_recurso:        form.tipo_recurso,
       billing_rate:        form.billing_rate === '' ? null : Number(form.billing_rate),
       custo_hora:          form.custo_hora === '' ? null : Number(form.custo_hora),
+      centro_custo_id:     form.centro_custo_id || null,
       horas_semana:        Number(form.horas_semana) || 40,
       habilidades:         form.habilidades,
       linkedin_url:        form.linkedin_url.trim(),
@@ -733,6 +737,14 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             <input className="fpe-field" type="number" min={0} step={0.01} value={form.custo_hora} disabled={!podeEditar}
               placeholder="0,00"
               onChange={e => set('custo_hora', e.target.value)} />
+          </FPEField>
+
+          <FPEField label="Centro de Custo" hint="Governança financeira — alimenta o Orçamento (planejado x realizado)">
+            <select className="fpe-field" value={form.centro_custo_id || ''} disabled={!podeEditar}
+              onChange={e => set('centro_custo_id', e.target.value)}>
+              <option value="">— Nenhum —</option>
+              {(centrosCusto || []).filter(c => c.status === 'ativo').map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
+            </select>
           </FPEField>
 
           <FPEField label="LinkedIn">

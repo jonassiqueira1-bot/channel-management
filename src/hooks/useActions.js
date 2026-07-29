@@ -28,6 +28,7 @@ function rowToAcao(row) {
     custos:            cf.custos            || [],
     documentos:        cf.documentos        || [],
     anexos:            cf.anexos            || [],
+    centro_custo_id:   cf.centro_custo_id   || '',
   }
 }
 
@@ -60,6 +61,7 @@ function acaoToRow(a, tenantId, branchId) {
       custos:           (a.custos || []).map(({ _obsInput, _open, ...rest }) => rest),
       documentos:       a.documentos       || [],
       anexos:           a.anexos           || [],
+      centro_custo_id:  a.centro_custo_id  || null,
     },
   }
 }
