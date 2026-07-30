@@ -401,7 +401,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
           <div style={{ padding:32, textAlign:'center' }}>
             <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
             <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
-              {progress.current} provisão{progress.current!==1?'ões':''} importada{progress.current!==1?'s':''}
+              {progress.current} {progress.current!==1?'provisões':'provisão'} importada{progress.current!==1?'s':''}
             </div>
             {(progress.empresasCriadas>0||progress.contratosCriados>0||progress.empresasPromovidas>0) && (
               <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>
@@ -421,7 +421,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
             <button onClick={()=>setStep('upload')} style={{ padding:'8px 18px', background:'var(--surface2)', color:'var(--text-soft)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>← Voltar</button>
             <button disabled={okCount===0} onClick={handleConfirmImport}
               style={{ padding:'8px 20px', background:okCount===0?'var(--border)':'var(--accent)', color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor:okCount===0?'not-allowed':'pointer', fontFamily:'var(--font)', opacity:okCount===0?0.5:1 }}>
-              Importar {okCount} provisão{okCount!==1?'ões':''}
+              Importar {okCount} {okCount!==1?'provisões':'provisão'}
             </button>
           </>}
           {step==='importing' && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Aguarde…</span>}
