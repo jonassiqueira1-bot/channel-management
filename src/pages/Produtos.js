@@ -361,7 +361,7 @@ export default function Produtos() {
 
   function set(field, val) { setForm(f => ({ ...f, [field]: val })); if (errs[field]) setErrs(p => ({...p, [field]:''})) }
 
-  function handleSave() {
+  async function handleSave() {
     const e = {}
     if (!form.nome.trim()) e.nome = 'Nome é obrigatório'
     if (!form.codigo.trim()) e.codigo = 'Código é obrigatório'
@@ -378,7 +378,8 @@ export default function Produtos() {
     const codigo = form.codigo.trim().toUpperCase()
     const isNew = editando === 'novo'
     const saved = { ...form, codigo, id: isNew ? Date.now() : editando.id }
-    saveProduto(saved)
+    const res = await saveProduto(saved)
+    if (res && res.ok === false) { alert('Erro ao salvar produto: ' + res.message); return }
     log(isNew ? 'criar' : 'editar', 'produto', saved.id, { descricao: `Produto ${isNew ? 'criado' : 'editado'}: ${saved.nome} (${saved.codigo})` })
     setEditando(null)
     setErrs({})

@@ -94,8 +94,12 @@ export function useProducts() {
     const row = productToRow(p, tenantId, branchId)
     const isUuid = typeof p.id === 'string' && p.id.includes('-')
     if (isUuid) {
-      const { error } = await supabase.from('products').update(row).eq('id', p.id)
+      // .select() é necessário pra saber se alguma linha foi realmente
+      // atualizada — sem ele, um bloqueio de RLS retorna sucesso com zero
+      // linhas afetadas (sem erro nenhum), e a UI não teria como perceber.
+      const { data, error } = await supabase.from('products').update(row).eq('id', p.id).select('id')
       if (error) return { ok: false, message: error.message }
+      if (!data || data.length === 0) return { ok: false, message: 'Nenhum registro foi atualizado — verifique se você tem permissão para editar este produto.' }
       setProdutos(prev => prev.map(x => x.id === p.id ? { ...x, ...p } : x))
     } else {
       const { data, error } = await supabase.from('products').insert(row).select().single()
