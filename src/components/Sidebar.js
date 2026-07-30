@@ -460,7 +460,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                         </span>
                       )}
                       {Icon && <Icon size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />}
-                      {!collapsed && <span style={{ letterSpacing: '-0.01em', flex: 1 }}>{item.label}</span>}
+                      {!collapsed && <span style={{ letterSpacing: '0.01em', flex: 1 }}>{item.label}</span>}
                     </NavLink>
                   </div>
                 )
@@ -532,7 +532,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           }}
         >
           <Settings size={ICON_SIZE} strokeWidth={1.75} style={{ flexShrink: 0, color: 'currentColor' }} />
-          {!collapsed && <span style={{ letterSpacing: '-0.01em' }}>Configurações</span>}
+          {!collapsed && <span style={{ letterSpacing: '0.01em' }}>Configurações</span>}
         </NavLink>
 
       </div>
@@ -640,6 +640,7 @@ const s = {
     transition: 'background var(--transition), color var(--transition), border-left-color var(--transition)',
     whiteSpace: 'nowrap', textDecoration: 'none', cursor: 'pointer',
     userSelect: 'none', outline: 'none',
+    textRendering: 'optimizeLegibility', WebkitFontSmoothing: 'antialiased',
   },
   navItemCollapsed: {
     justifyContent: 'center', padding: '8px 4px',

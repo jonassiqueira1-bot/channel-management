@@ -39,11 +39,11 @@
   --border-med: rgba(0, 0, 0, 0.14);
 
   /* ── Sidebar (dark) ── */
-  --sb-bg:      #0F172A;
-  --sb-surface: #1E293B;
-  --sb-border:  rgba(255, 255, 255, 0.06);
-  --sb-text:    #CBD5E1;
-  --sb-muted:   #8896AA;
+  --sb-bg:      #23324F;
+  --sb-surface: #314268;
+  --sb-border:  rgba(255, 255, 255, 0.09);
+  --sb-text:    #E2E8F0;
+  --sb-muted:   #A0AEC6;
 
   /* ── Tipografia ── */
   --font: 'Inter', sans-serif;
