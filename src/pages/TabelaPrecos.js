@@ -4,8 +4,32 @@ import { useTabelaPrecos } from '../hooks/useTabelaPrecos'
 import Button from '../components/Button'
 import SettingsLayout from '../components/ui/SettingsLayout'
 import RotinasProdutosDrawer from '../components/RotinasProdutos'
+import SearchSelect from '../components/SearchSelect'
 
-const INDICES = ['IPCA', 'IGPM', 'Manual']
+// Índices mais usados em reajuste de contrato de prestação de
+// serviços/software no Brasil (IPCA, IGP-M, INPC, IPC-Fipe) + variante
+// mais comum de uso contínuo (IPCA-E) — "Manual" cobre qualquer negociação
+// fora de índice oficial.
+const INDICES = ['IPCA', 'IGPM', 'INPC', 'IPCA-E', 'IPC-Fipe', 'Manual']
+
+// Sanitiza entrada numérica com decimal em vírgula ou ponto — inputs
+// type="number" nativos deixam passar comportamento inconsistente entre
+// navegador/locale (inclusive letras, em alguns casos). Aceita dígitos,
+// um separador decimal e um sinal negativo no início (reajuste pode ser
+// desconto).
+function sanitizeDecimal(raw) {
+  let v = raw.replace(/[^0-9,.-]/g, '')
+  const neg = v.startsWith('-')
+  v = v.replace(/-/g, '')
+  const firstSep = v.search(/[,.]/)
+  if (firstSep !== -1) {
+    v = v.slice(0, firstSep + 1) + v.slice(firstSep + 1).replace(/[,.]/g, '')
+  }
+  return (neg ? '-' : '') + v
+}
+function parseDecimal(v) {
+  return Number(String(v).replace(',', '.'))
+}
 
 function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
   const [modo, setModo] = useState('massa') // 'massa' | 'individual'
@@ -23,19 +47,25 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
 
   const preview = useMemo(() => {
     if (modo !== 'massa') return []
-    const pct = Number(percentual || 0)
+    const pct = parseDecimal(percentual || 0)
     return produtos.filter(p => selecionados.includes(p.id)).map(p => ({
       ...p, novoPreco: Math.round(Number(p.preco || 0) * (1 + pct / 100) * 100) / 100,
     }))
   }, [modo, percentual, produtos, selecionados])
 
+  const todosSelecionados = produtos.length > 0 && selecionados.length === produtos.length
+  function toggleTodos() {
+    setSelecionados(todosSelecionados ? [] : produtos.map(p => p.id))
+  }
+
   async function handleConfirmMassa() {
     if (selecionados.length === 0) { setErro('Selecione ao menos um produto.'); return }
-    if (percentual === '' || isNaN(Number(percentual))) { setErro('Informe o percentual.'); return }
+    const pct = parseDecimal(percentual)
+    if (percentual === '' || isNaN(pct)) { setErro('Informe o percentual.'); return }
     setSaving(true)
     const res = await tabelaPrecos.registrarReajusteEmMassa({
       produtos: produtos.filter(p => selecionados.includes(p.id)),
-      percentual: Number(percentual), vigencia_inicio: vigencia, indice, observacoes,
+      percentual: pct, vigencia_inicio: vigencia, indice, observacoes,
     })
     setSaving(false)
     if (res.ok) onClose(); else setErro(res.message)
@@ -44,10 +74,11 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
   async function handleConfirmIndividual() {
     const produto = produtos.find(p => p.id === produtoId)
     if (!produto) { setErro('Selecione um produto.'); return }
-    if (novoPreco === '' || isNaN(Number(novoPreco))) { setErro('Informe o novo preço.'); return }
+    const preco = parseDecimal(novoPreco)
+    if (novoPreco === '' || isNaN(preco)) { setErro('Informe o novo preço.'); return }
     setSaving(true)
     const res = await tabelaPrecos.registrarReajusteIndividual({
-      produto_id: produto.id, preco_atual: produto.preco, preco: Number(novoPreco),
+      produto_id: produto.id, preco_atual: produto.preco, preco,
       vigencia_inicio: vigencia, indice, observacoes,
     })
     setSaving(false)
@@ -72,7 +103,15 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
 
           {modo === 'massa' ? (
             <>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Produtos</div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Produtos</span>
+                {produtos.length > 0 && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} />
+                    Selecionar todos
+                  </label>
+                )}
+              </div>
               <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', marginBottom: 14 }}>
                 {produtos.map(p => (
                   <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
@@ -87,7 +126,7 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
               <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Percentual (%)</div>
-                  <input className="fpe-field" type="number" step="0.01" value={percentual} onChange={e => setPercentual(e.target.value)} placeholder="Ex: 4,5" />
+                  <input className="fpe-field" type="text" inputMode="decimal" value={percentual} onChange={e => setPercentual(sanitizeDecimal(e.target.value))} placeholder="Ex: 4,5" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Índice</div>
@@ -134,15 +173,18 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
             <>
               <div style={{ marginBottom: 14 }}>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Produto</div>
-                <select className="fpe-field" value={produtoId} onChange={e => setProdutoId(e.target.value)}>
-                  <option value="">Selecione…</option>
-                  {produtos.map(p => <option key={p.id} value={p.id}>{p.nome} — R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</option>)}
-                </select>
+                <SearchSelect
+                  options={produtos.map(p => ({ id: p.id, label: p.nome, sublabel: `R$ ${Number(p.preco || 0).toLocaleString('pt-BR')}` }))}
+                  value={produtoId}
+                  onChange={id => setProdutoId(id || '')}
+                  placeholder="Pesquisar produto…"
+                  inputStyle={{ height: 38, border: '1px solid var(--border)', borderRadius: 7, padding: '0 12px', fontSize: 13, width: '100%', boxSizing: 'border-box', background: 'var(--surface2)', fontFamily: 'var(--font)', color: 'var(--text)' }}
+                />
               </div>
               <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Novo preço (R$)</div>
-                  <input className="fpe-field" type="number" step="0.01" value={novoPreco} onChange={e => setNovoPreco(e.target.value)} placeholder="0,00" />
+                  <input className="fpe-field" type="text" inputMode="decimal" value={novoPreco} onChange={e => setNovoPreco(sanitizeDecimal(e.target.value))} placeholder="0,00" />
                 </div>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Índice</div>
