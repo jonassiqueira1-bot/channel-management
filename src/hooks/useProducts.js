@@ -27,6 +27,16 @@ function rowToProduct(row) {
     // Vínculo com Centro de Custo — governança financeira/gerencial: define
     // pra qual centro a receita desse produto é contabilizada.
     centro_custo_id:     cf.centro_custo_id || '',
+    // Categorização fiscal/contábil — dados cadastrais pro sistema contábil
+    // real receber já estruturado (não há motor de cálculo de imposto aqui).
+    ncm:                       cf.ncm || '',
+    codigo_servico_municipal:  cf.codigo_servico_municipal || '',
+    cfop:                      cf.cfop || '',
+    aliquota_iss:              cf.aliquota_iss ?? '',
+    aliquota_icms:             cf.aliquota_icms ?? '',
+    iss_retido:                cf.iss_retido ?? false,
+    irrf_retido:               cf.irrf_retido ?? false,
+    pis_cofins_csll_retido:    cf.pis_cofins_csll_retido ?? false,
   }
 }
 
@@ -52,6 +62,14 @@ function productToRow(p, tenantId, branchId) {
       visivel_canal:      p.visivel_canal,
       contratos:          p.contratos,
       centro_custo_id:    p.centro_custo_id || null,
+      ncm:                      p.ncm || '',
+      codigo_servico_municipal: p.codigo_servico_municipal || '',
+      cfop:                     p.cfop || '',
+      aliquota_iss:             p.aliquota_iss === '' ? null : Number(p.aliquota_iss),
+      aliquota_icms:            p.aliquota_icms === '' ? null : Number(p.aliquota_icms),
+      iss_retido:               p.iss_retido || false,
+      irrf_retido:              p.irrf_retido || false,
+      pis_cofins_csll_retido:   p.pis_cofins_csll_retido || false,
     },
   }
 }

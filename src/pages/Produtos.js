@@ -45,6 +45,9 @@ const EMPTY_FORM = {
   visivel_canal: true,
   observacoes: '',
   centro_custo_id: '',
+  ncm: '', codigo_servico_municipal: '', cfop: '',
+  aliquota_iss: '', aliquota_icms: '',
+  iss_retido: false, irrf_retido: false, pis_cofins_csll_retido: false,
 }
 
 const IMPORT_COLS = ['nome','codigo','tipo','categoria','status','cobranca','preco','setup','desconto_max','usuarios_incluidos','features','visivel_canal','descricao','observacoes']
@@ -464,6 +467,50 @@ export default function Produtos() {
               <FPEField label="Desconto máximo (%)">
                 <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} type="number" min="0" max="100"
                   value={form.desconto_max} onChange={e => set('desconto_max', e.target.value)} placeholder="0" />
+              </FPEField>
+            </FPEGrid>
+          </FPESection>
+          <FPESection title="Fiscal" description="Categorização contábil/fiscal — dados cadastrais pra alimentar a contabilidade; o sistema não calcula imposto.">
+            <FPEGrid>
+              <FPEField label="NCM" hint="Nomenclatura Comum do Mercosul — obrigatório em NF de mercadoria">
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={form.ncm}
+                  onChange={e => set('ncm', e.target.value)} placeholder="0000.00.00" />
+              </FPEField>
+              <FPEField label="CFOP" hint="Natureza da operação">
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={form.cfop}
+                  onChange={e => set('cfop', e.target.value)} placeholder="5102" />
+              </FPEField>
+            </FPEGrid>
+            <FPEGrid>
+              <FPEField label="Código de serviço municipal" hint="LC 116 — só se o produto for serviço (ISS)">
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} value={form.codigo_servico_municipal}
+                  onChange={e => set('codigo_servico_municipal', e.target.value)} placeholder="01.05" />
+              </FPEField>
+            </FPEGrid>
+            <FPEGrid>
+              <FPEField label="Alíquota ISS (%)">
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} type="number" min="0" max="100" step="0.01"
+                  value={form.aliquota_iss} onChange={e => set('aliquota_iss', e.target.value)} placeholder="0,00" />
+              </FPEField>
+              <FPEField label="Alíquota ICMS (%)">
+                <input className="fpe-field" style={{ fontFamily:'var(--mono)' }} type="number" min="0" max="100" step="0.01"
+                  value={form.aliquota_icms} onChange={e => set('aliquota_icms', e.target.value)} placeholder="0,00" />
+              </FPEField>
+            </FPEGrid>
+            <FPEGrid>
+              <FPEField label="Retenções na fonte">
+                <div style={{ display:'flex', flexWrap:'wrap', gap:16, paddingTop:6 }}>
+                  {[
+                    { k:'iss_retido', label:'ISS retido' },
+                    { k:'irrf_retido', label:'IRRF retido' },
+                    { k:'pis_cofins_csll_retido', label:'PIS/COFINS/CSLL retidos' },
+                  ].map(({ k, label }) => (
+                    <label key={k} style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, color:'var(--text)', cursor:'pointer' }}>
+                      <input type="checkbox" checked={!!form[k]} onChange={e => set(k, e.target.checked)} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
               </FPEField>
             </FPEGrid>
           </FPESection>
