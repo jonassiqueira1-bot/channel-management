@@ -9,6 +9,7 @@ import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import SearchSelect from '../components/SearchSelect'
 import EmpresaSearch from '../components/EmpresaSearch'
+import { startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
 // ─── Importador CSV ───────────────────────────────────────────────────────────
 const IMPORT_BASE_KEYS = [
@@ -101,7 +102,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
   const [step, setStep]         = useState('upload')
   const [parsed, setParsed]     = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [progress, setProgress] = useState({ current:0, total:0, empresasCriadas:0, contratosCriados:0, empresasPromovidas:0, label:'' })
+  const [importing, setImporting] = useState(false)
   const fileRef = useRef(null)
 
   const produtoMap = useMemo(() => {
@@ -156,8 +157,8 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
   async function handleConfirmImport() {
     const okRows = parsed.rowResults.filter(r=>r.ok)
     const total  = okRows.length
-    setProgress({ current:0, total, empresasCriadas:0, contratosCriados:0, label:'Preparando…' })
-    setStep('importing')
+    setImporting(true)
+    const jobId = startImportJob({ label: 'Provisões', total })
 
     const compByName = {}; const compByCnpj = {}
     ;(companies||[]).forEach(c => {
@@ -230,7 +231,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
     const empresasTocadas = new Set()
     for (let i=0; i<okRows.length; i++) {
       const { row } = okRows[i]
-      setProgress({ current:i+1, total, empresasCriadas, contratosCriados, label:`${row.company_nome} — ${row.contract_numero}` })
+      updateImportJob(jobId, { current: i+1, subLabel: `${row.company_nome} — ${row.contract_numero}` })
       const company_id  = await resolveEmpresa(row.company_nome, row.company_cnpj)
       const contract_id = await resolveContrato(row.contract_numero, company_id, row.company_nome, row)
       if (company_id) empresasTocadas.add(company_id)
@@ -273,8 +274,15 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       if (r?.ok !== false) empresasPromovidas++
     }
 
-    setProgress(p=>({...p, current:imported, empresasCriadas, contratosCriados, empresasPromovidas, label:'Concluído!'}))
-    setStep('done')
+    const partes = [
+      `${imported} ${imported!==1?'provisões':'provisão'} importada${imported!==1?'s':''}`,
+      empresasCriadas>0    && `${empresasCriadas} empresa(s) criada(s)`,
+      contratosCriados>0   && `${contratosCriados} contrato(s) criado(s)`,
+      empresasPromovidas>0 && `${empresasPromovidas} empresa(s) promovida(s) a Cliente Final`,
+    ].filter(Boolean)
+    finishImportJob(jobId, { subLabel: partes.join(' · ') })
+    setImporting(false)
+    onClose()
   }
 
   const okCount  = parsed?.rowResults.filter(r=>r.ok).length??0
@@ -292,13 +300,13 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
           <div>
             <div style={{ fontSize:16, fontWeight:800, color:'var(--text)' }}>Importar Provisões</div>
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:2 }}>
-              {step==='upload'    && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
-              {step==='preview'   && `${parsed?.fileName} — ${okCount} válidos${dupCount>0?`, ${dupCount} duplicados`:''}${errCount>0?`, ${errCount} com erro`:''}`}
-              {step==='importing' && `Processando ${progress.current} de ${progress.total}…`}
-              {step==='done'      && 'Importação concluída'}
+              {step==='upload' && 'CSV com separador ponto-e-vírgula (;) — UTF-8'}
+              {step==='preview' && (importing
+                ? 'Importando — acompanhe o progresso no canto da tela…'
+                : `${parsed?.fileName} — ${okCount} válidos${dupCount>0?`, ${dupCount} duplicados`:''}${errCount>0?`, ${errCount} com erro`:''}`)}
             </div>
           </div>
-          <button style={OV.xBtn} onClick={onClose}>✕</button>
+          <button style={OV.xBtn} onClick={() => !importing && onClose()} disabled={importing}>✕</button>
         </div>
 
         {step==='upload' && (
@@ -377,55 +385,16 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
           </div>
         )}
 
-        {step==='importing' && (
-          <div style={{ padding:32, textAlign:'center' }}>
-            <div style={{ fontSize:32, marginBottom:12 }}>⚙️</div>
-            <div style={{ fontSize:14, fontWeight:700, color:'var(--text)', marginBottom:6 }}>{progress.label}</div>
-            <div style={{ fontSize:12, color:'var(--text-muted)', marginBottom:20 }}>{progress.current} / {progress.total} registros</div>
-            <div style={{ height:6, background:'var(--border)', borderRadius:3, overflow:'hidden', marginBottom:10 }}>
-              <div style={{ height:'100%', background:'var(--accent)', borderRadius:3,
-                width:`${progress.total>0?Math.round(progress.current/progress.total*100):0}%`,
-                transition:'width 0.3s ease' }} />
-            </div>
-            {(progress.empresasCriadas>0||progress.contratosCriados>0) && (
-              <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:8 }}>
-                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa(s) criada(s)`}
-                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
-                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato(s) criado(s)`}
-              </div>
-            )}
-          </div>
-        )}
-
-        {step==='done' && (
-          <div style={{ padding:32, textAlign:'center' }}>
-            <div style={{ fontSize:40, marginBottom:12 }}>✅</div>
-            <div style={{ fontSize:15, fontWeight:700, color:'var(--text)', marginBottom:6 }}>
-              {progress.current} {progress.current!==1?'provisões':'provisão'} importada{progress.current!==1?'s':''}
-            </div>
-            {(progress.empresasCriadas>0||progress.contratosCriados>0||progress.empresasPromovidas>0) && (
-              <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4 }}>
-                {progress.empresasCriadas>0 && `${progress.empresasCriadas} empresa(s) criada(s)`}
-                {progress.empresasCriadas>0 && progress.contratosCriados>0 && ' · '}
-                {progress.contratosCriados>0 && `${progress.contratosCriados} contrato(s) criado(s)`}
-                {(progress.empresasCriadas>0||progress.contratosCriados>0) && progress.empresasPromovidas>0 && ' · '}
-                {progress.empresasPromovidas>0 && `${progress.empresasPromovidas} empresa(s) promovida(s) a Cliente Final`}
-              </div>
-            )}
-          </div>
-        )}
-
         <div style={OV.footer}>
-          {step==='upload'    && <button onClick={onClose} style={{ padding:'8px 18px', background:'var(--surface2)', color:'var(--text-soft)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>}
-          {step==='preview'   && <>
-            <button onClick={()=>setStep('upload')} style={{ padding:'8px 18px', background:'var(--surface2)', color:'var(--text-soft)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>← Voltar</button>
-            <button disabled={okCount===0} onClick={handleConfirmImport}
-              style={{ padding:'8px 20px', background:okCount===0?'var(--border)':'var(--accent)', color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor:okCount===0?'not-allowed':'pointer', fontFamily:'var(--font)', opacity:okCount===0?0.5:1 }}>
-              Importar {okCount} {okCount!==1?'provisões':'provisão'}
+          {step==='upload'  && <button onClick={onClose} style={{ padding:'8px 18px', background:'var(--surface2)', color:'var(--text-soft)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>}
+          {step==='preview' && <>
+            <button disabled={importing} onClick={()=>setStep('upload')}
+              style={{ padding:'8px 18px', background:'var(--surface2)', color:'var(--text-soft)', border:'1px solid var(--border)', borderRadius:8, fontWeight:600, fontSize:13, cursor:importing?'not-allowed':'pointer', fontFamily:'var(--font)', opacity:importing?0.5:1 }}>← Voltar</button>
+            <button disabled={okCount===0||importing} onClick={handleConfirmImport}
+              style={{ padding:'8px 20px', background:okCount===0||importing?'var(--border)':'var(--accent)', color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor:okCount===0||importing?'not-allowed':'pointer', fontFamily:'var(--font)', opacity:okCount===0||importing?0.5:1 }}>
+              {importing ? 'Importando…' : `Importar ${okCount} ${okCount!==1?'provisões':'provisão'}`}
             </button>
           </>}
-          {step==='importing' && <span style={{ fontSize:12, color:'var(--text-muted)' }}>Aguarde…</span>}
-          {step==='done'      && <button onClick={onClose} style={{ padding:'8px 20px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:8, fontWeight:700, fontSize:13, cursor:'pointer', fontFamily:'var(--font)' }}>Fechar</button>}
         </div>
       </div>
     </div>
