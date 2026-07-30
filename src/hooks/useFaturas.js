@@ -77,12 +77,23 @@ export function useFaturas() {
     setLoading(true)
     if (!session?.user) { setFaturas([]); setLoading(false); return }
 
-    let q = supabase.from('faturas').select('*')
-    if (branchId) q = q.eq('branch_id', branchId)
-    const { data, error } = await q.order('due_date', { ascending: false })
+    // PostgREST limita a 1000 linhas por request — pagina até trazer tudo.
+    const PAGE_SIZE = 1000
+    let all = []
+    let page = 0
+    while (true) {
+      let q = supabase.from('faturas').select('*')
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q
+        .order('due_date', { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
 
-    if (error) { captureError('useFaturas', error); setLoading(false); return }
-    setFaturas((data || []).map(rowToFatura))
+      if (error) { captureError('useFaturas', error); setLoading(false); return }
+      all = all.concat(data || [])
+      if (!data || data.length < PAGE_SIZE) break
+      page += 1
+    }
+    setFaturas(all.map(rowToFatura))
     setLoading(false)
   }, [session, branchId])
 

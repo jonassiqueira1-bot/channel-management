@@ -120,12 +120,24 @@ export function useProvisoes() {
     setLoading(true)
     if (!session?.user) { setProvisoes([]); setLoading(false); return }
 
-    let q = supabase.from('provisoes').select('*')
-    if (branchId) q = q.eq('branch_id', branchId)
-    const { data, error } = await q.order('due_date', { ascending: false })
+    // PostgREST limita a 1000 linhas por request — sem paginação explícita,
+    // uma base com mais de 1000 provisões é truncada silenciosamente.
+    const PAGE_SIZE = 1000
+    let all = []
+    let page = 0
+    while (true) {
+      let q = supabase.from('provisoes').select('*')
+      if (branchId) q = q.eq('branch_id', branchId)
+      const { data, error } = await q
+        .order('due_date', { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
 
-    if (error) { captureError('useProvisoes', error); setLoading(false); return }
-    setProvisoes((data || []).map(rowToProvisao))
+      if (error) { captureError('useProvisoes', error); setLoading(false); return }
+      all = all.concat(data || [])
+      if (!data || data.length < PAGE_SIZE) break
+      page += 1
+    }
+    setProvisoes(all.map(rowToProvisao))
     setLoading(false)
   }, [session, branchId])
 

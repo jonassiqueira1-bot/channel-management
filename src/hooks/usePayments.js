@@ -141,13 +141,24 @@ export function usePayments() {
       return
     }
 
-    let _q = supabase.from('payments').select('*, companies(nome_fantasia, razao_social)')
-    const { data, error } = await _q.order('due_date', { ascending: false })
+    // PostgREST limita a 1000 linhas por request — pagina até trazer tudo.
+    const PAGE_SIZE = 1000
+    let allRows = []
+    let page = 0
+    while (true) {
+      const { data, error } = await supabase
+        .from('payments').select('*, companies(nome_fantasia, razao_social)')
+        .order('due_date', { ascending: false })
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
 
-    if (error) { captureError('usePayments', error); isMockMode.current = false; setLoading(false); return }
+      if (error) { captureError('usePayments', error); isMockMode.current = false; setLoading(false); return }
+      allRows = allRows.concat(data || [])
+      if (!data || data.length < PAGE_SIZE) break
+      page += 1
+    }
 
     isMockMode.current = false
-    const fromDB = (data || []).map(rowToPayment)
+    const fromDB = allRows.map(rowToPayment)
 
     // Quando há sessão ativa, usa apenas dados do banco (payments).
     // Provisões são tabela separada (provisoes) — não misturar aqui.

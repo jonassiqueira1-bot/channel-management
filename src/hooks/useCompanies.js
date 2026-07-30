@@ -126,20 +126,30 @@ export function useCompanies({ lazy = false } = {}) {
 
     // Sem filtro de branch_id: o RLS (can_see_branch_record) já garante
     // que só aparecem registros da filial ativa + filiais com regra de compartilhamento.
-    const { data, error: fetchErr } = await supabase
-      .from('companies')
-      .select('*')
-      .order('razao_social')
+    // PostgREST limita a 1000 linhas por request — pagina até trazer tudo.
+    const PAGE_SIZE = 1000
+    let all = []
+    let page = 0
+    while (true) {
+      const { data, error: fetchErr } = await supabase
+        .from('companies')
+        .select('*')
+        .order('razao_social')
+        .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1)
 
-    if (fetchErr) {
-      captureError('useCompanies', fetchErr)
-      isMockMode.current = false
-      setLoading(false)
-      return
+      if (fetchErr) {
+        captureError('useCompanies', fetchErr)
+        isMockMode.current = false
+        setLoading(false)
+        return
+      }
+      all = all.concat(data || [])
+      if (!data || data.length < PAGE_SIZE) break
+      page += 1
     }
 
     isMockMode.current = false
-    setCompanies((data || []).map(rowToEmpresa))
+    setCompanies(all.map(rowToEmpresa))
     setLoading(false)
   }, [session, activeBranchId])
 
