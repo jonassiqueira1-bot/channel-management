@@ -399,6 +399,34 @@ export default function Produtos() {
 
   function handleImport(items) { importProdutos(items) }
 
+  // Exportação consolidada — inclui categorização gerencial (Centro de
+  // Custo) e fiscal (NCM/CFOP/ISS/ICMS/retenções), pra levar pro contador
+  // sem precisar montar essa planilha na mão.
+  function handleExportCsv() {
+    const cols = [
+      'nome','codigo','tipo','categoria','centro_custo','status','preco',
+      'ncm','cfop','codigo_servico_municipal','aliquota_iss','aliquota_icms',
+      'iss_retido','irrf_retido','pis_cofins_csll_retido',
+    ]
+    const linhas = filtered.map(p => {
+      const centro = centrosCusto.find(c => c.id === p.centro_custo_id)
+      const row = {
+        ...p,
+        centro_custo: centro?.nome || '',
+        iss_retido: p.iss_retido ? 'sim' : 'não',
+        irrf_retido: p.irrf_retido ? 'sim' : 'não',
+        pis_cofins_csll_retido: p.pis_cofins_csll_retido ? 'sim' : 'não',
+      }
+      return cols.map(c => `"${String(row[c] ?? '').replace(/"/g, '""')}"`).join(';')
+    })
+    const csv = ['﻿' + cols.join(';'), ...linhas].join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `produtos_${new Date().toISOString().slice(0, 10)}.csv`; a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (editando) {
     return (
       <>
@@ -538,6 +566,7 @@ export default function Produtos() {
         modulo="produtos"
         title="Produtos"
         description="Catálogo de produtos e serviços oferecidos pelo canal."
+        onExportCsv={handleExportCsv}
         columns={[
           { key: 'nome', label: 'Produto', render: (v, row) => (
             <div style={{ display:'flex', alignItems:'center', gap:10 }}>
