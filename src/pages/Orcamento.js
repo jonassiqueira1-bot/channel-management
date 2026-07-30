@@ -7,6 +7,8 @@ import { useOrcamentoLancamentos } from '../hooks/useOrcamentoLancamentos'
 import { useCampanhas } from '../hooks/useCampanhas'
 import { useActions } from '../hooks/useActions'
 import { useProjects } from '../hooks/useProjects'
+import { usePayments } from '../hooks/usePayments'
+import { useProducts } from '../hooks/useProducts'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import Badge from '../components/Badge'
@@ -49,6 +51,8 @@ export default function Orcamento() {
   const { campanhas } = useCampanhas()
   const { acoes } = useActions()
   const { projetos } = useProjects()
+  const { pagamentos } = usePayments()
+  const { produtos } = useProducts()
 
   const [search, setSearch] = useLocalState('orcamento:search', '')
   const [filtroCentro, setFiltroCentro] = useLocalState('orcamento:filtroCentro', '')
@@ -97,6 +101,40 @@ export default function Orcamento() {
     return totais
   }, [lancamentos])
 
+  // Receita realizada por centro/mês — a partir de Pagamentos com status
+  // 'pago', vinculado ao Centro de Custo herdado via Produto (mesmo elo já
+  // usado em Contratos/Provisões/Faturas).
+  const produtoCentroMap = useMemo(() => {
+    const m = {}
+    ;(produtos || []).forEach(p => { if (p.centro_custo_id) m[p.id] = p.centro_custo_id })
+    return m
+  }, [produtos])
+
+  const receitaPorChave = useMemo(() => {
+    const totais = {}
+    ;(pagamentos || []).forEach(pg => {
+      if (pg.status !== 'pago') return
+      const ym = (pg.reference_month || '').slice(0, 7)
+      if (!ym) return
+      const totalPago = Number(pg.amount_total_net) || 0
+      if (!totalPago) return
+      const itens = (pg.itens || []).filter(it => produtoCentroMap[it.produto_id])
+      if (itens.length > 0) {
+        const somaItens = itens.reduce((s, it) => s + (Number(it.valor) || 0), 0) || 1
+        itens.forEach(it => {
+          const centroId = produtoCentroMap[it.produto_id]
+          const parte = totalPago * ((Number(it.valor) || 0) / somaItens)
+          const key = `${centroId}|${ym}`
+          totais[key] = (totais[key] || 0) + parte
+        })
+      } else if (produtoCentroMap[pg.produto_id]) {
+        const key = `${produtoCentroMap[pg.produto_id]}|${ym}`
+        totais[key] = (totais[key] || 0) + totalPago
+      }
+    })
+    return totais
+  }, [pagamentos, produtoCentroMap])
+
   const custoProjetosPorCentro = useMemo(() => {
     const totais = {}
     ;(projetos || []).forEach(p => {
@@ -118,6 +156,10 @@ export default function Orcamento() {
       const [centroId, ym] = k.split('|')
       chaves.set(k, { centroId, ym })
     })
+    Object.keys(receitaPorChave).forEach(k => {
+      const [centroId, ym] = k.split('|')
+      chaves.set(k, { centroId, ym })
+    })
     // Garante que o mês atual apareça pra todo centro ativo mesmo sem dado ainda
     const ymAtual = new Date().toISOString().slice(0, 7)
     centrosAtivos.forEach(c => chaves.set(`${c.id}|${ymAtual}`, { centroId: c.id, ym: ymAtual }))
@@ -132,14 +174,15 @@ export default function Orcamento() {
       const realizadoAuto = realizadoAutoPorChave[key] || 0
       const realizadoManual = realizadoManualPorChave[key] || 0
       const totalRealizado = realizadoAuto + realizadoManual
+      const receita = receitaPorChave[key] || 0
       const desvio = planejado > 0 ? ((totalRealizado - planejado) / planejado) * 100 : null
       const status = planejado === 0 ? 'sem_planejado' : desvio > 0 ? 'estourado' : 'dentro'
       return {
         id: key, centroId, centro, competencia: ym, orcId: orc?.id,
-        planejado, previstoManual, realizadoAuto, realizadoManual, totalRealizado, desvio, status,
+        planejado, previstoManual, realizadoAuto, realizadoManual, totalRealizado, receita, desvio, status,
       }
     }).filter(Boolean).sort((a, b) => b.competencia.localeCompare(a.competencia) || a.centro.nome.localeCompare(b.centro.nome))
-  }, [centros, orcamentos, lancamentos, realizadoAutoPorChave, realizadoManualPorChave, previstoManualPorChave])
+  }, [centros, orcamentos, lancamentos, realizadoAutoPorChave, realizadoManualPorChave, previstoManualPorChave, receitaPorChave])
 
   const filtered = linhas.filter(l => {
     if (filtroCentro && l.centroId !== filtroCentro) return false
@@ -159,13 +202,15 @@ export default function Orcamento() {
   const kpisNode = (data) => {
     const totalPlanejado  = data.reduce((s, l) => s + l.planejado, 0)
     const totalRealizado  = data.reduce((s, l) => s + l.totalRealizado, 0)
+    const totalReceita    = data.reduce((s, l) => s + l.receita, 0)
     const estourados      = data.filter(l => l.status === 'estourado').length
     const semPlanejado    = data.filter(l => l.status === 'sem_planejado' && l.totalRealizado !== 0).length
     return (
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', padding: '8px 0' }}>
         {[
           { label: 'Total planejado', value: fmtMoeda(totalPlanejado), color: ACCENT, mono: true },
-          { label: 'Total realizado', value: fmtMoeda(totalRealizado), color: totalRealizado > totalPlanejado && totalPlanejado > 0 ? '#EF4444' : '#10B981', mono: true },
+          { label: 'Total realizado (despesa)', value: fmtMoeda(totalRealizado), color: totalRealizado > totalPlanejado && totalPlanejado > 0 ? '#EF4444' : '#10B981', mono: true },
+          { label: 'Receita realizada', value: fmtMoeda(totalReceita), color: '#10B981', mono: true },
           { label: 'Centros estourados', value: estourados, color: estourados > 0 ? '#EF4444' : 'var(--text-muted)' },
           { label: 'Gasto sem planejado', value: semPlanejado, color: semPlanejado > 0 ? '#D97706' : 'var(--text-muted)' },
         ].map(k => (
@@ -198,6 +243,7 @@ export default function Orcamento() {
     { key: 'realizadoAuto', label: 'Realizado (auto)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
     { key: 'realizadoManual', label: 'Realizado (manual)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
     { key: 'totalRealizado', label: 'Total realizado', render: v => <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>{fmtMoeda(v)}</span> },
+    { key: 'receita', label: 'Receita realizada', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: v > 0 ? '#10B981' : 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
     {
       key: 'desvio', label: 'Desvio',
       render: v => v == null
@@ -317,6 +363,14 @@ export default function Orcamento() {
               <FormField label="">
                 <div style={{ fontSize: 13, color: 'var(--text)' }}>
                   {fmtMoeda((realizadoAutoPorChave[`${detalhe.centroId}|${detalhe.competencia}`]) || 0)}
+                </div>
+              </FormField>
+            </FormSection>
+
+            <FormSection title="Receita realizada (Pagamentos)" description="Soma de pagamentos com status Pago, distribuída pelos produtos vinculados a este Centro de Custo.">
+              <FormField label="">
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#10B981' }}>
+                  {fmtMoeda((receitaPorChave[`${detalhe.centroId}|${detalhe.competencia}`]) || 0)}
                 </div>
               </FormField>
             </FormSection>

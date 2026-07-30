@@ -41,6 +41,7 @@ const sidebars: SidebarsConfig = {
         'modulos/contratos',
         'modulos/pagamentos',
         'modulos/comissoes',
+        'modulos/orcamento',
         'modulos/projetos',
         'modulos/fechamento-horas',
         'modulos/questionarios',
@@ -81,6 +82,7 @@ const sidebars: SidebarsConfig = {
           items: [
             'configuracoes/habilitacoes',
             'configuracoes/produtos',
+            'configuracoes/centros-custo',
             'configuracoes/funis',
             'configuracoes/tipos-acoes',
             'configuracoes/campanhas',
