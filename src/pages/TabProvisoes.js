@@ -35,6 +35,31 @@ function parseCSVProv(text) {
   return { rows }
 }
 
+// Aceita tanto o formato brasileiro (DD/MM/AAAA ou MM/AAAA, o que qualquer
+// planilha exportada no Brasil usa) quanto o ISO (AAAA-MM-DD ou AAAA-MM) —
+// sempre devolve ISO, que é o que o banco espera. `undefined` = inválido.
+// Mesmo padrão de parseDataFlexivel em Contratos.js, com o formato "mês
+// só" a mais (reference_month não tem dia).
+function parseReferenceFlexivel(v) {
+  if (!v?.trim()) return undefined
+  const val = v.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val
+  if (/^\d{4}-\d{2}$/.test(val))       return val
+  const brFull = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (brFull) return `${brFull[3]}-${brFull[2]}-${brFull[1]}`
+  const brMes = val.match(/^(\d{2})\/(\d{4})$/)
+  if (brMes) return `${brMes[2]}-${brMes[1]}`
+  return undefined
+}
+function parseDataFlexivel(v) {
+  if (!v?.trim()) return null
+  const val = v.trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val
+  const br = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+  return undefined
+}
+
 // `produtoMap` resolve por código ou nome exato (igual ao import de
 // Contratos) — sem produto, a provisão fica sem lastro nenhum, por isso é
 // obrigatório e precisa bater com um produto cadastrado.
@@ -45,15 +70,17 @@ function validateImportRowProv(row, produtoMap) {
   if (!row.produto_nome?.trim())    errors.push('produto_nome obrigatório — provisão sem produto não é permitida')
   else if (!produtoMap.get(row.produto_nome.trim().toLowerCase()))
     errors.push(`Produto não encontrado: "${row.produto_nome}"`)
-  if (!row.reference_month || !/^\d{4}-\d{2}(-\d{2})?$/.test(row.reference_month))
-    errors.push('reference_month inválido (AAAA-MM ou AAAA-MM-DD)')
+  if (parseReferenceFlexivel(row.reference_month) === undefined)
+    errors.push('reference_month inválido (use DD/MM/AAAA, MM/AAAA, AAAA-MM ou AAAA-MM-DD)')
+  if (row.due_date && parseDataFlexivel(row.due_date) === undefined)
+    errors.push('due_date inválido (use DD/MM/AAAA ou AAAA-MM-DD)')
   if (row.status && !STATUS_PAGAMENTO[row.status])
     errors.push(`status inválido: ${row.status}`)
   return errors
 }
 
 function dupKey(row) {
-  const periodo = (row.reference_month || '').slice(0, 7)
+  const periodo = (parseReferenceFlexivel(row.reference_month) || '').slice(0, 7)
   return `${(row.contract_numero||'').toLowerCase()}|${periodo}|${(row.produto_nome||'').toLowerCase()}`
 }
 
@@ -207,7 +234,9 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
       const company_id  = await resolveEmpresa(row.company_nome, row.company_cnpj)
       const contract_id = await resolveContrato(row.contract_numero, company_id, row.company_nome, row)
       if (company_id) empresasTocadas.add(company_id)
-      const periodo = row.reference_month.length === 7 ? row.reference_month + '-01' : row.reference_month
+      const refIso = parseReferenceFlexivel(row.reference_month)
+      const periodo = refIso.length === 7 ? refIso + '-01' : refIso
+      const dueIso = parseDataFlexivel(row.due_date) || periodo
       const cdu = parseFloat(row.amount_cdu)||0
       const sms = parseFloat(row.amount_sms)||0
       const srv = parseFloat(row.amount_services)||0
@@ -226,7 +255,7 @@ function ImportProvisaoModal({ onClose, provisoes, save, companies, addCompany, 
         parcela:row.parcela||'1/1',
         amount_cdu:cdu, amount_sms:sms, amount_services:srv, amount_discount:dsc,
         amount_total_net:cdu+sms+srv-dsc,
-        reference_month:periodo, due_date:row.due_date||periodo,
+        reference_month:periodo, due_date:dueIso,
         status:STATUS_PAGAMENTO[row.status]?row.status:'pendente',
         notes:row.notes||'', processed:false,
         inconsistencia_status:'sem_inconsistencia',
