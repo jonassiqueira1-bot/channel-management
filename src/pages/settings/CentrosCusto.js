@@ -1,16 +1,19 @@
 import { useState, useMemo } from 'react'
 import { useCentrosCusto } from '../../hooks/useCentrosCusto'
+import { useUsuarios } from '../../hooks/useUsuarios'
 import { useAuditLog } from '../../hooks/useAuditLog'
 import BrowseLayout from '../../components/BrowseLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
+import SearchSelect from '../../components/SearchSelect'
 
-const EMPTY = { nome: '', descricao: '', status: 'ativo' }
+const EMPTY = { nome: '', descricao: '', status: 'ativo', responsavel_id: '' }
 
 // Cadastro simples de Centro de Custo — base pra vincular custos/receitas
 // de Produtos, Comissões, Campanhas, Ações, Projetos e Usuários, e pro
 // módulo de Orçamento (planejado x realizado) calcular por centro.
 export default function SettingsCentrosCusto() {
   const { centros, save, remove } = useCentrosCusto()
+  const { usuarios } = useUsuarios()
   const [editando, setEditando] = useState(null)
   const [form, setForm]         = useState(null)
   const { registrar: log } = useAuditLog()
@@ -43,6 +46,10 @@ export default function SettingsCentrosCusto() {
         {row.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{row.descricao}</div>}
       </div>
     )},
+    { key: 'responsavel_id', label: 'Responsável', render: v => {
+      const u = usuarios.find(x => x.id === v)
+      return u ? <span style={{ fontSize: 12, color: 'var(--text-soft)' }}>{u.nome}</span> : <span style={{ color: 'var(--border2)', fontSize: 11 }}>—</span>
+    }},
     { key: 'status', label: 'Status', width: 90, render: v => (
       <span style={{
         fontSize: 11, fontWeight: 700, borderRadius: 20, padding: '2px 10px',
@@ -53,7 +60,7 @@ export default function SettingsCentrosCusto() {
         {v === 'ativo' ? 'Ativo' : 'Inativo'}
       </span>
     )},
-  ], [])
+  ], [usuarios])
 
   if (editando !== null && form !== null) {
     return (
@@ -72,6 +79,17 @@ export default function SettingsCentrosCusto() {
           <FPEField label="Descrição">
             <textarea className="fpe-field" rows={3} value={form.descricao}
               onChange={e => set('descricao', e.target.value)} placeholder="Opcional" />
+          </FPEField>
+        </FPESection>
+        <FPESection title="Responsável" description="Dono do centro — ganha alçada pra aprovar custos vinculados a ele (Ações/Campanhas/Orçamento), além de admin e financeiro.">
+          <FPEField label="Responsável">
+            <SearchSelect
+              options={usuarios.map(u => ({ id: u.id, label: u.nome, sublabel: u.email }))}
+              value={form.responsavel_id || null}
+              onChange={id => set('responsavel_id', id || '')}
+              placeholder="Pesquisar usuário…"
+              inputStyle={{ height: 38, border: '1px solid var(--border)', borderRadius: 7, padding: '0 12px', fontSize: 13, width: '100%', boxSizing: 'border-box', background: 'var(--surface2)', fontFamily: 'var(--font)', color: 'var(--text)' }}
+            />
           </FPEField>
         </FPESection>
         <FPESection title="Status">

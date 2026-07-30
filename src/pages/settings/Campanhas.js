@@ -453,7 +453,10 @@ function CampanhaEdit({ initial, onCancel, onSave, onDelete }) {
         <FPEField label="" span={2}>
           <CustosSection
             items={form.custos || []}
-            podeAprovar={isAdmin || profile?.papel === 'financeiro'}
+            // Aprovar/Rejeitar é restrito a Admin, Financeiro, ou o
+            // responsável (dono) do Centro de Custo vinculado à Campanha.
+            podeAprovar={isAdmin || profile?.papel === 'financeiro'
+              || (!!form.centro_custo_id && centrosCusto.find(c => c.id === form.centro_custo_id)?.responsavel_id === profile?.id)}
             nomeUsuario={nomeUsuario}
             onAdd={() => set('custos', [...(form.custos || []), { id: crypto.randomUUID(), descricao: '', valor_previsto: '', valor_realizado: '', executado: false, aprovacoes: [] }])}
             onUpdate={(id, patch) => set('custos', (form.custos || []).map(c => c.id === id ? { ...c, ...patch } : c))}

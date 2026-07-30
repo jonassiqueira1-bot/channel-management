@@ -327,7 +327,10 @@ export default function Orcamento() {
                   items={lancamentosDoDetalhe}
                   mostrarClassificacao
                   addLabel="+ Adicionar lançamento"
-                  podeAprovar={profile?.papel === 'admin_isv' || profile?.role === 'admin_isv' || profile?.papel === 'financeiro'}
+                  // Admin, Financeiro, ou o responsável (dono) do próprio
+                  // Centro de Custo ganham alçada de aprovação.
+                  podeAprovar={profile?.papel === 'admin_isv' || profile?.role === 'admin_isv' || profile?.papel === 'financeiro'
+                    || (detalhe.centro?.responsavel_id === profile?.id)}
                   nomeUsuario={profile?.full_name || profile?.email || 'Usuário'}
                   onAdd={() => saveLancamento({
                     centro_custo_id: detalhe.centroId, competencia: detalhe.competencia + '-01',

@@ -886,9 +886,10 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
         <div style={{ padding: '16px 20px' }}>
           <CustosSection
             items={form.custos || []}
-            // Aprovar/Rejeitar custo é restrito a Admin e ao papel Financeiro —
-            // não é qualquer usuário com acesso à Ação que pode liberar orçamento.
-            podeAprovar={isAdmin || profile?.papel === 'financeiro'}
+            // Aprovar/Rejeitar custo é restrito a Admin, Financeiro, ou o
+            // responsável (dono) do Centro de Custo vinculado à Ação.
+            podeAprovar={isAdmin || profile?.papel === 'financeiro'
+              || (!!form.centro_custo_id && (centrosCusto || []).find(c => c.id === form.centro_custo_id)?.responsavel_id === profile?.id)}
             nomeUsuario={profile?.full_name || profile?.email || 'Usuário'}
             onAdd={() => set('custos', [...(form.custos || []), { id: crypto.randomUUID(), descricao: '', valor_previsto: '', valor_realizado: '', executado: false, aprovacoes: [] }])}
             onUpdate={(id, patch) => set('custos', (form.custos || []).map(c => c.id === id ? { ...c, ...patch } : c))}
