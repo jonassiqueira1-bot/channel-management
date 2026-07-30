@@ -15,6 +15,7 @@ import { useSellers } from '../hooks/useSellers'
 import { useAcaoMembros } from '../hooks/useAcaoMembros'
 import { useDocuments } from '../hooks/useDocuments'
 import { useCentrosCusto } from '../hooks/useCentrosCusto'
+import CustosSection from '../components/CustosSection'
 import { CATEGORIA_CFG } from '../data/mockDocumentos'
 import { MultiSelect } from './Playbooks'
 import BrowseLayout from '../components/BrowseLayout'
@@ -136,12 +137,6 @@ const EMPTY_ACAO = {
   centro_custo_id: '',
   documento_ids: [],
   anexos: [],
-}
-
-const APROVACAO_CFG = {
-  aguardando: { label: 'Aguardando aprovação', color: '#F59E0B', bg: '#FEF3C7', text: '#92400E' },
-  aprovado:   { label: 'Aprovado',             color: '#10B981', bg: '#D1FAE5', text: '#065F46' },
-  rejeitado:  { label: 'Rejeitado',            color: '#EF4444', bg: '#FEE2E2', text: '#991B1B' },
 }
 
 function fmtMoeda(v) {
@@ -645,7 +640,6 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
   const [uploadingAnexo, setUploadingAnexo] = useState(false)
-  const [custosSelected, setCustosSelected] = useState([])
   const { profile, isAdmin } = useProfile()
   const { docs: allDocs } = useDocuments()
   const { centros: centrosCusto } = useCentrosCusto()
@@ -888,208 +882,20 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       })()}
 
       {/* ── Aba Custos ── */}
-      {tab === 'custos' && (() => {
-        const custos = form.custos || []
-        const nomeUsuario = profile?.full_name || profile?.email || 'Usuário'
-        // Aprovar/Rejeitar custo é restrito a Admin e ao papel Financeiro —
-        // não é qualquer usuário com acesso à Ação que pode liberar orçamento.
-        const podeAprovarCusto = isAdmin || profile?.papel === 'financeiro'
-        const addCusto    = () => set('custos', [...custos, { id: crypto.randomUUID(), descricao:'', valor_previsto:'', valor_realizado:'', executado: false, aprovacoes:[], _open: true }])
-        const updCusto    = (id, p) => set('custos', custos.map(c => c.id === id ? { ...c, ...p } : c))
-        const remCusto    = (id) => { if (window.confirm('Remover?')) set('custos', custos.filter(c => c.id !== id)) }
-        const aprovar     = (id, status) => {
-          const obs = custos.find(c => c.id === id)?._obsInput || ''
-          const entrada = { id: crypto.randomUUID(), status, obs, por: nomeUsuario, em: new Date().toISOString() }
-          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes:[...(c.aprovacoes||[]), entrada], _obsInput:'' } : c))
-        }
-        const solicitarAprovacao = (id) => {
-          const entrada = { id: crypto.randomUUID(), status: 'aguardando', obs: '', por: nomeUsuario, em: new Date().toISOString() }
-          set('custos', custos.map(c => c.id === id ? { ...c, aprovacoes:[entrada] } : c))
-        }
-        const totalPrev = custos.reduce((s,c) => s + (Number(c.valor_previsto)||0), 0)
-        const totalExec = custos.reduce((s,c) => s + (c.executado ? (Number(c.valor_realizado)||0) : 0), 0)
-        const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:3 }
-
-        const selected = custosSelected
-        const setSelected = setCustosSelected
-        const toggleSel = (id) => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-        const allSel = custos.length > 0 && selected.length === custos.length
-        const toggleAll = () => setSelected(allSel ? [] : custos.map(c => c.id))
-
-        const bulkAprovar = (status) => {
-          const obs = ''
-          set('custos', custos.map(c => selected.includes(c.id)
-            ? { ...c, aprovacoes:[...(c.aprovacoes||[]), { id: crypto.randomUUID(), status, obs, por: nomeUsuario, em: new Date().toISOString() }], _obsInput:'' }
-            : c
-          ))
-          setSelected([])
-        }
-        const bulkExecutar = (executado) => {
-          set('custos', custos.map(c => selected.includes(c.id) ? { ...c, executado } : c))
-          setSelected([])
-        }
-
-        return (
-          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
-            {/* Totalizador */}
-            {custos.length > 0 && (
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8, marginBottom:4 }}>
-                {[['Total previsto', fmtMoeda(totalPrev), false],['Total executado', fmtMoeda(totalExec), totalExec > totalPrev]].map(([lbl2,val,red]) => (
-                  <div key={lbl2} style={{ padding:'8px 12px', background:'var(--surface2)', borderRadius:7, border:'1px solid var(--border)' }}>
-                    <div style={{ fontSize:9, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>{lbl2}</div>
-                    <div style={{ fontSize:14, fontWeight:700, color: red?'#EF4444':'var(--text)', marginTop:2 }}>{val}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Barra de ações em lote */}
-            {custos.length > 0 && (
-              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'4px 0' }}>
-                <input type="checkbox" checked={allSel} onChange={toggleAll} style={{ cursor:'pointer' }} />
-                <span style={{ fontSize:11, color:'var(--text-muted)' }}>
-                  {selected.length > 0 ? `${selected.length} selecionado(s)` : 'Selecionar todos'}
-                </span>
-                {selected.length > 0 && (
-                  <>
-                    {podeAprovarCusto && (
-                      <>
-                        <button onClick={() => bulkAprovar('aprovado')}
-                          style={{ padding:'3px 10px', borderRadius:5, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                          ✓ Aprovar selecionados
-                        </button>
-                        <button onClick={() => bulkAprovar('rejeitado')}
-                          style={{ padding:'3px 10px', borderRadius:5, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                          ✗ Rejeitar selecionados
-                        </button>
-                      </>
-                    )}
-                    <button onClick={() => bulkExecutar(true)}
-                      style={{ padding:'3px 10px', borderRadius:5, border:'1px solid #6366F1', background:'none', color:'#6366F1', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                      ✔ Marcar como executado
-                    </button>
-                    <button onClick={() => bulkExecutar(false)}
-                      style={{ padding:'3px 10px', borderRadius:5, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                      Desmarcar execução
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Items */}
-            {custos.map((c, idx) => {
-              const ultima = (c.aprovacoes||[]).slice(-1)[0]
-              const cfgAp  = ultima ? (APROVACAO_CFG[ultima.status] || APROVACAO_CFG.aguardando) : null
-              const aprovado = ultima?.status === 'aprovado'
-              // Recolhida por padrão sempre que a aba carrega — só abre se o
-              // usuário explicitamente expandir (ou acabou de adicionar o item).
-              const isOpen = c._open === true
-              return (
-                <div key={c.id} style={{ border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
-                  {/* Linha de resumo (sempre visível) */}
-                  <div style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 10px', background:'var(--surface2)', cursor:'pointer' }}
-                    onClick={() => updCusto(c.id, { _open: !isOpen })}>
-                    <input type="checkbox" checked={selected.includes(c.id)} onClick={e => e.stopPropagation()} onChange={() => toggleSel(c.id)} style={{ cursor:'pointer', flexShrink:0 }} />
-                    <span style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', flexShrink:0 }}>#{idx+1}</span>
-                    <span style={{ fontSize:12, fontWeight:600, color:'var(--text)', flex:1, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
-                      {c.descricao || <span style={{ color:'var(--text-muted)', fontStyle:'italic' }}>Sem descrição</span>}
-                    </span>
-                    <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{fmtMoeda(c.valor_previsto)}</span>
-                    {cfgAp && (
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:20, background:cfgAp.bg, color:cfgAp.text, fontSize:10, fontWeight:700, flexShrink:0 }}>
-                        <span style={{ width:4, height:4, borderRadius:'50%', background:cfgAp.color }} />{cfgAp.label}
-                      </span>
-                    )}
-                    {aprovado && (
-                      <span style={{ display:'inline-flex', alignItems:'center', gap:3, padding:'1px 6px', borderRadius:20,
-                        background: c.executado ? '#EDE9FE' : 'var(--surface)', color: c.executado ? '#5B21B6' : 'var(--text-muted)',
-                        fontSize:10, fontWeight:700, border:'1px solid var(--border)', flexShrink:0 }}>
-                        {c.executado ? '✔ Executado' : '— Não executado'}
-                      </span>
-                    )}
-                    <span style={{ fontSize:11, color:'var(--text-muted)', flexShrink:0 }}>{isOpen ? '▲' : '▼'}</span>
-                    <button onClick={e => { e.stopPropagation(); remCusto(c.id) }} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:13, padding:'0 2px', lineHeight:1, flexShrink:0 }}>×</button>
-                  </div>
-
-                  {/* Conteúdo expandido */}
-                  {isOpen && (
-                    <>
-                      <div style={{ padding:'8px 10px', display:'grid', gridTemplateColumns:'1fr 100px 100px', gap:8, alignItems:'start' }}>
-                        <div>
-                          <label style={lbl}>Descrição / Justificativa</label>
-                          <input className="so-field" value={c.descricao} onChange={e => updCusto(c.id,{descricao:e.target.value})} placeholder="Finalidade do custo…" style={{ width:'100%', boxSizing:'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={lbl}>Previsto (R$)</label>
-                          <input className="so-field" type="number" min="0" step="0.01" value={c.valor_previsto} onChange={e => updCusto(c.id,{valor_previsto:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
-                        </div>
-                        <div>
-                          <label style={lbl}>Realizado (R$)</label>
-                          <input className="so-field" type="number" min="0" step="0.01" value={c.valor_realizado} onChange={e => updCusto(c.id,{valor_realizado:e.target.value})} placeholder="0,00" style={{ width:'100%', boxSizing:'border-box' }} />
-                        </div>
-                      </div>
-
-                      {/* Execução — só após aprovado */}
-                      {aprovado && (
-                        <div style={{ padding:'0 10px 8px', display:'flex', alignItems:'center', gap:8 }}>
-                          <input type="checkbox" id={`exec-${c.id}`} checked={!!c.executado} onChange={e => updCusto(c.id, { executado: e.target.checked })} style={{ cursor:'pointer' }} />
-                          <label htmlFor={`exec-${c.id}`} style={{ fontSize:12, fontWeight:600, color: c.executado ? '#5B21B6' : 'var(--text)', cursor:'pointer' }}>
-                            {c.executado ? 'Custo executado' : 'Marcar como executado'}
-                          </label>
-                        </div>
-                      )}
-
-                      {/* Histórico */}
-                      {(c.aprovacoes||[]).length > 0 && (
-                        <div style={{ margin:'0 10px 6px', background:'var(--surface2)', borderRadius:6, padding:'6px 8px' }}>
-                          {(c.aprovacoes||[]).map(ap => {
-                            const ac = APROVACAO_CFG[ap.status] || APROVACAO_CFG.aguardando
-                            return (
-                              <div key={ap.id} style={{ display:'flex', gap:6, fontSize:10, marginBottom:2, color:'var(--text-muted)' }}>
-                                <span style={{ color:ac.color, fontWeight:700 }}>{ap.status==='aprovado'?'✓':ap.status==='rejeitado'?'✗':'⏳'}</span>
-                                <span><b style={{ color:'var(--text)' }}>{ac.label}</b> · {ap.por} · {new Date(ap.em).toLocaleString('pt-BR')}{ap.obs ? ` — ${ap.obs}` : ''}</span>
-                              </div>
-                            )
-                          })}
-                        </div>
-                      )}
-
-                      {/* Ações de aprovação */}
-                      {(c.aprovacoes||[]).length === 0 ? (
-                        <div style={{ padding:'0 10px 8px' }}>
-                          <button onClick={() => solicitarAprovacao(c.id)}
-                            style={{ padding:'5px 12px', borderRadius:6, border:'1px solid var(--accent)', background:'none', color:'var(--accent)', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)' }}>
-                            Solicitar aprovação
-                          </button>
-                        </div>
-                      ) : podeAprovarCusto && !aprovado ? (
-                        <div style={{ display:'flex', gap:6, padding:'0 10px 8px', alignItems:'center' }}>
-                          <input className="so-field" value={c._obsInput||''} onChange={e => updCusto(c.id,{_obsInput:e.target.value})}
-                            placeholder="Observação (opcional)…" style={{ flex:1, fontSize:11 }} />
-                          <button onClick={() => aprovar(c.id,'aprovado')}
-                            style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#10B981', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-                            ✓ Aprovar
-                          </button>
-                          <button onClick={() => aprovar(c.id,'rejeitado')}
-                            style={{ padding:'5px 10px', borderRadius:6, border:'none', background:'#EF4444', color:'#fff', fontWeight:700, fontSize:11, cursor:'pointer', fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
-                            ✗ Rejeitar
-                          </button>
-                        </div>
-                      ) : !podeAprovarCusto && !aprovado ? (
-                        <div style={{ padding:'4px 10px 8px', fontSize:11, color:'var(--text-muted)' }}>Aguardando aprovação do administrador ou financeiro.</div>
-                      ) : null}
-                    </>
-                  )}
-                </div>
-              )
-            })}
-            <button onClick={addCusto} style={{ padding:'6px 0', borderRadius:7, border:'1px dashed var(--border)', background:'none', fontSize:12, fontWeight:600, color:'var(--accent)', cursor:'pointer', fontFamily:'var(--font)' }}>
-              + Adicionar item de custo
-            </button>
-          </div>
-        )
-      })()}
+      {tab === 'custos' && (
+        <div style={{ padding: '16px 20px' }}>
+          <CustosSection
+            items={form.custos || []}
+            // Aprovar/Rejeitar custo é restrito a Admin e ao papel Financeiro —
+            // não é qualquer usuário com acesso à Ação que pode liberar orçamento.
+            podeAprovar={isAdmin || profile?.papel === 'financeiro'}
+            nomeUsuario={profile?.full_name || profile?.email || 'Usuário'}
+            onAdd={() => set('custos', [...(form.custos || []), { id: crypto.randomUUID(), descricao: '', valor_previsto: '', valor_realizado: '', executado: false, aprovacoes: [] }])}
+            onUpdate={(id, patch) => set('custos', (form.custos || []).map(c => c.id === id ? { ...c, ...patch } : c))}
+            onRemove={id => set('custos', (form.custos || []).filter(c => c.id !== id))}
+          />
+        </div>
+      )}
 
       {/* ── Aba Documentos ── */}
       {/* Vincula registros reais do módulo Documentos (não é mais uma lista
