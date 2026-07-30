@@ -83,6 +83,19 @@ export default function Orcamento() {
     return totais
   }, [lancamentos])
 
+  // Previsto itemizado (soma de todos os lançamentos, aprovados ou não,
+  // executados ou não) — visão de "quanto foi orçado item a item", separada
+  // do planejado macro (que é definido direto por centro+mês).
+  const previstoManualPorChave = useMemo(() => {
+    const totais = {}
+    ;(lancamentos || []).forEach(l => {
+      const key = `${l.centro_custo_id}|${l.competencia?.slice(0, 7)}`
+      const sinal = l.tipo === 'receita' ? -1 : 1
+      totais[key] = (totais[key] || 0) + sinal * (Number(l.valor_previsto) || 0)
+    })
+    return totais
+  }, [lancamentos])
+
   const custoProjetosPorCentro = useMemo(() => {
     const totais = {}
     ;(projetos || []).forEach(p => {
@@ -114,6 +127,7 @@ export default function Orcamento() {
       const key = `${centroId}|${ym}`
       const orc = orcamentos.find(o => o.centro_custo_id === centroId && o.competencia.slice(0, 7) === ym)
       const planejado = orc?.valor_planejado || 0
+      const previstoManual = previstoManualPorChave[key] || 0
       const realizadoAuto = realizadoAutoPorChave[key] || 0
       const realizadoManual = realizadoManualPorChave[key] || 0
       const totalRealizado = realizadoAuto + realizadoManual
@@ -121,10 +135,10 @@ export default function Orcamento() {
       const status = planejado === 0 ? 'sem_planejado' : desvio > 0 ? 'estourado' : 'dentro'
       return {
         id: key, centroId, centro, competencia: ym, orcId: orc?.id,
-        planejado, realizadoAuto, realizadoManual, totalRealizado, desvio, status,
+        planejado, previstoManual, realizadoAuto, realizadoManual, totalRealizado, desvio, status,
       }
     }).filter(Boolean).sort((a, b) => b.competencia.localeCompare(a.competencia) || a.centro.nome.localeCompare(b.centro.nome))
-  }, [centros, orcamentos, lancamentos, realizadoAutoPorChave, realizadoManualPorChave])
+  }, [centros, orcamentos, lancamentos, realizadoAutoPorChave, realizadoManualPorChave, previstoManualPorChave])
 
   const filtered = linhas.filter(l => {
     if (filtroCentro && l.centroId !== filtroCentro) return false
@@ -145,7 +159,7 @@ export default function Orcamento() {
     const totalPlanejado  = data.reduce((s, l) => s + l.planejado, 0)
     const totalRealizado  = data.reduce((s, l) => s + l.totalRealizado, 0)
     const estourados      = data.filter(l => l.status === 'estourado').length
-    const semPlanejado    = data.filter(l => l.status === 'sem_planejado' && l.totalRealizado > 0).length
+    const semPlanejado    = data.filter(l => l.status === 'sem_planejado' && l.totalRealizado !== 0).length
     return (
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', padding: '8px 0' }}>
         {[
@@ -179,8 +193,9 @@ export default function Orcamento() {
       ),
     },
     { key: 'planejado', label: 'Planejado', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 13, color: 'var(--text-soft)' }}>{fmtMoeda(v)}</span> },
-    { key: 'realizadoAuto', label: 'Realizado (auto)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v > 0 ? fmtMoeda(v) : '—'}</span> },
-    { key: 'realizadoManual', label: 'Realizado (manual)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v > 0 ? fmtMoeda(v) : '—'}</span> },
+    { key: 'previstoManual', label: 'Previsto (lançamentos)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
+    { key: 'realizadoAuto', label: 'Realizado (auto)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
+    { key: 'realizadoManual', label: 'Realizado (manual)', render: v => <span style={{ fontFamily: 'var(--mono)', fontSize: 12, color: 'var(--text-soft)' }}>{v !== 0 ? fmtMoeda(v) : '—'}</span> },
     { key: 'totalRealizado', label: 'Total realizado', render: v => <span style={{ fontFamily: 'var(--mono)', fontWeight: 800, fontSize: 14, color: 'var(--text)' }}>{fmtMoeda(v)}</span> },
     {
       key: 'desvio', label: 'Desvio',
@@ -357,7 +372,11 @@ function LancamentosSection({ lancamentos, onSave, onRemove, profile }) {
     setObsInput(o => ({ ...o, [l.id]: '' }))
   }
   function marcarExecutado(l, executado) {
-    onSave({ ...l, executado })
+    // Se o realizado nunca foi preenchido, assume o previsto como ponto de
+    // partida (editável depois) — sem isso, "executado" sem valor realizado
+    // fica contando R$ 0,00 no orçamento sem o usuário perceber.
+    const valorRealizado = executado && !Number(l.valor_realizado) ? l.valor_previsto : l.valor_realizado
+    onSave({ ...l, executado, valor_realizado: valorRealizado })
   }
 
   return (
@@ -389,15 +408,15 @@ function LancamentosSection({ lancamentos, onSave, onRemove, profile }) {
               </span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmtMoeda(l.valor_previsto)}</span>
               {cfgAp && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 20, background: cfgAp.bg, color: cfgAp.text, fontSize: 10, fontWeight: 700, flexShrink: 0 }}>
-                  <span style={{ width: 4, height: 4, borderRadius: '50%', background: cfgAp.color }} />{cfgAp.label}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700, color: cfgAp.color, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: cfgAp.color, flexShrink: 0 }} />{cfgAp.label}
                 </span>
               )}
               {aprovado && (
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 6px', borderRadius: 20,
-                  background: l.executado ? '#EDE9FE' : 'var(--surface)', color: l.executado ? '#5B21B6' : 'var(--text-muted)',
-                  fontSize: 10, fontWeight: 700, border: '1px solid var(--border)', flexShrink: 0 }}>
-                  {l.executado ? '✔ Executado' : '— Não executado'}
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 700,
+                  color: l.executado ? '#6D28D9' : 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: l.executado ? '#6D28D9' : 'var(--border2)', flexShrink: 0 }} />
+                  {l.executado ? 'Executado' : 'Não executado'}
                 </span>
               )}
               <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{isOpen ? '▲' : '▼'}</span>
