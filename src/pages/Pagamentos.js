@@ -30,14 +30,15 @@ import { useProvisoes } from '../hooks/useProvisoes'
 import { useFaturas } from '../hooks/useFaturas'
 import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
-// Ordem reflete o fluxo real do processo com distribuidores (NG/TOTVS):
-// Provisão chega um mês antes (título em aberto, previsão pro mês seguinte)
-// → vira Fatura (cobrança gerada) → é confirmada como Pagamento no mês de
-// competência. Não são três telas soltas, é uma sequência.
+// Não é uma corrente linear — Provisões (distribuidor: NG/TOTVS reporta título
+// em aberto pro mês seguinte) e Faturas (cobrança direta, gerada a partir dos
+// itens do Contrato) são DUAS origens independentes que convergem pro mesmo
+// lugar: Pagamentos, quando o valor é de fato recebido. Provisão nunca vira
+// Fatura nem o contrário — cada uma casa direto com um Pagamento.
 const TABS_PAG = [
-  { id: 'provisoes',  label: 'Provisões',  desc: 'Previsão — título em aberto pro mês seguinte' },
-  { id: 'faturas',    label: 'Faturas',    desc: 'Cobrança gerada a partir da provisão' },
-  { id: 'pagamentos', label: 'Pagamentos', desc: 'Confirmação — recebido no mês de competência' },
+  { id: 'provisoes',  label: 'Provisões',  desc: 'Origem: via distribuidor (NG/TOTVS)', grupo: 'origem' },
+  { id: 'faturas',    label: 'Faturas',    desc: 'Origem: cobrança direta', grupo: 'origem' },
+  { id: 'pagamentos', label: 'Pagamentos', desc: 'Confirmação — recebido, de qualquer origem', grupo: 'destino' },
 ]
 
 const ACCENT = 'var(--accent)'
@@ -2402,13 +2403,19 @@ export default function Pagamentos() {
 
   return (
     <>
-      {/* ── Cabeçalho: fluxo Provisão → Fatura → Pagamento, não três telas soltas ── */}
+      {/* ── Cabeçalho: duas origens (Provisões/Faturas) convergindo pra Pagamentos ── */}
       <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:20, borderBottom:'1px solid var(--border)', padding:'0 20px' }}>
         {TABS_PAG.map((t, i) => {
           const active = tab === t.id
+          const anterior = TABS_PAG[i - 1]
+          const conector = i === 0 ? null : anterior?.grupo === t.grupo ? '+' : '→'
           return (
             <div key={t.id} style={{ display:'flex', alignItems:'center' }}>
-              {i > 0 && <span style={{ color:'var(--border2)', fontSize:14, margin:'0 6px 10px' }}>→</span>}
+              {conector && (
+                <span style={{ color: conector === '→' ? 'var(--accent)' : 'var(--border2)', fontSize:14, margin:'0 6px 10px', fontWeight: conector === '→' ? 700 : 400 }}>
+                  {conector}
+                </span>
+              )}
               <button
                 onClick={() => setTab(t.id)}
                 title={t.desc}
