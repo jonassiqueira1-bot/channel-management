@@ -4,6 +4,7 @@ import { useProvisoes } from '../hooks/useProvisoes'
 import { useProducts } from '../hooks/useProducts'
 import { useCompanies } from '../hooks/useCompanies'
 import { useContracts } from '../hooks/useContracts'
+import { usePayments } from '../hooks/usePayments'
 import { STATUS_PAGAMENTO } from '../data/mockPagamentos'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
@@ -873,6 +874,20 @@ export default function TabProvisoes() {
   const { companies, add: addCompany, update: updateCompany } = useCompanies()
   const { contratos, save: saveContrato } = useContracts()
   const { produtos } = useProducts()
+  const { pagamentos } = usePayments()
+
+  // Mesma chave de casamento usada na importação (contrato + competência +
+  // produto) — deixa visível na tela, não só no banco, quando uma provisão
+  // já virou pagamento confirmado.
+  const pagamentoPorChave = useMemo(() => {
+    const m = new Map()
+    ;(pagamentos || []).forEach(p => {
+      const periodo = (p.reference_month || '').slice(0, 7)
+      const chave = `${(p.contract_numero || '').toLowerCase()}|${periodo}|${(p.produto_nome || '').toLowerCase()}`
+      m.set(chave, p)
+    })
+    return m
+  }, [pagamentos])
 
   const [search,                  setSearch]                  = useLocalState('provisoes:search', '')
   const [filtroStatus,            setFiltroStatus]            = useLocalState('provisoes:filtroStatus', '')
@@ -1023,16 +1038,30 @@ export default function TabProvisoes() {
       },
     },
     { key:'reference_month', label:'Competência', render: v => <span style={{ fontFamily:'var(--mono)', fontSize:12, color:'var(--text-soft)' }}>{v ? periodoLabel(parsePeriodo(v)) : '—'}</span> },
-    { key:'status', label:'Status', render: (v, row) => (
-      <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-        <StatusBadge status={v} />
-        {row.percentual_baixa != null && row.percentual_baixa < 99.5 && row.percentual_baixa > 0 && (
-          <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', color:'#D97706' }}>
-            {row.percentual_baixa}% baixado
-          </span>
-        )}
-      </div>
-    )},
+    { key:'status', label:'Status', render: (v, row) => {
+      const periodo = (row.reference_month || '').slice(0, 7)
+      const chave = `${(row.contract_numero || '').toLowerCase()}|${periodo}|${(row.produto_nome || '').toLowerCase()}`
+      const pagamentoLigado = pagamentoPorChave.get(chave)
+      return (
+        <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
+          <StatusBadge status={v} />
+          {row.percentual_baixa != null && row.percentual_baixa < 99.5 && row.percentual_baixa > 0 && (
+            <span style={{ fontSize:9, fontWeight:700, fontFamily:'var(--mono)', color:'#D97706' }}>
+              {row.percentual_baixa}% baixado
+            </span>
+          )}
+          {pagamentoLigado ? (
+            <span style={{ fontSize:9.5, fontWeight:600, color:'#10B981' }}>
+              → pago {pagamentoLigado.data_baixa ? `em ${fmtData(pagamentoLigado.data_baixa)}` : '(aguardando baixa)'}
+            </span>
+          ) : v !== 'pago' && (
+            <span style={{ fontSize:9.5, color:'var(--text-muted)' }}>
+              aguardando pagamento de {periodo ? periodoLabel(parsePeriodo(row.reference_month)) : 'competência'}
+            </span>
+          )}
+        </div>
+      )
+    }},
     { key:'inconsistencia_status', label:'Inconsistência', render: v => <InconsistenciaBadge value={v} /> },
   ]
 
