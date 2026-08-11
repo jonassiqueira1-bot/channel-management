@@ -9,6 +9,7 @@ export function useBilling() {
   const [tenant, setTenant] = useState(null)
   const [plan, setPlan] = useState(null)
   const [cobrancas, setCobrancas] = useState([])
+  const [planHistory, setPlanHistory] = useState([])
   const [userCount, setUserCount] = useState(0)
   const [loading, setLoading] = useState(true)
 
@@ -16,7 +17,7 @@ export function useBilling() {
     if (!profile?.tenant_id) return
     setLoading(true)
     try {
-      const [{ data: t }, { data: c }, { data: uc }] = await Promise.all([
+      const [{ data: t }, { data: c }, { data: uc }, { data: ph }] = await Promise.all([
         supabase.from('tenants')
           .select('id, name, status, plan, billing_plan_id, billing_name, billing_cpf_cnpj, billing_email, billing_phone, trial_ends_at, trial_charge_sent, asaas_value, asaas_next_due_date, grace_period_days, overdue_since, suspended_at, cancellation_requested_at, cancel_at')
           .eq('id', profile.tenant_id)
@@ -26,10 +27,15 @@ export function useBilling() {
           .eq('tenant_id', profile.tenant_id)
           .order('created_at', { ascending: false }),
         supabase.rpc('count_active_users', { p_tenant_id: profile.tenant_id }),
+        supabase.from('billing_plan_history')
+          .select('*')
+          .eq('tenant_id', profile.tenant_id)
+          .order('changed_at', { ascending: false }),
       ])
       setTenant(t)
       setCobrancas(c || [])
       setUserCount(uc || 0)
+      setPlanHistory(ph || [])
 
       if (t?.billing_plan_id) {
         const { data: p } = await supabase.from('billing_plans').select('*').eq('id', t.billing_plan_id).single()
@@ -62,5 +68,5 @@ export function useBilling() {
     return { ok: true }
   }, [profile?.tenant_id, load])
 
-  return { tenant, plan, cobrancas, userCount, loading, reload: load, saveBillingData, requestCancellation }
+  return { tenant, plan, cobrancas, planHistory, userCount, loading, reload: load, saveBillingData, requestCancellation }
 }

@@ -124,7 +124,7 @@ function CancelModal({ onConfirm, onClose, loading }) {
 // ─── Tela principal ──────────────────────────────────────────────────────────
 export default function Assinatura() {
   const { isAdmin } = useProfile()
-  const { tenant, plan, cobrancas, userCount, loading, saveBillingData, requestCancellation, reload } = useBilling()
+  const { tenant, plan, cobrancas, planHistory, userCount, loading, saveBillingData, requestCancellation, reload } = useBilling()
   const [pixModal, setPixModal]       = useState(null)
   const [cancelModal, setCancelModal] = useState(false)
   const [cancelling, setCancelling]   = useState(false)
@@ -278,6 +278,32 @@ export default function Assinatura() {
           </div>
         )}
       </FPESection>
+
+      {/* ── Evolução do plano ── */}
+      {planHistory.length > 1 && (
+        <FPESection title="Evolução do plano" description="Histórico de mudanças de faixa conforme o número de usuários ativos varia.">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
+            {planHistory.map((h, i) => (
+              <div key={h.id} style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+                padding: '10px 0', borderBottom: i < planHistory.length - 1 ? '1px solid var(--border2)' : 'none',
+                flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: i === 0 ? 'var(--accent)' : 'var(--border2)', flexShrink: 0 }} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: i === 0 ? 700 : 500 }}>{h.plan_name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                      {fmtDate(h.changed_at)}{h.user_count_at != null ? ` · ${h.user_count_at} usuário${h.user_count_at !== 1 ? 's' : ''} ativos` : ''}
+                    </div>
+                  </div>
+                </div>
+                <strong style={{ fontSize: 13 }}>{fmt(h.value)}<span style={{ fontSize: 11, fontWeight: 400, color: 'var(--text-muted)' }}>/mês</span></strong>
+              </div>
+            ))}
+          </div>
+        </FPESection>
+      )}
 
       {/* ── Faturas ── */}
       <FPESection title="Faturas">

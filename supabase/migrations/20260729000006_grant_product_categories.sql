@@ -13,5 +13,12 @@ GRANT ALL ON public.product_categories TO service_role;
 GRANT SELECT, INSERT, UPDATE ON public.contact_list_options TO authenticated;
 GRANT ALL ON public.contact_list_options TO service_role;
 
-GRANT SELECT, INSERT, UPDATE ON public.oportunidade_etapa_historico TO authenticated;
-GRANT ALL ON public.oportunidade_etapa_historico TO service_role;
+-- Tabela não existe em todos os ambientes (drift entre dev/produção) —
+-- GRANT condicionado pra migration ficar idempotente nos dois.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'oportunidade_etapa_historico') THEN
+    EXECUTE 'GRANT SELECT, INSERT, UPDATE ON public.oportunidade_etapa_historico TO authenticated';
+    EXECUTE 'GRANT ALL ON public.oportunidade_etapa_historico TO service_role';
+  END IF;
+END $$;
