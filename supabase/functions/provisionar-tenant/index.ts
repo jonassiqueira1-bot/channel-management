@@ -129,6 +129,19 @@ serve(async (req) => {
 
     // 3. Busca o tenant_id recém-criado (a RPC não retorna, então lemos do profile).
     const { data: profile } = await admin.from('profiles').select('tenant_id').eq('id', userId).maybeSingle()
+    const tenantId = profile?.tenant_id || null
+
+    // signup_create_tenant cria o tenant com status='active' e trial_ends_at
+    // nulo — o período de trial nunca era setado de verdade em lugar nenhum
+    // (só existia como texto de marketing no site). Toda conta agora passa
+    // por aqui (site não cria mais direto — vira solicitação aprovada aqui
+    // dentro, ou criação manual no Control Center), então este é o único
+    // lugar que precisa iniciar o trial.
+    const TRIAL_DIAS = 14
+    const trialEndsAt = new Date(Date.now() + TRIAL_DIAS * 86400000).toISOString()
+    if (tenantId) {
+      await admin.from('tenants').update({ status: 'trial', trial_ends_at: trialEndsAt }).eq('id', tenantId)
+    }
 
     // 4. Envia link de convite pro usuário definir a própria senha e acessar.
     const { data: linkData } = await admin.auth.admin.generateLink({
@@ -143,7 +156,7 @@ serve(async (req) => {
       })
     }
 
-    return json({ ok: true, user_id: userId, tenant_id: profile?.tenant_id || null })
+    return json({ ok: true, user_id: userId, tenant_id: tenantId, trial_ends_at: tenantId ? trialEndsAt : null })
   } catch (e) {
     console.error('[provisionar-tenant] uncaught:', e)
     return json({ error: e instanceof Error ? e.message : String(e) }, 500)
