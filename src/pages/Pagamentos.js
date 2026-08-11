@@ -30,13 +30,13 @@ import { useProvisoes } from '../hooks/useProvisoes'
 import { useFaturas } from '../hooks/useFaturas'
 import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
-// Não é uma corrente linear — Provisões (distribuidor: NG/TOTVS reporta título
-// em aberto pro mês seguinte) e Faturas (cobrança direta, gerada a partir dos
+// Não é uma corrente linear — Provisões (distribuidor reporta título em
+// aberto pro mês seguinte) e Faturas (cobrança direta, gerada a partir dos
 // itens do Contrato) são DUAS origens independentes que convergem pro mesmo
 // lugar: Pagamentos, quando o valor é de fato recebido. Provisão nunca vira
 // Fatura nem o contrário — cada uma casa direto com um Pagamento.
 const TABS_PAG = [
-  { id: 'provisoes',  label: 'Provisões',  desc: 'Origem: via distribuidor (NG/TOTVS)', grupo: 'origem' },
+  { id: 'provisoes',  label: 'Provisões',  desc: 'Origem: via distribuidor', grupo: 'origem' },
   { id: 'faturas',    label: 'Faturas',    desc: 'Origem: cobrança direta', grupo: 'origem' },
   { id: 'pagamentos', label: 'Pagamentos', desc: 'Confirmação — recebido, de qualquer origem', grupo: 'destino' },
 ]
