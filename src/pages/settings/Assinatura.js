@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react'
 import {
-  Users, Clock, AlertTriangle, CheckCircle2,
+  Clock, AlertTriangle, CheckCircle2,
   QrCode, Copy, FileText, X, CreditCard,
 } from 'lucide-react'
 import { FPESection } from '../../components/ui'
 import Button from '../../components/Button'
 import { useBilling } from '../../hooks/useBilling'
 import { useProfile } from '../../hooks/useProfile'
+import { VALOR_POR_USUARIO } from '../../lib/billing'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const STATUS_CFG = {
@@ -124,7 +125,7 @@ function CancelModal({ onConfirm, onClose, loading }) {
 // ─── Tela principal ──────────────────────────────────────────────────────────
 export default function Assinatura() {
   const { isAdmin } = useProfile()
-  const { tenant, plan, cobrancas, planHistory, userCount, pendingCancellation, loading, saveBillingData, requestCancellation, reload } = useBilling()
+  const { tenant, cobrancas, planHistory, userCount, pendingCancellation, loading, saveBillingData, requestCancellation, reload } = useBilling()
   const [pixModal, setPixModal]       = useState(null)
   const [cancelModal, setCancelModal] = useState(false)
   const [cancelling, setCancelling]   = useState(false)
@@ -193,12 +194,11 @@ export default function Assinatura() {
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', flexWrap:'wrap', gap:12 }}>
               <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
                 <div style={{ display:'flex', alignItems:'center', gap:10 }}>
-                  <span style={{ fontWeight:700, fontSize:18 }}>{plan?.name ?? 'Sem plano'}</span>
+                  <span style={{ fontWeight:700, fontSize:18 }}>{fmt(VALOR_POR_USUARIO * userCount)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mês</span></span>
                   <Chip status={tenant?.status} cfg={STATUS_CFG} />
                 </div>
                 <div style={{ fontSize:13, color:'var(--text-soft)', display:'flex', flexDirection:'column', gap:3 }}>
-                  {plan && <span style={{ fontSize:15, fontWeight:600, color:'var(--text)' }}>{fmt(plan.value)}<span style={{ fontSize:12, fontWeight:400, color:'var(--text-muted)' }}>/mês</span></span>}
-                  <span><Users size={13} style={{ marginRight:4, verticalAlign:'middle' }} />{userCount} usuário{userCount !== 1 ? 's' : ''} ativos{plan && <span style={{ color:'var(--text-muted)' }}> · faixa {plan.min_users}–{plan.max_users ?? '∞'}</span>}</span>
+                  <span style={{ fontFamily:'var(--mono)', color:'var(--text-muted)' }}>{fmt(VALOR_POR_USUARIO)} × {userCount} usuário{userCount !== 1 ? 's' : ''} ativo{userCount !== 1 ? 's' : ''}</span>
                   {tenant?.asaas_next_due_date && <span><Clock size={13} style={{ marginRight:4, verticalAlign:'middle' }} />Próximo vencimento: {fmtDate(tenant.asaas_next_due_date)}</span>}
                 </div>
               </div>

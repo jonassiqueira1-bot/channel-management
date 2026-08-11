@@ -16,6 +16,7 @@ import { useBranches } from '../../hooks/useBranches'
 import { useBranchContext } from '../../contexts/BranchContext'
 import { useParceiros } from '../../hooks/useParceiros'
 import { useCentrosCusto } from '../../hooks/useCentrosCusto'
+import { VALOR_POR_USUARIO, fmtMoeda } from '../../lib/billing'
 
 const ACCENT = 'var(--accent)'
 
@@ -181,6 +182,12 @@ function ConviteModal({ onClose, onSave, sessao, perfisExistentes }) {
               border: '1px solid #C7D2FE', fontSize: 12, color: '#3730A3', lineHeight: 1.5 }}>
               📧 Um e-mail de convite será enviado para <strong>{form.email || 'o endereço informado'}</strong>.
               O usuário ficará com status <strong>Pendente</strong> até aceitar o convite.
+            </div>
+
+            <div style={{ padding: '10px 14px', background: '#FFFBEB', borderRadius: 8,
+              border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+              💰 Cobrança por usuário ativo: quando esse convite for aceito, sua assinatura sobe
+              em <strong>+{fmtMoeda(VALOR_POR_USUARIO)}/mês</strong>.
             </div>
           </div>
 
@@ -605,6 +612,19 @@ function EditarUsuario({ perfil, onClose, onSave, onDelete, sessao }) {
             <option value="inativo">Inativo</option>
           </select>
         </FPEField>
+        {form.status !== perfil.status && (
+          form.status === 'inativo' ? (
+            <div style={{ gridColumn:'1/-1', padding: '10px 14px', background: '#F0FDF4', borderRadius: 8,
+              border: '1px solid #BBF7D0', fontSize: 12, color: '#166534', lineHeight: 1.5 }}>
+              💰 Ao salvar, sua assinatura reduz em <strong>-{fmtMoeda(VALOR_POR_USUARIO)}/mês</strong>.
+            </div>
+          ) : (
+            <div style={{ gridColumn:'1/-1', padding: '10px 14px', background: '#FFFBEB', borderRadius: 8,
+              border: '1px solid #FDE68A', fontSize: 12, color: '#92400E', lineHeight: 1.5 }}>
+              💰 Ao salvar, sua assinatura sobe em <strong>+{fmtMoeda(VALOR_POR_USUARIO)}/mês</strong>.
+            </div>
+          )
+        )}
       </FPESection>
 
       {/* Franquia — derivada automaticamente das unidades selecionadas */}
