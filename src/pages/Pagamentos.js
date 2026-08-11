@@ -30,10 +30,14 @@ import { useProvisoes } from '../hooks/useProvisoes'
 import { useFaturas } from '../hooks/useFaturas'
 import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
 
+// Ordem reflete o fluxo real do processo com distribuidores (NG/TOTVS):
+// Provisão chega um mês antes (título em aberto, previsão pro mês seguinte)
+// → vira Fatura (cobrança gerada) → é confirmada como Pagamento no mês de
+// competência. Não são três telas soltas, é uma sequência.
 const TABS_PAG = [
-  { id: 'pagamentos', label: 'Pagamentos' },
-  { id: 'provisoes',  label: 'Provisões'  },
-  { id: 'faturas',    label: 'Faturas'    },
+  { id: 'provisoes',  label: 'Provisões',  desc: 'Previsão — título em aberto pro mês seguinte' },
+  { id: 'faturas',    label: 'Faturas',    desc: 'Cobrança gerada a partir da provisão' },
+  { id: 'pagamentos', label: 'Pagamentos', desc: 'Confirmação — recebido no mês de competência' },
 ]
 
 const ACCENT = 'var(--accent)'
@@ -2398,28 +2402,33 @@ export default function Pagamentos() {
 
   return (
     <>
-      {/* ── Cabeçalho: navegação entre funcionalidades, mesmo padrão de Comissões ── */}
-      <div style={{ display:'flex', alignItems:'flex-end', gap:24, marginBottom:20, borderBottom:'1px solid var(--border)', padding:'0 20px' }}>
-        {TABS_PAG.map(t => {
+      {/* ── Cabeçalho: fluxo Provisão → Fatura → Pagamento, não três telas soltas ── */}
+      <div style={{ display:'flex', alignItems:'center', gap:0, marginBottom:20, borderBottom:'1px solid var(--border)', padding:'0 20px' }}>
+        {TABS_PAG.map((t, i) => {
           const active = tab === t.id
           return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              style={{
-                padding:'10px 2px', marginBottom:-1,
-                background:'none', border:'none',
-                borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
-                color: active ? 'var(--text)' : 'var(--text-muted)',
-                fontSize:13, fontWeight: active ? 600 : 500,
-                fontFamily:'var(--font)', cursor:'pointer', whiteSpace:'nowrap',
-                transition:'color 0.15s, border-color 0.15s',
-              }}
-              onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
-              onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
-            >
-              {t.label}
-            </button>
+            <div key={t.id} style={{ display:'flex', alignItems:'center' }}>
+              {i > 0 && <span style={{ color:'var(--border2)', fontSize:14, margin:'0 6px 10px' }}>→</span>}
+              <button
+                onClick={() => setTab(t.id)}
+                title={t.desc}
+                style={{
+                  display:'flex', flexDirection:'column', alignItems:'flex-start', gap:2,
+                  padding:'8px 2px 10px', marginBottom:-1,
+                  background:'none', border:'none',
+                  borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+                  cursor:'pointer', whiteSpace:'nowrap',
+                  transition:'color 0.15s, border-color 0.15s',
+                }}
+                onMouseEnter={e => { if (!active) e.currentTarget.style.color = 'var(--text-soft)' }}
+                onMouseLeave={e => { if (!active) e.currentTarget.style.color = 'var(--text-muted)' }}
+              >
+                <span style={{ color: active ? 'var(--text)' : 'var(--text-muted)', fontSize:13, fontWeight: active ? 600 : 500, fontFamily:'var(--font)' }}>
+                  {t.label}
+                </span>
+                <span style={{ fontSize:10.5, color:'var(--text-muted)', fontWeight:400 }}>{t.desc}</span>
+              </button>
+            </div>
           )
         })}
       </div>
