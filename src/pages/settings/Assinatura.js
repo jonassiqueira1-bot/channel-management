@@ -101,13 +101,13 @@ function CancelModal({ onConfirm, onClose, loading }) {
           </div>
         </div>
         <div style={{ background:'#FEF2F2', borderRadius:10, padding:14, marginBottom:20, fontSize:13 }}>
-          <p style={{ margin:'0 0 6px', fontWeight:600, color:'#DC2626' }}>Carência de 90 dias</p>
+          <p style={{ margin:'0 0 6px', fontWeight:600, color:'#DC2626' }}>Isso é uma solicitação, não um cancelamento imediato</p>
           <p style={{ margin:'0 0 6px', color:'var(--text)' }}>
-            Após o cancelamento, sua assinatura permanece ativa por <strong>90 dias</strong>. Durante esse período,
-            <strong> 3 faturas mensais serão cobradas normalmente</strong>.
+            Sua assinatura <strong>continua ativa normalmente</strong>. Nossa equipe recebe o pedido e entra em
+            contato pra confirmar os próximos passos antes de cancelar de fato.
           </p>
           <p style={{ margin:0, color:'var(--text-soft)' }}>
-            Seus dados ficam disponíveis até o fim da carência. Depois disso, o acesso é encerrado.
+            Nada muda no seu acesso até lá.
           </p>
         </div>
         <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
@@ -124,7 +124,7 @@ function CancelModal({ onConfirm, onClose, loading }) {
 // ─── Tela principal ──────────────────────────────────────────────────────────
 export default function Assinatura() {
   const { isAdmin } = useProfile()
-  const { tenant, plan, cobrancas, planHistory, userCount, loading, saveBillingData, requestCancellation, reload } = useBilling()
+  const { tenant, plan, cobrancas, planHistory, userCount, pendingCancellation, loading, saveBillingData, requestCancellation, reload } = useBilling()
   const [pixModal, setPixModal]       = useState(null)
   const [cancelModal, setCancelModal] = useState(false)
   const [cancelling, setCancelling]   = useState(false)
@@ -163,13 +163,12 @@ export default function Assinatura() {
     setCancelling(false)
     setCancelModal(false)
     setMsg(res.ok
-      ? { type:'success', text: 'Cancelamento solicitado. Sua assinatura permanece ativa por 90 dias.' }
+      ? { type:'success', text: 'Solicitação enviada. Nossa equipe vai entrar em contato — sua assinatura continua ativa normalmente até lá.' }
       : { type:'error',   text: res.message }
     )
   }
 
   const trialDays  = daysLeft(tenant?.trial_ends_at)
-  const cancelDays = daysLeft(tenant?.cancel_at)
   const statusCfg  = STATUS_CFG[tenant?.status] || { label: tenant?.status, color:'#6B7280', bg:'#F3F4F6' }
 
   return (
@@ -209,9 +208,9 @@ export default function Assinatura() {
                     {trialDays > 0 ? `${trialDays} dias restantes de trial` : 'Trial vence hoje'}
                   </span>
                 )}
-                {tenant?.cancellation_requested_at && cancelDays !== null && cancelDays > 0 && (
+                {pendingCancellation && (
                   <span style={{ background:'#FEF2F2', color:'#DC2626', borderRadius:8, padding:'5px 11px', fontSize:12, fontWeight:500 }}>
-                    Acesso encerra em {cancelDays} dias
+                    Cancelamento solicitado — aguardando nossa equipe
                   </span>
                 )}
               </div>
@@ -224,7 +223,7 @@ export default function Assinatura() {
               </div>
             )}
 
-            {tenant?.status === 'active' && !tenant.cancellation_requested_at && (
+            {tenant?.status === 'active' && !pendingCancellation && (
               <div style={{ paddingTop:8 }}>
                 <button onClick={() => setCancelModal(true)}
                   style={{ fontSize:12, color:'var(--text-muted)', background:'none', border:'none', cursor:'pointer', textDecoration:'underline', padding:0 }}>

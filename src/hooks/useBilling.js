@@ -11,13 +11,14 @@ export function useBilling() {
   const [cobrancas, setCobrancas] = useState([])
   const [planHistory, setPlanHistory] = useState([])
   const [userCount, setUserCount] = useState(0)
+  const [pendingCancellation, setPendingCancellation] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!profile?.tenant_id) return
     setLoading(true)
     try {
-      const [{ data: t }, { data: c }, { data: uc }, { data: ph }] = await Promise.all([
+      const [{ data: t }, { data: c }, { data: uc }, { data: ph }, { data: pc }] = await Promise.all([
         supabase.from('tenants')
           .select('id, name, status, plan, billing_plan_id, billing_name, billing_cpf_cnpj, billing_email, billing_phone, trial_ends_at, trial_charge_sent, asaas_value, asaas_next_due_date, grace_period_days, overdue_since, suspended_at, cancellation_requested_at, cancel_at')
           .eq('id', profile.tenant_id)
@@ -31,11 +32,17 @@ export function useBilling() {
           .select('*')
           .eq('tenant_id', profile.tenant_id)
           .order('changed_at', { ascending: false }),
+        supabase.from('tenant_cancellation_requests')
+          .select('id')
+          .eq('tenant_id', profile.tenant_id)
+          .eq('status', 'pendente')
+          .limit(1),
       ])
       setTenant(t)
       setCobrancas(c || [])
       setUserCount(uc || 0)
       setPlanHistory(ph || [])
+      setPendingCancellation((pc || []).length > 0)
 
       if (t?.billing_plan_id) {
         const { data: p } = await supabase.from('billing_plans').select('*').eq('id', t.billing_plan_id).single()
@@ -57,16 +64,16 @@ export function useBilling() {
     return { ok: true }
   }, [profile?.tenant_id, load])
 
-  const requestCancellation = useCallback(async () => {
-    const cancelAt = new Date()
-    cancelAt.setDate(cancelAt.getDate() + 90)
-    const { error } = await supabase.from('tenants')
-      .update({ cancellation_requested_at: new Date().toISOString(), cancel_at: cancelAt.toISOString() })
-      .eq('id', profile.tenant_id)
+  // Não cancela nada sozinho — só registra o pedido. O cancelamento em si
+  // (Asaas + status do tenant) é sempre feito manualmente por um admin no
+  // Control Center, que vê essa solicitação como alerta.
+  const requestCancellation = useCallback(async (motivo) => {
+    const { error } = await supabase.from('tenant_cancellation_requests')
+      .insert({ tenant_id: profile.tenant_id, motivo: motivo || null })
     if (error) return { ok: false, message: error.message }
     await load()
     return { ok: true }
   }, [profile?.tenant_id, load])
 
-  return { tenant, plan, cobrancas, planHistory, userCount, loading, reload: load, saveBillingData, requestCancellation }
+  return { tenant, plan, cobrancas, planHistory, userCount, pendingCancellation, loading, reload: load, saveBillingData, requestCancellation }
 }

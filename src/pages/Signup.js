@@ -1,20 +1,9 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { supabase } from '../lib/supabase'
+import { Link } from 'react-router-dom'
 import logoBoostly from '../assets/logo-boostly.svg'
 
-function slugify(text) {
-  return text
-    .toLowerCase()
-    .normalize('NFD').replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '')
-}
-
 export default function Signup() {
-  const navigate = useNavigate()
-
-  const [step, setStep]       = useState(1) // 1 = organização, 2 = admin
+  const [step, setStep]       = useState(1) // 1 = organização, 2 = admin, 3 = confirmação
   const [loading, setLoading] = useState(false)
   const [error, setError]     = useState('')
 
@@ -22,43 +11,32 @@ export default function Signup() {
   const [orgName, setOrgName] = useState('')
 
   // Step 2
-  const [nome, setNome]           = useState('')
-  const [email, setEmail]         = useState('')
-  const [password, setPassword]   = useState('')
-  const [confirm, setConfirm]     = useState('')
+  const [nome, setNome]   = useState('')
+  const [email, setEmail] = useState('')
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (step === 1) { setStep(2); return }
 
-    if (password !== confirm) { setError('As senhas não coincidem.'); return }
-    if (password.length < 8)  { setError('A senha deve ter pelo menos 8 caracteres.'); return }
-
     setError('')
     setLoading(true)
 
     try {
-      // 1. Criar usuário no Auth
-      const { data: authData, error: authErr } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { nome } },
+      // Não cria usuário/tenant direto do navegador mais — só registra a
+      // solicitação. A liberação de acesso é sempre feita por um humano no
+      // Control Center (mesmo caminho de "+ Novo tenant", reaproveitando
+      // provisionar-tenant, que já é o fluxo testado em produção).
+      const res = await fetch(`${process.env.REACT_APP_SUPABASE_URL}/functions/v1/solicitar-conta`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ org_name: orgName, nome, email }),
       })
-      if (authErr) throw new Error(authErr.message)
-      const userId = authData.user?.id
-      if (!userId) throw new Error('Erro ao criar usuário.')
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.ok === false) throw new Error(json?.error || 'Erro ao enviar solicitação.')
 
-      // 2. Criar tenant, branch, perfil e seed via RPC (SECURITY DEFINER — funciona sem sessão)
-      const { error: createErr } = await supabase.rpc('signup_create_tenant', {
-        p_user_id:  userId,
-        p_org_name: orgName,
-        p_nome:     nome,
-      })
-      if (createErr) throw new Error(createErr.message)
-
-      navigate('/dashboard')
+      setStep(3)
     } catch (err) {
-      setError(err.message || 'Erro ao criar conta.')
+      setError(err.message || 'Erro ao enviar solicitação.')
     } finally {
       setLoading(false)
     }
@@ -95,111 +73,104 @@ export default function Signup() {
       {/* Painel direito */}
       <div style={s.right}>
         <div style={s.formWrap}>
-          {/* Steps indicator */}
-          <div style={s.steps}>
-            <div style={{ ...s.stepDot, background: '#4F7FE8' }}>1</div>
-            <div style={{ ...s.stepLine, background: step === 2 ? '#4F7FE8' : 'rgba(255,255,255,0.1)' }} />
-            <div style={{ ...s.stepDot, background: step === 2 ? '#4F7FE8' : 'rgba(255,255,255,0.15)', color: step === 2 ? '#fff' : 'rgba(255,255,255,0.4)' }}>2</div>
-          </div>
-
-          <h2 style={s.formTitle}>
-            {step === 1 ? 'Sua organização' : 'Seu acesso'}
-          </h2>
-          <p style={s.formSub}>
-            {step === 1
-              ? 'Como se chama a empresa que vai usar o Boostly?'
-              : 'Dados do administrador da conta.'}
-          </p>
-
-          <form onSubmit={handleSubmit} style={s.form}>
-            {step === 1 && (
-              <div style={s.field}>
-                <label style={s.label}>Nome da empresa</label>
-                <input
-                  type="text"
-                  value={orgName}
-                  onChange={e => setOrgName(e.target.value)}
-                  placeholder="Ex: Acme Tecnologia"
-                  required
-                  autoFocus
-                  style={s.input}
-                />
+          {step < 3 && (
+            <>
+              {/* Steps indicator */}
+              <div style={s.steps}>
+                <div style={{ ...s.stepDot, background: '#4F7FE8' }}>1</div>
+                <div style={{ ...s.stepLine, background: step === 2 ? '#4F7FE8' : 'rgba(255,255,255,0.1)' }} />
+                <div style={{ ...s.stepDot, background: step === 2 ? '#4F7FE8' : 'rgba(255,255,255,0.15)', color: step === 2 ? '#fff' : 'rgba(255,255,255,0.4)' }}>2</div>
               </div>
-            )}
 
-            {step === 2 && (
-              <>
-                <div style={s.field}>
-                  <label style={s.label}>Seu nome</label>
-                  <input
-                    type="text"
-                    value={nome}
-                    onChange={e => setNome(e.target.value)}
-                    placeholder="Nome completo"
-                    required
-                    autoFocus
-                    style={s.input}
-                  />
-                </div>
-                <div style={s.field}>
-                  <label style={s.label}>E-mail</label>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    placeholder="voce@empresa.com"
-                    required
-                    style={s.input}
-                  />
-                </div>
-                <div style={s.field}>
-                  <label style={s.label}>Senha</label>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={e => setPassword(e.target.value)}
-                    placeholder="Mínimo 8 caracteres"
-                    required
-                    minLength={8}
-                    style={s.input}
-                  />
-                </div>
-                <div style={s.field}>
-                  <label style={s.label}>Confirmar senha</label>
-                  <input
-                    type="password"
-                    value={confirm}
-                    onChange={e => setConfirm(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    style={s.input}
-                  />
-                </div>
-              </>
-            )}
+              <h2 style={s.formTitle}>
+                {step === 1 ? 'Sua organização' : 'Seu acesso'}
+              </h2>
+              <p style={s.formSub}>
+                {step === 1
+                  ? 'Como se chama a empresa que vai usar o Boostly?'
+                  : 'Dados do administrador da conta — vamos te enviar o acesso por e-mail assim que liberarmos.'}
+              </p>
 
-            {error && <p style={s.error}>{error}</p>}
+              <form onSubmit={handleSubmit} style={s.form}>
+                {step === 1 && (
+                  <div style={s.field}>
+                    <label style={s.label}>Nome da empresa</label>
+                    <input
+                      type="text"
+                      value={orgName}
+                      onChange={e => setOrgName(e.target.value)}
+                      placeholder="Ex: Acme Tecnologia"
+                      required
+                      autoFocus
+                      style={s.input}
+                    />
+                  </div>
+                )}
 
-            <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-              {step === 2 && (
-                <button
-                  type="button"
-                  onClick={() => { setStep(1); setError('') }}
-                  style={s.btnSecondary}
-                >
-                  Voltar
-                </button>
-              )}
-              <button type="submit" disabled={loading} style={{ ...s.button, flex: 1 }}>
-                {loading ? 'Criando conta…' : step === 1 ? 'Continuar →' : 'Criar minha conta'}
-              </button>
+                {step === 2 && (
+                  <>
+                    <div style={s.field}>
+                      <label style={s.label}>Seu nome</label>
+                      <input
+                        type="text"
+                        value={nome}
+                        onChange={e => setNome(e.target.value)}
+                        placeholder="Nome completo"
+                        required
+                        autoFocus
+                        style={s.input}
+                      />
+                    </div>
+                    <div style={s.field}>
+                      <label style={s.label}>E-mail</label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={e => setEmail(e.target.value)}
+                        placeholder="voce@empresa.com"
+                        required
+                        style={s.input}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {error && <p style={s.error}>{error}</p>}
+
+                <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                  {step === 2 && (
+                    <button
+                      type="button"
+                      onClick={() => { setStep(1); setError('') }}
+                      style={s.btnSecondary}
+                    >
+                      Voltar
+                    </button>
+                  )}
+                  <button type="submit" disabled={loading} style={{ ...s.button, flex: 1 }}>
+                    {loading ? 'Enviando…' : step === 1 ? 'Continuar →' : 'Solicitar acesso'}
+                  </button>
+                </div>
+
+                <p style={s.login}>
+                  Já tem conta?{' '}
+                  <Link to="/login" style={{ color: '#4F7FE8' }}>Entrar</Link>
+                </p>
+              </form>
+            </>
+          )}
+
+          {step === 3 && (
+            <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <span style={{ fontSize: 34 }}>✅</span>
+              <h2 style={{ ...s.formTitle, marginBottom: 0 }}>Solicitação enviada!</h2>
+              <p style={s.formSub}>
+                Recebemos seu pedido de acesso pra <strong style={{ color: '#fff' }}>{orgName}</strong>.
+                Nossa equipe libera manualmente e você recebe um e-mail em <strong style={{ color: '#fff' }}>{email}</strong> assim que estiver pronto.
+              </p>
+              <Link to="/login" style={{ ...s.button, textDecoration: 'none', textAlign: 'center' }}>Voltar ao login</Link>
             </div>
-
-            <p style={s.login}>
-              Já tem conta?{' '}
-              <Link to="/login" style={{ color: '#4F7FE8' }}>Entrar</Link>
-            </p>
-          </form>
+          )}
         </div>
       </div>
     </div>
