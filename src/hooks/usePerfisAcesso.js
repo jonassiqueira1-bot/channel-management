@@ -19,15 +19,25 @@ export function usePerfisAcesso() {
   const [perms,  setPerms]  = useState({})
   const [loading, setLoading] = useState(true)
 
-  const seedNativos = useCallback(async () => {
+  // Só INSERE os nativos que ainda não existem no tenant — nunca reescreve um
+  // perfil já existente (upsert por slug apagaria customização que o admin
+  // já tenha feito nas permissões). Cobre tanto o tenant zerado (nenhum
+  // perfil ainda) quanto o caso descoberto em produção: tenant antigo, criado
+  // antes de um novo perfil nativo (ex: "Parceiro") existir no catálogo —
+  // sem isso, o perfil nunca era retro-preenchido e o usuário ficava sem
+  // NENHUM módulo liberado (perfis_acesso_ids sempre vazio).
+  const seedNativosFaltantes = useCallback(async (existentes) => {
+    const slugsExistentes = new Set(existentes.map(r => r.slug))
+    const faltando = PERFIS_NATIVOS_SEED.filter(p => !slugsExistentes.has(p.slug))
+    if (!faltando.length) return existentes
     const seedPerms = buildSeedPerms()
-    const rows = PERFIS_NATIVOS_SEED.map(p => ({
+    const rows = faltando.map(p => ({
       tenant_id: tenantId, slug: p.slug, nome: p.nome, nativo: p.nativo,
       cor: p.cor, icon: p.icon, descricao: p.desc, permissions: seedPerms[p.id] || {},
     }))
-    const { data, error } = await supabase.from('perfis_acesso').upsert(rows, { onConflict: 'tenant_id,slug' }).select()
-    if (error || !data) return null
-    return rowsToState(data)
+    const { data, error } = await supabase.from('perfis_acesso').insert(rows).select()
+    if (error || !data) return existentes
+    return [...existentes, ...data]
   }, [tenantId])
 
   const load = useCallback(async () => {
@@ -37,17 +47,12 @@ export function usePerfisAcesso() {
     if (!session?.user || !tenantId) { setPerfis([]); setPerms({}); setLoading(false); return }
     const { data, error } = await supabase.from('perfis_acesso').select('*').eq('tenant_id', tenantId).order('nome')
     if (error) { setPerfis([]); setPerms({}); setLoading(false); return }
-    if (!data || data.length === 0) {
-      const seeded = await seedNativos()
-      if (seeded) { setPerfis(seeded.perfis); setPerms(seeded.perms) }
-      setLoading(false)
-      return
-    }
-    const { perfis: p, perms: pm } = rowsToState(data)
+    const completos = await seedNativosFaltantes(data || [])
+    const { perfis: p, perms: pm } = rowsToState(completos)
     setPerfis(p)
     setPerms(pm)
     setLoading(false)
-  }, [session, tenantId, profileLoading, seedNativos])
+  }, [session, tenantId, profileLoading, seedNativosFaltantes])
 
   useEffect(() => { load() }, [load])
 
