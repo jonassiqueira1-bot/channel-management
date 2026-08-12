@@ -1,9 +1,12 @@
 import { useState, useMemo } from 'react'
 import { useLocalState } from '../hooks/useLocalState'
 import { useFaturas } from '../hooks/useFaturas'
+import { useContracts } from '../hooks/useContracts'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormGrid, FormField, FormSection } from '../components/ui/SlideOver'
 import Badge from '../components/Badge'
+import EmpresaSearch from '../components/EmpresaSearch'
+import SearchSelect from '../components/SearchSelect'
 
 const ACCENT = 'var(--accent)'
 
@@ -26,6 +29,14 @@ const STATUS_FATURA = {
 const CADENCIA_LABEL   = { avulsa: 'Avulsa', recorrente: 'Recorrente' }
 const ORIGEM_LABEL     = { parceiro: 'Parceiro', cliente_direto: 'Cliente direto' }
 
+const EMPTY_FATURA_MANUAL = {
+  company_id: null, company_nome: '',
+  contract_id: null, contract_numero: '',
+  descricao: '', amount_total: '',
+  competencia: new Date().toISOString().slice(0, 7) + '-01',
+  due_date: '', cadencia: 'avulsa', origem_cobranca: 'cliente_direto',
+}
+
 const FILTERS_DEF = [
   { key: 'status',          label: 'Status',    options: Object.entries(STATUS_FATURA).map(([k, v]) => ({ value: k, label: v.label })) },
   { key: 'cadencia',        label: 'Cadência',  options: Object.entries(CADENCIA_LABEL).map(([k, v]) => ({ value: k, label: v })) },
@@ -34,6 +45,7 @@ const FILTERS_DEF = [
 
 export default function TabFaturas() {
   const { faturas, save, bulkSetStatus, remove } = useFaturas()
+  const { contratos } = useContracts()
 
   const [search,           setSearch]           = useLocalState('faturas:search', '')
   const [filtroStatus,     setFiltroStatus]     = useLocalState('faturas:filtroStatus', '')
@@ -41,6 +53,9 @@ export default function TabFaturas() {
   const [filtroOrigem,     setFiltroOrigem]     = useLocalState('faturas:filtroOrigem', '')
 
   const [detalhe, setDetalhe] = useState(null)
+  const [novaForm, setNovaForm] = useState(null)
+  const [savingNova, setSavingNova] = useState(false)
+  const [erroNova, setErroNova] = useState('')
 
   const hoje = new Date().toISOString().slice(0, 10)
 
@@ -71,6 +86,36 @@ export default function TabFaturas() {
   async function handleSaveDetalhe(updated) {
     await save(updated)
     setDetalhe(null)
+  }
+
+  async function handleSaveNova() {
+    const f = novaForm
+    if (!f) return
+    setErroNova('')
+    if (!f.company_nome?.trim()) return setErroNova('Empresa é obrigatória')
+    if (!f.descricao?.trim()) return setErroNova('Descrição é obrigatória')
+    if (!(parseFloat(f.amount_total) > 0)) return setErroNova('Valor precisa ser maior que zero')
+    if (!f.due_date) return setErroNova('Vencimento é obrigatório')
+
+    setSavingNova(true)
+    const numero = `FAT-MAN-${Date.now().toString().slice(-8)}`
+    const res = await save({
+      numero,
+      company_id: f.company_id,
+      company_nome: f.company_nome,
+      contract_id: f.contract_id,
+      contract_numero: f.contract_numero,
+      cadencia: f.cadencia,
+      origem_cobranca: f.origem_cobranca,
+      status: 'gerada',
+      competencia: f.competencia,
+      due_date: f.due_date,
+      amount_total: parseFloat(f.amount_total),
+      itens: [{ produto_id: null, nome: f.descricao, tipo_produto: null, quantidade: 1, valor: parseFloat(f.amount_total), desconto_pct: 0 }],
+    })
+    setSavingNova(false)
+    if (!res.ok) return setErroNova(res.message || 'Erro ao salvar fatura')
+    setNovaForm(null)
   }
 
   const kpisNode = (data) => {
@@ -158,6 +203,8 @@ export default function TabFaturas() {
         filters={FILTERS_DEF}
         activeFilters={activeFilters}
         onFilterChange={handleFilterChange}
+        onNew={() => { setNovaForm(EMPTY_FATURA_MANUAL); setErroNova('') }}
+        newLabel="Nova Fatura"
         bulkActions={[
           { label: 'Alterar Status ▾', type: 'dropdown', options:
             Object.entries(STATUS_FATURA).map(([key, cfg]) => ({
@@ -213,6 +260,82 @@ export default function TabFaturas() {
             <button onClick={() => handleSaveDetalhe(detalhe)} style={{ padding: '8px 16px', borderRadius: 8,
               border: 'none', background: ACCENT, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
               Salvar
+            </button>
+          </div>
+        </SlideOver>
+      )}
+
+      {novaForm && (
+        <SlideOver open title="Nova Fatura" onClose={() => setNovaForm(null)} defaultWidth={480}>
+          <FormGrid>
+            <FormSection title="Cobrança" description="Vínculo com contrato é opcional — use pra cobrança avulsa sem contrato fechado.">
+              <FormField label="Empresa" span={2}>
+                <EmpresaSearch
+                  value={novaForm.company_id}
+                  label={novaForm.company_nome}
+                  onChange={(id, nome) => setNovaForm(f => {
+                    const contratoAtual = f.contract_id ? contratos.find(c => c.id === f.contract_id) : null
+                    const mantemContrato = contratoAtual && String(contratoAtual.empresa_id) === String(id)
+                    return { ...f, company_id: id, company_nome: nome, ...(mantemContrato ? {} : { contract_id: null, contract_numero: '' }) }
+                  })}
+                />
+              </FormField>
+              <FormField label="Contrato (opcional)" span={2}>
+                <SearchSelect
+                  options={(novaForm.company_id ? contratos.filter(c => String(c.empresa_id) === String(novaForm.company_id)) : contratos)
+                    .map(c => ({ id: c.id, label: c.numero, sublabel: c.empresa_nome || '' }))}
+                  value={novaForm.contract_id || null}
+                  placeholder={novaForm.company_id ? 'Buscar contrato desta empresa…' : 'Sem contrato — cobrança avulsa'}
+                  onChange={id => {
+                    const c = contratos.find(ct => ct.id === id)
+                    setNovaForm(f => ({
+                      ...f, contract_id: id || null, contract_numero: c?.numero || '',
+                      company_id: c?.empresa_id || f.company_id, company_nome: c?.empresa_nome || f.company_nome,
+                    }))
+                  }}
+                />
+              </FormField>
+              <FormField label="Descrição" span={2}>
+                <input className="so-field" placeholder="Ex: Ajuste de cobrança, serviço avulso…"
+                  value={novaForm.descricao} onChange={e => setNovaForm(f => ({ ...f, descricao: e.target.value }))} />
+              </FormField>
+              <FormField label="Valor (R$)">
+                <input type="number" min="0" step="0.01" className="so-field"
+                  value={novaForm.amount_total} onChange={e => setNovaForm(f => ({ ...f, amount_total: e.target.value }))} />
+              </FormField>
+              <FormField label="Vencimento">
+                <input type="date" className="so-field"
+                  value={novaForm.due_date} onChange={e => setNovaForm(f => ({ ...f, due_date: e.target.value }))} />
+              </FormField>
+              <FormField label="Competência">
+                <input type="month" className="so-field" value={novaForm.competencia.slice(0, 7)}
+                  onChange={e => setNovaForm(f => ({ ...f, competencia: e.target.value + '-01' }))} />
+              </FormField>
+              <FormField label="Cadência">
+                <select className="so-field" value={novaForm.cadencia} onChange={e => setNovaForm(f => ({ ...f, cadencia: e.target.value }))}>
+                  {Object.entries(CADENCIA_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </FormField>
+              <FormField label="Origem da cobrança" span={2}>
+                <select className="so-field" value={novaForm.origem_cobranca} onChange={e => setNovaForm(f => ({ ...f, origem_cobranca: e.target.value }))}>
+                  {Object.entries(ORIGEM_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                </select>
+              </FormField>
+            </FormSection>
+          </FormGrid>
+          {erroNova && (
+            <div style={{ margin: '0 0 12px', padding: '10px 14px', background: '#FFF5F5', border: '1px solid var(--red)', borderRadius: 8, fontSize: 13, color: 'var(--red)' }}>
+              {erroNova}
+            </div>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, padding: '14px 0' }}>
+            <button onClick={() => setNovaForm(null)} style={{ padding: '8px 16px', borderRadius: 8,
+              border: '1px solid var(--border)', background: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13 }}>
+              Cancelar
+            </button>
+            <button onClick={handleSaveNova} disabled={savingNova} style={{ padding: '8px 16px', borderRadius: 8,
+              border: 'none', background: ACCENT, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 700, opacity: savingNova ? 0.6 : 1 }}>
+              {savingNova ? 'Salvando…' : 'Criar fatura'}
             </button>
           </div>
         </SlideOver>
