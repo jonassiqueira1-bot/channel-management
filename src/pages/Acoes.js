@@ -1435,7 +1435,7 @@ export default function Acoes() {
               fontFamily:'var(--font)', outline:'none' }} />
         </div>
         <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9, padding:3, border:'1px solid var(--border)', flexShrink:0 }}>
-          {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
+          {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Parceiro' }].map(t => (
             <button key={t.id} type="button" onClick={() => setVisao(t.id)}
               style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
                 fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
@@ -1607,7 +1607,7 @@ export default function Acoes() {
       )}
       <div style={{ display:'flex', gap:2, background:'var(--surface2)', borderRadius:9,
         padding:3, border:'1px solid var(--border)' }}>
-        {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Franquia' }].map(t => (
+        {[{ id:'lista', label:'Lista' }, { id:'franquias', label:'🏢 Por Parceiro' }].map(t => (
           <button key={t.id} type="button" onClick={() => setVisao(t.id)}
             style={{ padding:'5px 14px', borderRadius:7, border:'none', cursor:'pointer', fontSize:12,
               fontWeight: visao === t.id ? 700 : 500, fontFamily:'var(--font)',
