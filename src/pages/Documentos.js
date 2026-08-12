@@ -3,6 +3,7 @@ import { useLocalState } from '../hooks/useLocalState'
 import { FileText, CheckCircle2, Clock, Link } from 'lucide-react'
 import { CATEGORIA_CFG, STATUS_CFG } from '../data/mockDocumentos'
 import { useDocuments } from '../hooks/useDocuments'
+import { getVideoEmbedUrl } from '../lib/videoEmbed'
 import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
@@ -213,9 +214,23 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOn
         <FormSection label="Conteúdo do Documento">
           <FormGrid cols={1}>
             <FormField label="Link externo">
-              <input type="url" style={inp} value={draft.link_externo || ''} onChange={e => set('link_externo', e.target.value)} placeholder="https://drive.google.com/…" disabled={readOnly} />
+              <input type="url" style={inp} value={draft.link_externo || ''} onChange={e => set('link_externo', e.target.value)} placeholder="https://drive.google.com/… ou link do YouTube/Panda Video" disabled={readOnly} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4, display: 'block' }}>
+                Links do YouTube ou Panda Video reproduzem direto aqui no Boostly — não fazemos upload/hospedagem de vídeo.
+              </span>
             </FormField>
           </FormGrid>
+          {getVideoEmbedUrl(draft.link_externo) && (
+            <div style={{ marginTop: 12, position: 'relative', paddingTop: '56.25%', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+              <iframe
+                src={getVideoEmbedUrl(draft.link_externo)}
+                title="Preview do vídeo"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
+              />
+            </div>
+          )}
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Arquivo Anexo</div>
             {draft.file_url ? (

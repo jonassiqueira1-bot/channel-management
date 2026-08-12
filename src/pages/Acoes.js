@@ -13,7 +13,10 @@ import { useTasks } from '../hooks/useTasks'
 import { useUsuarios } from '../hooks/useUsuarios'
 import { useSellers } from '../hooks/useSellers'
 import { useAcaoMembros } from '../hooks/useAcaoMembros'
+import { useAcaoModulos } from '../hooks/useAcaoModulos'
 import { useDocuments } from '../hooks/useDocuments'
+import SearchSelect from '../components/SearchSelect'
+import { getVideoEmbedUrl } from '../lib/videoEmbed'
 import { useCentrosCusto } from '../hooks/useCentrosCusto'
 import CustosSection from '../components/CustosSection'
 import { CATEGORIA_CFG } from '../data/mockDocumentos'
@@ -448,7 +451,7 @@ const PAPEL_PARTICIPANTE = [
   { value: 'responsavel',  label: 'Responsável'  },
 ]
 
-function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
+function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento = null }) {
   const { membros, add: addMembro, remove: removeMembro } = useAcaoMembros()
   const { sellers }  = useSellers()
   const { parceiros } = useParceiros()
@@ -585,6 +588,15 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
           {participantes.map(mb => {
             const u = mb.usuario
             const cfg = PAPEL_PARTICIPANTE.find(p => p.value === mb.papel) || PAPEL_PARTICIPANTE[0]
+            // Progresso individual de treinamento — só quando a Ação é do
+            // Tipo Treinamento (progressoTreinamento vem null nos demais casos).
+            let progressoPct = null, progressoTexto = ''
+            if (progressoTreinamento) {
+              const total = progressoTreinamento.itens.length
+              const concluidos = progressoTreinamento.progresso.filter(p => p.seller_id === mb.user_id && p.concluido).length
+              progressoPct = total ? Math.round((concluidos / total) * 100) : 0
+              progressoTexto = `${concluidos} de ${total} itens concluídos`
+            }
             return (
               <div key={mb.id} style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px',
                 border:'1px solid var(--border2)', borderRadius:8 }}>
@@ -598,6 +610,14 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
                   <div style={{ fontSize:11, color:'var(--text-muted)' }}>
                     {[u.cargo, u.franquia].filter(Boolean).join(' · ')}
                   </div>
+                  {progressoPct !== null && (
+                    <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:4 }}>
+                      <div style={{ width:70, height:5, background:'var(--border)', borderRadius:99, overflow:'hidden', flexShrink:0 }}>
+                        <div style={{ height:'100%', borderRadius:99, background: progressoPct===100 ? '#10B981' : 'var(--accent)', width:`${progressoPct}%`, transition:'width .3s' }} />
+                      </div>
+                      <span style={{ fontSize:10, color:'var(--text-muted)' }}>{progressoTexto}</span>
+                    </div>
+                  )}
                 </div>
                 <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20,
                   background:'var(--surface2)', color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
@@ -607,6 +627,203 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [] }) {
                   style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px' }}
                   onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
                   onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Aba Módulos (só Ações do Tipo Treinamento) ──────────────────────────────
+// Convive com Tarefas — não substitui o checklist operacional. Cada módulo
+// tem itens que referenciam Documentos já cadastrados (nunca duplica
+// upload), e o progresso é individual por participante via
+// acao_modulo_progresso (marcação feita pelo próprio parceiro, quando ele é
+// quem está olhando, ou por um admin ISV em nome de alguém).
+function AcaoModulosTab({ acaoModulos, allDocs, responsaveisOpts, participantes, souParceiro, meuSellerId }) {
+  const { modulos, itens, progresso, addModulo, updateModulo, removeModulo, addItem, removeItem, setConcluido } = acaoModulos
+  const [novoTitulo, setNovoTitulo] = useState('')
+  const [expandido, setExpandido] = useState(null)
+  const [addingDocFor, setAddingDocFor] = useState(null)
+  const [videoAberto, setVideoAberto] = useState(null) // id do item com player aberto
+
+  const itensPorModulo = useCallback(id => itens.filter(i => i.modulo_id === id).sort((a, b) => a.ordem - b.ordem), [itens])
+  const docById = useCallback(id => allDocs.find(d => d.id === id), [allDocs])
+
+  async function handleAddModulo() {
+    if (!novoTitulo.trim()) return
+    const res = await addModulo(novoTitulo.trim())
+    if (res.ok) { setNovoTitulo(''); setExpandido(res.data.id) }
+  }
+
+  function concluidoPor(itemId, sellerId) {
+    return progresso.some(p => p.modulo_item_id === itemId && p.seller_id === sellerId && p.concluido)
+  }
+
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:14, paddingTop:8 }}>
+      <div style={{ fontSize:12, color:'var(--text-muted)' }}>
+        {souParceiro
+          ? 'Marque os itens conforme for concluindo o treinamento.'
+          : 'Estrutura do treinamento — cada item referencia um Documento já cadastrado (não faz upload novo).'}
+      </div>
+
+      {!souParceiro && (
+        <div style={{ display:'flex', gap:8 }}>
+          <input className="so-field" style={{ flex:1 }} placeholder="Nome do módulo (ex: Fundamentos do produto)"
+            value={novoTitulo} onChange={e => setNovoTitulo(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleAddModulo() }} />
+          <button onClick={handleAddModulo} disabled={!novoTitulo.trim()}
+            style={{ height:36, padding:'0 16px', borderRadius:7, border:'none', whiteSpace:'nowrap',
+              background: novoTitulo.trim() ? 'var(--accent)' : 'var(--border)', color:'#fff', fontWeight:700, fontSize:12,
+              cursor: novoTitulo.trim() ? 'pointer' : 'not-allowed', fontFamily:'var(--font)' }}>
+            + Módulo
+          </button>
+        </div>
+      )}
+
+      {modulos.length === 0 ? (
+        <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:13 }}>
+          Nenhum módulo criado ainda.
+        </div>
+      ) : (
+        <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+          {[...modulos].sort((a, b) => a.ordem - b.ordem).map(mod => {
+            const seusItens = itensPorModulo(mod.id)
+            const instrutor = responsaveisOpts.find(r => r.id === mod.instrutor_responsavel_id)
+            const aberto = expandido === mod.id
+            const concluidosDoMeu = souParceiro && meuSellerId
+              ? seusItens.filter(it => concluidoPor(it.id, meuSellerId)).length
+              : null
+            return (
+              <div key={mod.id} style={{ border:'1px solid var(--border2)', borderRadius:8, overflow:'hidden' }}>
+                <div onClick={() => setExpandido(aberto ? null : mod.id)}
+                  style={{ display:'flex', alignItems:'center', gap:10, padding:'10px 12px', cursor:'pointer', background:'var(--surface2)' }}>
+                  <span style={{ fontSize:11, color:'var(--text-muted)', transform: aberto ? 'rotate(90deg)' : 'none', transition:'transform .15s' }}>▸</span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, fontWeight:700, color:'var(--text)' }}>{mod.titulo}</div>
+                    <div style={{ fontSize:10.5, color:'var(--text-muted)' }}>
+                      {seusItens.length} item{seusItens.length !== 1 ? 's' : ''}
+                      {instrutor && ` · Instrutor: ${instrutor.nome}`}
+                      {concluidosDoMeu !== null && ` · ${concluidosDoMeu} de ${seusItens.length} concluídos`}
+                    </div>
+                  </div>
+                  {!souParceiro && (
+                    <button onClick={e => { e.stopPropagation(); if (window.confirm('Remover este módulo e todos os itens?')) removeModulo(mod.id) }}
+                      style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px' }}
+                      onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                      onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                  )}
+                </div>
+
+                {aberto && (
+                  <div style={{ padding:'12px', display:'flex', flexDirection:'column', gap:10, borderTop:'1px solid var(--border2)' }}>
+                    {!souParceiro && (
+                      <div>
+                        <label style={lbl}>Instrutor responsável</label>
+                        <select className="so-field" value={mod.instrutor_responsavel_id || ''}
+                          onChange={e => updateModulo(mod.id, { instrutor_responsavel_id: e.target.value || null })}>
+                          <option value="">— Selecione —</option>
+                          {responsaveisOpts.map(r => <option key={r.id} value={r.id}>{r.nome}</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {seusItens.length === 0 ? (
+                      <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'8px 0' }}>
+                        Nenhum item neste módulo ainda.
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+                        {seusItens.map(item => {
+                          const doc = docById(item.documento_id)
+                          const cfgCat = doc ? (CATEGORIA_CFG[doc.categoria] || CATEGORIA_CFG.outro) : null
+                          const link = doc?.file_url || doc?.link_externo
+                          const embedUrl = getVideoEmbedUrl(link)
+                          const concluidoPeloUsuario = souParceiro && meuSellerId && concluidoPor(item.id, meuSellerId)
+                          const totalConcluido = participantes.filter(p => concluidoPor(item.id, p.user_id)).length
+                          const playerAberto = videoAberto === item.id
+                          return (
+                            <div key={item.id} style={{ border:'1px solid var(--border2)', borderRadius:7, overflow:'hidden' }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 10px' }}>
+                                {souParceiro && meuSellerId && (
+                                  <input type="checkbox" checked={concluidoPeloUsuario}
+                                    onChange={e => setConcluido(item.id, meuSellerId, e.target.checked)}
+                                    style={{ width:16, height:16, flexShrink:0, cursor:'pointer' }} />
+                                )}
+                                {cfgCat && <span style={{ fontSize:14, flexShrink:0 }}>{cfgCat.icon}</span>}
+                                <div style={{ flex:1, minWidth:0 }}>
+                                  <div style={{ fontSize:12.5, fontWeight:600, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                                    {doc?.title || '(documento removido)'}
+                                  </div>
+                                  {!souParceiro && participantes.length > 0 && (
+                                    <div style={{ fontSize:10, color:'var(--text-muted)' }}>{totalConcluido} de {participantes.length} participantes concluíram</div>
+                                  )}
+                                </div>
+                                {embedUrl ? (
+                                  <button onClick={() => setVideoAberto(playerAberto ? null : item.id)}
+                                    style={{ padding:'4px 9px', borderRadius:6, border:'1px solid var(--border)', fontSize:10.5,
+                                      color: playerAberto ? '#fff' : 'var(--accent)', background: playerAberto ? 'var(--accent)' : 'none',
+                                      cursor:'pointer', whiteSpace:'nowrap', fontFamily:'var(--font)', flexShrink:0 }}>
+                                    {playerAberto ? '✕ Fechar' : '▶ Assistir'}
+                                  </button>
+                                ) : link && (
+                                  <a href={link} target="_blank" rel="noopener noreferrer"
+                                    style={{ padding:'4px 9px', borderRadius:6, border:'1px solid var(--border)', fontSize:10.5, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)', flexShrink:0 }}>
+                                    ↗ Abrir
+                                  </a>
+                                )}
+                                {!souParceiro && (
+                                  <button onClick={() => removeItem(item.id)}
+                                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px', flexShrink:0 }}
+                                    onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                                    onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                                )}
+                              </div>
+                              {playerAberto && embedUrl && (
+                                <div style={{ position:'relative', paddingTop:'56.25%', background:'#000' }}>
+                                  <iframe src={embedUrl} title={doc?.title || 'Vídeo'}
+                                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                    allowFullScreen
+                                    style={{ position:'absolute', top:0, left:0, width:'100%', height:'100%', border:'none' }} />
+                                </div>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    {!souParceiro && (
+                      addingDocFor === mod.id ? (
+                        <div style={{ display:'flex', gap:8, alignItems:'flex-start' }}>
+                          <div style={{ flex:1 }}>
+                            <SearchSelect
+                              options={allDocs.filter(d => !seusItens.some(i => i.documento_id === d.id)).map(d => ({ id: d.id, label: d.title }))}
+                              value={null}
+                              placeholder="Buscar documento cadastrado…"
+                              onChange={async (id) => { if (id) { await addItem(mod.id, id); setAddingDocFor(null) } }}
+                            />
+                          </div>
+                          <button onClick={() => setAddingDocFor(null)}
+                            style={{ height:36, padding:'0 10px', borderRadius:7, border:'1px solid var(--border)', background:'none', color:'var(--text-muted)', cursor:'pointer', fontSize:12 }}>
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button onClick={() => setAddingDocFor(mod.id)}
+                          style={{ alignSelf:'flex-start', padding:'6px 12px', borderRadius:7, border:'1px dashed var(--border)',
+                            background:'none', color:'var(--accent)', fontWeight:600, fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
+                          + Adicionar item
+                        </button>
+                      )
+                    )}
+                  </div>
+                )}
               </div>
             )
           })}
@@ -643,6 +860,14 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
   const { profile, isAdmin } = useProfile()
   const { docs: allDocs } = useDocuments()
   const { centros: centrosCusto } = useCentrosCusto()
+  const { membros: membrosDaAcao } = useAcaoMembros()
+  const acaoModulos = useAcaoModulos(!isNew ? initial.id : null)
+
+  // 'parceiro'/'contato_canal' = vendedor externo logado no portal, marcando
+  // o próprio progresso; qualquer outro papel é equipe ISV gerenciando o
+  // conteúdo do treinamento.
+  const souParceiro = profile?.papel === 'parceiro' || profile?.papel === 'contato_canal'
+  const meuSellerId = profile?.contact_id || null
 
   useMemo(() => {
     setForm(initial
@@ -686,10 +911,16 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
 
   const docsBadge = (form.documento_ids || []).length || undefined
 
+  // Feature aditiva: só existe quando o Tipo de Ação é Treinamento — nenhuma
+  // outra Ação ganha aba/campo novo.
+  const ehTreinamento = form.tipo === 'treinamento'
+  const modulosBadge = acaoModulos.modulos.length || undefined
+
   const tabs = [
     { key:'dados',      label:'Dados' },
     { key:'tarefas',    label:'Tarefas',    badge: tarefasBadge },
     { key:'participantes', label:'Participantes' },
+    ...(ehTreinamento ? [{ key:'modulos', label:'Módulos', badge: modulosBadge }] : []),
     { key:'custos',     label:'Custos',     badge: custosBadge },
     { key:'documentos', label:'Documentos', badge: docsBadge },
     { key:'anexos',     label:'Anexos',     badge: anexosBadge },
@@ -1007,12 +1238,31 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       {/* ── Aba Participantes ── */}
       {tab === 'participantes' && !isNew && (
         <AcaoParticipantesTab acaoId={initial.id}
-          franquiaIds={[String(initial.empresa_id), ...(initial.franquias_adicionais_ids || []).map(String)].filter(Boolean)} />
+          franquiaIds={[String(initial.empresa_id), ...(initial.franquias_adicionais_ids || []).map(String)].filter(Boolean)}
+          progressoTreinamento={ehTreinamento ? { itens: acaoModulos.itens, progresso: acaoModulos.progresso } : null} />
       )}
       {tab === 'participantes' && isNew && (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
           <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
           <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar participantes.</div>
+        </div>
+      )}
+
+      {/* ── Aba Módulos (só Treinamento) ── */}
+      {tab === 'modulos' && !isNew && ehTreinamento && (
+        <AcaoModulosTab
+          acaoModulos={acaoModulos}
+          allDocs={allDocs}
+          responsaveisOpts={responsaveisOpts}
+          participantes={membrosDaAcao.filter(m => m.acao_id === initial.id)}
+          souParceiro={souParceiro}
+          meuSellerId={meuSellerId}
+        />
+      )}
+      {tab === 'modulos' && isNew && ehTreinamento && (
+        <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
+          <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar módulos.</div>
         </div>
       )}
     </SlideOver>

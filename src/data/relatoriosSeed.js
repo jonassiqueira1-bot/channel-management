@@ -69,4 +69,39 @@ export const RELATORIO_PERFORMANCE_CAMPANHAS = {
   ],
 }
 
-export const RELATORIOS_SEED = [RELATORIO_HORAS_PROJETO, RELATORIO_PERFORMANCE_CAMPANHAS]
+export const RELATORIO_CONSUMO_TREINAMENTO = {
+  titulo: 'Consumo de Treinamento — Módulos por Ação',
+  tipo: 'relatorio',
+  acesso: 'equipe',
+  papeis_permitidos: ['admin_isv'],
+  status: 'publicado',
+  config: {
+    tamanhoPagina: 'A4',
+    margens: { top: 76, right: 76, bottom: 76, left: 76 },
+    fundoPagina: { tipo: 'cor', cor: '#ffffff' },
+    cabecalho: { ativo: true, tipoFundo: 'cor', corFundo: '#1E3A5F', titulo: 'Consumo de Treinamento', subtitulo: 'Módulos por Ação' },
+    rodape: { ativo: true, texto: '', paginacao: true },
+  },
+  elementos: [
+    { id: 'el_seed_1', tipo: 'kpi', x: 0, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'treinamento_modulos', titulo: 'Participantes elegíveis (total)', metrica: 'SUM', campoY: 'participantes_elegiveis', cor: '#2563EB' } },
+    { id: 'el_seed_2', tipo: 'kpi', x: 218, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'treinamento_modulos', titulo: 'Concluíram (total)', metrica: 'SUM', campoY: 'concluiram', cor: '#10B981' } },
+    { id: 'el_seed_3', tipo: 'kpi', x: 436, y: 0, w: 206, h: 100,
+      dados: { sourceId: 'treinamento_modulos', titulo: 'Iniciaram e não concluíram (total)', metrica: 'SUM', campoY: 'iniciaram_nao_concluiram', cor: '#D97706' } },
+    { id: 'el_seed_4', tipo: 'tabela_dinamica', x: 0, y: 108, w: 642, h: 320,
+      dados: {
+        sourceId: 'treinamento_modulos', titulo: 'Por Módulo', campoAgrupador: 'modulo_titulo',
+        colunas: [
+          { id: 'c1', tipo: 'sum', campo: 'participantes_elegiveis',  label: 'Elegíveis' },
+          { id: 'c2', tipo: 'sum', campo: 'concluiram',               label: 'Concluíram' },
+          { id: 'c3', tipo: 'sum', campo: 'pct_concluido',            label: '% concluído' },
+          { id: 'c4', tipo: 'sum', campo: 'iniciaram_nao_concluiram', label: 'Iniciaram e não concluíram' },
+          { id: 'c5', tipo: 'sum', campo: 'tempo_medio_dias',         label: 'Tempo médio (dias)' },
+        ],
+        ordenar: 'valor_desc', limite: 50,
+      } },
+  ],
+}
+
+export const RELATORIOS_SEED = [RELATORIO_HORAS_PROJETO, RELATORIO_PERFORMANCE_CAMPANHAS, RELATORIO_CONSUMO_TREINAMENTO]

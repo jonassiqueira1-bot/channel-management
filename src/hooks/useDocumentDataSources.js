@@ -131,10 +131,21 @@ export function useDocumentDataSources() {
         supabase.from('oportunidades')
           .select('id, proposta_produto_id, proposta_servico_id')
           .eq('tenant_id', tenantId).limit(2000),
+
+        // Módulos de treinamento (Ações do tipo 'treinamento') — pra relatório
+        // de controle de consumo (% concluído, quem não terminou, tempo médio).
+        supabase.from('acao_modulos')
+          .select('id, acao_id, titulo').eq('tenant_id', tenantId).limit(2000),
+        supabase.from('acao_modulo_itens')
+          .select('id, modulo_id').eq('tenant_id', tenantId).limit(5000),
+        supabase.from('acao_modulo_progresso')
+          .select('modulo_item_id, seller_id, concluido, concluido_em, created_at').eq('tenant_id', tenantId).limit(10000),
+        supabase.from('acao_membros')
+          .select('acao_id, user_id').eq('tenant_id', tenantId).limit(5000),
       ])
 
       // Extrai data de cada resultado; query com erro retorna []
-      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis','etapa_historico','tasks_opps','relatorios_proposta','opps_propostas_ids']
+      const QUERY_NAMES = ['oportunidades','pipeline_stages','campanhas','projects','companies','parceiros','goals','actions','contacts','sellers','contracts','payments','commission_payments','customer_health','questionnaire_templates','questionnaire_submissions','documents','playbooks','form_layouts_funis','etapa_historico','tasks_opps','relatorios_proposta','opps_propostas_ids','acao_modulos','acao_modulo_itens','acao_modulo_progresso','acao_membros']
       const safe = (i) => {
         const r = results[i]
         if (r.status === 'rejected') { console.warn('[DataSources]', QUERY_NAMES[i], 'REJECTED:', r.reason); return [] }
@@ -150,7 +161,8 @@ export function useDocumentDataSources() {
         questTemplatesData, questSubmissionsData, documentsData, playbooksData,
         funisLayoutData, etapaHistoricoData,
         tasksOppsData, relatoriasPropostaData, oppsPropostasIdsData,
-      ] = Array.from({ length: 23 }, (_, i) => safe(i))
+        acaoModulosData, acaoModuloItensData, acaoModuloProgressoData, acaoMembrosData,
+      ] = Array.from({ length: 27 }, (_, i) => safe(i))
 
       // ── Mapeamento de cada fonte ──────────────────────────────────────────
 
@@ -349,6 +361,57 @@ export function useDocumentDataSources() {
         meta_mensal: Number(s.meta_mensal || 0),
         created_at:  s.created_at?.slice(0,10) || '',
       }))
+
+      // Controle de consumo de treinamento — uma linha por módulo, já
+      // agregada (participantes elegíveis = quem está em acao_membros da
+      // Ação; "iniciou" = tem pelo menos 1 linha de progresso; "concluiu o
+      // módulo" = todos os itens marcados; tempo médio = do primeiro
+      // progresso criado até a última conclusão, só de quem terminou).
+      const acaoTituloMap = Object.fromEntries(actionsData.map(a => [a.id, a.titulo]))
+      const itensPorModulo = {}
+      acaoModuloItensData.forEach(i => { (itensPorModulo[i.modulo_id] ||= []).push(i.id) })
+      const membrosPorAcao = {}
+      acaoMembrosData.forEach(m => { (membrosPorAcao[m.acao_id] ||= []).push(m.user_id) })
+      const progressoPorItemSeller = {}
+      acaoModuloProgressoData.forEach(p => { progressoPorItemSeller[`${p.modulo_item_id}|${p.seller_id}`] = p })
+
+      const treinamentoModulos = acaoModulosData.map(mod => {
+        const itensDoModulo = itensPorModulo[mod.id] || []
+        const participantes = membrosPorAcao[mod.acao_id] || []
+        let concluiramTudo = 0, iniciaramNaoConcluiram = 0
+        const temposDias = []
+
+        participantes.forEach(sellerId => {
+          let concluidos = 0, iniciou = false, primeiroInicio = null, ultimaConclusao = null
+          itensDoModulo.forEach(itemId => {
+            const p = progressoPorItemSeller[`${itemId}|${sellerId}`]
+            if (!p) return
+            iniciou = true
+            if (!primeiroInicio || p.created_at < primeiroInicio) primeiroInicio = p.created_at
+            if (p.concluido) {
+              concluidos++
+              if (!ultimaConclusao || p.concluido_em > ultimaConclusao) ultimaConclusao = p.concluido_em
+            }
+          })
+          if (itensDoModulo.length > 0 && concluidos === itensDoModulo.length) {
+            concluiramTudo++
+            if (primeiroInicio && ultimaConclusao) temposDias.push((new Date(ultimaConclusao) - new Date(primeiroInicio)) / 86400000)
+          } else if (iniciou) {
+            iniciaramNaoConcluiram++
+          }
+        })
+
+        return {
+          id: mod.id, acao_id: mod.acao_id, // motor de relacionamentos
+          modulo_titulo:            mod.titulo || '',
+          acao_titulo:              acaoTituloMap[mod.acao_id] || '',
+          participantes_elegiveis:  participantes.length,
+          concluiram:               concluiramTudo,
+          pct_concluido:            participantes.length ? Math.round((concluiramTudo / participantes.length) * 100) : 0,
+          iniciaram_nao_concluiram: iniciaramNaoConcluiram,
+          tempo_medio_dias:         temposDias.length ? Math.round((temposDias.reduce((s, d) => s + d, 0) / temposDias.length) * 10) / 10 : 0,
+        }
+      })
 
       const contratos = contractsData.map(c => ({
         id: c.id, company_id: c.company_id || null, // motor de relacionamentos
@@ -659,6 +722,19 @@ export function useDocumentDataSources() {
             { key:'mes',           label:'Mês entrada',     type:'text'   },
             { key:'entrou_em',     label:'Entrou em',       type:'date'   },
             { key:'saiu_em',       label:'Saiu em',         type:'date'   },
+          ],
+        },
+        {
+          id: 'treinamento_modulos', label: 'Consumo de Treinamento', icon: '🎓',
+          registros: treinamentoModulos,
+          fields: [
+            { key:'modulo_titulo',            label:'Módulo',                  type:'text'   },
+            { key:'acao_titulo',              label:'Ação (Treinamento)',      type:'text'   },
+            { key:'participantes_elegiveis',  label:'Participantes elegíveis', type:'number' },
+            { key:'concluiram',               label:'Concluíram',              type:'number' },
+            { key:'pct_concluido',            label:'% concluído',             type:'number' },
+            { key:'iniciaram_nao_concluiram', label:'Iniciaram e não concluíram', type:'number' },
+            { key:'tempo_medio_dias',         label:'Tempo médio (dias)',      type:'number' },
           ],
         },
       ])
