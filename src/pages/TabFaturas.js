@@ -228,7 +228,7 @@ export default function TabFaturas() {
       />
 
       {detalhe && (
-        <SlideOver open title={`Fatura ${detalhe.numero}`} onClose={() => setDetalhe(null)} defaultWidth="480">
+        <SlideOver open title={`Fatura ${detalhe.numero}`} onClose={() => setDetalhe(null)} defaultWidth="50vw">
           <FormGrid>
             <FormSection title="Cobrança">
               <FormField label="Empresa"><div>{detalhe.company_nome || '—'}</div></FormField>
@@ -266,7 +266,7 @@ export default function TabFaturas() {
       )}
 
       {novaForm && (
-        <SlideOver open title="Nova Fatura" onClose={() => setNovaForm(null)} defaultWidth={480}>
+        <SlideOver open title="Nova Fatura" onClose={() => setNovaForm(null)} defaultWidth="50vw">
           <FormGrid>
             <FormSection title="Cobrança" description="Vínculo com contrato é opcional — use pra cobrança avulsa sem contrato fechado.">
               <FormField label="Empresa" span={2}>
