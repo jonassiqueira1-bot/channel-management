@@ -665,7 +665,7 @@ function AcaoModulosTab({ acaoModulos, allDocs, responsaveisOpts, participantes,
   const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:4 }
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:14, paddingTop:8 }}>
+    <div style={{ flex:1, minHeight:0, overflowY:'auto', display:'flex', flexDirection:'column', gap:14, padding:'8px 24px 24px' }}>
       <div style={{ fontSize:12, color:'var(--text-muted)' }}>
         {souParceiro
           ? 'Marque os itens conforme for concluindo o treinamento.'

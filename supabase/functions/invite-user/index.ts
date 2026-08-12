@@ -74,6 +74,19 @@ serve(async (req) => {
     const RESEND_KEY = Deno.env.get('RESEND_API_KEY')!
     const APP_URL    = Deno.env.get('APP_URL') || 'https://app.boostly.com.br'
 
+    // Contato Canal (contact_id presente) sempre fica "chumbado" na filial
+    // cadastrada em sellers.branch_id — nunca na filial que o admin
+    // convidando estava vendo na hora (branch_id do body é só usado pra
+    // convites que não são de Contato Canal). Antes só o caminho de
+    // "usuário já existe" fazia essa resolução certa; convite de usuário
+    // novo usava o branch_id cru do request, que é o contexto do admin.
+    let sellerBranchId: string | null = null
+    if (contact_id) {
+      const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
+      sellerBranchId = seller?.branch_id || null
+    }
+    const branchIdResolvido = contact_id ? sellerBranchId : (branch_id || null)
+
     // Busca nome do tenant para personalizar o email
     const { data: tenantData } = await admin.from('tenants').select('nome').eq('id', callerProfile.tenant_id).single()
     const tenantNome = tenantData?.nome || 'Boostly'
@@ -125,15 +138,10 @@ serve(async (req) => {
 
     if (existingUser) {
       // Usuário já existe: atualiza profile e envia magic link
-      let sellerBranchId: string | null = null
-      if (contact_id) {
-        const { data: seller } = await admin.from('sellers').select('branch_id').eq('id', contact_id).single()
-        sellerBranchId = seller?.branch_id || null
-      }
       await admin.from('profiles').update({
         contact_id: contact_id || null,
         role:       papel || 'contato_canal',
-        branch_id:  sellerBranchId,
+        branch_id:  branchIdResolvido,
       }).eq('id', existingUser.id)
 
       const { data: mlData } = await admin.auth.admin.generateLink({
@@ -177,7 +185,7 @@ serve(async (req) => {
         tenant_id:    callerProfile.tenant_id,
         role:         papel || 'contato_canal',
         status:       'pendente',
-        branch_id:    branch_id || null,
+        branch_id:    branchIdResolvido,
         branch_ids:   Array.isArray(branch_ids) ? branch_ids : [],
         perfis_acesso_ids: perfilAcessoId ? [perfilAcessoId] : [],
       }, { onConflict: 'id' })
