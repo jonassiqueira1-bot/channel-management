@@ -9,8 +9,15 @@ const STORAGE_KEY = 'settings:perfis_v2'
 function load() { try { const r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : [] } catch { return [] } }
 function persist(list) { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(list)) } catch {} }
 
+// Normaliza valores legados em inglês (dados antigos) pro padrão real usado
+// em todo o resto do sistema — profiles.status é sempre 'ativo'/'inativo'/
+// 'pendente' (my_tenant_id() e praticamente toda RLS dependem disso). NÃO
+// existe tradução de volta pro inglês — isso já foi um bug real: um
+// STATUS_MAP_REVERSE convertia 'ativo' de volta pra 'active' antes de salvar
+// via update_profile, corrompendo o valor certo a cada edição de usuário e
+// quebrando my_tenant_id() — e com ele, praticamente o app inteiro pro
+// usuário editado.
 const STATUS_MAP = { active: 'ativo', inactive: 'inativo', pending: 'pendente' }
-const STATUS_MAP_REVERSE = { ativo: 'active', inativo: 'inactive', pendente: 'pending' }
 
 function normalizeProfile(u) {
   const papel = u.papel || u.role || ''
@@ -75,7 +82,7 @@ export function useUsuarios() {
       p_id:                  usuario.id,
       p_role:                usuario.papel || usuario.role || 'vendedor',
       p_nome:                usuario.nome || '',
-      p_status:              STATUS_MAP_REVERSE[usuario.status] || usuario.status || 'active',
+      p_status:              usuario.status || 'ativo',
       p_cargo:               usuario.cargo               || null,
       p_senioridade:         usuario.senioridade         || null,
       p_tipo_recurso:        usuario.tipo_recurso        || null,
