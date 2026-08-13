@@ -153,10 +153,12 @@ function fmtMoeda(v) {
 // reduzir ainda mais o ruído visual quando espaço é curto.
 function TipoBadge({ tipo, tiposMap }) {
   const cfg = (tiposMap || TIPOS_ACAO_DEFAULT)[tipo] || { icon: '◎', label: tipo, color: '#6B7280' }
+  const ehTreinamento = tipo === 'treinamento'
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11.5, fontWeight:600,
-      color:'var(--text-muted)', whiteSpace:'nowrap' }}>
-      <span style={{ fontSize:12 }}>{cfg.icon}</span> {cfg.label}
+    <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11.5,
+      fontWeight: ehTreinamento ? 700 : 600,
+      color: ehTreinamento ? cfg.color : 'var(--text-muted)', whiteSpace:'nowrap' }}>
+      <span style={{ fontSize: ehTreinamento ? 15 : 12 }}>{cfg.icon}</span> {cfg.label}
     </span>
   )
 }
@@ -1434,12 +1436,21 @@ export default function Acoes() {
     {
       key: 'titulo',
       label: 'Ação',
-      render: (val, row) => (
-        <div>
-          <div style={{ fontWeight:600, fontSize:13, color:'var(--text)' }}>{val}</div>
-          {row.local && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>📍 {row.local}</div>}
-        </div>
-      ),
+      render: (val, row) => {
+        const ehTreinamento = row.tipo === 'treinamento'
+        const cor = (tiposMap[row.tipo]?.color) || '#6B7280'
+        return (
+          <div style={{ display:'flex', alignItems:'center', gap:9 }}>
+            {ehTreinamento && (
+              <span title="Treinamento" style={{ width:3, alignSelf:'stretch', minHeight:28, borderRadius:99, background:cor, flexShrink:0 }} />
+            )}
+            <div>
+              <div style={{ fontWeight:600, fontSize:13, color:'var(--text)' }}>{val}</div>
+              {row.local && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:2 }}>📍 {row.local}</div>}
+            </div>
+          </div>
+        )
+      },
     },
     {
       key: 'empresa_nome',
