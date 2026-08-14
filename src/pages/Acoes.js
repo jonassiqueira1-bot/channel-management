@@ -1336,7 +1336,7 @@ export default function Acoes() {
   const { registrar: log } = useAuditLog()
   const { parceiros: franquiasCad } = useParceiros()
   const { branches }   = useBranches()
-  const [usuariosCad]  = useLocalState('settings:perfis_v2', [])
+  const { usuarios: usuariosCad } = useUsuarios()
   const { tipos: tiposLista } = useTiposAcao()
   const tiposMap = useMemo(() => {
     const base = tiposLista.length ? tiposLista : Object.entries(TIPOS_ACAO_DEFAULT).map(([k, v]) => ({ ...v, slug: k, uso: 'acao' }))
