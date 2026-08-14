@@ -176,41 +176,44 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
             <>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Produtos</div>
 
-              {/* Busca + filtros + agrupamento — evita ter que marcar um a um ou tudo de uma vez */}
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
-                <input className="fpe-field" style={{ flex: '1 1 160px' }} value={busca} onChange={e => setBusca(e.target.value)}
-                  placeholder="Buscar nome ou código…" />
-                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
+              {/* Busca + filtros — evita ter que marcar um a um ou tudo de uma vez */}
+              <input className="fpe-field" style={{ width: '100%', marginBottom: 8, boxSizing: 'border-box' }}
+                value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar nome ou código…" />
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 10 }}>
+                <select className="fpe-field" value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
                   <option value="">Categoria (todas)</option>
                   {categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
-                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+                <select className="fpe-field" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
                   <option value="">Tipo (todos)</option>
                   {tiposDisponiveis.map(t => <option key={t} value={t}>{TIPO_LABEL[t] || t}</option>)}
                 </select>
-                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroCobranca} onChange={e => setFiltroCobranca(e.target.value)}>
+                <select className="fpe-field" value={filtroCobranca} onChange={e => setFiltroCobranca(e.target.value)}>
                   <option value="">Cobrança (todas)</option>
                   {cobrancasDisponiveis.map(c => <option key={c} value={c}>{COBRANCA_LABEL[c] || c}</option>)}
                 </select>
-                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+                <select className="fpe-field" value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
                   <option value="">Status (todos)</option>
                   {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
-                <select className="fpe-field" style={{ flex: '1 1 140px' }} value={agruparPor} onChange={e => setAgruparPor(e.target.value)}>
-                  {AGRUPAR_OPCOES.map(o => <option key={o.value} value={o.value}>Agrupar: {o.label}</option>)}
-                </select>
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
-                  {produtosFiltrados.length} de {produtos.length} produto{produtos.length !== 1 ? 's' : ''}
-                </span>
-                {produtosFiltrados.length > 0 && (
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={todosFiltradosSelecionados} onChange={toggleTodosFiltrados} />
-                    Selecionar todos os filtrados
-                  </label>
-                )}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    {produtosFiltrados.length} de {produtos.length} produto{produtos.length !== 1 ? 's' : ''}
+                  </span>
+                  {produtosFiltrados.length > 0 && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={todosFiltradosSelecionados} onChange={toggleTodosFiltrados} />
+                      Selecionar todos os filtrados
+                    </label>
+                  )}
+                </div>
+                <select className="fpe-field" style={{ width: 'auto', fontSize: 12, padding: '5px 8px' }} value={agruparPor} onChange={e => setAgruparPor(e.target.value)}>
+                  {AGRUPAR_OPCOES.map(o => <option key={o.value} value={o.value}>Agrupar: {o.label}</option>)}
+                </select>
               </div>
 
               <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', marginBottom: 14 }}>
