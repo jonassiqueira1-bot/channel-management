@@ -17,8 +17,19 @@ CREATE TABLE IF NOT EXISTS public.tags (
 
 CREATE INDEX IF NOT EXISTS tags_tenant_id_idx ON public.tags(tenant_id);
 
-ALTER TABLE public.oportunidades
-  ADD COLUMN IF NOT EXISTS tag_ids uuid[] DEFAULT '{}';
+-- "oportunidades" é tabela real na maioria dos ambientes, mas em produção é
+-- uma VIEW sobre "opportunities" (drift de nomenclatura antigo) — ALTER
+-- TABLE numa view falha. Só roda aqui quando for tabela de verdade; o caso
+-- de view é coberto separadamente pela migration 20260814000006.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'oportunidades' AND table_type = 'BASE TABLE'
+  ) THEN
+    ALTER TABLE public.oportunidades ADD COLUMN IF NOT EXISTS tag_ids uuid[] DEFAULT '{}';
+  END IF;
+END $$;
 
 ALTER TABLE public.tags ENABLE ROW LEVEL SECURITY;
 
