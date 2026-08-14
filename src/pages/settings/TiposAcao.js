@@ -7,7 +7,7 @@ import SettingsLayout from '../../components/ui/SettingsLayout'
 import { FullPageEdit, FPESection, FPEField } from '../../components/ui'
 
 const DEFAULTS = [
-  { id: 1, label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'treinamento', uso: 'acao' },
+  { id: 1, label: 'Treinamento',  icon: '🎓', color: 'var(--accent)', bg: 'var(--accent-lite)', text: 'var(--accent)', slug: 'treinamento', uso: 'acao', habilita_modulos: true },
   { id: 2, label: 'Evento',       icon: '📅', color: '#3B82F6', bg: '#DBEAFE', text: '#1D4ED8', slug: 'evento', uso: 'acao' },
   { id: 3, label: 'Capacitação',  icon: '🚀', color: '#10B981', bg: '#D1FAE5', text: '#065F46', slug: 'capacitacao', uso: 'acao' },
   { id: 4, label: 'Outros',       icon: '◎',  color: '#6B7280', bg: '#F3F4F6', text: '#374151', slug: 'outros', uso: 'acao' },
@@ -280,7 +280,7 @@ export default function SettingsTiposAcao() {
 
   function abrirNovo() {
     const p = PALETTE[0]
-    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text, uso: 'acao', ativo: true })
+    setForm({ label: '', icon: '🎓', color: p.color, bg: p.bg, text: p.text, uso: 'acao', ativo: true, habilita_modulos: false })
     setEditando('novo')
   }
 
@@ -348,6 +348,30 @@ export default function SettingsTiposAcao() {
               })}
             </div>
           </FPEField>
+          {form.uso !== 'tarefa' && (
+            <FPEField label="Módulos de treinamento" hint="Libera a aba Módulos (conteúdo + progresso individual) e a concessão de Habilitações pela aba Participantes, nas Ações desse tipo.">
+              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+                <button type="button"
+                  onClick={() => set('habilita_modulos', !form.habilita_modulos)}
+                  style={{
+                    display:'inline-flex', alignItems:'center', gap:8,
+                    padding:'7px 16px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
+                    fontSize:12, fontWeight:600, border:'1.5px solid',
+                    borderColor: form.habilita_modulos ? '#10B981' : 'var(--border)',
+                    background:  form.habilita_modulos ? '#D1FAE5' : 'var(--surface2)',
+                    color:       form.habilita_modulos ? '#065F46' : 'var(--text-muted)',
+                    transition:'all 0.15s',
+                  }}>
+                  {form.habilita_modulos ? '✓ Habilitado' : 'Desabilitado'}
+                </button>
+                <span style={{ fontSize:12, color:'var(--text-muted)' }}>
+                  {form.habilita_modulos
+                    ? 'Ações deste tipo ganham a aba Módulos.'
+                    : 'Ações deste tipo não têm aba Módulos.'}
+                </span>
+              </div>
+            </FPEField>
+          )}
         </FPESection>
 
         <FPESection title="Status">

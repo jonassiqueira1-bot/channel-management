@@ -156,7 +156,7 @@ function fmtMoeda(v) {
 // reduzir ainda mais o ruído visual quando espaço é curto.
 function TipoBadge({ tipo, tiposMap }) {
   const cfg = (tiposMap || TIPOS_ACAO_DEFAULT)[tipo] || { icon: '◎', label: tipo, color: '#6B7280' }
-  const ehTreinamento = tipo === 'treinamento'
+  const ehTreinamento = tipo === 'treinamento' || cfg.habilita_modulos === true
   return (
     <span style={{ display:'inline-flex', alignItems:'center', gap:5, fontSize:11.5,
       fontWeight: ehTreinamento ? 700 : 600,
@@ -940,9 +940,11 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
 
   const docsBadge = (form.documento_ids || []).length || undefined
 
-  // Feature aditiva: só existe quando o Tipo de Ação é Treinamento — nenhuma
-  // outra Ação ganha aba/campo novo.
-  const ehTreinamento = form.tipo === 'treinamento'
+  // Feature aditiva: só existe pra Tipos de Ação marcados como "Habilita
+  // Módulos" (Configurações → Tipos de Ação) — o slug "treinamento" do seed
+  // padrão já vem assim, mas qualquer tipo customizado (ex: "Capacitação")
+  // também pode ligar essa flag.
+  const ehTreinamento = form.tipo === 'treinamento' || tiposMap[form.tipo]?.habilita_modulos === true
   const modulosBadge = acaoModulos.modulos.length || undefined
 
   // Contato Canal só visualiza e reporta consumo de treinamento (Módulos) —
@@ -1493,7 +1495,7 @@ export default function Acoes() {
       key: 'titulo',
       label: 'Ação',
       render: (val, row) => {
-        const ehTreinamento = row.tipo === 'treinamento'
+        const ehTreinamento = row.tipo === 'treinamento' || tiposMap[row.tipo]?.habilita_modulos === true
         const cor = (tiposMap[row.tipo]?.color) || '#6B7280'
         return (
           <div style={{ display:'flex', alignItems:'center', gap:9 }}>
