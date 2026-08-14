@@ -4741,19 +4741,21 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       </div>
 
       {/* Forecast e Qualificação — cards de situação/próxima ação, não campos de formulário */}
-      <div style={{ marginTop:12, display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-        <div style={{ border:'1px solid var(--border)', borderTop:`3px solid ${cfgForecastAtual.color}`, borderRadius:10, background:'var(--surface)', padding:'10px 12px' }}>
-          <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
-            <span style={{ fontSize:13 }}>📈</span>
-            <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Forecast</span>
+      <div style={{ marginTop:12, display:'grid', gridTemplateColumns: isParceiro ? '1fr' : '1fr 1fr', gap:12 }}>
+        {!isParceiro && (
+          <div style={{ border:'1px solid var(--border)', borderTop:`3px solid ${cfgForecastAtual.color}`, borderRadius:10, background:'var(--surface)', padding:'10px 12px' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:6 }}>
+              <span style={{ fontSize:13 }}>📈</span>
+              <span style={{ fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.07em' }}>Forecast</span>
+            </div>
+            <select style={{ ...m.input, fontWeight:600, color: cfgForecastAtual.color }}
+              value={form.categoria_forecast || ''}
+              onChange={e => set('categoria_forecast', e.target.value || null)}>
+              <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapaForecast)?.label || catEtapaForecast})</option>
+              {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
           </div>
-          <select style={{ ...m.input, fontWeight:600, color: cfgForecastAtual.color }}
-            value={form.categoria_forecast || ''}
-            onChange={e => set('categoria_forecast', e.target.value || null)}>
-            <option value="">Herdar da etapa ({CATEGORIAS_FORECAST.find(c=>c.value===catEtapaForecast)?.label || catEtapaForecast})</option>
-            {CATEGORIAS_FORECAST.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-          </select>
-        </div>
+        )}
         {isEditing && (() => {
           const qualifColor = form.qualificacao_desqualificada ? '#991B1B'
             : form.qualificacao_score >= 70 ? '#065F46' : form.qualificacao_score >= 40 ? '#92400E'
