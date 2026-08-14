@@ -12,6 +12,25 @@ import SearchSelect from '../components/SearchSelect'
 // fora de índice oficial.
 const INDICES = ['IPCA', 'IGPM', 'INPC', 'IPCA-E', 'IPC-Fipe', 'Manual']
 
+// Mesmos rótulos usados no cadastro de Produtos (src/pages/Produtos.js) —
+// duplicado aqui só como mapa label (sem cor/badge) pra filtrar/agrupar sem
+// depender daquele arquivo.
+const TIPO_LABEL = {
+  saas: 'SaaS', licenca: 'Licença', servico: 'Serviço', hardware: 'Hardware',
+  consultoria: 'Consultoria', treinamento: 'Treinamento',
+}
+const COBRANCA_LABEL = {
+  mensal: 'Mensal', anual: 'Anual', unico: 'Pagamento único', uso: 'Por uso', usuario: 'Por usuário',
+}
+const STATUS_LABEL = { ativo: 'Ativo', rascunho: 'Rascunho', descontinuado: 'Descontinuado' }
+
+const AGRUPAR_OPCOES = [
+  { value: 'none',      label: 'Sem agrupamento' },
+  { value: 'categoria', label: 'Categoria' },
+  { value: 'tipo',      label: 'Tipo' },
+  { value: 'cobranca',  label: 'Cobrança' },
+]
+
 // Sanitiza entrada numérica com decimal em vírgula ou ponto — inputs
 // type="number" nativos deixam passar comportamento inconsistente entre
 // navegador/locale (inclusive letras, em alguns casos). Aceita dígitos,
@@ -43,7 +62,45 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
   const [erro, setErro] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Filtros/agrupamento da lista de produtos (aba Em massa) — reaproveita as
+  // mesmas dimensões do cadastro de Produtos (tipo, categoria, cobrança,
+  // status), sem precisar selecionar um a um ou tudo de uma vez.
+  const [busca, setBusca] = useState('')
+  const [filtroCategoria, setFiltroCategoria] = useState('')
+  const [filtroTipo, setFiltroTipo] = useState('')
+  const [filtroCobranca, setFiltroCobranca] = useState('')
+  const [filtroStatus, setFiltroStatus] = useState('')
+  const [agruparPor, setAgruparPor] = useState('none')
+
+  const categoriasDisponiveis = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort(), [produtos])
+  const tiposDisponiveis      = useMemo(() => [...new Set(produtos.map(p => p.tipo).filter(Boolean))], [produtos])
+  const cobrancasDisponiveis  = useMemo(() => [...new Set(produtos.map(p => p.cobranca).filter(Boolean))], [produtos])
+
   const toggle = (id) => setSelecionados(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+
+  const produtosFiltrados = useMemo(() => {
+    const q = busca.trim().toLowerCase()
+    return produtos.filter(p =>
+      (!q || (p.nome || '').toLowerCase().includes(q) || (p.codigo || '').toLowerCase().includes(q)) &&
+      (!filtroCategoria || p.categoria === filtroCategoria) &&
+      (!filtroTipo || p.tipo === filtroTipo) &&
+      (!filtroCobranca || p.cobranca === filtroCobranca) &&
+      (!filtroStatus || p.status === filtroStatus)
+    )
+  }, [produtos, busca, filtroCategoria, filtroTipo, filtroCobranca, filtroStatus])
+
+  const grupos = useMemo(() => {
+    if (agruparPor === 'none') return [{ chave: null, rotulo: null, itens: produtosFiltrados }]
+    const labelMap = agruparPor === 'tipo' ? TIPO_LABEL : agruparPor === 'cobranca' ? COBRANCA_LABEL : null
+    const porGrupo = {}
+    produtosFiltrados.forEach(p => {
+      const chave = p[agruparPor] || '(sem valor)'
+      ;(porGrupo[chave] ??= []).push(p)
+    })
+    return Object.entries(porGrupo)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([chave, itens]) => ({ chave, rotulo: labelMap?.[chave] || chave, itens }))
+  }, [produtosFiltrados, agruparPor])
 
   const preview = useMemo(() => {
     if (modo !== 'massa') return []
@@ -53,9 +110,23 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
     }))
   }, [modo, percentual, produtos, selecionados])
 
-  const todosSelecionados = produtos.length > 0 && selecionados.length === produtos.length
-  function toggleTodos() {
-    setSelecionados(todosSelecionados ? [] : produtos.map(p => p.id))
+  const todosFiltradosSelecionados = produtosFiltrados.length > 0 && produtosFiltrados.every(p => selecionados.includes(p.id))
+  function toggleTodosFiltrados() {
+    if (todosFiltradosSelecionados) {
+      const idsFiltrados = new Set(produtosFiltrados.map(p => p.id))
+      setSelecionados(prev => prev.filter(id => !idsFiltrados.has(id)))
+    } else {
+      setSelecionados(prev => [...new Set([...prev, ...produtosFiltrados.map(p => p.id)])])
+    }
+  }
+  function grupoTodoSelecionado(itens) { return itens.length > 0 && itens.every(p => selecionados.includes(p.id)) }
+  function toggleGrupo(itens) {
+    if (grupoTodoSelecionado(itens)) {
+      const ids = new Set(itens.map(p => p.id))
+      setSelecionados(prev => prev.filter(id => !ids.has(id)))
+    } else {
+      setSelecionados(prev => [...new Set([...prev, ...itens.map(p => p.id)])])
+    }
   }
 
   async function handleConfirmMassa() {
@@ -103,24 +174,69 @@ function ReajusteModal({ produtos, tabelaPrecos, onClose }) {
 
           {modo === 'massa' ? (
             <>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Produtos</div>
+
+              {/* Busca + filtros + agrupamento — evita ter que marcar um a um ou tudo de uma vez */}
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+                <input className="fpe-field" style={{ flex: '1 1 160px' }} value={busca} onChange={e => setBusca(e.target.value)}
+                  placeholder="Buscar nome ou código…" />
+                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroCategoria} onChange={e => setFiltroCategoria(e.target.value)}>
+                  <option value="">Categoria (todas)</option>
+                  {categoriasDisponiveis.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
+                  <option value="">Tipo (todos)</option>
+                  {tiposDisponiveis.map(t => <option key={t} value={t}>{TIPO_LABEL[t] || t}</option>)}
+                </select>
+                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroCobranca} onChange={e => setFiltroCobranca(e.target.value)}>
+                  <option value="">Cobrança (todas)</option>
+                  {cobrancasDisponiveis.map(c => <option key={c} value={c}>{COBRANCA_LABEL[c] || c}</option>)}
+                </select>
+                <select className="fpe-field" style={{ flex: '1 1 120px' }} value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)}>
+                  <option value="">Status (todos)</option>
+                  {Object.entries(STATUS_LABEL).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <select className="fpe-field" style={{ flex: '1 1 140px' }} value={agruparPor} onChange={e => setAgruparPor(e.target.value)}>
+                  {AGRUPAR_OPCOES.map(o => <option key={o.value} value={o.value}>Agrupar: {o.label}</option>)}
+                </select>
+              </div>
+
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Produtos</span>
-                {produtos.length > 0 && (
+                <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                  {produtosFiltrados.length} de {produtos.length} produto{produtos.length !== 1 ? 's' : ''}
+                </span>
+                {produtosFiltrados.length > 0 && (
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--accent)', fontWeight: 600, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} />
-                    Selecionar todos
+                    <input type="checkbox" checked={todosFiltradosSelecionados} onChange={toggleTodosFiltrados} />
+                    Selecionar todos os filtrados
                   </label>
                 )}
               </div>
-              <div style={{ maxHeight: 160, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', marginBottom: 14 }}>
-                {produtos.map(p => (
-                  <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selecionados.includes(p.id)} onChange={() => toggle(p.id)} />
-                    <span style={{ flex: 1 }}>{p.nome}</span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</span>
-                  </label>
+
+              <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', marginBottom: 14 }}>
+                {grupos.map(({ chave, rotulo, itens }) => (
+                  <div key={chave ?? 'unico'} style={{ marginBottom: rotulo ? 8 : 0 }}>
+                    {rotulo && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer',
+                        fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <input type="checkbox" checked={grupoTodoSelecionado(itens)} onChange={() => toggleGrupo(itens)} />
+                        {rotulo} ({itens.length})
+                      </label>
+                    )}
+                    {itens.map(p => (
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, padding: '4px 0 4px 4px', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selecionados.includes(p.id)} onChange={() => toggle(p.id)} />
+                        <span style={{ flex: 1 }}>{p.nome}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>R$ {Number(p.preco || 0).toLocaleString('pt-BR')}</span>
+                      </label>
+                    ))}
+                  </div>
                 ))}
-                {produtos.length === 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Nenhum produto cadastrado.</div>}
+                {produtosFiltrados.length === 0 && (
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    {produtos.length === 0 ? 'Nenhum produto cadastrado.' : 'Nenhum produto encontrado com esses filtros.'}
+                  </div>
+                )}
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
