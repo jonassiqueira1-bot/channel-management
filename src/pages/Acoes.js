@@ -596,8 +596,7 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento =
           {participantes.map(mb => {
             const u = mb.usuario
             const cfg = PAPEL_PARTICIPANTE.find(p => p.value === mb.papel) || PAPEL_PARTICIPANTE[0]
-            // Progresso individual de treinamento — só quando a Ação é do
-            // Tipo Treinamento (progressoTreinamento vem null nos demais casos).
+            // Progresso individual de treinamento (módulos) desta Ação.
             let progressoPct = null, progressoTexto = ''
             if (progressoTreinamento) {
               const total = progressoTreinamento.itens.length
@@ -664,7 +663,7 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento =
   )
 }
 
-// ─── Aba Módulos (só Ações do Tipo Treinamento) ──────────────────────────────
+// ─── Aba Módulos ──────────────────────────────────────────────────────────────
 // Convive com Tarefas — não substitui o checklist operacional. Cada módulo
 // tem itens que referenciam Documentos já cadastrados (nunca duplica
 // upload), e o progresso é individual por participante via
@@ -940,11 +939,6 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
 
   const docsBadge = (form.documento_ids || []).length || undefined
 
-  // Feature aditiva: só existe pra Tipos de Ação marcados como "Habilita
-  // Módulos" (Configurações → Tipos de Ação) — o slug "treinamento" do seed
-  // padrão já vem assim, mas qualquer tipo customizado (ex: "Capacitação")
-  // também pode ligar essa flag.
-  const ehTreinamento = form.tipo === 'treinamento' || tiposMap[form.tipo]?.habilita_modulos === true
   const modulosBadge = acaoModulos.modulos.length || undefined
 
   // Contato Canal só visualiza e reporta consumo de treinamento (Módulos) —
@@ -953,7 +947,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
     { key:'dados',      label:'Dados' },
     ...(souParceiro ? [] : [{ key:'tarefas', label:'Tarefas', badge: tarefasBadge }]),
     { key:'participantes', label:'Participantes' },
-    ...(ehTreinamento ? [{ key:'modulos', label:'Módulos', badge: modulosBadge }] : []),
+    { key:'modulos', label:'Módulos', badge: modulosBadge },
     ...(souParceiro ? [] : [{ key:'custos', label:'Custos', badge: custosBadge }]),
     { key:'documentos', label:'Documentos', badge: docsBadge },
     { key:'anexos',     label:'Anexos',     badge: anexosBadge },
@@ -1069,14 +1063,12 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                   </select>
                 </FormField>
 
-                {ehTreinamento && (
-                  <FormField label="Habilitação concedida" hint="Participantes marcados como Habilitados nesta Ação recebem essa Habilitação." style={{ gridColumn: 'span 2' }}>
-                    <select className="so-field" value={form.habilitacao_id || ''} onChange={e => set('habilitacao_id', e.target.value || null)}>
-                      <option value="">— Nenhuma —</option>
-                      {habilitacoes.map(h => <option key={h.id} value={h.id}>{h.nome}</option>)}
-                    </select>
-                  </FormField>
-                )}
+                <FormField label="Habilitação concedida" hint="Participantes marcados como Habilitados nesta Ação recebem essa Habilitação." style={{ gridColumn: 'span 2' }}>
+                  <select className="so-field" value={form.habilitacao_id || ''} onChange={e => set('habilitacao_id', e.target.value || null)}>
+                    <option value="">— Nenhuma —</option>
+                    {habilitacoes.map(h => <option key={h.id} value={h.id}>{h.nome}</option>)}
+                  </select>
+                </FormField>
 
                 <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
                   <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
@@ -1295,9 +1287,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       {tab === 'participantes' && !isNew && (
         <AcaoParticipantesTab acaoId={initial.id}
           franquiaIds={[String(initial.empresa_id), ...(initial.franquias_adicionais_ids || []).map(String)].filter(Boolean)}
-          progressoTreinamento={ehTreinamento ? { itens: acaoModulos.itens, progresso: acaoModulos.progresso } : null}
+          progressoTreinamento={{ itens: acaoModulos.itens, progresso: acaoModulos.progresso }}
           souParceiro={souParceiro}
-          habilitacaoId={ehTreinamento ? form.habilitacao_id : null} />
+          habilitacaoId={form.habilitacao_id} />
       )}
       {tab === 'participantes' && isNew && (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
@@ -1306,8 +1298,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
         </div>
       )}
 
-      {/* ── Aba Módulos (só Treinamento) ── */}
-      {tab === 'modulos' && !isNew && ehTreinamento && (
+      {/* ── Aba Módulos ── */}
+      {tab === 'modulos' && !isNew && (
         <AcaoModulosTab
           acaoModulos={acaoModulos}
           allDocs={allDocs}
@@ -1317,7 +1309,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
           meuSellerId={meuSellerId}
         />
       )}
-      {tab === 'modulos' && isNew && ehTreinamento && (
+      {tab === 'modulos' && isNew && (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
           <div style={{ fontSize:28, marginBottom:8 }}>💡</div>
           <div style={{ fontSize:13 }}>Salve a ação primeiro para poder adicionar módulos.</div>

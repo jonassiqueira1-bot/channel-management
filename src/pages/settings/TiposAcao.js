@@ -348,30 +348,6 @@ export default function SettingsTiposAcao() {
               })}
             </div>
           </FPEField>
-          {form.uso !== 'tarefa' && (
-            <FPEField label="Módulos de treinamento" hint="Libera a aba Módulos (conteúdo + progresso individual) e a concessão de Habilitações pela aba Participantes, nas Ações desse tipo.">
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                <button type="button"
-                  onClick={() => set('habilita_modulos', !form.habilita_modulos)}
-                  style={{
-                    display:'inline-flex', alignItems:'center', gap:8,
-                    padding:'7px 16px', borderRadius:8, cursor:'pointer', fontFamily:'inherit',
-                    fontSize:12, fontWeight:600, border:'1.5px solid',
-                    borderColor: form.habilita_modulos ? '#10B981' : 'var(--border)',
-                    background:  form.habilita_modulos ? '#D1FAE5' : 'var(--surface2)',
-                    color:       form.habilita_modulos ? '#065F46' : 'var(--text-muted)',
-                    transition:'all 0.15s',
-                  }}>
-                  {form.habilita_modulos ? '✓ Habilitado' : 'Desabilitado'}
-                </button>
-                <span style={{ fontSize:12, color:'var(--text-muted)' }}>
-                  {form.habilita_modulos
-                    ? 'Ações deste tipo ganham a aba Módulos.'
-                    : 'Ações deste tipo não têm aba Módulos.'}
-                </span>
-              </div>
-            </FPEField>
-          )}
         </FPESection>
 
         <FPESection title="Status">
