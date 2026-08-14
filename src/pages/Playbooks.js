@@ -439,18 +439,6 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
 
   const categoriasProduto = useMemo(() => [...new Set(produtos.map(p => p.categoria).filter(Boolean))].sort(), [produtos])
 
-  const slideStageCfg = useMemo(() => {
-    if (!form.funil_id) return STAGE_CFG
-    const funil = funis.find(f => String(f.id) === String(form.funil_id))
-    const etapas = funil?.etapas || []
-    if (!etapas.length) return STAGE_CFG
-    return Object.fromEntries(
-      etapas
-        .sort((a, b) => (a.ordem || 0) - (b.ordem || 0))
-        .map(e => [String(e.id), { label: e.nome, icon: '', color: e.cor || 'var(--accent)', bg: (e.cor || '#6366F1') + '22' }])
-    )
-  }, [form.funil_ids, form.funil_id, funis])
-
   useMemo(() => {
     setForm(initial ? { ...EMPTY_PB, ...initial } : EMPTY_PB)
     setTab('info')
@@ -466,7 +454,6 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
 
   const TABS = [
     { key: 'info',     label: 'Identificação' },
-    { key: 'objecoes', label: 'Objeções', badge: form.objecoes?.length || undefined },
   ]
 
   const tabStyle = { flex: 1, overflowY: 'auto', padding: '20px' }
@@ -560,16 +547,6 @@ function PlaybookSlideOver({ open, initial, onSave, onClose, onDelete, funis = [
               </FormField>
             </FormGrid>
           </div>
-        </div>
-      )}
-
-      {tab === 'objecoes' && (
-        <div style={tabStyle}>
-          <ObjecoesTab
-            objecoes={form.objecoes || []}
-            onChange={v => set('objecoes', v)}
-            stageCfg={slideStageCfg}
-          />
         </div>
       )}
     </SlideOver>
