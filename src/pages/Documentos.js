@@ -8,6 +8,7 @@ import Button from '../components/Button'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormSection, FormGrid, FormField } from '../components/ui/SlideOver'
 import { usePermissions } from '../hooks/usePermissions'
+import { usePerfisAcesso } from '../hooks/usePerfisAcesso'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function uid() { return `doc-${Date.now()}-${Math.random().toString(36).slice(2, 6)}` }
@@ -112,9 +113,7 @@ function PerfilMultiSelect({ options, value, onChange }) {
 function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOnly = false }) {
   const isNew = !initial?.id
   const fileInputRef = useRef(null)
-  const [perfisStore] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('perfis:roles') || '[]') } catch { return [] }
-  })
+  const { perfis: perfisStore } = usePerfisAcesso()
   const [draft, setDraft] = useState(() => initial || {
     id: uid(), tenant_id: 't1',
     title: '', description: '', categoria: 'proposta', status: 'ativo',
