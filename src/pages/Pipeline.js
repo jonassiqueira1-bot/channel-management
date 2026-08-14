@@ -826,7 +826,7 @@ function TagBadge({ tag }) {
   )
 }
 
-function TagDropdownPanel({ value, onChange, tags, onCreateTag }) {
+function TagDropdownPanel({ value, onChange, tags, onCreateTag, onRemoveTag }) {
   const [novoNome, setNovoNome] = useState('')
   const [novaCor, setNovaCor]   = useState(TAG_COLOR_PRESETS[0])
   const [criando, setCriando]   = useState(false)
@@ -838,6 +838,14 @@ function TagDropdownPanel({ value, onChange, tags, onCreateTag }) {
     if (!nome) return
     const res = await onCreateTag({ nome, cor: novaCor })
     if (res?.ok && res.data) { onChange([...value, res.data.id]); setNovoNome(''); setNovaCor(TAG_COLOR_PRESETS[0]); setCriando(false) }
+  }
+
+  function handleRemove(e, t) {
+    e.preventDefault()
+    e.stopPropagation()
+    if (!window.confirm(`Excluir a tag "${t.nome}"? Ela será removida de todas as oportunidades.`)) return
+    onRemoveTag(t.id)
+    if (value.includes(t.id)) onChange(value.filter(v => v !== t.id))
   }
 
   return (
@@ -855,7 +863,17 @@ function TagDropdownPanel({ value, onChange, tags, onCreateTag }) {
               background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
               <input type="checkbox" checked={checked} onChange={() => toggle(t.id)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
               <span style={{ width:10, height:10, borderRadius:3, background:t.cor, flexShrink:0 }} />
-              <span style={{ fontSize:13, color:'var(--text)', fontWeight: checked ? 600 : 400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.nome}</span>
+              <span style={{ fontSize:13, color:'var(--text)', fontWeight: checked ? 600 : 400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', flex:1 }}>{t.nome}</span>
+              {onRemoveTag && (
+                <button type="button" onClick={e => handleRemove(e, t)} title="Excluir tag"
+                  style={{ flexShrink:0, width:18, height:18, display:'flex', alignItems:'center', justifyContent:'center',
+                    background:'none', border:'none', borderRadius:4, padding:0, cursor:'pointer', fontSize:12, lineHeight:1,
+                    color:'var(--text-muted)' }}
+                  onMouseEnter={e => { e.currentTarget.style.color = '#DC2626'; e.currentTarget.style.background = '#FEE2E2' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.background = 'none' }}>
+                  ✕
+                </button>
+              )}
             </label>
           )
         })}
@@ -899,7 +917,7 @@ function TagDropdownPanel({ value, onChange, tags, onCreateTag }) {
 }
 
 // Campo completo — usado na aba Dados (fechado mostra badges das selecionadas)
-function TagSelect({ value = [], onChange, tags, onCreateTag, placeholder = 'Selecionar tags…' }) {
+function TagSelect({ value = [], onChange, tags, onCreateTag, onRemoveTag, placeholder = 'Selecionar tags…' }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
@@ -919,7 +937,7 @@ function TagSelect({ value = [], onChange, tags, onCreateTag, placeholder = 'Sel
       </button>
       {open && (
         <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300 }}>
-          <TagDropdownPanel value={value} onChange={onChange} tags={tags} onCreateTag={onCreateTag} />
+          <TagDropdownPanel value={value} onChange={onChange} tags={tags} onCreateTag={onCreateTag} onRemoveTag={onRemoveTag} />
         </div>
       )}
     </div>
@@ -927,7 +945,7 @@ function TagSelect({ value = [], onChange, tags, onCreateTag, placeholder = 'Sel
 }
 
 // Edição rápida — usada no Card do Kanban e na linha da Lista, sem abrir a oportunidade
-function TagQuickEdit({ tagIds = [], tags, onChange, onCreateTag }) {
+function TagQuickEdit({ tagIds = [], tags, onChange, onCreateTag, onRemoveTag }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   useEffect(() => {
@@ -946,7 +964,7 @@ function TagQuickEdit({ tagIds = [], tags, onChange, onCreateTag }) {
       </button>
       {open && (
         <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:300 }}>
-          <TagDropdownPanel value={tagIds} onChange={onChange} tags={tags} onCreateTag={onCreateTag} />
+          <TagDropdownPanel value={tagIds} onChange={onChange} tags={tags} onCreateTag={onCreateTag} onRemoveTag={onRemoveTag} />
         </div>
       )}
     </div>
@@ -4270,7 +4288,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
   const { companies: allCompanies, add: addCompany } = useCompanies()
-  const { tags: allTags, save: saveTag } = useTags()
+  const { tags: allTags, save: saveTag, remove: removeTag } = useTags()
   const { sellers: allSellers } = useSellers()
   const { contacts: allContacts } = useContacts()
   const { produtos: allProdutos } = useProducts()
@@ -4641,7 +4659,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
               : allTags.filter(t => (form.tag_ids || []).includes(t.id)).map(t => <TagBadge key={t.id} tag={t} />)}
           </div>
         ) : (
-          <TagSelect value={form.tag_ids || []} onChange={v => set('tag_ids', v)} tags={allTags} onCreateTag={saveTag} />
+          <TagSelect value={form.tag_ids || []} onChange={v => set('tag_ids', v)} tags={allTags} onCreateTag={saveTag} onRemoveTag={removeTag} />
         )
       case 'prazo':
         return (
@@ -6267,7 +6285,7 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
   )
 }
 
-function BulkTagsModal({ oppIds, opps, onClose, saveOpp, tags, onCreateTag }) {
+function BulkTagsModal({ oppIds, opps, onClose, saveOpp, tags, onCreateTag, onRemoveTag }) {
   const [adicionar, setAdicionar] = useState([])
   const [remover, setRemover]     = useState([])
   const [saving, setSaving]       = useState(false)
@@ -6299,11 +6317,11 @@ function BulkTagsModal({ oppIds, opps, onClose, saveOpp, tags, onCreateTag }) {
         <div style={{ padding:24, display:'flex', flexDirection:'column', gap:16, overflow:'visible' }}>
           <div>
             <label style={blk.label}>Adicionar</label>
-            <TagSelect value={adicionar} onChange={setAdicionar} tags={tags} onCreateTag={onCreateTag} placeholder="Selecionar tags para adicionar…" />
+            <TagSelect value={adicionar} onChange={setAdicionar} tags={tags} onCreateTag={onCreateTag} onRemoveTag={onRemoveTag} placeholder="Selecionar tags para adicionar…" />
           </div>
           <div>
             <label style={blk.label}>Remover</label>
-            <TagSelect value={remover} onChange={setRemover} tags={tags} placeholder="Selecionar tags para remover…" />
+            <TagSelect value={remover} onChange={setRemover} tags={tags} onRemoveTag={onRemoveTag} placeholder="Selecionar tags para remover…" />
           </div>
         </div>
         <div style={m.footer}>
@@ -6910,7 +6928,7 @@ function ForecastBadge({ opp, etapaCat, onChange }) {
   )
 }
 
-function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForecastChange, tags, onTagsChange, onCreateTag }) {
+function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForecastChange, tags, onTagsChange, onCreateTag, onRemoveTag }) {
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
   const dias     = diasRestantes(opp.prazo)
@@ -7052,7 +7070,7 @@ function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForeca
       <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:8, marginTop:9 }}>
         {onTagsChange ? (
           <TagQuickEdit tagIds={opp.tag_ids || []} tags={tags || []}
-            onChange={ids => onTagsChange(opp, ids)} onCreateTag={onCreateTag} />
+            onChange={ids => onTagsChange(opp, ids)} onCreateTag={onCreateTag} onRemoveTag={onRemoveTag} />
         ) : (
           (opp.tag_ids || []).map(id => (tags || []).find(t => t.id === id)).filter(Boolean).map(t => <TagBadge key={t.id} tag={t} />)
         )}
@@ -7094,7 +7112,7 @@ function calcTaxaConversao(etapas, allOpps, etapaId) {
   return Math.round((passaram.length / entraram.length) * 100)
 }
 
-function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForecastChange, tags, onTagsChange, onCreateTag }) {
+function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForecastChange, tags, onTagsChange, onCreateTag, onRemoveTag }) {
   const draggedId = useRef(null)
   const [overEtapa, setOverEtapa] = useState(null)
 
@@ -7131,6 +7149,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForec
             tags={tags}
             onTagsChange={onTagsChange}
             onCreateTag={onCreateTag}
+            onRemoveTag={onRemoveTag}
           />
         ))}
       </div>
@@ -7138,7 +7157,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForec
   )
 }
 
-function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd, onForecastChange, tags, onTagsChange, onCreateTag }) {
+function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd, onForecastChange, tags, onTagsChange, onCreateTag, onRemoveTag }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
@@ -7170,7 +7189,7 @@ function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDra
         </div>
       </div>
       <div style={{ ...k.cards, background: isDragOver ? etapa.cor+'08' : 'transparent', transition:'background 0.15s' }}>
-        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} etapaCat={etapa.categoria_forecast} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} onForecastChange={onForecastChange} tags={tags} onTagsChange={onTagsChange} onCreateTag={onCreateTag} />)}
+        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} etapaCat={etapa.categoria_forecast} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} onForecastChange={onForecastChange} tags={tags} onTagsChange={onTagsChange} onCreateTag={onCreateTag} onRemoveTag={onRemoveTag} />)}
         {opps.length===0 && <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:12, opacity:0.6 }}>—</div>}
       </div>
       <button style={k.addBtn} onClick={()=>onAddOpp(etapa.id)}>+ Adicionar</button>
@@ -7615,7 +7634,7 @@ export default function Pipeline() {
 
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage: moveToStageRaw, bulkMoveToStage, importMany: importOpps } = useOpportunities()
-  const { tags: allTags, save: saveTag } = useTags()
+  const { tags: allTags, save: saveTag, remove: removeTag } = useTags()
   const { companies, add: addCompany } = useCompanies()
   const { playbooks: playbooksParaGateAll } = usePlaybooks()
   const playbooksParaGate = playbooksParaGateAll.filter(p => (p.tipo || 'vendas') === 'vendas')
@@ -7959,10 +7978,10 @@ export default function Pipeline() {
     { key: 'tag_ids', label: 'Tags', sortable: false, render: (v, o) => (
       isParceiro
         ? <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>{(v||[]).map(id => allTags.find(t=>t.id===id)).filter(Boolean).map(t => <TagBadge key={t.id} tag={t} />)}</div>
-        : <TagQuickEdit tagIds={v||[]} tags={allTags} onChange={ids => saveOpp({ ...o, tag_ids: ids })} onCreateTag={saveTag} />
+        : <TagQuickEdit tagIds={v||[]} tags={allTags} onChange={ids => saveOpp({ ...o, tag_ids: ids })} onCreateTag={saveTag} onRemoveTag={removeTag} />
     ) },
     { key: 'responsavel', label: 'Responsável', render: v => <span style={{ fontSize:12, color:'var(--text-soft)' }}>{v||'—'}</span> },
-  ], [etapas, FUNIS_ATIVOS, allTags, isParceiro, saveOpp, saveTag])
+  ], [etapas, FUNIS_ATIVOS, allTags, isParceiro, saveOpp, saveTag, removeTag])
 
   // ── Funil + Filtros + toggle de visão + Rotinas: mesmo bloco, mesma posição
   //    (dentro da barra de ações), pras duas visões — evita duas barras
@@ -8252,6 +8271,7 @@ export default function Pipeline() {
           tags={allTags}
           onTagsChange={isParceiro ? undefined : (opp, ids) => saveOpp({ ...opp, tag_ids: ids })}
           onCreateTag={saveTag}
+          onRemoveTag={removeTag}
         />
       )}
 
@@ -8343,6 +8363,7 @@ export default function Pipeline() {
           saveOpp={saveOpp}
           tags={allTags}
           onCreateTag={saveTag}
+          onRemoveTag={removeTag}
         />
       )}
       {bulkProdutosModal && (
