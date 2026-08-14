@@ -45,6 +45,7 @@ import { STORAGE_KEY as TIPOS_ACAO_KEY } from './settings/TiposAcao'
 import { useDocuments } from '../hooks/useDocuments'
 import { useOpportunities } from '../hooks/useOpportunities'
 import { useCompanies } from '../hooks/useCompanies'
+import { useTags } from '../hooks/useTags'
 import SearchSelect from '../components/SearchSelect'
 import ActionFeedback from '../components/ActionFeedback'
 import { useCustomFields, CF_TYPES, cfDefaultValue } from '../hooks/useCustomFields'
@@ -171,6 +172,7 @@ const EMPTY_OPP = {
   prazo:'', responsavel:'', origem:'Inbound', etapa_id:null,
   playbook_id: null,
   campanha_id: null,
+  tag_ids: [],
   situacao:'em_andamento', motivo_perda:'',
   custom_fields: {},
 }
@@ -426,8 +428,9 @@ function ProdutoSearch({ onAdd }) {
 // Cada produto vira uma unidade visual só (card), não uma linha de tabela —
 // nome, parâmetros e subtotal ficam claramente dentro da mesma "caixa".
 const pc = {
-  card:  { border:'1px solid var(--border)', borderRadius:10, background:'var(--surface)', padding:'11px 14px', transition:'border-color 0.12s' },
+  card:  { border:'1px solid var(--border)', borderRadius:9, background:'var(--surface)', padding:'8px 12px', transition:'border-color 0.12s' },
   label: { fontSize:9.5, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 },
+  ordinal: { fontSize:9, fontWeight:800, color:'var(--accent)', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2 },
 }
 
 function OppProdutosTab({ itens, onChange, onSyncValor }) {
@@ -493,19 +496,22 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
         )}
 
         {itens.length > 0 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:8, paddingBottom:2 }}>
-            {itens.map(item => {
+          <div style={{ display:'flex', flexDirection:'column', gap:6, paddingBottom:2 }}>
+            {itens.map((item, idx) => {
               const descontoValor = Number(item.preco_unitario||0) * Number(item.quantidade||1) * (Number(item.desconto_pct||0)/100)
               const noLimite = item.desconto_pct >= item.desconto_max && item.desconto_max > 0
               return (
                 <div key={item.produto_id} style={pc.card}>
-                  {/* Linha 1 — identidade do produto: quem é, como é cobrado, ação de remover */}
+                  {/* Linha 1 — ordem (Produto N, distinto de Qtd.) + identidade do produto + ação de remover */}
                   <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10 }}>
                     <div style={{ minWidth:0 }}>
-                      <div style={{ fontWeight:700, fontSize:13.5, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={item.produto_nome}>
+                      <div style={pc.ordinal}>Produto {idx + 1}</div>
+                      <div style={{ fontWeight:700, fontSize:13, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={item.produto_nome}>
                         {item.produto_nome}
+                        {item.produto_codigo && (
+                          <span style={{ fontWeight:500, fontSize:10.5, color:'var(--text-muted)', fontFamily:'var(--mono)' }}> · {item.produto_codigo}</span>
+                        )}
                       </div>
-                      <div style={{ fontSize:10.5, color:'var(--text-muted)', fontFamily:'var(--mono)', marginTop:1 }}>{item.produto_codigo}</div>
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap:6, flexShrink:0 }}>
                       <span style={{ fontSize:9.5, fontWeight:700, padding:'3px 8px', borderRadius:4, whiteSpace:'nowrap', flexShrink:0,
@@ -524,7 +530,7 @@ function OppProdutosTab({ itens, onChange, onSyncValor }) {
                   </div>
 
                   {/* Linha 2 — parâmetros da negociação (peso visual igual entre si) + resultado (subtotal, mais destacado) */}
-                  <div style={{ display:'grid', gridTemplateColumns:'72px 1fr 1.2fr auto', gap:14, alignItems:'end', marginTop:10 }}>
+                  <div style={{ display:'grid', gridTemplateColumns:'72px 1fr 1.2fr auto', gap:12, alignItems:'end', marginTop:6 }}>
                     <div>
                       <div style={pc.label}>Qtd.</div>
                       <input type="number" min="1" step="1"
@@ -765,7 +771,7 @@ function MotivoPerdaField({ value, onChange }) {
 }
 
 // ─── Campo de Campanha — lê da fonte real (tabela campanhas via useCampanhas) ─
-function CampanhaField({ value, onChange }) {
+function CampanhaField({ value, onChange, readOnly = false }) {
   const { campanhas } = useCampanhas()
   const ativas = campanhas.filter(c => c.status === 'active' || c.status === 'draft')
   const opts = ativas.map(c => ({
@@ -774,6 +780,15 @@ function CampanhaField({ value, onChange }) {
     sublabel: c.objective || c.objetivo || '',
     color: 'var(--accent)',
   }))
+
+  if (readOnly) {
+    const selecionada = opts.find(o => o.id === value)
+    return (
+      <div style={{ ...m.input, display:'flex', alignItems:'center', background:'var(--surface)', color: selecionada ? 'var(--text)' : 'var(--text-muted)', cursor:'default' }}>
+        {selecionada ? selecionada.label : '—'}
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -788,6 +803,150 @@ function CampanhaField({ value, onChange }) {
       {ativas.length === 0 && (
         <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:5 }}>
           Cadastre campanhas em <strong>Configurações → Campanhas de Incentivo</strong>.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Tags de Pipeline — cadastro simples embutido aqui mesmo (sem tela em
+// Configurações), pra destacar campanha/origem/qualquer coisa relevante em
+// Kanban e Lista. Badge com cor sólida (não é componente Pill genérico —
+// específico daqui) + painel de seleção/criação reaproveitado tanto na aba
+// Dados quanto na edição rápida direto do card/linha. ──────────────────────
+const TAG_COLOR_PRESETS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4', '#6B7280']
+
+function TagBadge({ tag }) {
+  if (!tag) return null
+  return (
+    <span style={{ display:'inline-flex', alignItems:'center', fontSize:10, fontWeight:700,
+      padding:'2px 7px', borderRadius:5, whiteSpace:'nowrap', background:tag.cor, color:'#fff' }}>
+      {tag.nome}
+    </span>
+  )
+}
+
+function TagDropdownPanel({ value, onChange, tags, onCreateTag }) {
+  const [novoNome, setNovoNome] = useState('')
+  const [novaCor, setNovaCor]   = useState(TAG_COLOR_PRESETS[0])
+  const [criando, setCriando]   = useState(false)
+
+  function toggle(id) { onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]) }
+
+  async function handleCreate() {
+    const nome = novoNome.trim()
+    if (!nome) return
+    const res = await onCreateTag({ nome, cor: novaCor })
+    if (res?.ok && res.data) { onChange([...value, res.data.id]); setNovoNome(''); setNovaCor(TAG_COLOR_PRESETS[0]); setCriando(false) }
+  }
+
+  return (
+    <div onClick={e => e.stopPropagation()} style={{
+      background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
+      boxShadow:'0 8px 24px rgba(0,0,0,0.14)', overflow:'hidden', minWidth:220,
+    }}>
+      <div style={{ maxHeight:200, overflowY:'auto' }}>
+        {tags.length === 0 ? (
+          <div style={{ padding:'10px 12px', fontSize:12, color:'var(--text-muted)' }}>Nenhuma tag cadastrada ainda.</div>
+        ) : tags.map(t => {
+          const checked = value.includes(t.id)
+          return (
+            <label key={t.id} style={{ display:'flex', alignItems:'center', gap:8, padding:'7px 12px', cursor:'pointer',
+              background: checked ? 'color-mix(in srgb, var(--accent) 6%, transparent)' : 'transparent' }}>
+              <input type="checkbox" checked={checked} onChange={() => toggle(t.id)} style={{ accentColor:'var(--accent)', flexShrink:0 }} />
+              <span style={{ width:10, height:10, borderRadius:3, background:t.cor, flexShrink:0 }} />
+              <span style={{ fontSize:13, color:'var(--text)', fontWeight: checked ? 600 : 400, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.nome}</span>
+            </label>
+          )
+        })}
+      </div>
+      {(onCreateTag || criando) && (
+      <div style={{ borderTop:'1px solid var(--border2)', padding:8 }}>
+        {criando ? (
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            <input autoFocus value={novoNome} onChange={e => setNovoNome(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreate() }}
+              placeholder="Nome da tag…" className="so-field" style={{ height:30, fontSize:12 }} />
+            <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
+              {TAG_COLOR_PRESETS.map(c => (
+                <button key={c} type="button" onClick={() => setNovaCor(c)}
+                  style={{ width:18, height:18, borderRadius:5, background:c, cursor:'pointer', padding:0,
+                    border: novaCor === c ? '2px solid var(--text)' : '2px solid transparent' }} />
+              ))}
+            </div>
+            <div style={{ display:'flex', gap:6 }}>
+              <button type="button" onClick={() => setCriando(false)}
+                style={{ flex:1, fontSize:11, padding:'5px 0', border:'1px solid var(--border)', borderRadius:6, background:'none', color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>
+                Cancelar
+              </button>
+              <button type="button" onClick={handleCreate} disabled={!novoNome.trim()}
+                style={{ flex:1, fontSize:11, fontWeight:700, padding:'5px 0', border:'none', borderRadius:6, fontFamily:'var(--font)',
+                  background: novoNome.trim() ? 'var(--accent)' : 'var(--border)', color:'#fff', cursor: novoNome.trim() ? 'pointer' : 'not-allowed' }}>
+                Criar
+              </button>
+            </div>
+          </div>
+        ) : onCreateTag && (
+          <button type="button" onClick={() => setCriando(true)}
+            style={{ width:'100%', textAlign:'left', fontSize:12, fontWeight:600, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', padding:'5px 4px', fontFamily:'var(--font)' }}>
+            + Nova tag
+          </button>
+        )}
+      </div>
+      )}
+    </div>
+  )
+}
+
+// Campo completo — usado na aba Dados (fechado mostra badges das selecionadas)
+function TagSelect({ value = [], onChange, tags, onCreateTag, placeholder = 'Selecionar tags…' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const selecionadas = tags.filter(t => value.includes(t.id))
+  return (
+    <div ref={ref} style={{ position:'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} className="so-field"
+        style={{ width:'100%', textAlign:'left', display:'flex', alignItems:'center', flexWrap:'wrap', gap:4, cursor:'pointer', minHeight:36 }}>
+        {selecionadas.length === 0
+          ? <span style={{ color:'var(--text-muted)', fontSize:13, flex:1 }}>{placeholder}</span>
+          : selecionadas.map(t => <TagBadge key={t.id} tag={t} />)}
+        <span style={{ marginLeft:'auto', flexShrink:0, opacity:0.5, fontSize:10 }}>▾</span>
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, right:0, zIndex:300 }}>
+          <TagDropdownPanel value={value} onChange={onChange} tags={tags} onCreateTag={onCreateTag} />
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Edição rápida — usada no Card do Kanban e na linha da Lista, sem abrir a oportunidade
+function TagQuickEdit({ tagIds = [], tags, onChange, onCreateTag }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    function h(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h)
+    return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const oppTags = tagIds.map(id => tags.find(t => t.id === id)).filter(Boolean)
+  return (
+    <div ref={ref} onClick={e => e.stopPropagation()} style={{ position:'relative', display:'inline-flex', alignItems:'center' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} title="Editar tags"
+        style={{ display:'flex', alignItems:'center', gap:4, background:'none', border:'none', cursor:'pointer', padding:0 }}>
+        {oppTags.length === 0
+          ? <span style={{ fontSize:10, color:'var(--text-muted)', textDecoration:'underline dotted', textUnderlineOffset:2 }}>+ tag</span>
+          : oppTags.map(t => <TagBadge key={t.id} tag={t} />)}
+      </button>
+      {open && (
+        <div style={{ position:'absolute', top:'calc(100% + 4px)', left:0, zIndex:300 }}>
+          <TagDropdownPanel value={tagIds} onChange={onChange} tags={tags} onCreateTag={onCreateTag} />
         </div>
       )}
     </div>
@@ -825,42 +984,89 @@ function TipoTarefaField({ value, onChange }) {
   )
 }
 
-// ─── Mini badge de status de tarefa ──────────────────────────────────────────
-function TarefaStatusBadge({ status }) {
-  const cfg = STATUS_TAREFA[status] || STATUS_TAREFA.pendente
+// ─── Mini form de tarefa nova, inline (bench: TarefaInlineForm em Acoes.js) ──
+function OppTarefaInlineForm({ oppId, oppNome, onSave, onCancel }) {
+  const { usuarios } = useUsuarios()
+  const [form, setForm] = useState({ ...EMPTY_TAREFA, prazo:'', entidade_tipo:'oportunidade', entidade_id: oppId, entidade_nome: oppNome })
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  function handleSave() {
+    if (!form.titulo.trim()) return
+    const u = usuarios.find(u => String(u.id) === String(form.responsavel_id))
+    onSave({ ...form, id: novoId(), responsavel: u?.nome || form.responsavel_nome || '',
+      responsavel_nome: u?.nome || form.responsavel_nome || '', criado: new Date().toISOString().slice(0,10) })
+  }
+
+  const inp = { width:'100%', padding:'7px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, fontSize:13, color:'var(--text)', fontFamily:'var(--font)', boxSizing:'border-box' }
+  const lbl = { fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }
+
   return (
-    <span style={{ display:'inline-flex', alignItems:'center', gap:4, color:cfg.color, fontSize:10, fontWeight:600, whiteSpace:'nowrap' }}>
-      <span style={{ width:5, height:5, borderRadius:'50%', background:cfg.color, flexShrink:0 }} />{cfg.label}
-    </span>
+    <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:10, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+      <div>
+        <label style={lbl}>Título *</label>
+        <input style={inp} placeholder="Título da tarefa…" value={form.titulo} onChange={e => set('titulo', e.target.value)} autoFocus />
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        <TipoTarefaField value={form.tipo} onChange={v => set('tipo', v)} />
+        <div>
+          <label style={lbl}>Prioridade</label>
+          <select style={inp} value={form.prioridade} onChange={e => set('prioridade', e.target.value)}>
+            {Object.entries(PRIORIDADE_TAREFA).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
+        </div>
+        <div>
+          <label style={lbl}>Prazo</label>
+          <input style={inp} type="date" value={form.prazo} onChange={e => set('prazo', e.target.value)} />
+        </div>
+        <div>
+          <label style={lbl}>Responsável</label>
+          <select style={inp} value={form.responsavel_id || ''} onChange={e => set('responsavel_id', e.target.value)}>
+            <option value="">— Nenhum —</option>
+            {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label style={lbl}>Descrição</label>
+        <textarea style={{ ...inp, resize:'vertical' }} rows={2} value={form.descricao} onChange={e => set('descricao', e.target.value)} placeholder="Detalhes ou contexto…" />
+      </div>
+      <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
+        <button onClick={onCancel} style={{ padding:'6px 14px', background:'none', border:'1px solid var(--border)', borderRadius:7, fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+        <button onClick={handleSave} disabled={!form.titulo.trim()} style={{ padding:'6px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'var(--font)', opacity: form.titulo.trim() ? 1 : 0.5 }}>Salvar tarefa</button>
+      </div>
+    </div>
   )
 }
 
-// ─── Aba de Tarefas da Oportunidade ──────────────────────────────────────────
-function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus, openTarefaId, onOpenedTarefa, openNewForm, onOpenedNewForm }) {
+// ─── Aba de Tarefas da Oportunidade — mesmo padrão visual de AcaoTarefasTab
+// (Acoes.js): resumo de progresso + pills de filtro no topo, cards com toggle
+// de status circular e edição inline, "+ Nova tarefa" no rodapé. ─────────────
+function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus, onDeleteTarefa, openTarefaId, onOpenedTarefa, openNewForm, onOpenedNewForm }) {
   const { usuarios } = useUsuarios()
-  const [showForm, setShowForm] = useState(false)
+  const [addingNew, setAddingNew] = useState(false)
   const [editingId, setEditingId] = useState(null)
-  const [quickForm, setQuickForm] = useState({ ...EMPTY_TAREFA })
-  const [formErr, setFormErr] = useState('')
-  const [expandedId, setExpandedId] = useState(null)
+  const [editForm, setEditForm]   = useState(null)
+  const [filtroStatus, setFiltroStatus] = useState('todas')
 
-  const oppTarefas = useMemo(() =>
-    [...tarefas.filter(t => t.entidade_tipo==='oportunidade' && String(t.entidade_id)===String(oppId))]
-      .sort((a,b) => {
-        // pendente/em_andamento primeiro, depois por prazo
-        const ord = { pendente:0, em_andamento:1, concluida:2, cancelada:3 }
-        const d = (ord[a.status]??9) - (ord[b.status]??9)
-        if (d!==0) return d
-        return (a.prazo||'9999') < (b.prazo||'9999') ? -1 : 1
-      }),
-    [tarefas, oppId]
-  )
+  const minhasTarefas = useMemo(() =>
+    tarefas.filter(t => t.entidade_tipo==='oportunidade' && String(t.entidade_id)===String(oppId)),
+  [tarefas, oppId])
+
+  const tarefasVisiveis = useMemo(() =>
+    filtroStatus === 'todas' ? minhasTarefas : minhasTarefas.filter(t => t.status === filtroStatus),
+  [minhasTarefas, filtroStatus])
+
+  function openEdit(t) {
+    setEditForm({ ...t })
+    setEditingId(t.id)
+    setAddingNew(false)
+  }
 
   // Abre a tarefa em edição quando chega um pedido vindo de fora (ex.: clique
   // num item da linha do tempo em Histórico) — consumido uma única vez.
   useEffect(() => {
     if (!openTarefaId) return
-    const t = oppTarefas.find(t => String(t.id) === String(openTarefaId))
+    const t = minhasTarefas.find(t => String(t.id) === String(openTarefaId))
     if (t) openEdit(t)
     onOpenedTarefa && onOpenedTarefa()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -868,188 +1074,174 @@ function OppTarefasTab({ oppId, oppNome, tarefas, onSaveTarefa, onToggleStatus, 
 
   useEffect(() => {
     if (!openNewForm) return
-    setQuickForm({ ...EMPTY_TAREFA })
-    setEditingId(null)
-    setShowForm(true)
+    setEditingId(null); setEditForm(null)
+    setAddingNew(true)
     onOpenedNewForm && onOpenedNewForm()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openNewForm])
 
-  function qset(f,v) { setQuickForm(prev=>({ ...prev,[f]:v })) }
-
-  function handleQuickSave() {
-    if (!quickForm.titulo.trim())   { setFormErr('Título é obrigatório'); return }
-    if (!quickForm.data_inicio)     { setFormErr('Data e Hora de Início é obrigatória'); return }
-    if (!quickForm.responsavel_id)  { setFormErr('Responsável é obrigatório'); return }
-    setFormErr('')
-    const u = usuarios.find(u => u.id === quickForm.responsavel_id)
-    const tarefa = {
-      ...quickForm,
-      id: editingId || novoId(),
-      responsavel:      u?.nome || quickForm.responsavel_nome || '',
-      responsavel_nome: u?.nome || quickForm.responsavel_nome || '',
-      entidade_tipo: 'oportunidade',
-      entidade_id:   oppId,
-      entidade_nome: oppNome,
-      concluida_em:  null,
-      criado:        new Date().toISOString().slice(0,10),
-    }
-    onSaveTarefa(tarefa)
-    setQuickForm({ ...EMPTY_TAREFA })
-    setShowForm(false)
-    setEditingId(null)
+  async function handleAdd(tarefa) {
+    await onSaveTarefa(tarefa)
+    setAddingNew(false)
   }
 
-  function openEdit(t) {
-    setQuickForm({ titulo:t.titulo, tipo:t.tipo, status:t.status, prioridade:t.prioridade,
-      data_inicio:t.data_inicio||'', responsavel_id:t.responsavel_id||'', responsavel_nome:t.responsavel_nome||t.responsavel||'', descricao:t.descricao||'' })
-    setEditingId(t.id)
-    setShowForm(true)
+  async function handleUpdate() {
+    if (!editForm?.titulo?.trim()) return
+    const u = usuarios.find(u => String(u.id) === String(editForm.responsavel_id))
+    await onSaveTarefa({ ...editForm, responsavel: u?.nome || editForm.responsavel || '', responsavel_nome: u?.nome || editForm.responsavel_nome || '' })
+    setEditingId(null); setEditForm(null)
   }
 
-  function cancelForm() {
-    setQuickForm({ ...EMPTY_TAREFA }); setShowForm(false); setEditingId(null)
+  function toggleStatus(t) {
+    const order = ['pendente', 'em_andamento', 'concluida']
+    const idx = order.indexOf(t.status)
+    onToggleStatus(t.id, order[(idx + 1) % order.length])
   }
 
-  const hoje = new Date().toISOString().slice(0,10)
+  const inp = { width:'100%', padding:'7px 10px', background:'var(--surface)', border:'1px solid var(--border)', borderRadius:7, fontSize:13, color:'var(--text)', fontFamily:'var(--font)', boxSizing:'border-box' }
+  const lbl = { fontSize:10, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:4 }
+
+  const total      = minhasTarefas.length
+  const concluidas = minhasTarefas.filter(t => t.status === 'concluida').length
+  const andamento  = minhasTarefas.filter(t => t.status === 'em_andamento').length
+  const pendentes  = minhasTarefas.filter(t => t.status === 'pendente').length
+  const pct        = total ? Math.round((concluidas / total) * 100) : 0
 
   return (
-    <div style={{ display:'flex', flexDirection:'column', height:'100%' }}>
+    <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
 
-      {/* Resumo */}
-      <div style={{ display:'flex', alignItems:'center', padding:'10px 0 14px', borderBottom:'1px solid var(--border2)' }}>
-        <div style={{ flex:1 }} />
-        {!showForm && (
-          <button style={tb.addBtn} onClick={()=>{ setShowForm(true); setEditingId(null); setQuickForm({...EMPTY_TAREFA}) }}>
-            + Nova tarefa
-          </button>
-        )}
-      </div>
-
-      {/* Formulário rápido */}
-      {showForm && (
-        <div style={tb.form}>
-          <div style={{ display:'flex', gap:8, marginBottom:8, alignItems:'flex-end' }}>
-            <div style={{ flex:1 }}>
-              <input style={{ ...m.input, width:'100%' }} placeholder="Título da tarefa *"
-                value={quickForm.titulo} onChange={e=>qset('titulo',e.target.value)}
-                autoFocus />
-            </div>
-            <div style={{ width:160, position:'relative' }}>
-              <TipoTarefaField value={quickForm.tipo} onChange={v => qset('tipo', v)} />
-            </div>
+      {/* ── Cabeçalho: progresso + pills de filtro ── */}
+      {total > 0 && (
+        <div style={{ background:'var(--surface2)', borderRadius:10, padding:'12px 16px', border:'1px solid var(--border2)', display:'flex', flexDirection:'column', gap:10 }}>
+          <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+            <span style={{ fontSize:12, fontWeight:600, color:'var(--text)' }}>{concluidas} de {total} concluídas</span>
+            <span style={{ fontSize:13, fontWeight:800, color: pct===100 ? '#10B981' : 'var(--accent)', fontFamily:'var(--mono)' }}>{pct}%</span>
           </div>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr 1fr', gap:8, marginBottom:8 }}>
-            <div>
-              <label style={tb.lbl}>Prioridade</label>
-              <select style={m.input} value={quickForm.prioridade} onChange={e=>qset('prioridade',e.target.value)}>
-                {Object.entries(PRIORIDADE_TAREFA).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={tb.lbl}>Status</label>
-              <select style={m.input} value={quickForm.status} onChange={e=>qset('status',e.target.value)}>
-                {Object.entries(STATUS_TAREFA).map(([k,v])=><option key={k} value={k}>{v.label}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={tb.lbl}>Data e Hora de Início *</label>
-              <input type="datetime-local" style={m.input} value={quickForm.data_inicio} onChange={e=>qset('data_inicio',e.target.value)} />
-            </div>
-            <div>
-              <label style={tb.lbl}>Responsável *</label>
-              <select style={m.input} value={quickForm.responsavel_id} onChange={e=>qset('responsavel_id',e.target.value)}>
-                <option value="">— Selecione —</option>
-                {usuarios.map(u=><option key={u.id} value={u.id}>{u.nome}</option>)}
-              </select>
-            </div>
+          <div style={{ height:7, background:'var(--border)', borderRadius:99, overflow:'hidden' }}>
+            <div style={{ height:'100%', borderRadius:99, background: pct===100 ? '#10B981' : 'var(--accent)', width:`${pct}%`, transition:'width .4s' }} />
           </div>
-          {formErr && <div style={{ fontSize:12, color:'#ef4444', marginBottom:6 }}>{formErr}</div>}
-          <textarea style={{ ...m.input, height:52, resize:'none', marginBottom:8, fontSize:12 }}
-            placeholder="Descrição (opcional)…" value={quickForm.descricao} onChange={e=>qset('descricao',e.target.value)} />
-          <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
-            <Button variant="secondary" onClick={cancelForm}>Cancelar</Button>
-            <Button onClick={handleQuickSave}>
-              {editingId ? 'Salvar tarefa' : 'Criar tarefa'}
-            </Button>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {[
+              { key:'todas',       label:`Todas (${total})`,            color:'var(--text-muted)',  bg:'var(--border)' },
+              { key:'pendente',    label:`Pendentes (${pendentes})`,    color:'#92400E', bg:'#FEF3C7' },
+              { key:'em_andamento',label:`Em andamento (${andamento})`, color:'#1E3A5F', bg:'#DBEAFE' },
+              { key:'concluida',   label:`Concluídas (${concluidas})`,  color:'#065F46', bg:'#D1FAE5' },
+            ].map(p => (
+              <button key={p.key} onClick={() => setFiltroStatus(p.key)}
+                style={{ padding:'3px 10px', borderRadius:99, border: filtroStatus===p.key ? `2px solid ${p.color}` : '2px solid transparent',
+                  background: filtroStatus===p.key ? p.bg : 'transparent', color: filtroStatus===p.key ? p.color : 'var(--text-muted)',
+                  fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)', transition:'all .15s' }}>
+                {p.label}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* Lista de tarefas */}
-      <div style={{ flex:1, overflowY:'auto', marginTop:4 }}>
-        {oppTarefas.length===0 && !showForm && (
-          <div style={{ textAlign:'center', padding:'36px 0', color:'var(--text-muted)' }}>
-            <div style={{ fontSize:28, marginBottom:8 }}>☑</div>
-            <div style={{ fontSize:13, marginBottom:4 }}>Nenhuma tarefa vinculada</div>
-            <div style={{ fontSize:12, opacity:0.7 }}>Crie tarefas para acompanhar o progresso desta oportunidade</div>
-          </div>
-        )}
-        {oppTarefas.map(t => {
-          const atrasado = t.status!=='concluida'&&t.status!=='cancelada'&&t.prazo&&t.prazo<hoje
-          const expanded = expandedId===t.id
-          const concluida = t.status==='concluida'
-          const priorCfg  = PRIORIDADE_TAREFA[t.prioridade]
+      {/* ── Lista de tarefas ── */}
+      {total === 0 && !addingNew && (
+        <div style={{ textAlign:'center', padding:'36px 0', color:'var(--text-muted)' }}>
+          <div style={{ fontSize:28, marginBottom:8 }}>☑</div>
+          <div style={{ fontSize:13, marginBottom:4 }}>Nenhuma tarefa vinculada</div>
+          <div style={{ fontSize:12, opacity:0.7 }}>Crie tarefas para acompanhar o progresso desta oportunidade</div>
+        </div>
+      )}
+      {tarefasVisiveis.length === 0 && total > 0 && (
+        <div style={{ textAlign:'center', padding:'20px 0', color:'var(--text-muted)', fontSize:12 }}>Nenhuma tarefa neste status.</div>
+      )}
+
+      {tarefasVisiveis.map(t => {
+        const stCfg = STATUS_TAREFA[t.status] || STATUS_TAREFA.pendente
+        const prCfg = PRIORIDADE_TAREFA[t.prioridade] || PRIORIDADE_TAREFA.media
+        const isEditing = editingId === t.id
+        const vencida = t.prazo && t.status !== 'concluida' && t.prazo < new Date().toISOString().slice(0,10)
+
+        if (isEditing && editForm) {
           return (
-            <div key={t.id} style={{ ...tb.item, opacity:concluida?0.65:1 }}>
-              {/* Linha principal */}
-              <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                {/* Checkbox rápido de concluir */}
-                <button type="button"
-                  title={concluida ? 'Reabrir tarefa' : 'Marcar como concluída'}
-                  onClick={()=>onToggleStatus(t.id, concluida?'pendente':'concluida')}
-                  style={{ width:18, height:18, borderRadius:4, border:`2px solid ${concluida?'#10B981':'var(--border)'}`,
-                    background:concluida?'#10B981':'none', flexShrink:0, cursor:'pointer',
-                    display:'flex', alignItems:'center', justifyContent:'center', padding:0 }}>
-                  {concluida && <span style={{ color:'#fff', fontSize:10, lineHeight:1 }}>✓</span>}
-                </button>
-
-                <span style={{ fontSize:15, flexShrink:0 }}>{TIPO_ICONS[t.tipo]||'☑'}</span>
-
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:13, fontWeight:600, color:'var(--text)', textDecoration:concluida?'line-through':undefined,
-                    overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{t.titulo}</div>
-                  <div style={{ display:'flex', alignItems:'center', gap:6, marginTop:2 }}>
-                    <TarefaStatusBadge status={t.status} />
-                    <span style={{ fontSize:9, fontWeight:700, padding:'1px 5px', borderRadius:3,
-                      background:priorCfg.bg, color:priorCfg.text, fontFamily:'var(--mono)' }}>
-                      {priorCfg.label.toUpperCase()}
-                    </span>
-                    {t.prazo && (
-                      <span style={{ fontSize:10, fontFamily:'var(--mono)', fontWeight:600,
-                        color:atrasado?'var(--red)':concluida?'var(--text-muted)':'var(--text-muted)' }}>
-                        {atrasado?'⚠ ':''}{t.prazo.split('-').reverse().slice(0,2).join('/')}
-                      </span>
-                    )}
-                    {t.responsavel && (
-                      <span style={{ fontSize:10, color:'var(--text-muted)' }}>{t.responsavel.split(' ')[0]}</span>
-                    )}
-                  </div>
+            <div key={t.id} style={{ background:'var(--surface2)', border:'2px solid var(--accent)', borderRadius:10, padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+              <div><label style={lbl}>Título</label><input style={inp} value={editForm.titulo} onChange={e => setEditForm(f=>({...f,titulo:e.target.value}))} autoFocus /></div>
+              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+                <div><label style={lbl}>Status</label>
+                  <select style={inp} value={editForm.status} onChange={e => setEditForm(f=>({...f,status:e.target.value}))}>
+                    {Object.entries(STATUS_TAREFA).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
                 </div>
-
-                <div style={{ display:'flex', gap:4, flexShrink:0 }}>
-                  {t.descricao && (
-                    <button type="button" onClick={()=>setExpandedId(expanded?null:t.id)}
-                      style={{ ...tb.iconBtn, color:expanded?'var(--accent)':'var(--text-muted)' }}
-                      title="Ver descrição">
-                      {expanded?'▲':'▼'}
-                    </button>
-                  )}
-                  <button type="button" onClick={()=>openEdit(t)} style={tb.iconBtn} title="Editar">✎</button>
+                <div><label style={lbl}>Prioridade</label>
+                  <select style={inp} value={editForm.prioridade} onChange={e => setEditForm(f=>({...f,prioridade:e.target.value}))}>
+                    {Object.entries(PRIORIDADE_TAREFA).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
+                  </select>
+                </div>
+                <div><label style={lbl}>Prazo</label><input style={inp} type="date" value={editForm.prazo||''} onChange={e => setEditForm(f=>({...f,prazo:e.target.value}))} /></div>
+                <div><label style={lbl}>Responsável</label>
+                  <select style={inp} value={editForm.responsavel_id||''} onChange={e => setEditForm(f=>({...f,responsavel_id:e.target.value}))}>
+                    <option value="">— Nenhum —</option>
+                    {usuarios.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                  </select>
                 </div>
               </div>
-
-              {/* Descrição expandida */}
-              {expanded && t.descricao && (
-                <div style={{ marginTop:8, padding:'8px 10px', background:'var(--surface2)', borderRadius:6,
-                  fontSize:12, color:'var(--text-soft)', lineHeight:1.5, borderLeft:'3px solid var(--border)' }}>
-                  {t.descricao}
+              <TipoTarefaField value={editForm.tipo||''} onChange={v => setEditForm(f=>({...f,tipo:v}))} />
+              <div><label style={lbl}>Descrição</label><textarea style={{...inp,resize:'vertical'}} rows={2} value={editForm.descricao||''} onChange={e => setEditForm(f=>({...f,descricao:e.target.value}))} /></div>
+              <div style={{ display:'flex', gap:8, justifyContent:'space-between', alignItems:'center' }}>
+                {onDeleteTarefa && (
+                  <button onClick={() => { if(window.confirm('Excluir esta tarefa?')) { onDeleteTarefa(t.id); setEditingId(null); setEditForm(null) } }}
+                    style={{ padding:'6px 12px', background:'none', border:'1px solid #FCA5A5', borderRadius:7, fontSize:12, color:'#DC2626', cursor:'pointer', fontFamily:'var(--font)' }}>🗑 Excluir</button>
+                )}
+                <div style={{ display:'flex', gap:6, marginLeft:'auto' }}>
+                  <button onClick={() => { setEditingId(null); setEditForm(null) }} style={{ padding:'6px 14px', background:'none', border:'1px solid var(--border)', borderRadius:7, fontSize:12, color:'var(--text-muted)', cursor:'pointer', fontFamily:'var(--font)' }}>Cancelar</button>
+                  <button onClick={handleUpdate} style={{ padding:'6px 14px', background:'var(--accent)', color:'#fff', border:'none', borderRadius:7, fontSize:12, fontWeight:700, cursor:'pointer', fontFamily:'var(--font)' }}>Salvar</button>
                 </div>
-              )}
+              </div>
             </div>
           )
-        })}
-      </div>
+        }
+
+        return (
+          <div key={t.id}
+            style={{ background:'var(--surface)', border:`1px solid ${vencida ? '#FCA5A5' : 'var(--border2)'}`,
+              borderLeft:`3px solid ${stCfg.color}`, borderRadius:10, padding:'11px 14px',
+              display:'flex', alignItems:'flex-start', gap:10, transition:'border .15s' }}>
+            <button onClick={() => toggleStatus(t)} title={`Status: ${stCfg.label} — clique para avançar`}
+              style={{ width:22, height:22, borderRadius:'50%', border:`2px solid ${stCfg.color}`,
+                background: t.status==='concluida' ? stCfg.color : t.status==='em_andamento' ? stCfg.color+'33' : 'transparent',
+                cursor:'pointer', flexShrink:0, marginTop:1, display:'flex', alignItems:'center', justifyContent:'center', transition:'all .2s' }}>
+              {t.status === 'concluida'    && <span style={{ color:'#fff', fontSize:11, fontWeight:900, lineHeight:1 }}>✓</span>}
+              {t.status === 'em_andamento' && <span style={{ fontSize:9, fontWeight:900, color:stCfg.color }}>▶</span>}
+            </button>
+            <div style={{ flex:1, minWidth:0 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:'var(--text)',
+                textDecoration: t.status==='concluida' ? 'line-through' : 'none',
+                opacity: t.status==='concluida' ? 0.45 : 1, lineHeight:1.3 }}>
+                {t.titulo}
+                {vencida && <span style={{ marginLeft:6, fontSize:10, color:'#EF4444', fontWeight:700 }}>⚠ Vencida</span>}
+              </div>
+              {t.descricao && <div style={{ fontSize:11, color:'var(--text-muted)', marginTop:3, lineHeight:1.5 }}>{t.descricao}</div>}
+              <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginTop:7, alignItems:'center' }}>
+                <span style={{ fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:99, background:stCfg.bg, color:stCfg.text }}>{stCfg.label}</span>
+                <span style={{ fontSize:10, fontWeight:600, color:prCfg.color }}>● {prCfg.label}</span>
+                {t.tipo && <span style={{ fontSize:10, color:'var(--text-muted)' }}>{TIPO_ICONS[t.tipo]||'☑'} {t.tipo}</span>}
+                {t.prazo && <span style={{ fontSize:10, color: vencida ? '#EF4444' : 'var(--text-muted)', fontFamily:'var(--mono)', fontWeight: vencida ? 700 : 400 }}>📅 {t.prazo}</span>}
+                {t.responsavel_nome && <span style={{ fontSize:10, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
+              </div>
+            </div>
+            <button onClick={() => openEdit(t)}
+              style={{ background:'none', border:'1px solid var(--border)', borderRadius:6, cursor:'pointer', color:'var(--text-muted)',
+                fontSize:11, padding:'4px 8px', flexShrink:0, fontFamily:'var(--font)' }}>Editar</button>
+          </div>
+        )
+      })}
+
+      {/* ── Botão nova tarefa / form inline ── */}
+      {addingNew
+        ? <OppTarefaInlineForm oppId={oppId} oppNome={oppNome} onSave={handleAdd} onCancel={() => setAddingNew(false)} />
+        : (
+          <button onClick={() => { setAddingNew(true); setFiltroStatus('todas') }}
+            style={{ display:'flex', alignItems:'center', gap:8, padding:'10px 14px', background:'none',
+              border:'2px dashed var(--border)', borderRadius:10, cursor:'pointer', color:'var(--text-muted)',
+              fontSize:13, fontFamily:'var(--font)', width:'100%' }}>
+            <span style={{ fontSize:18, lineHeight:1 }}>+</span> Nova tarefa
+          </button>
+        )
+      }
     </div>
   )
 }
@@ -4020,7 +4212,7 @@ function ChecklistGatePopup({ itens, onConfirm, onCancel }) {
 }
 
 // ─── Modal de Oportunidade (com abas Dados / Tarefas) ────────────────────────
-function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, atividades, onAddAtividade, defaultResponsavel, isParceiro, partnerSellerId }) {
+function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initial, etapas, funilId, tarefas, onSaveTarefa, onToggleStatus, onDeleteTarefa, atividades, onAddAtividade, defaultResponsavel, isParceiro, partnerSellerId }) {
   const isEditing = !!initial
   const { funis } = useFunnels()
   const [tab, setTab]       = useState('dados')
@@ -4058,6 +4250,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
           qualificacao_score: initial.qualificacao_score || 0,
           qualificacao_desqualificada: initial.qualificacao_desqualificada || false,
           campanha_id: initial.campanha_id || null,
+          tag_ids: initial.tag_ids || [],
           funil_id: initial.funil_id || funilId || null,
           situacao: initial.situacao || 'em_andamento', motivo_perda: initial.motivo_perda || '',
           categoria_forecast: initial.categoria_forecast || null,
@@ -4077,6 +4270,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
   const [todosContatos] = useLocalState(CONTATOS_STORAGE_KEY, MOCK_CONTATOS)
   const { sections: oppSections, fieldById: oppFieldById } = useFormLayout('opportunities')
   const { companies: allCompanies, add: addCompany } = useCompanies()
+  const { tags: allTags, save: saveTag } = useTags()
   const { sellers: allSellers } = useSellers()
   const { contacts: allContacts } = useContacts()
   const { produtos: allProdutos } = useProducts()
@@ -4433,12 +4627,22 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
       case 'etapa_id':
         return null
       case 'origem':
-        return <select style={m.input} value={form.origem || ''} onChange={e => set('origem', e.target.value)}>
+        return <select style={m.input} value={form.origem || ''} disabled={isParceiro} onChange={e => set('origem', e.target.value)}>
           <option value="">—</option>
           {['Inbound','Outbound','Canal','Indicação','Evento'].map(o => <option key={o} value={o}>{o}</option>)}
         </select>
       case 'campanha_id':
-        return <CampanhaField value={form.campanha_id} onChange={v => set('campanha_id', v)} />
+        return <CampanhaField value={form.campanha_id} onChange={v => set('campanha_id', v)} readOnly={isParceiro} />
+      case 'tag_ids':
+        return isParceiro ? (
+          <div style={{ display:'flex', flexWrap:'wrap', gap:5, minHeight:20 }}>
+            {(form.tag_ids || []).length === 0
+              ? <span style={{ fontSize:12, color:'var(--text-muted)' }}>—</span>
+              : allTags.filter(t => (form.tag_ids || []).includes(t.id)).map(t => <TagBadge key={t.id} tag={t} />)}
+          </div>
+        ) : (
+          <TagSelect value={form.tag_ids || []} onChange={v => set('tag_ids', v)} tags={allTags} onCreateTag={saveTag} />
+        )
       case 'prazo':
         return (
           <div>
@@ -4895,7 +5099,6 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
                 if (sms     > 0) set('valor_sms',     Math.round(sms))
                 if (cdu     > 0) set('valor_cdu',     Math.round(cdu))
                 if (servico > 0) set('valor_servico', Math.round(servico))
-                setTab('dados')
               }}
             />
             <ValorFinanceiroSection form={form} set={set} />
@@ -4913,6 +5116,7 @@ function OppModal({ onClose, onSave, onSaveDireto, onDelete, onFechamento, initi
               tarefas={tarefas}
               onSaveTarefa={onSaveTarefa}
               onToggleStatus={onToggleStatus}
+              onDeleteTarefa={onDeleteTarefa}
               openTarefaId={pendingTarefaId}
               onOpenedTarefa={() => setPendingTarefaId(null)}
               openNewForm={novaTarefaPendente}
@@ -6063,6 +6267,56 @@ function BulkEquipeModal({ oppIds, opps, onClose, addMembro }) {
   )
 }
 
+function BulkTagsModal({ oppIds, opps, onClose, saveOpp, tags, onCreateTag }) {
+  const [adicionar, setAdicionar] = useState([])
+  const [remover, setRemover]     = useState([])
+  const [saving, setSaving]       = useState(false)
+
+  async function handleSave() {
+    if (!adicionar.length && !remover.length) return
+    setSaving(true)
+    const oppList = opps.filter(o => oppIds.has(o.id))
+    for (const opp of oppList) {
+      const atuais = new Set(opp.tag_ids || [])
+      adicionar.forEach(id => atuais.add(id))
+      remover.forEach(id => atuais.delete(id))
+      await saveOpp({ ...opp, tag_ids: [...atuais] })
+    }
+    setSaving(false)
+    onClose()
+  }
+
+  return (
+    <div style={m.overlay} onClick={e => { if (e.target===e.currentTarget) onClose() }}>
+      <div style={{ ...m.modal, maxWidth:440, overflow:'visible' }}>
+        <div style={m.header}>
+          <div>
+            <div style={m.title}>Editar Tags</div>
+            <div style={m.subtitle}>{oppIds.size} oportunidade{oppIds.size!==1?'s':''} selecionada{oppIds.size!==1?'s':''} — tags que cada uma já tem são preservadas</div>
+          </div>
+          <button style={m.closeBtn} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding:24, display:'flex', flexDirection:'column', gap:16, overflow:'visible' }}>
+          <div>
+            <label style={blk.label}>Adicionar</label>
+            <TagSelect value={adicionar} onChange={setAdicionar} tags={tags} onCreateTag={onCreateTag} placeholder="Selecionar tags para adicionar…" />
+          </div>
+          <div>
+            <label style={blk.label}>Remover</label>
+            <TagSelect value={remover} onChange={setRemover} tags={tags} placeholder="Selecionar tags para remover…" />
+          </div>
+        </div>
+        <div style={m.footer}>
+          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+          <Button disabled={(!adicionar.length && !remover.length) || saving} onClick={handleSave}>
+            {saving ? 'Salvando...' : `Aplicar em ${oppIds.size} oportunidade${oppIds.size!==1?'s':''}`}
+          </Button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function BulkOrigemCampanhaModal({ oppIds, opps, onClose, saveOpp }) {
   const { campanhas } = useCampanhas()
   const campanhasAtivas = campanhas.filter(c => c.status === 'active' || c.status === 'draft')
@@ -6656,7 +6910,7 @@ function ForecastBadge({ opp, etapaCat, onChange }) {
   )
 }
 
-function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForecastChange }) {
+function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForecastChange, tags, onTagsChange, onCreateTag }) {
   const [hovered, setHovered] = useState(false)
   const [dragging, setDragging] = useState(false)
   const dias     = diasRestantes(opp.prazo)
@@ -6796,6 +7050,12 @@ function OppCard({ opp, cor, etapaCat, onClick, onDragStart, onDragEnd, onForeca
           única linha discreta, pra reduzir o número de elementos coloridos
           concorrendo com valor/responsável */}
       <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:8, marginTop:9 }}>
+        {onTagsChange ? (
+          <TagQuickEdit tagIds={opp.tag_ids || []} tags={tags || []}
+            onChange={ids => onTagsChange(opp, ids)} onCreateTag={onCreateTag} />
+        ) : (
+          (opp.tag_ids || []).map(id => (tags || []).find(t => t.id === id)).filter(Boolean).map(t => <TagBadge key={t.id} tag={t} />)
+        )}
         <OrigemBadge origem={opp.origem} />
         {opp.situacao && opp.situacao !== 'em_andamento' && <SituacaoBadge situacao={opp.situacao} />}
         <ForecastBadge opp={opp} etapaCat={etapaCat} onChange={v => onForecastChange && onForecastChange(opp, v)} />
@@ -6834,7 +7094,7 @@ function calcTaxaConversao(etapas, allOpps, etapaId) {
   return Math.round((passaram.length / entraram.length) * 100)
 }
 
-function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForecastChange }) {
+function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForecastChange, tags, onTagsChange, onCreateTag }) {
   const draggedId = useRef(null)
   const [overEtapa, setOverEtapa] = useState(null)
 
@@ -6868,6 +7128,9 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForec
             onCardDragStart={id => { draggedId.current = id }}
             onCardDragEnd={() => { draggedId.current = null; setOverEtapa(null) }}
             onForecastChange={onForecastChange}
+            tags={tags}
+            onTagsChange={onTagsChange}
+            onCreateTag={onCreateTag}
           />
         ))}
       </div>
@@ -6875,7 +7138,7 @@ function KanbanBoard({ etapas, filtered, allOpps, setModal, moveToStage, onForec
   )
 }
 
-function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd, onForecastChange }) {
+function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDragOver, onDrop, isDragOver, onCardDragStart, onCardDragEnd, onForecastChange, tags, onTagsChange, onCreateTag }) {
   const totalValor     = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
   const valorPonderado = opps.reduce((s,o)=>s+(parseFloat(o.valor)||0)*etapa.probabilidade/100,0)
   const taxaCor = taxa === null ? null : taxa >= 60 ? '#10B981' : taxa >= 30 ? '#F59E0B' : '#EF4444'
@@ -6907,7 +7170,7 @@ function KanbanColuna({ etapa, opps, taxa, colWidth, onAddOpp, onClickOpp, onDra
         </div>
       </div>
       <div style={{ ...k.cards, background: isDragOver ? etapa.cor+'08' : 'transparent', transition:'background 0.15s' }}>
-        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} etapaCat={etapa.categoria_forecast} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} onForecastChange={onForecastChange} />)}
+        {opps.map(o => <OppCard key={o.id} opp={o} cor={etapa.cor} etapaCat={etapa.categoria_forecast} onClick={()=>onClickOpp(o)} onDragStart={()=>onCardDragStart&&onCardDragStart(o.id)} onDragEnd={()=>onCardDragEnd&&onCardDragEnd()} onForecastChange={onForecastChange} tags={tags} onTagsChange={onTagsChange} onCreateTag={onCreateTag} />)}
         {opps.length===0 && <div style={{ textAlign:'center', padding:'24px 0', color:'var(--text-muted)', fontSize:12, opacity:0.6 }}>—</div>}
       </div>
       <button style={k.addBtn} onClick={()=>onAddOpp(etapa.id)}>+ Adicionar</button>
@@ -6927,9 +7190,10 @@ const k = {
 function FiltrosPanel({
   open, onClose, onClear,
   // campos nativos
-  etapas, responsaveis, oppsDoFunil,
+  etapas, responsaveis, oppsDoFunil, tags,
   filterEtapa,       setFilterEtapa,
   filterOrigem,      setFilterOrigem,
+  filterTags,        setFilterTags,
   filterSituacao,    setFilterSituacao,
   filterQualificacao, setFilterQualificacao,
   filterResponsavel, setFilterResponsavel,
@@ -7128,6 +7392,17 @@ function FiltrosPanel({
             />
           </Section>
 
+          {/* ── Tags ── */}
+          {tags.length > 0 && (
+            <Section title="Tags" hasValue={filterTags.length>0} onClear={()=>setFilterTags([])}>
+              <CheckList
+                options={tags.map(t=>({ value:t.id, label:t.nome }))}
+                values={filterTags}
+                onChange={setFilterTags}
+              />
+            </Section>
+          )}
+
           {/* ── Responsável ── */}
           <Section title="Responsável" hasValue={filterResponsavel.length>0} onClear={()=>setFilterResponsavel([])}>
             <CheckList
@@ -7304,11 +7579,11 @@ export default function Pipeline() {
   const funilPadrao  = FUNIS_ATIVOS.find(f => f.is_padrao) || FUNIS_ATIVOS[0]
   const [funilAtivo, setFunilAtivo]     = useLocalState('pipeline:funilAtivo', funilPadrao?.id || null)
   const [view, setViewRaw]               = useLocalState('pipeline:view', isMobile ? 'list' : 'kanban')
-  // Contato Canal só navega em lista — força mesmo se um valor antigo ('kanban') ficou salvo
-  const setView = isParceiro ? () => {} : setViewRaw
-  const viewEfetiva = isParceiro ? 'list' : view
+  const setView = setViewRaw
+  const viewEfetiva = view
   const [search, setSearch]             = useLocalState('pipeline:search', '')
   const [filterOrigem, setFilterOrigem]           = useLocalState('pipeline:filterOrigem2', [])
+  const [filterTags, setFilterTags]               = useLocalState('pipeline:filterTags', [])
   const [filterEtapa, setFilterEtapa]             = useLocalState('pipeline:filterEtapa2', [])
   const [filterSituacao, setFilterSituacao]       = useLocalState('pipeline:filterSituacao', [])
   const [filterQualificacao, setFilterQualificacao] = useLocalState('pipeline:filterQualificacao', [])
@@ -7340,6 +7615,7 @@ export default function Pipeline() {
 
   // ── dados via Supabase (com fallback mock automático) ────────────────────
   const { opps, save: saveOpp, remove: removeOpp, removeMany: removeManyOpps, moveToStage: moveToStageRaw, bulkMoveToStage, importMany: importOpps } = useOpportunities()
+  const { tags: allTags, save: saveTag } = useTags()
   const { companies, add: addCompany } = useCompanies()
   const { playbooks: playbooksParaGateAll } = usePlaybooks()
   const playbooksParaGate = playbooksParaGateAll.filter(p => (p.tipo || 'vendas') === 'vendas')
@@ -7356,7 +7632,7 @@ export default function Pipeline() {
   // ── campos personalizados de oportunidade (para FiltrosPanel) ───────────
   const [cfFields] = useCustomFields('oportunidade')
   // ── estado efêmero (não persiste) ────────────────────────────────────────
-  const { tarefas, save: saveTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
+  const { tarefas, save: saveTask, remove: deleteTask, bulkSetStatus: bulkSetTaskStatus } = useTasks()
   const { add: addMembroOpp } = useOppMembros()
   const [atividades, setAtividades]     = useState(MOCK_ATIVIDADES)
   const [filtrosOpen, setFiltrosOpen]   = useState(false)
@@ -7368,6 +7644,7 @@ export default function Pipeline() {
   const [bulkPlaybookModal, setBulkPlaybookModal]     = useState(false)
   const [bulkEquipeModal, setBulkEquipeModal]         = useState(false)
   const [bulkOrigemModal, setBulkOrigemModal]         = useState(false)
+  const [bulkTagsModal, setBulkTagsModal]             = useState(false)
   const [bulkProdutosModal, setBulkProdutosModal]     = useState(false)
   const [exportLogs, setExportLogs]     = useState([])
   const [showTray, setShowTray]         = useState(false)
@@ -7441,6 +7718,7 @@ export default function Pipeline() {
     let list = opps.filter(o => {
       if (String(o.funil_id) !== String(funilAtivo)) { return false }
       if (filterOrigem.length      && !filterOrigem.includes(o.origem))                          return false
+      if (filterTags.length        && !(o.tag_ids||[]).some(id => filterTags.includes(String(id)))) return false
       if (filterEtapa.length       && !filterEtapa.includes(String(o.etapa_id)))               return false
       if (filterSituacao.length    && !filterSituacao.includes(o.situacao||'em_andamento'))     return false
       if (filterQualificacao.length) {
@@ -7510,7 +7788,7 @@ export default function Pipeline() {
       if (sortBy==='titulo')     return a.titulo.localeCompare(b.titulo)
       return new Date(b.criado)-new Date(a.criado)
     })
-  }, [opps, funilAtivo, search, filterOrigem, filterEtapa, filterSituacao, filterQualificacao, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterValorMin, filterValorMax, filterTarefa, filterCF, sortBy])
+  }, [opps, funilAtivo, search, filterOrigem, filterTags, filterEtapa, filterSituacao, filterQualificacao, filterResponsavel, filterAbertura, filterAberturaIni, filterAberturaFim, filterPrazo, filterPrazoIni, filterPrazoFim, filterValorMin, filterValorMax, filterTarefa, filterCF, sortBy])
 
   // ── KPIs ──────────────────────────────────────────────────────────────────
   const totalValor      = filtered.reduce((s,o)=>s+(parseFloat(o.valor)||0),0)
@@ -7618,7 +7896,7 @@ export default function Pipeline() {
   , [opps, funilAtivo])
 
   const advancedFilterCount = [
-    filterOrigem.length, filterEtapa.length, filterSituacao.length, filterQualificacao.length, filterResponsavel.length,
+    filterOrigem.length, filterTags.length, filterEtapa.length, filterSituacao.length, filterQualificacao.length, filterResponsavel.length,
     filterAbertura||filterAberturaIni||filterAberturaFim ? 1 : 0,
     filterPrazo||filterPrazoIni||filterPrazoFim ? 1 : 0,
     filterValorMin||filterValorMax ? 1 : 0,
@@ -7629,7 +7907,7 @@ export default function Pipeline() {
 
   function clearAllFilters() {
     setSearch('')
-    setFilterOrigem([]); setFilterEtapa([]); setFilterSituacao([]); setFilterQualificacao([]); setFilterResponsavel([])
+    setFilterOrigem([]); setFilterTags([]); setFilterEtapa([]); setFilterSituacao([]); setFilterQualificacao([]); setFilterResponsavel([])
     setFilterAbertura(''); setFilterAberturaIni(''); setFilterAberturaFim('')
     setFilterPrazo(''); setFilterPrazoIni(''); setFilterPrazoFim('')
     setFilterValorMin(''); setFilterValorMax('')
@@ -7678,8 +7956,13 @@ export default function Pipeline() {
       return <span style={{ fontFamily:'var(--mono)', fontSize:12, color: atrasado?'var(--red)':urgente?'#D97706':'var(--text-soft)', fontWeight:(atrasado||urgente)?700:400 }}>{v?(atrasado?'⚠ ':urgente?'⏰ ':'')+fmtData(v):'—'}</span>
     } },
     { key: 'origem', label: 'Origem', render: v => <OrigemBadge origem={v} /> },
+    { key: 'tag_ids', label: 'Tags', sortable: false, render: (v, o) => (
+      isParceiro
+        ? <div style={{ display:'flex', flexWrap:'wrap', gap:4 }}>{(v||[]).map(id => allTags.find(t=>t.id===id)).filter(Boolean).map(t => <TagBadge key={t.id} tag={t} />)}</div>
+        : <TagQuickEdit tagIds={v||[]} tags={allTags} onChange={ids => saveOpp({ ...o, tag_ids: ids })} onCreateTag={saveTag} />
+    ) },
     { key: 'responsavel', label: 'Responsável', render: v => <span style={{ fontSize:12, color:'var(--text-soft)' }}>{v||'—'}</span> },
-  ], [etapas, FUNIS_ATIVOS])
+  ], [etapas, FUNIS_ATIVOS, allTags, isParceiro, saveOpp, saveTag])
 
   // ── Funil + Filtros + toggle de visão + Rotinas: mesmo bloco, mesma posição
   //    (dentro da barra de ações), pras duas visões — evita duas barras
@@ -7800,7 +8083,8 @@ export default function Pipeline() {
               ] },
               { key: 'etapa_id',     label: 'Etapa',               type: 'select', options: etapas.map(e => ({ value: e.id, label: e.nome })) },
               { key: 'responsavel',  label: 'Responsável',         type: 'text' },
-              { key: 'origem',       label: 'Origem',               type: 'select', options: ORIGENS.map(o => ({ value: o, label: o })) },
+              // Contato Canal não edita Origem (nem em lote)
+              ...(isParceiro ? [] : [{ key: 'origem', label: 'Origem', type: 'select', options: ORIGENS.map(o => ({ value: o, label: o })) }]),
               { key: 'valor',        label: 'Valor MRR',           type: 'number' },
               { key: 'prazo',        label: 'Prazo',                type: 'date' },
               { key: 'motivo_perda', label: 'Motivo da perda',     type: 'select', options: motivosPerdaBulk.map(m => ({ value: m, label: m })) },
@@ -7813,6 +8097,7 @@ export default function Pipeline() {
               { label:'📋 Playbook', onClick: ids=>abrirBulkModal(ids, setBulkPlaybookModal) },
               { label:'👥 Equipe',   onClick: ids=>abrirBulkModal(ids, setBulkEquipeModal) },
               { label:'🏷 Origem',   onClick: ids=>abrirBulkModal(ids, setBulkOrigemModal) },
+              { label:'🏷 Tags',     onClick: ids=>abrirBulkModal(ids, setBulkTagsModal) },
               { label:'📦 Produtos', onClick: ids=>abrirBulkModal(ids, setBulkProdutosModal) },
               { label:'Exportar selecionados', icon:<Download size={13} />, onClick: ids=>handleExport(ids) },
               { label:'Excluir', variant:'danger', onClick: ids=>bulkExcluir(ids) },
@@ -7964,6 +8249,9 @@ export default function Pipeline() {
           setModal={setModal}
           moveToStage={moveToStage}
           onForecastChange={(opp, cat) => saveOpp({ ...opp, categoria_forecast: cat })}
+          tags={allTags}
+          onTagsChange={isParceiro ? undefined : (opp, ids) => saveOpp({ ...opp, tag_ids: ids })}
+          onCreateTag={saveTag}
         />
       )}
 
@@ -7988,6 +8276,7 @@ export default function Pipeline() {
           tarefas={tarefas}
           onSaveTarefa={handleSaveTarefa}
           onToggleStatus={handleToggleStatus}
+          onDeleteTarefa={deleteTask}
           atividades={atividades}
           onAddAtividade={handleAddAtividade}
         />
@@ -8046,6 +8335,16 @@ export default function Pipeline() {
           saveOpp={saveOpp}
         />
       )}
+      {bulkTagsModal && (
+        <BulkTagsModal
+          oppIds={bulkModalIds}
+          opps={opps}
+          onClose={()=>setBulkTagsModal(false)}
+          saveOpp={saveOpp}
+          tags={allTags}
+          onCreateTag={saveTag}
+        />
+      )}
       {bulkProdutosModal && (
         <BulkProdutosModal
           oppIds={bulkModalIds}
@@ -8062,10 +8361,12 @@ export default function Pipeline() {
         etapas={etapas}
         responsaveis={responsaveis}
         oppsDoFunil={opps.filter(o => String(o.funil_id)===String(funilAtivo))}
+        tags={allTags}
         filterEtapa={filterEtapa}             setFilterEtapa={setFilterEtapa}
         filterSituacao={filterSituacao}       setFilterSituacao={setFilterSituacao}
         filterQualificacao={filterQualificacao} setFilterQualificacao={setFilterQualificacao}
         filterOrigem={filterOrigem}           setFilterOrigem={setFilterOrigem}
+        filterTags={filterTags}               setFilterTags={setFilterTags}
         filterResponsavel={filterResponsavel} setFilterResponsavel={setFilterResponsavel}
         filterAbertura={filterAbertura}       setFilterAbertura={setFilterAbertura}
         filterAberturaIni={filterAberturaIni} setFilterAberturaIni={setFilterAberturaIni}

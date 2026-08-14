@@ -60,7 +60,7 @@ function PerfilMultiSelect({ options, value, onChange }) {
   }
 
   const label = value.length === 0
-    ? 'Todos têm acesso'
+    ? 'Selecione ao menos um perfil'
     : options.filter(p => value.includes(p.id)).map(p => p.nome).join(', ')
 
   return (
@@ -131,6 +131,7 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOn
 
   function handleSave() {
     if (!draft.title.trim()) { alert('Título é obrigatório'); return }
+    if (!(draft.perfis_acesso || []).length) { alert('Selecione ao menos um perfil com acesso — sem isso, o documento fica exposto a todos os usuários.'); return }
     setSaving(true)
     const now = new Date().toISOString()
     onSave({ ...draft, updated_at: now, ...(isNew ? { created_at: now } : {}) })
@@ -261,7 +262,7 @@ function DocForm({ doc: initial, onClose, onSave, uploadFile, removeFile, readOn
 
         {!readOnly && (
         <FormSection label="Controle de Acesso">
-          <FormField label="Perfis com acesso" hint="Se nenhum for selecionado, todos têm acesso.">
+          <FormField label="Perfis com acesso" required hint="Selecione quem pode acessar este documento.">
             <PerfilMultiSelect
               options={perfisStore}
               value={draft.perfis_acesso || []}

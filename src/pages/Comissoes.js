@@ -2356,10 +2356,14 @@ export default function Comissoes() {
   // Sem profile (ainda carregando) NÃO assume admin — senão a aba "Regras"
   // pisca liberada antes de corrigir pro real (não-admin).
   const isAdmin = !!profile && (profile.papel === 'admin_isv' || profile.role === 'admin_isv')
+  const isParceiro = profile?.papel === 'parceiro' || profile?.papel === 'contato_canal'
   const { can } = usePermissions()
   // Aba "Regras de Configuração" tem persona própria (ex: Financeiro) — antes
   // só admin via isAdmin, agora também libera por permissão granular.
   const podeVerRegras = isAdmin || can('comissoes', 'ver_regras')
+  // Contato Canal só acompanha os próprios repasses — sem Aprovação de Lotes
+  // (gestão financeira interna) nem Regras de Configuração.
+  useEffect(() => { if (isParceiro && tab !== 'repasses') setTab('repasses') }, [isParceiro, tab, setTab])
 
   const totalPendente = useMemo(() =>
     payments.filter(p=>p.status==='pendente').reduce((s,p)=>s+Number(p.valor_comissao),0),
@@ -2417,7 +2421,7 @@ export default function Comissoes() {
       {/* ── Cabeçalho: navegação entre funcionalidades + ações, uma única linha ── */}
       <div style={{ display:'flex', alignItems:'flex-end', justifyContent:'space-between', gap:16, marginBottom:20, borderBottom:'1px solid var(--border)', flexWrap:'wrap' }}>
         <div style={{ display:'flex', gap:24 }}>
-          {TABS.filter(t => t.id !== 'regras' || podeVerRegras).map(t => {
+          {TABS.filter(t => (t.id !== 'regras' || podeVerRegras) && (t.id !== 'aprovacao' || !isParceiro)).map(t => {
             const active = tab === t.id
             return (
               <button
@@ -2453,7 +2457,7 @@ export default function Comissoes() {
       {tab === 'repasses' && (
         <TabRepasses payments={payments} setPayments={setPayments} rules={rules} personas={personas} onEdit={openPayment} period={period} isAdmin={isAdmin} profile={profile} />
       )}
-      {tab === 'aprovacao' && (
+      {tab === 'aprovacao' && !isParceiro && (
         <TabAprovacao payments={payments} setPayments={setPayments} isAdmin={isAdmin} onLog={registrar} onOpenRepasse={openPayment} bulkSetPaymentStatus={bulkSetPaymentStatus} />
       )}
       {tab === 'regras' && podeVerRegras && (

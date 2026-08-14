@@ -180,6 +180,9 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
   const { signOut } = useAuth()
   const { profile, loading: profileLoading } = useProfile()
   const { can }      = usePermissions()
+  // Contato Canal não configura o menu — nem reordena por drag, nem tem
+  // acesso ao painel "Personalizar menu".
+  const souParceiro = profile?.papel === 'parceiro' || profile?.papel === 'contato_canal'
   const navigate    = useNavigate()
   const inSettings  = !!useMatch('/settings/*')
   // Sem acesso ao restante de Configurações, o botão leva direto pra Minha Conta
@@ -345,7 +348,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                   onDrop={e => onDropOnGroupHeader(e, gIdx)}
                 >
                   {/* Grip do grupo */}
-                  {isHovered && !isEditing && (
+                  {isHovered && !isEditing && !souParceiro && (
                     <span
                       draggable
                       onDragStart={e => onGroupDragStart(e, gIdx)}
@@ -424,7 +427,7 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
                 return (
                   <div
                     key={item.path}
-                    draggable={!collapsed}
+                    draggable={!collapsed && !souParceiro}
                     onDragStart={e => onItemDragStart(e, gIdx, iIdx)}
                     onDragOver={e => onDragOverItem(e, gIdx, iIdx)}
                     onDrop={e => onDropOnItem(e, gIdx, iIdx)}
@@ -469,8 +472,8 @@ export default function Sidebar({ collapsed, onToggle, isMobile, onClose }) {
           )
         })}
 
-        {/* ── Personalizar menu ── */}
-        {!collapsed && (
+        {/* ── Personalizar menu — Contato Canal não configura o menu ── */}
+        {!collapsed && !souParceiro && (
           <div style={{ margin: '12px 8px 4px' }}>
             {!menuEditMode ? (
               <button

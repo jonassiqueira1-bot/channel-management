@@ -134,7 +134,7 @@ export function buildSeedPerms() {
     },
     native_parceiro: {
       dashboard:       { visualizar:F, ver_financeiro:F, exportar:F, apenas_proprios:T },
-      pipeline:        { visualizar:T, criar_editar:T, excluir:F, exportar:F, importar:F, ver_indicadores:F, apenas_proprios:T },
+      pipeline:        { visualizar:T, criar_editar:T, excluir:F, exportar:F, importar:F, ver_indicadores:T, apenas_proprios:T },
       metas:           { visualizar:T, ver_equipe:F, criar_editar:F, apenas_proprios:T },
       tarefas:         { visualizar:T, ver_equipe:F, criar_editar:T, excluir:F, apenas_proprios:T },
       acoes:           { visualizar:T, criar_editar:F, excluir:F, apenas_proprios:T },

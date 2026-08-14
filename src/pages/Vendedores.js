@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useLocalState } from '../hooks/useLocalState'
 import { useSellers } from '../hooks/useSellers'
 import { useParceiros } from '../hooks/useParceiros'
@@ -8,6 +9,10 @@ import { useAuditLog } from '../hooks/useAuditLog'
 import { useProfile } from '../hooks/useProfile'
 import { useEntityCustomFields } from '../hooks/useEntityCustomFields'
 import { useImportJobs, startImportJob, updateImportJob, finishImportJob } from '../hooks/useImportJobs'
+import { useHabilitacoes } from '../hooks/useHabilitacoes'
+import { useSellerHabilitacoes } from '../hooks/useSellerHabilitacoes'
+import { useSellerAcoesHistorico, useSellerOportunidadesHistorico } from '../hooks/useSellerHistorico'
+import { STATUS_ACAO } from '../data/mockAcoes'
 import { checkEmUso } from '../lib/checkUsage'
 import BrowseLayout from '../components/BrowseLayout'
 import SlideOver, { FormField, FormSection } from '../components/ui/SlideOver'
@@ -142,6 +147,15 @@ const STATUS_CFG = {
   afastado: { label: 'Afastado', color: '#F59E0B', bg: '#FFFBEB', text: '#92400E' },
 }
 
+// Situação de oportunidade — mesmas cores usadas em Pipeline.js, só pra
+// exibição na aba de histórico (sem depender daquele arquivo).
+const SITUACAO_OPP_CFG = {
+  em_andamento: { label: 'Em andamento', color: '#3B82F6' },
+  suspensa:     { label: 'Suspensa',     color: '#F59E0B' },
+  perdida:      { label: 'Perdida',      color: '#EF4444' },
+  ganha:        { label: 'Ganha',        color: '#10B981' },
+}
+
 const EMPTY_FORM = {
   nome: '', email: '', telefone: '', cpf: '',
   role: 'seller', regiao: '', status: 'ativo',
@@ -188,11 +202,23 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
   const [form, setForm] = useState(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
   const [saving, setSaving] = useState(false)
   const [errs, setErrs] = useState({})
+  const [tab, setTab] = useState('dados')
 
   useMemo(() => {
     setForm(initial ? { ...EMPTY_FORM, ...initial } : { ...EMPTY_FORM })
     setErrs({})
+    setTab('dados')
   }, [initial])
+
+  // Histórico e vínculos só existem pra um contato já cadastrado.
+  const tabs = [
+    { key: 'dados', label: 'Dados' },
+    ...(isNew ? [] : [
+      { key: 'habilitacoes',   label: 'Habilitações' },
+      { key: 'acoes',          label: 'Ações' },
+      { key: 'oportunidades',  label: 'Oportunidades' },
+    ]),
+  ]
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (errs[k]) setErrs(p => ({ ...p, [k]: '' })) }
 
@@ -240,6 +266,10 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
       title={isNew ? 'Novo Contato Canal' : form.nome || 'Editar Contato Canal'}
       subtitle={isNew ? 'Preencha os dados do contato' : ROLES[form.role]?.label}
       saveLabel={isNew ? 'Cadastrar contato' : 'Salvar alterações'}
+      tabs={tabs}
+      activeTab={tab}
+      onTabChange={setTab}
+      showFooter={tab === 'dados'}
       headerExtra={!isNew && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {form.email && (
@@ -254,6 +284,8 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
         </div>
       )}
     >
+      {tab === 'dados' && (
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 32 }}>
       <FormSection label="Dados Pessoais">
         <FormField label="Nome" required error={errs.nome} span={2}>
           <input className="so-field" value={form.nome} onChange={e => set('nome', e.target.value)} placeholder="Nome completo"
@@ -364,7 +396,224 @@ function ContatoCanalSlideOver({ open, initial, onSave, onClose, onDelete, onInv
           </div>
         </FormSection>
       )}
+      </div>
+      )}
+
+      {tab === 'habilitacoes' && !isNew && <TabSellerHabilitacoes seller_id={initial.id} />}
+      {tab === 'acoes' && !isNew && <TabSellerAcoesHistorico seller_id={initial.id} />}
+      {tab === 'oportunidades' && !isNew && <TabSellerOportunidadesHistorico seller_id={initial.id} />}
     </SlideOver>
+  )
+}
+
+// ─── Aba Habilitações (vínculo Contato Canal ↔ Habilitação) ──────────────────
+// Mirror de TabHabilitacoes (Parceiros.js), adaptada pra seller — Habilitações
+// hoje só se relacionavam a Parceiros; aqui é o mesmo padrão de vincular /
+// remover, só que ligado ao Contato Canal individualmente.
+function TabSellerHabilitacoes({ seller_id }) {
+  const { habilitacoes } = useHabilitacoes()
+  const { links, linkedIds, link, unlink, loading } = useSellerHabilitacoes(seller_id)
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const habilitacoesById = useMemo(
+    () => Object.fromEntries((habilitacoes || []).map(h => [String(h.id), h])),
+    [habilitacoes]
+  )
+
+  useEffect(() => {
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  function toggle(id) {
+    if (linkedIds.has(String(id))) unlink(id)
+    else link(id)
+  }
+
+  const selecionadas = (habilitacoes || []).filter(h => linkedIds.has(String(h.id)))
+  const label = selecionadas.length === 0
+    ? 'Selecione as habilitações…'
+    : selecionadas.map(h => h.nome).join(', ')
+
+  return (
+    <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '20px 24px' }}>
+      <FormField label="Habilitações" hint="Selecione uma ou mais habilitações para este Contato Canal.">
+        <div ref={ref} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            onClick={() => setOpen(o => !o)}
+            disabled={loading}
+            className="so-field"
+            style={{
+              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 8, textAlign: 'left', cursor: loading ? 'default' : 'pointer',
+              color: selecionadas.length ? 'var(--text)' : 'var(--text-muted)',
+            }}
+          >
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {loading ? 'Carregando…' : label}
+            </span>
+            <span style={{ fontSize: 10, flexShrink: 0 }}>{open ? '▲' : '▼'}</span>
+          </button>
+
+          {open && (
+            <div style={{
+              position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 200,
+              border: '1px solid var(--border)', borderRadius: 8, background: 'var(--surface)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: 260, overflowY: 'auto',
+            }}>
+              {(habilitacoes || []).length === 0 ? (
+                <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  Nenhuma habilitação cadastrada em Configurações.
+                </div>
+              ) : habilitacoes.map((h, idx) => {
+                const checked = linkedIds.has(String(h.id))
+                return (
+                  <label key={h.id} style={{
+                    display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', cursor: 'pointer',
+                    background: checked ? 'var(--accent-lite, #EFF6FF)' : 'var(--surface)',
+                    borderTop: idx > 0 ? '1px solid var(--border2)' : 'none',
+                  }}>
+                    <input type="checkbox" checked={checked} onChange={() => toggle(h.id)}
+                      style={{ width: 14, height: 14, flexShrink: 0, accentColor: 'var(--accent)' }} />
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13, color: checked ? 'var(--accent)' : 'var(--text)', fontWeight: checked ? 600 : 400 }}>{h.nome}</div>
+                      {h.descricao && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>{h.descricao}</div>}
+                    </div>
+                  </label>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </FormField>
+
+      {links.length > 0 && (
+        <div style={{ marginTop: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 1fr', gap: 8, padding: '0 12px 6px' }}>
+            {['Habilitação', 'Data', 'Origem'].map(h => (
+              <div key={h} style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>{h}</div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {links.map(l => {
+              const h = habilitacoesById[String(l.habilitacao_id)]
+              return (
+                <div key={l.id} style={{
+                  display: 'grid', gridTemplateColumns: '1.4fr 0.9fr 1fr', gap: 8, alignItems: 'center',
+                  padding: '9px 12px', borderRadius: 8, border: '1px solid var(--border2)', background: 'var(--surface-alt)',
+                }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {h?.nome || '(habilitação removida)'}
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', fontFamily: 'var(--mono)' }}>
+                    {l.created_at ? new Date(l.created_at).toLocaleDateString('pt-BR') : '—'}
+                  </div>
+                  {l.acao_id ? (
+                    <Link to="/acoes" style={{ fontSize: 12, color: 'var(--accent)', textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      🎓 {l.actions?.titulo || 'Ação'}
+                    </Link>
+                  ) : (
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Manual</span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Aba Ações (histórico read-only) ──────────────────────────────────────────
+// Só leitura — o vínculo (participante da Ação) é editado no cadastro de
+// Ações (aba Participantes), nunca por aqui.
+function TabSellerAcoesHistorico({ seller_id }) {
+  const { acoes, loading } = useSellerAcoesHistorico(seller_id)
+
+  if (loading) {
+    return <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
+  }
+  if (acoes.length === 0) {
+    return (
+      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+        Nenhuma Ação com este contato como participante.
+      </div>
+    )
+  }
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {acoes.map(a => {
+        const st = STATUS_ACAO[a.status] || { label: a.status, color: '#9A9590' }
+        const empresa = a.companies?.nome_fantasia || a.companies?.razao_social || ''
+        return (
+          <Link key={a.id} to="/acoes" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border2)',
+            background: 'var(--surface-alt)', textDecoration: 'none', color: 'inherit',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.titulo}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {empresa && <span>{empresa}</span>}
+                {a.data_prevista && <span>{new Date(a.data_prevista).toLocaleDateString('pt-BR')}</span>}
+              </div>
+            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: st.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+              {st.label}
+            </span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─── Aba Oportunidades (histórico read-only) ─────────────────────────────────
+// Só leitura — o vínculo (membro/equipe da oportunidade) é editado em
+// Pipeline (aba Equipe), nunca por aqui.
+function TabSellerOportunidadesHistorico({ seller_id }) {
+  const { oportunidades, loading } = useSellerOportunidadesHistorico(seller_id)
+
+  if (loading) {
+    return <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>Carregando...</div>
+  }
+  if (oportunidades.length === 0) {
+    return (
+      <div style={{ padding: '32px 20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+        Nenhuma Oportunidade com este contato como membro canal.
+      </div>
+    )
+  }
+  return (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {oportunidades.map(o => {
+        const st = SITUACAO_OPP_CFG[o.situacao] || { label: o.situacao, color: '#9A9590' }
+        const empresa = o.companies?.nome_fantasia || o.companies?.razao_social || ''
+        return (
+          <Link key={o.id} to="/pipeline" style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+            padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border2)',
+            background: 'var(--surface-alt)', textDecoration: 'none', color: 'inherit',
+          }}>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.titulo}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {empresa && <span>{empresa}</span>}
+                {o.valor > 0 && <span style={{ fontFamily: 'var(--mono)' }}>R$ {Number(o.valor).toLocaleString('pt-BR')}</span>}
+              </div>
+            </div>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: st.color, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
+              {st.label}
+            </span>
+          </Link>
+        )
+      })}
+    </div>
   )
 }
 

@@ -46,6 +46,64 @@ export function useFormLayout(entity) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Remove a seção "Financeiro" (sec_op_4) de instalações já existentes — os
+  // campos (Valor CDU/SMS/Serviço/Desconto) continuam em FIELDS_SEED, só a
+  // seção duplicada (que só renderizava null em Pipeline.js, já que os
+  // valores são mostrados de verdade pelo ValorFinanceiroSection) some.
+  useEffect(() => {
+    if (storedLayout.opportunities?.sections?.some(s => s.id === 'sec_op_4')) {
+      setStoredLayout(prev => ({
+        ...prev,
+        opportunities: {
+          ...prev.opportunities,
+          sections: prev.opportunities.sections.filter(s => s.id !== 'sec_op_4'),
+        },
+      }))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Adiciona o campo "Tags" (sf_op_tags) na seção Origem de instalações já
+  // existentes — sem isso, o campo migra pra FIELDS_SEED (fields abaixo já
+  // cobre isso) mas nunca aparece em nenhuma linha do layout salvo.
+  // A checagem "já tem?" e a escrita acontecem DENTRO do updater (usando
+  // `prev`, não o `storedLayout` de fora) pra ficar idempotente — em dev o
+  // StrictMode roda o efeito duas vezes com o mesmo snapshot de fora, e se a
+  // checagem olhasse pra fora dos dois disparos veriam "ainda não tem" e
+  // cada um adicionava sua própria linha, duplicando o campo (bug real que
+  // aconteceu aqui). Também remove duplicatas que já tenham sido gravadas
+  // por essa mesma causa antes do fix.
+  useEffect(() => {
+    setStoredLayout(prev => {
+      const opSections = prev.opportunities?.sections || []
+      if (!opSections.length) return prev
+      let vistoTags = false
+      let mudou = false
+      const sections = opSections.map(sec => {
+        const rows = sec.rows.filter(row => {
+          if (!row.includes('sf_op_tags')) return true
+          if (vistoTags) { mudou = true; return false }
+          vistoTags = true
+          return true
+        })
+        return rows.length !== sec.rows.length ? { ...sec, rows } : sec
+      })
+      if (!vistoTags) {
+        mudou = true
+        return {
+          ...prev,
+          opportunities: {
+            ...prev.opportunities,
+            sections: sections.map(sec => sec.id === 'sec_op_2' ? { ...sec, rows: [...sec.rows, ['sf_op_tags']] } : sec),
+          },
+        }
+      }
+      if (!mudou) return prev
+      return { ...prev, opportunities: { ...prev.opportunities, sections } }
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Migração única: reorganiza o layout de Oportunidades (antes 1 seção única
   // "Identificação" com todos os campos) na nova estrutura agrupada por contexto
   // (Identificação / Origem / Negociação / Financeiro). Detecta a estrutura antiga

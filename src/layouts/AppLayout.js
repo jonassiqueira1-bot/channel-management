@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { Outlet } from 'react-router-dom'
 import Sidebar from '../components/Sidebar'
 import AlertsInbox from '../components/AlertsInbox'
@@ -86,12 +86,19 @@ export default function AppLayout() {
           />
         )}
 
-        {/* ── Conteúdo principal ── */}
+        {/* ── Conteúdo principal ──
+            Suspense fica aqui (não em App.js) pra que o code-splitting por rota
+            (lazy()) suspenda só o conteúdo ao navegar — sem isso, o Suspense em
+            App.js envolvia toda a árvore autenticada (Sidebar, BranchProvider),
+            e cada navegação pra uma rota ainda não carregada desmontava layout
+            inteiro (nome da filial etc.) e recarregava profile/perms do zero. */}
         <main style={{
           ...s.main,
           padding: isMobile ? '16px 14px' : 28,
         }}>
-          <Outlet />
+          <Suspense fallback={null}>
+            <Outlet />
+          </Suspense>
         </main>
 
       </div>

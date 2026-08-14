@@ -14,6 +14,8 @@ import { useUsuarios } from '../hooks/useUsuarios'
 import { useSellers } from '../hooks/useSellers'
 import { useAcaoMembros } from '../hooks/useAcaoMembros'
 import { useAcaoModulos } from '../hooks/useAcaoModulos'
+import { useHabilitacoes } from '../hooks/useHabilitacoes'
+import { useAcaoHabilitacaoGrants } from '../hooks/useSellerHabilitacoes'
 import { useDocuments } from '../hooks/useDocuments'
 import SearchSelect from '../components/SearchSelect'
 import { getVideoEmbedUrl } from '../lib/videoEmbed'
@@ -134,6 +136,7 @@ const EMPTY_ACAO = {
   responsavel_id: 'u1', responsavel_nome: 'Lucas Ferreira',
   local: '', vagas: '', inscritos: 0,
   status: 'agendado',
+  habilitacao_id: null,
   tenant_id: 't1',
   custo_previsto: '',
   custos: [],
@@ -453,10 +456,11 @@ const PAPEL_PARTICIPANTE = [
   { value: 'responsavel',  label: 'Responsável'  },
 ]
 
-function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento = null }) {
+function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento = null, souParceiro = false, habilitacaoId = null }) {
   const { membros, add: addMembro, remove: removeMembro } = useAcaoMembros()
   const { sellers }  = useSellers()
   const { parceiros } = useParceiros()
+  const { grantedIds, grant, revoke } = useAcaoHabilitacaoGrants(acaoId, habilitacaoId)
   const [busca, setBusca] = useState('')
   const [selUser, setSelUser] = useState(null)
   const [papel, setPapel] = useState('participante')
@@ -522,7 +526,8 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento =
         {franquiaIdsSet.size > 0 && ' Só aparecem contatos das unidades/franquias envolvidas nesta Ação.'}
       </div>
 
-      {/* ── Form de adicionar ── */}
+      {/* ── Form de adicionar — Contato Canal só visualiza ── */}
+      {!souParceiro && (
       <div style={{ background:'var(--surface2)', border:'1px solid var(--border)', borderRadius:8, padding:12 }}>
         <div style={{ display:'grid', gridTemplateColumns:'1fr 160px auto', gap:8, alignItems:'flex-end' }}>
           <div ref={dropRef} style={{ position:'relative' }}>
@@ -579,6 +584,7 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento =
           </button>
         </div>
       </div>
+      )}
 
       {/* ── Lista ── */}
       {participantes.length === 0 ? (
@@ -625,10 +631,30 @@ function AcaoParticipantesTab({ acaoId, franquiaIds = [], progressoTreinamento =
                   background:'var(--surface2)', color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
                   {cfg.label}
                 </span>
-                <button onClick={() => removeMembro(mb.id)}
-                  style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px' }}
-                  onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
-                  onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                {habilitacaoId && !souParceiro && (() => {
+                  const habilitado = grantedIds.has(String(mb.user_id))
+                  // Só pode habilitar com 100% dos módulos concluídos — já
+                  // habilitado continua desmarcável mesmo que o progresso
+                  // tenha regredido depois (ex: item de módulo removido).
+                  const podeHabilitar = habilitado || progressoPct === 100
+                  return (
+                    <label title={podeHabilitar ? 'Concede a Habilitação selecionada em Dados a este participante' : 'Só pode habilitar com 100% dos módulos concluídos'}
+                      style={{ display:'flex', alignItems:'center', gap:5, fontSize:10.5, fontWeight:600,
+                        color: habilitado ? '#065F46' : 'var(--text-muted)', cursor: podeHabilitar ? 'pointer' : 'not-allowed',
+                        whiteSpace:'nowrap', flexShrink:0, opacity: podeHabilitar ? 1 : 0.5 }}>
+                      <input type="checkbox" checked={habilitado} disabled={!podeHabilitar}
+                        onChange={() => habilitado ? revoke(mb.user_id) : grant(mb.user_id)}
+                        style={{ width:13, height:13, accentColor:'#10B981', cursor: podeHabilitar ? 'pointer' : 'not-allowed' }} />
+                      Habilitado
+                    </label>
+                  )
+                })()}
+                {!souParceiro && (
+                  <button onClick={() => removeMembro(mb.id)}
+                    style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:14, padding:'0 4px' }}
+                    onMouseEnter={e => e.currentTarget.style.color='#EF4444'}
+                    onMouseLeave={e => e.currentTarget.style.color='var(--text-muted)'}>✕</button>
+                )}
               </div>
             )
           })}
@@ -774,9 +800,9 @@ function AcaoModulosTab({ acaoModulos, allDocs, responsaveisOpts, participantes,
                                     {playerAberto ? '✕ Fechar' : '▶ Assistir'}
                                   </button>
                                 ) : link && (
-                                  <a href={link} target="_blank" rel="noopener noreferrer"
+                                  <a href={link} download={doc?.title || true} target="_blank" rel="noopener noreferrer"
                                     style={{ padding:'4px 9px', borderRadius:6, border:'1px solid var(--border)', fontSize:10.5, color:'var(--accent)', textDecoration:'none', whiteSpace:'nowrap', fontFamily:'var(--font)', flexShrink:0 }}>
-                                    ↗ Abrir
+                                    ⬇ Baixar
                                   </a>
                                 )}
                                 {!souParceiro && (
@@ -864,6 +890,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
   const { centros: centrosCusto } = useCentrosCusto()
   const { membros: membrosDaAcao } = useAcaoMembros()
   const acaoModulos = useAcaoModulos(!isNew ? initial.id : null)
+  const { habilitacoes } = useHabilitacoes()
 
   // 'parceiro'/'contato_canal' = vendedor externo logado no portal, marcando
   // o próprio progresso; qualquer outro papel é equipe ISV gerenciando o
@@ -918,12 +945,14 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
   const ehTreinamento = form.tipo === 'treinamento'
   const modulosBadge = acaoModulos.modulos.length || undefined
 
+  // Contato Canal só visualiza e reporta consumo de treinamento (Módulos) —
+  // Tarefas e Custos são operação interna ISV, nunca aparecem pra ele.
   const tabs = [
     { key:'dados',      label:'Dados' },
-    { key:'tarefas',    label:'Tarefas',    badge: tarefasBadge },
+    ...(souParceiro ? [] : [{ key:'tarefas', label:'Tarefas', badge: tarefasBadge }]),
     { key:'participantes', label:'Participantes' },
     ...(ehTreinamento ? [{ key:'modulos', label:'Módulos', badge: modulosBadge }] : []),
-    { key:'custos',     label:'Custos',     badge: custosBadge },
+    ...(souParceiro ? [] : [{ key:'custos', label:'Custos', badge: custosBadge }]),
     { key:'documentos', label:'Documentos', badge: docsBadge },
     { key:'anexos',     label:'Anexos',     badge: anexosBadge },
   ]
@@ -970,7 +999,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       tabs={tabs}
       activeTab={tab}
       onTabChange={setTab}
-      headerActions={!isNew && (
+      showFooter={!souParceiro}
+      headerActions={!isNew && !souParceiro && (
         <button type="button" onClick={onDuplicate} title="Duplicar ação"
           style={{ display:'flex', alignItems:'center', gap:5, padding:'5px 10px', borderRadius:7,
             border:'1px solid var(--border)', background:'none', color:'var(--text-muted)',
@@ -1015,7 +1045,10 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
         const localPlaceholder = ehOnline ? 'Ex: Zoom, Teams, link da sala…' : 'Ex: Online / São Paulo'
 
         return (
-          <>
+          // Contato Canal só visualiza a aba Dados — nunca edita. fieldset
+          // disabled cascateia pra todo input/select/textarea/button nativo
+          // aqui dentro, incluindo os botões internos do MultiSelect.
+          <fieldset disabled={souParceiro} style={{ border:'none', margin:0, padding:0, minWidth:0 }}>
             <Bloco title="Informações gerais">
               <FormGrid cols={2}>
                 <FormField label="Tipo de ação" required>
@@ -1033,6 +1066,15 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                     ))}
                   </select>
                 </FormField>
+
+                {ehTreinamento && (
+                  <FormField label="Habilitação concedida" hint="Participantes marcados como Habilitados nesta Ação recebem essa Habilitação." style={{ gridColumn: 'span 2' }}>
+                    <select className="so-field" value={form.habilitacao_id || ''} onChange={e => set('habilitacao_id', e.target.value || null)}>
+                      <option value="">— Nenhuma —</option>
+                      {habilitacoes.map(h => <option key={h.id} value={h.id}>{h.nome}</option>)}
+                    </select>
+                  </FormField>
+                )}
 
                 <FormField label="Título" required error={errs.titulo} style={{ gridColumn: 'span 2' }}>
                   <input className="so-field" value={form.titulo} onChange={e => set('titulo', e.target.value)} placeholder="Ex: Treinamento Técnico Plataforma v3"
@@ -1110,7 +1152,7 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                 </FormField>
               </FormGrid>
             </Bloco>
-          </>
+          </fieldset>
         )
       })()}
 
@@ -1141,21 +1183,23 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
         const vinculados = allDocs.filter(d => documentoIds.includes(d.id))
         return (
           <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-            <div>
-              <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>
-                Documentos do módulo
-              </label>
-              <MultiSelect
-                options={allDocs.map(d => ({ value: d.id, label: d.title }))}
-                value={documentoIds}
-                onChange={v => set('documento_ids', v)}
-                placeholder="Selecionar documentos cadastrados…"
-              />
-              <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:4, display:'block' }}>
-                Não encontrou o documento? Cadastre em{' '}
-                <Link to="/documentos" style={{ color:'var(--accent)', fontWeight:600 }}>Documentos</Link> e volte pra vinculá-lo aqui.
-              </span>
-            </div>
+            {!souParceiro && (
+              <div>
+                <label style={{ fontSize:11, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em', display:'block', marginBottom:6 }}>
+                  Documentos do módulo
+                </label>
+                <MultiSelect
+                  options={allDocs.map(d => ({ value: d.id, label: d.title }))}
+                  value={documentoIds}
+                  onChange={v => set('documento_ids', v)}
+                  placeholder="Selecionar documentos cadastrados…"
+                />
+                <span style={{ fontSize:11, color:'var(--text-muted)', marginTop:4, display:'block' }}>
+                  Não encontrou o documento? Cadastre em{' '}
+                  <Link to="/documentos" style={{ color:'var(--accent)', fontWeight:600 }}>Documentos</Link> e volte pra vinculá-lo aqui.
+                </span>
+              </div>
+            )}
 
             {vinculados.length === 0 ? (
               <div style={{ textAlign:'center', color:'var(--text-muted)', fontSize:12, padding:'20px 0' }}>
@@ -1180,8 +1224,10 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                           ↗ Abrir
                         </a>
                       )}
-                      <button onClick={() => set('documento_ids', documentoIds.filter(id => id !== d.id))}
-                        style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1, flexShrink:0 }}>×</button>
+                      {!souParceiro && (
+                        <button onClick={() => set('documento_ids', documentoIds.filter(id => id !== d.id))}
+                          style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'0 4px', lineHeight:1, flexShrink:0 }}>×</button>
+                      )}
                     </div>
                   )
                 })}
@@ -1194,14 +1240,18 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       {/* ── Aba Anexos ── */}
       {tab === 'anexos' && (
         <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          {/* Área de upload */}
-          <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, padding:'28px 16px', border:'2px dashed var(--border)', borderRadius:10, background:'var(--surface2)', cursor: uploadingAnexo ? 'wait' : 'pointer', opacity: uploadingAnexo ? 0.6 : 1 }}>
-            <span style={{ fontSize:28 }}>📎</span>
-            <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{uploadingAnexo ? 'Enviando…' : 'Clique para anexar arquivo'}</span>
-            <span style={{ fontSize:11, color:'var(--text-muted)' }}>PDF, imagens, planilhas, documentos</span>
-            <input type="file" style={{ display:'none' }} disabled={uploadingAnexo || isNew} onChange={handleUploadAnexo} />
-          </label>
-          {isNew && <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center', margin:0 }}>Salve a ação primeiro para poder adicionar anexos.</p>}
+          {/* Área de upload — some pro Contato Canal, que só visualiza anexos */}
+          {!souParceiro && (
+            <>
+              <label style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:8, padding:'28px 16px', border:'2px dashed var(--border)', borderRadius:10, background:'var(--surface2)', cursor: uploadingAnexo ? 'wait' : 'pointer', opacity: uploadingAnexo ? 0.6 : 1 }}>
+                <span style={{ fontSize:28 }}>📎</span>
+                <span style={{ fontSize:13, fontWeight:600, color:'var(--text)' }}>{uploadingAnexo ? 'Enviando…' : 'Clique para anexar arquivo'}</span>
+                <span style={{ fontSize:11, color:'var(--text-muted)' }}>PDF, imagens, planilhas, documentos</span>
+                <input type="file" style={{ display:'none' }} disabled={uploadingAnexo || isNew} onChange={handleUploadAnexo} />
+              </label>
+              {isNew && <p style={{ fontSize:11, color:'var(--text-muted)', textAlign:'center', margin:0 }}>Salve a ação primeiro para poder adicionar anexos.</p>}
+            </>
+          )}
 
           {/* Lista de anexos */}
           {(form.anexos || []).length === 0
@@ -1213,7 +1263,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
                   <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ fontSize:12, fontWeight:600, color:'var(--accent)', textDecoration:'none', display:'block', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.nome}</a>
                   <span style={{ fontSize:10, color:'var(--text-muted)' }}>{a.em ? new Date(a.em).toLocaleDateString('pt-BR') : ''} · {a.tamanho ? (a.tamanho / 1024).toFixed(0) + ' KB' : ''}</span>
                 </div>
-                <button onClick={() => removeAnexo(i)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'2px 4px', flexShrink:0 }}>×</button>
+                {!souParceiro && (
+                  <button onClick={() => removeAnexo(i)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:16, padding:'2px 4px', flexShrink:0 }}>×</button>
+                )}
               </div>
             ))
           }
@@ -1241,7 +1293,9 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
       {tab === 'participantes' && !isNew && (
         <AcaoParticipantesTab acaoId={initial.id}
           franquiaIds={[String(initial.empresa_id), ...(initial.franquias_adicionais_ids || []).map(String)].filter(Boolean)}
-          progressoTreinamento={ehTreinamento ? { itens: acaoModulos.itens, progresso: acaoModulos.progresso } : null} />
+          progressoTreinamento={ehTreinamento ? { itens: acaoModulos.itens, progresso: acaoModulos.progresso } : null}
+          souParceiro={souParceiro}
+          habilitacaoId={ehTreinamento ? form.habilitacao_id : null} />
       )}
       {tab === 'participantes' && isNew && (
         <div style={{ textAlign:'center', padding:'40px 0', color:'var(--text-muted)' }}>
@@ -1273,6 +1327,8 @@ function AcaoSlideOver({ open, initial, onSave, onClose, onDelete, onDuplicate, 
 
 // ─── Página principal ─────────────────────────────────────────────────────────
 export default function Acoes() {
+  const { profile } = useProfile()
+  const souParceiro = profile?.papel === 'parceiro' || profile?.papel === 'contato_canal'
   const { acoes, save: saveAcao, remove: deleteAcao } = useActions()
   const { tarefas, save: saveTarefa, remove: deleteTarefa } = useTasks()
   const { registrar: log } = useAuditLog()
@@ -1683,8 +1739,8 @@ export default function Acoes() {
   // ── View por Franquias ────────────────────────────────────────────────────
   const viewFranquias = (
     <div style={{ padding:'0 28px 24px', display:'flex', flexDirection:'column', gap:20 }}>
-      {/* KPIs */}
-      <div style={{ paddingTop:20 }}>{kpis}</div>
+      {/* KPIs — Contato Canal não vê indicadores */}
+      {!souParceiro && <div style={{ paddingTop:20 }}>{kpis}</div>}
 
       {/* Barra de busca + toggle + botão */}
       <div style={{ display:'flex', gap:10, alignItems:'center' }}>
@@ -1708,7 +1764,7 @@ export default function Acoes() {
             </button>
           ))}
         </div>
-        <Button onClick={() => { setEditando(null); setSlideOpen(true) }}>+ Nova Ação</Button>
+        {!souParceiro && <Button onClick={() => { setEditando(null); setSlideOpen(true) }}>+ Nova Ação</Button>}
       </div>
 
       {porFranquia.length === 0 && (
@@ -1889,7 +1945,7 @@ export default function Acoes() {
         <BrowseLayout
           modulo="acoes"
           storageKey="acoes"
-          kpis={kpis}
+          kpis={souParceiro ? undefined : kpis}
           kpisLabel="Indicadores"
           columns={columns}
           data={lista}
@@ -1902,14 +1958,14 @@ export default function Acoes() {
           onNew={() => { setEditando(null); setSlideOpen(true) }}
           newLabel="Nova Ação"
           onRowClick={row => { setEditando(row); setSlideOpen(true) }}
-          bulkEditFields={[
+          bulkEditFields={souParceiro ? undefined : [
             { key: 'status', label: 'Status', type: 'select',
               options: Object.entries(STATUS_ACAO).map(([k, v]) => ({ value: k, label: v.label })) },
             { key: 'data_inicio', label: 'Data de início', type: 'date' },
           ]}
-          onBulkEdit={(ids, changes) =>
+          onBulkEdit={souParceiro ? undefined : ((ids, changes) =>
             ids.forEach(id => { const a = acoes.find(a => a.id === id); if (a) saveAcao({ ...a, ...changes }) })
-          }
+          )}
           renderCard={renderCard}
           groupBy={groupByKey === 'none' ? undefined : (row => groupByKey === 'status'
             ? (STATUS_ACAO[row.status]?.label || row.status)

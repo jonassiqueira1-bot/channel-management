@@ -32,6 +32,7 @@ export const FIELDS_SEED = [
   { id:'sf_op_etapa',    entity:'opportunities', field_key:'etapa_id',             label:'Etapa do Funil',        field_type:'text',     options:[], is_required:false, is_system:true  },
   { id:'sf_op_origem',   entity:'opportunities', field_key:'origem',               label:'Origem',                field_type:'select',   options:['Inbound','Outbound','Canal','Indicação','Evento'], is_required:false, is_system:false },
   { id:'sf_op_campanha', entity:'opportunities', field_key:'campanha_id',          label:'Campanha',              field_type:'select',   options:[], is_required:false, is_system:false },
+  { id:'sf_op_tags',     entity:'opportunities', field_key:'tag_ids',              label:'Tags',                  field_type:'tags',     options:[], is_required:false, is_system:false },
   { id:'sf_op_prazo',    entity:'opportunities', field_key:'prazo',                label:'Prazo de Fechamento',   field_type:'date',     options:[], is_required:false, is_system:false },
   { id:'sf_op_cdu',      entity:'opportunities', field_key:'valor_cdu',            label:'Valor CDU',             field_type:'number',   options:[], is_required:false, is_system:true  },
   { id:'sf_op_sms',      entity:'opportunities', field_key:'valor_sms',            label:'Valor SMS',             field_type:'number',   options:[], is_required:false, is_system:true  },
@@ -158,6 +159,7 @@ export const LAYOUT_SEED = {
         id: 'sec_op_2', label: 'Origem',
         rows: [
           ['sf_op_origem', 'sf_op_campanha'],
+          ['sf_op_tags'],
         ],
       },
       {
@@ -167,13 +169,12 @@ export const LAYOUT_SEED = {
           ['sf_op_prazo',    'sf_op_motivo'],
         ],
       },
-      {
-        id: 'sec_op_4', label: 'Financeiro',
-        rows: [
-          ['sf_op_cdu',      'sf_op_sms'],
-          ['sf_op_servico',  'sf_op_desconto'],
-        ],
-      },
+      // Seção "Financeiro" (sec_op_4) removida — os campos (sf_op_cdu/sms/
+      // servico/desconto) continuam existindo em FIELDS_SEED, mas já são
+      // exibidos de verdade pelo ValorFinanceiroSection ("Composição do
+      // valor") em Pipeline.js; nesta seção eles só renderizavam null
+      // (ver case 'valor_cdu' etc em Pipeline.js), sobrando um cabeçalho
+      // vazio sem sentido.
     ],
   },
   projects: {

@@ -85,7 +85,7 @@ export const PAPEIS_ROTAS = {
   financeiro: ['/comissoes', '/pagamentos', '/contratos'],
   cs:         ['/customer-success'],
   projetos:   ['/projetos'],
-  contato_canal: ['/pipeline', '/playbooks', '/documentos', '/acoes', '/settings'],
+  contato_canal: ['/pipeline', '/playbooks', '/documentos', '/acoes', '/comissoes', '/settings'],
 }
 
 // Perfil de Acesso (perfis_acesso.slug) esperado por Papel — usado tanto pra
