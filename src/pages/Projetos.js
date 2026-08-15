@@ -1778,9 +1778,12 @@ function fmtBRL(v) {
   return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL', maximumFractionDigits:0 }).format(v || 0)
 }
 
+const FINANCEIRO_KPIS_KEY = 'projects:financeiro_kpis_aberto_v1'
+
 function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   const myLogs = timeLogs.filter(l => l.project_id === projeto.id)
   const { centros: centrosCusto } = useCentrosCusto()
+  const [kpisAbertos, setKpisAbertos] = useLocalState(FINANCEIRO_KPIS_KEY, true)
 
   // Custo/hora por projeto — salvo em localStorage
   const [custoHoraMap, setCustoHoraMap] = useLocalState(CUSTO_HORA_KEY, {})
@@ -1903,15 +1906,29 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
-        {kpis.map(k => (
-          <div key={k.label} style={{ padding: '14px 16px', background: 'var(--surface2)',
-            borderRadius: 10, border: '1px solid var(--border2)', borderTop: `3px solid ${k.color}` }}>
-            <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 3 }}>{k.label}</div>
-            {k.hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{k.hint}</div>}
+      <div>
+        <button type="button" onClick={() => setKpisAbertos(o => !o)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%',
+            padding: '0 0 8px', background: 'none', border: 'none', cursor: 'pointer', userSelect: 'none', fontFamily: 'var(--font)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 'var(--text-xs)', fontWeight: 700,
+            letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+            <span style={{ width: 3, height: 12, borderRadius: 2, background: 'var(--accent)', flexShrink: 0 }} />
+            Indicadores
+          </span>
+          {kpisAbertos ? <ChevronUp size={13} color="var(--text-muted)" /> : <ChevronDown size={13} color="var(--text-muted)" />}
+        </button>
+        {kpisAbertos && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 10 }}>
+            {kpis.map(k => (
+              <div key={k.label} style={{ padding: '14px 16px', background: 'var(--surface2)',
+                borderRadius: 10, border: '1px solid var(--border2)', borderTop: `3px solid ${k.color}` }}>
+                <div style={{ fontSize: 18, fontWeight: 800, fontFamily: 'var(--mono)', color: k.color }}>{k.value}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 3 }}>{k.label}</div>
+                {k.hint && <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{k.hint}</div>}
+              </div>
+            ))}
           </div>
-        ))}
+        )}
       </div>
 
       {/* Aviso de horas pendentes */}
