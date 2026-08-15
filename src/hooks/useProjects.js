@@ -63,6 +63,20 @@ function projectToRow(p, tenantId, branchId) {
       total_hours_estimated: Number(p.total_hours_estimated) || 0,
       total_hours_executed:  Number(p.total_hours_executed)  || 0,
       centro_custo_id:       p.centro_custo_id || null,
+      // Preserva o snapshot financeiro (gravado separadamente pela aba
+      // Financeiro) — sem isso, qualquer save() fora dessa aba (ex: editar
+      // nome, status, trocar Centro de Custo) apagava esses campos.
+      fin_custo_hora:        p.fin_custo_hora        ?? null,
+      fin_valor_contrato:    p.fin_valor_contrato    ?? null,
+      fin_custo_realizado:   p.fin_custo_realizado   ?? null,
+      fin_receita_faturada:  p.fin_receita_faturada  ?? null,
+      fin_margem_bruta:      p.fin_margem_bruta      ?? null,
+      fin_margem_pct:        p.fin_margem_pct        ?? null,
+      fin_custo_forecast:    p.fin_custo_forecast    ?? null,
+      fin_margem_forecast:   p.fin_margem_forecast   ?? null,
+      fin_horas_aprovadas:   p.fin_horas_aprovadas   ?? null,
+      fin_horas_executadas:  p.fin_horas_executadas  ?? null,
+      fin_atualizado_em:     p.fin_atualizado_em     || null,
     },
   }
 }

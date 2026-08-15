@@ -1829,30 +1829,38 @@ function TabFinanceiro({ projeto, timeLogs, onUpdate }) {
   const custoForecast = Number(projeto.total_hours_estimated || 0) * custoHora
   const margemForecast = valorContrato - custoForecast
 
-  // Sincroniza campos financeiros em custom_fields do projeto no Supabase
+  // Sincroniza campos financeiros em custom_fields do projeto no Supabase.
+  // Monta o objeto completo a partir do `projeto` já carregado localmente,
+  // em vez de um SELECT prévio — evita a corrida com qualquer save()
+  // concorrente (ex: trocar o Centro de Custo) que apagava campos escritos
+  // entre a leitura e a escrita deste efeito.
   useEffect(() => {
     if (!projeto?.id) return
-    supabase.from('projects').select('custom_fields').eq('id', projeto.id).single()
-      .then(({ data }) => {
-        const cf = data?.custom_fields || {}
-        supabase.from('projects').update({
-          custom_fields: {
-            ...cf,
-            fin_custo_hora:       custoHora,
-            fin_valor_contrato:   valorContrato,
-            fin_custo_realizado:  custoRealizado,
-            fin_receita_faturada: receitaFaturada,
-            fin_margem_bruta:     margemBruta,
-            fin_margem_pct:       Math.round(margemPct * 100) / 100,
-            fin_custo_forecast:   custoForecast,
-            fin_margem_forecast:  margemForecast,
-            fin_horas_aprovadas:  Math.round(totalHorasAprov * 100) / 100,
-            fin_horas_executadas: Math.round(totalHorasExe * 100) / 100,
-            fin_atualizado_em:    new Date().toISOString(),
-          }
-        }).eq('id', projeto.id)
-      })
-  }, [projeto.id, custoHora, valorContrato, custoRealizado, receitaFaturada, margemBruta, custoForecast, margemForecast, totalHorasAprov, totalHorasExe])
+    supabase.from('projects').update({
+      custom_fields: {
+        company_nome:          projeto.company_nome,
+        franchise_id:          projeto.franchise_id,
+        franchise_nome:        projeto.franchise_nome,
+        opportunity_id:        projeto.opportunity_id,
+        phase:                 projeto.phase || 'iniciacao',
+        current_phase_index:   projeto.current_phase_index || 1,
+        total_hours_estimated: Number(projeto.total_hours_estimated) || 0,
+        total_hours_executed:  Number(projeto.total_hours_executed)  || 0,
+        centro_custo_id:       projeto.centro_custo_id || null,
+        fin_custo_hora:       custoHora,
+        fin_valor_contrato:   valorContrato,
+        fin_custo_realizado:  custoRealizado,
+        fin_receita_faturada: receitaFaturada,
+        fin_margem_bruta:     margemBruta,
+        fin_margem_pct:       Math.round(margemPct * 100) / 100,
+        fin_custo_forecast:   custoForecast,
+        fin_margem_forecast:  margemForecast,
+        fin_horas_aprovadas:  Math.round(totalHorasAprov * 100) / 100,
+        fin_horas_executadas: Math.round(totalHorasExe * 100) / 100,
+        fin_atualizado_em:    new Date().toISOString(),
+      }
+    }).eq('id', projeto.id)
+  }, [projeto, custoHora, valorContrato, custoRealizado, receitaFaturada, margemBruta, custoForecast, margemForecast, totalHorasAprov, totalHorasExe])
 
   // Custo por analista
   const porAnalista = useMemo(() => {
