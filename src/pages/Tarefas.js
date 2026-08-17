@@ -1160,7 +1160,7 @@ function ConfigHorarioPopover({ horaRange, onSave, onClose }) {
   return (
     <>
       <div style={{ position:'fixed', inset:0, zIndex:1199 }} onClick={onClose}/>
-      <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:1200, width:250,
+      <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:1200, width:250,
         background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
         boxShadow:'0 8px 24px rgba(0,0,0,0.14)', padding:14 }}>
         <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>Faixa de horários exibida</div>
