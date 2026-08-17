@@ -62,6 +62,7 @@ function rowToTask(row) {
     // sem isso, toda tarefa criada pela UI ficava fora da grade do Calendário.
     prazo:            row.prazo || row.custom_fields?.data_inicio?.slice(0, 10) || '',
     data_inicio:      row.custom_fields?.data_inicio || '',
+    duracao_min:      row.custom_fields?.duracao_min || null,
     responsavel:      row.responsavel || '',
     responsavel_id:   row.custom_fields?.responsavel_id || null,
     responsavel_nome: row.custom_fields?.responsavel_nome || row.responsavel || '',
@@ -90,6 +91,7 @@ function taskToRow(t, tenantId, branchId) {
     concluida_em:  t.concluida_em || null,
     custom_fields: {
       data_inicio:      t.data_inicio || null,
+      duracao_min:      t.duracao_min || null,
       responsavel_id:   t.responsavel_id || null,
       responsavel_nome: t.responsavel_nome || t.responsavel || null,
     },

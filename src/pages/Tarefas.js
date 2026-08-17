@@ -898,45 +898,61 @@ function useAlturaContainer(ref, ativo) {
 // renders: como recebe Pointer Capture no pointerdown, se fosse recriado a
 // cada render (ex: a cada pointermove durante o arraste) o React desmontaria
 // o elemento que segurava a captura e o gesto de arrastar quebraria no meio.
-function BlocoTarefa({ t, dataStr, fantasma, hoje8, agoraHoraDecimal, horaBase, alturaHora, onEdit, onIniciar, onMover, onSoltar }) {
+function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, horaEfetiva, duracaoEfetiva,
+  hoje8, agoraHoraDecimal, horaBase, alturaHora, arrastando, redimensionando,
+  onEdit, onIniciarDrag, onMoverDrag, onSoltarDrag, onIniciarResize, onMoverResize, onSoltarResize }) {
   const [hover, setHover] = useState(false)
   const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
-  const passado = (dataStr < hoje8 || (dataStr === hoje8 && t._hora < agoraHoraDecimal))
+  const passado = (dataStr < hoje8 || (dataStr === hoje8 && horaEfetiva < agoraHoraDecimal))
     && t.status !== 'concluida' && t.status !== 'cancelada'
-  const largura = 100 / t._totalRaias
-  const h = Math.floor(t._hora), m = Math.round((t._hora % 1) * 60)
+  const larguraDia = 100 / numDias
+  const larguraRaia = larguraDia / totalRaias
+  const leftPct = colIdx * larguraDia + raia * larguraRaia
+  const h = Math.floor(horaEfetiva), m = Math.round((horaEfetiva % 1) * 60)
+  const ativo = arrastando || redimensionando
   return (
     <div
-      onClick={e => { e.stopPropagation(); if (!fantasma) onEdit(t) }}
+      data-dia={dataDia}
+      onClick={e => { e.stopPropagation(); if (!ativo) onEdit(t) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
-      style={{ position:'absolute', top:(t._hora - horaBase) * alturaHora + 1,
-        height: (DURACAO_PADRAO_MIN / 60) * alturaHora - 2,
-        left:`calc(${t._raia * largura}% + 2px)`, width:`calc(${largura}% - 4px)`,
+      style={{ position:'absolute', pointerEvents:'auto',
+        top:(horaEfetiva - horaBase) * alturaHora + 1,
+        height: Math.max(14, (duracaoEfetiva / 60) * alturaHora - 2),
+        left:`calc(${leftPct}% + 2px)`, width:`calc(${larguraRaia}% - 4px)`,
         background: passado ? '#FEE2E2' : cfg.bg, color: passado ? '#991B1B' : cfg.text,
         borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`, borderRadius:4,
-        opacity: fantasma ? 0.85 : 1, boxShadow: fantasma ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+        opacity: ativo ? 0.9 : 1, boxShadow: ativo ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
         fontSize:10, fontWeight:600, padding:'2px 5px', overflow:'hidden',
-        cursor: fantasma ? 'grabbing' : 'pointer', zIndex: fantasma ? 3 : 1 }}>
-      <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight: fantasma ? 0 : 12 }}>
+        cursor: arrastando ? 'grabbing' : 'pointer', zIndex: ativo ? 3 : 1 }}>
+      <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight:12 }}>
         {String(h).padStart(2,'0')}:{String(m).padStart(2,'0')} {t.titulo}
       </span>
       {/* Alça de arrastar — só aparece no hover, no canto direito. O resto do card abre a edição. */}
-      {!fantasma && (
-        <div
-          onPointerDown={e => { e.stopPropagation(); onIniciar(e, t, dataStr) }}
-          onPointerMove={onMover}
-          onPointerUp={onSoltar}
-          onClick={e => e.stopPropagation()}
-          title="Arrastar para reagendar"
-          style={{ position:'absolute', top:0, right:0, bottom:0, width:13,
-            display:'flex', alignItems:'center', justifyContent:'center',
-            cursor:'grab', opacity: hover ? 1 : 0, transition:'opacity .12s',
-            background:'rgba(0,0,0,0.10)', touchAction:'none' }}>
-          <span style={{ fontSize:8, lineHeight:1 }}>⋮⋮</span>
-        </div>
-      )}
+      <div
+        onPointerDown={e => { e.stopPropagation(); onIniciarDrag(e, t, dataStr) }}
+        onPointerMove={onMoverDrag}
+        onPointerUp={onSoltarDrag}
+        onClick={e => e.stopPropagation()}
+        title="Arrastar para reagendar"
+        style={{ position:'absolute', top:0, right:0, bottom:0, width:13,
+          display:'flex', alignItems:'center', justifyContent:'center',
+          cursor:'grab', opacity: hover ? 1 : 0, transition:'opacity .12s',
+          background:'rgba(0,0,0,0.10)', touchAction:'none' }}>
+        <span style={{ fontSize:8, lineHeight:1 }}>⋮⋮</span>
+      </div>
+      {/* Alça de redimensionar — borda inferior, estica a duração do compromisso */}
+      <div
+        onPointerDown={e => { e.stopPropagation(); onIniciarResize(e, t) }}
+        onPointerMove={onMoverResize}
+        onPointerUp={onSoltarResize}
+        onClick={e => e.stopPropagation()}
+        title="Arrastar para mudar a duração"
+        style={{ position:'absolute', left:0, right:0, bottom:0, height:6,
+          cursor:'ns-resize', opacity: hover ? 1 : 0, transition:'opacity .12s',
+          background:'rgba(0,0,0,0.14)', touchAction:'none' }}
+      />
     </div>
   )
 }
@@ -961,10 +977,17 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
   const agoraDataStr = dataParaStr(agora)
   const agoraHoraDecimal = agora.getHours() + agora.getMinutes() / 60
 
-  // Arrastar um bloco pra reagendar — usa Pointer Capture no próprio bloco,
-  // então o move/up continuam chegando nele mesmo que o cursor saia da
-  // célula original (sem precisar de listener em document).
+  // Arrastar um bloco pra reagendar (dia/horário) ou redimensionar (duração)
+  // — usa Pointer Capture no próprio bloco, então o move/up continuam
+  // chegando nele mesmo que o cursor saia da célula original (sem precisar
+  // de listener em document). IMPORTANTE: o bloco arrastado/redimensionado
+  // NUNCA é removido da lista normal (nem duplicado em "fantasma") — ele só
+  // usa a posição/duração em edição enquanto isso acontece. Antes disso, o
+  // bloco original era filtrado da coluna assim que o drag começava, o que
+  // desmontava o elemento que segurava a captura do ponteiro e quebrava o
+  // gesto no meio (o pointerup nunca chegava a disparar).
   const [drag, setDrag] = useState(null) // { tarefa, origDataStr, startY, startHora, novaHora, novoDataStr } | null
+  const [resize, setResize] = useState(null) // { tarefa, startY, startDuracao, novaDuracao } | null
 
   function iniciarArraste(e, t, dataStrOrigem) {
     e.stopPropagation()
@@ -984,9 +1007,30 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
     if (drag.novaHora !== drag.startHora || drag.novoDataStr !== drag.origDataStr) {
       const hh = String(Math.floor(drag.novaHora)).padStart(2, '0')
       const mm = String(Math.round((drag.novaHora % 1) * 60)).padStart(2, '0')
-      onReschedule(drag.tarefa, `${drag.novoDataStr}T${hh}:${mm}`)
+      onReschedule(drag.tarefa, `${drag.novoDataStr}T${hh}:${mm}`, drag.tarefa.duracao_min || DURACAO_PADRAO_MIN)
     }
     setDrag(null)
+  }
+
+  function iniciarResize(e, t) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    const duracaoAtual = t.duracao_min || DURACAO_PADRAO_MIN
+    setResize({ tarefa: t, startY: e.clientY, startDuracao: duracaoAtual, novaDuracao: duracaoAtual })
+  }
+  function moverResize(e) {
+    if (!resize) return
+    const deltaMin = ((e.clientY - resize.startY) / alturaHora) * 60
+    const snap = Math.round((resize.startDuracao + deltaMin) / 15) * 15
+    const novaDuracao = Math.min(12 * 60, Math.max(15, snap))
+    setResize(r => r && ({ ...r, novaDuracao }))
+  }
+  function soltarResize() {
+    if (!resize) return
+    if (resize.novaDuracao !== resize.startDuracao) {
+      onReschedule(resize.tarefa, resize.tarefa.data_inicio, resize.novaDuracao)
+    }
+    setResize(null)
   }
 
   return (
@@ -1022,69 +1066,82 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
 
       {/* Corpo com rolagem própria (faixa padrão) ou já ajustado à altura disponível (faixa customizada) */}
       <div ref={scrollRef} style={{ flex:1, minHeight:0, overflowY:'auto' }}>
-        <div style={{ display:'grid', gridTemplateColumns:`52px repeat(${dias.length},1fr)` }}>
-          {/* Coluna de horas */}
-          <div>
-            {horasVisiveis.map(h => (
-              <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)', position:'relative' }}>
-                <span style={{ position:'absolute', top:-8, left:0, right:0, textAlign:'center',
-                  fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)',
-                  background:'var(--surface)', borderRadius:4, padding:'1px 0' }}>
-                  {String(h).padStart(2,'0')}:00
-                </span>
-              </div>
-            ))}
+        <div style={{ position:'relative' }}>
+          {/* Camada de fundo: linhas de hora + clique-pra-criar por dia */}
+          <div style={{ display:'grid', gridTemplateColumns:`52px repeat(${dias.length},1fr)` }}>
+            <div>
+              {horasVisiveis.map(h => (
+                <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)', position:'relative' }}>
+                  <span style={{ position:'absolute', top:-8, left:0, right:0, textAlign:'center',
+                    fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)',
+                    background:'var(--surface)', borderRadius:4, padding:'1px 0' }}>
+                    {String(h).padStart(2,'0')}:00
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {dias.map(data => {
+              const dataStr = dataParaStr(data)
+              const mostrarAgora = dataStr === agoraDataStr
+              return (
+                <div key={dataStr} data-dia={dataStr}
+                  style={{ position:'relative', borderLeft:'1px solid var(--border2)', cursor:'pointer' }}
+                  onClick={e => {
+                    const rect = e.currentTarget.getBoundingClientRect()
+                    const h = Math.min(horaRange.fim - 1, Math.max(horaRange.inicio,
+                      horaRange.inicio + Math.floor((e.clientY - rect.top) / alturaHora)))
+                    onNew({ prazo: dataStr, data_inicio: `${dataStr}T${String(h).padStart(2,'0')}:00` })
+                  }}>
+                  {horasVisiveis.map(h => (
+                    <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)' }}/>
+                  ))}
+                  {mostrarAgora && agoraHoraDecimal >= horaRange.inicio && agoraHoraDecimal < horaRange.fim && (
+                    <div style={{ position:'absolute', left:0, right:0, top:(agoraHoraDecimal - horaRange.inicio) * alturaHora, zIndex:2 }}>
+                      <div style={{ borderTop:'2px solid #EF4444', position:'relative' }}>
+                        <span style={{ position:'absolute', left:-4, top:-4, width:8, height:8, borderRadius:'50%', background:'#EF4444' }}/>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
 
-          {/* Colunas dos dias */}
-          {dias.map(data => {
-            const dataStr = dataParaStr(data)
-            // durante o arraste, a tarefa arrastada sai da lista normal desta
-            // coluna — ela é redesenhada como "fantasma" na posição do drag
-            const semArrastada = drag ? (porDia[dataStr] || []).filter(t => t.id !== drag.tarefa.id) : (porDia[dataStr] || [])
-            const comHorario = semArrastada
-              .map(t => ({ ...t, _hora: horaDecimal(t.data_inicio) }))
-              .filter(t => t._hora !== null)
-            const posicionadas = organizarEmRaias(comHorario)
-            const mostrarAgora = dataStr === agoraDataStr
-
-            return (
-              <div key={dataStr} data-dia={dataStr}
-                style={{ position:'relative', borderLeft:'1px solid var(--border2)', cursor:'pointer' }}
-                onClick={e => {
-                  const rect = e.currentTarget.getBoundingClientRect()
-                  const h = Math.min(horaRange.fim - 1, Math.max(horaRange.inicio,
-                    horaRange.inicio + Math.floor((e.clientY - rect.top) / alturaHora)))
-                  onNew({ prazo: dataStr, data_inicio: `${dataStr}T${String(h).padStart(2,'0')}:00` })
-                }}>
-                {horasVisiveis.map(h => (
-                  <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)' }}/>
-                ))}
-
-                {mostrarAgora && agoraHoraDecimal >= horaRange.inicio && agoraHoraDecimal < horaRange.fim && (
-                  <div style={{ position:'absolute', left:0, right:0, top:(agoraHoraDecimal - horaRange.inicio) * alturaHora, zIndex:2 }}>
-                    <div style={{ borderTop:'2px solid #EF4444', position:'relative' }}>
-                      <span style={{ position:'absolute', left:-4, top:-4, width:8, height:8, borderRadius:'50%', background:'#EF4444' }}/>
-                    </div>
-                  </div>
-                )}
-
-                {posicionadas.map(t => (
-                  <BlocoTarefa key={t.id} t={t} dataStr={dataStr} hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
+          {/* Camada de tarefas — um único overlay sobre a grade toda. Cada bloco
+              mantém a MESMA identidade de DOM durante um arraste/redimensionamento
+              inteiro (nunca é filtrado/desmontado), então a captura do ponteiro
+              não se perde no meio do gesto. */}
+          <div style={{ position:'absolute', top:0, left:52, right:0, bottom:0, pointerEvents:'none' }}>
+            {dias.map((data, colIdx) => {
+              const dataStr = dataParaStr(data)
+              const comHorario = (porDia[dataStr] || [])
+                .map(t => ({ ...t, _hora: horaDecimal(t.data_inicio) }))
+                .filter(t => t._hora !== null)
+              const posicionadas = organizarEmRaias(comHorario)
+              return posicionadas.map(t => {
+                const arrastando = drag?.tarefa.id === t.id
+                const redimensionando = resize?.tarefa.id === t.id
+                const colIdxEfetivo = arrastando
+                  ? Math.max(0, dias.findIndex(d => dataParaStr(d) === drag.novoDataStr))
+                  : colIdx
+                const horaEfetiva = arrastando ? drag.novaHora : t._hora
+                const duracaoEfetiva = redimensionando ? resize.novaDuracao : (t.duracao_min || DURACAO_PADRAO_MIN)
+                const dataDia = arrastando ? drag.novoDataStr : dataStr
+                return (
+                  <BlocoTarefa key={t.id} t={t} dataStr={dataStr} dataDia={dataDia}
+                    colIdx={colIdxEfetivo} numDias={dias.length} raia={t._raia} totalRaias={t._totalRaias}
+                    horaEfetiva={horaEfetiva} duracaoEfetiva={duracaoEfetiva}
+                    hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
                     horaBase={horaRange.inicio} alturaHora={alturaHora}
-                    onEdit={onEdit} onIniciar={iniciarArraste} onMover={moverArraste} onSoltar={soltarArraste} />
-                ))}
-
-                {drag && drag.novoDataStr === dataStr && (
-                  <BlocoTarefa
-                    t={{ ...drag.tarefa, _hora: drag.novaHora, _raia: 0, _totalRaias: 1 }}
-                    dataStr={dataStr} hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
-                    horaBase={horaRange.inicio} alturaHora={alturaHora}
-                    onEdit={onEdit} onIniciar={iniciarArraste} onMover={moverArraste} onSoltar={soltarArraste} fantasma />
-                )}
-              </div>
-            )
-          })}
+                    arrastando={arrastando} redimensionando={redimensionando}
+                    onEdit={onEdit}
+                    onIniciarDrag={iniciarArraste} onMoverDrag={moverArraste} onSoltarDrag={soltarArraste}
+                    onIniciarResize={iniciarResize} onMoverResize={moverResize} onSoltarResize={soltarResize} />
+                )
+              })
+            })}
+          </div>
         </div>
       </div>
     </div>
@@ -1435,9 +1492,10 @@ export default function Tarefas() {
   }
   function closeSlideOver() { setEditItem(null); setForm(null) }
 
-  // Reagendar por arrastar-e-soltar na grade por hora — salva direto, sem abrir o formulário
-  function handleReschedule(tarefa, novaDataInicio) {
-    saveTarefa({ ...tarefa, data_inicio: novaDataInicio, prazo: novaDataInicio.slice(0, 10) })
+  // Reagendar (dia/horário) ou redimensionar (duração) por arrastar na grade
+  // por hora — salva direto, sem abrir o formulário
+  function handleReschedule(tarefa, novaDataInicio, novaDuracaoMin) {
+    saveTarefa({ ...tarefa, data_inicio: novaDataInicio, prazo: novaDataInicio.slice(0, 10), duracao_min: novaDuracaoMin })
   }
 
   function handleSave() {
