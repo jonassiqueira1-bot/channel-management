@@ -957,7 +957,13 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
   )
 }
 
-function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedule }) {
+function GradeHoras({ dias, porDia, hoje8, horaRange, duracaoPorTipo, onEdit, onNew, onReschedule }) {
+  // Duração padrão de um compromisso sem duracao_min explícita: usa o valor
+  // configurado pro tipo da tarefa (engrenagem), com fallback pro padrão geral.
+  function duracaoDefault(t) {
+    return t.duracao_min || duracaoPorTipo?.[t.tipo] || DURACAO_PADRAO_MIN
+  }
+
   const scrollRef = useRef(null)
   const rangeCustom = !(horaRange.inicio === 0 && horaRange.fim === 24)
   const horasVisiveis = HORAS.filter(h => h >= horaRange.inicio && h < horaRange.fim)
@@ -998,7 +1004,8 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
     if (!drag) return
     const deltaHora = (e.clientY - drag.startY) / alturaHora
     const snap = Math.round((drag.startHora + deltaHora) * 4) / 4 // snap de 15min
-    const novaHora = Math.min(23.75, Math.max(0, snap))
+    // Não deixa arrastar pra antes do início nem pra depois do fim da faixa configurada
+    const novaHora = Math.min(horaRange.fim - 0.25, Math.max(horaRange.inicio, snap))
     const alvo = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-dia]')
     setDrag(d => d && ({ ...d, novaHora, novoDataStr: alvo?.dataset.dia || d.novoDataStr }))
   }
@@ -1007,7 +1014,7 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
     if (drag.novaHora !== drag.startHora || drag.novoDataStr !== drag.origDataStr) {
       const hh = String(Math.floor(drag.novaHora)).padStart(2, '0')
       const mm = String(Math.round((drag.novaHora % 1) * 60)).padStart(2, '0')
-      onReschedule(drag.tarefa, `${drag.novoDataStr}T${hh}:${mm}`, drag.tarefa.duracao_min || DURACAO_PADRAO_MIN)
+      onReschedule(drag.tarefa, `${drag.novoDataStr}T${hh}:${mm}`, duracaoDefault(drag.tarefa))
     }
     setDrag(null)
   }
@@ -1015,7 +1022,7 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
   function iniciarResize(e, t) {
     e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
-    const duracaoAtual = t.duracao_min || DURACAO_PADRAO_MIN
+    const duracaoAtual = duracaoDefault(t)
     setResize({ tarefa: t, startY: e.clientY, startDuracao: duracaoAtual, novaDuracao: duracaoAtual })
   }
   function moverResize(e) {
@@ -1126,7 +1133,7 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
                   ? Math.max(0, dias.findIndex(d => dataParaStr(d) === drag.novoDataStr))
                   : colIdx
                 const horaEfetiva = arrastando ? drag.novaHora : t._hora
-                const duracaoEfetiva = redimensionando ? resize.novaDuracao : (t.duracao_min || DURACAO_PADRAO_MIN)
+                const duracaoEfetiva = redimensionando ? resize.novaDuracao : duracaoDefault(t)
                 const dataDia = arrastando ? drag.novoDataStr : dataStr
                 return (
                   <BlocoTarefa key={t.id} t={t} dataStr={dataStr} dataDia={dataDia}
@@ -1154,7 +1161,7 @@ const HORA_RANGE_PADRAO = { inicio: 0, fim: 24 }
 // Semana/Semana útil (ex: 08–18h), otimizando o uso da altura disponível.
 const POPOVER_LARGURA = 250
 
-function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef }) {
+function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef, tiposTarefa, duracaoPorTipo, onChangeDuracaoPorTipo }) {
   const [inicio, setInicio] = useState(horaRange.inicio)
   const [fim, setFim] = useState(horaRange.fim)
   const [pos, setPos] = useState(null) // { top, left } em px, calculado a partir do botão âncora
@@ -1215,6 +1222,38 @@ function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef }) {
             Aplicar
           </button>
         </div>
+
+        {tiposTarefa?.length > 0 && (
+          <>
+            <div style={{ borderTop:'1px solid var(--border2)', margin:'12px 0' }}/>
+            <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>Duração padrão por tipo</div>
+            <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:8, lineHeight:1.4 }}>
+              Usada pra desenhar o card na grade quando o compromisso ainda não foi redimensionado manualmente.
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:6, maxHeight:180, overflowY:'auto' }}>
+              {tiposTarefa.map(t => {
+                const chave = t.slug || t.key || t.id
+                const valor = duracaoPorTipo?.[chave] ?? DURACAO_PADRAO_MIN
+                return (
+                  <div key={chave} style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    <span style={{ fontSize:13, flexShrink:0 }}>{t.icon}</span>
+                    <span style={{ flex:1, fontSize:12, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                      {t.label}
+                    </span>
+                    <input type="number" min={15} step={15} value={valor}
+                      onChange={e => {
+                        const min = Math.max(15, Number(e.target.value) || 15)
+                        onChangeDuracaoPorTipo(prev => ({ ...prev, [chave]: min }))
+                      }}
+                      style={{ width:56, padding:'4px 6px', border:'1px solid var(--border)', borderRadius:6,
+                        background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--mono)', textAlign:'right' }}/>
+                    <span style={{ fontSize:10, color:'var(--text-muted)', flexShrink:0 }}>min</span>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
       </div>
     </>
   )
@@ -1222,7 +1261,7 @@ function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef }) {
 
 const VISOES_CAL = [{ v:'mes', l:'Mês' }, { v:'semana', l:'Semana' }, { v:'semana_util', l:'Semana útil' }]
 
-function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
+function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule, tiposTarefa, duracaoPorTipo, onChangeDuracaoPorTipo }) {
   const hoje = new Date()
   const [refDate, setRefDate] = useState(hoje)
   const [visao, setVisao] = useLocalState('tarefas:calendario_visao_v1', 'mes') // 'mes' | 'semana' | 'semana_util'
@@ -1358,7 +1397,8 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
               ⚙
             </button>
             {configAberta && (
-              <ConfigHorarioPopover horaRange={horaRange} onSave={setHoraRange} onClose={() => setConfigAberta(false)} anchorRef={configBtnRef} />
+              <ConfigHorarioPopover horaRange={horaRange} onSave={setHoraRange} onClose={() => setConfigAberta(false)} anchorRef={configBtnRef}
+                tiposTarefa={tiposTarefa} duracaoPorTipo={duracaoPorTipo} onChangeDuracaoPorTipo={onChangeDuracaoPorTipo} />
             )}
           </div>
         )}
@@ -1427,7 +1467,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
                 )
               })}
             </div>
-            <GradeHoras dias={celulas} porDia={porDia} hoje8={hoje8} horaRange={horaRange}
+            <GradeHoras dias={celulas} porDia={porDia} hoje8={hoje8} horaRange={horaRange} duracaoPorTipo={duracaoPorTipo}
               onEdit={onEdit} onNew={onNew} onReschedule={onReschedule} />
           </>
         )}
@@ -1489,6 +1529,10 @@ export default function Tarefas() {
     },
     [tiposAtividade]
   )
+  // Duração padrão de compromisso por tipo de tarefa (Calendário) — os tipos
+  // são cadastráveis, então isso é um mapa aberto { [slug]: minutos }, não
+  // uma lista fixa.
+  const [duracaoPorTipo, setDuracaoPorTipo] = useLocalState('tarefas:duracao_por_tipo_v1', {})
 
   // ── SlideOver state ───────────────────────────────────────────────────────
   const [editItem, setEditItem]   = useState(null)   // tarefa obj | { _new:true, status? } | null
@@ -1733,7 +1777,8 @@ export default function Tarefas() {
           </div>
         </div>
         <div style={{ flex:1, minHeight:0, overflow:'hidden', padding:20 }}>
-          <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} onReschedule={handleReschedule} />
+          <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} onReschedule={handleReschedule}
+            tiposTarefa={tiposTarefa} duracaoPorTipo={duracaoPorTipo} onChangeDuracaoPorTipo={setDuracaoPorTipo} />
         </div>
         {slideOver}
       </div>
