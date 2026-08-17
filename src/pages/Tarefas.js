@@ -910,6 +910,8 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
   const leftPct = colIdx * larguraDia + raia * larguraRaia
   const h = Math.floor(horaEfetiva), m = Math.round((horaEfetiva % 1) * 60)
   const ativo = arrastando || redimensionando
+  const alturaPx = Math.max(14, (duracaoEfetiva / 60) * alturaHora - 2)
+  const mostraResponsavel = alturaPx >= 28 && !!t.responsavel_nome
   return (
     <div
       data-dia={dataDia}
@@ -919,7 +921,7 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
       title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
       style={{ position:'absolute', pointerEvents:'auto',
         top:(horaEfetiva - horaBase) * alturaHora + 1,
-        height: Math.max(14, (duracaoEfetiva / 60) * alturaHora - 2),
+        height: alturaPx,
         left:`calc(${leftPct}% + 2px)`, width:`calc(${larguraRaia}% - 4px)`,
         background: passado ? '#FEE2E2' : cfg.bg, color: passado ? '#991B1B' : cfg.text,
         borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`, borderRadius:4,
@@ -929,6 +931,12 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
       <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight:12 }}>
         {String(h).padStart(2,'0')}:{String(m).padStart(2,'0')} {t.titulo}
       </span>
+      {mostraResponsavel && (
+        <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+          fontSize:9, fontWeight:500, opacity:0.85, paddingRight:12 }}>
+          👤 {t.responsavel_nome}
+        </span>
+      )}
       {/* Alça de arrastar — só aparece no hover, no canto direito. O resto do card abre a edição. */}
       <div
         onPointerDown={e => { e.stopPropagation(); onIniciarDrag(e, t, dataStr) }}
