@@ -1027,7 +1027,9 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedul
           <div>
             {horasVisiveis.map(h => (
               <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)', position:'relative' }}>
-                <span style={{ position:'absolute', top:-6, right:6, fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                <span style={{ position:'absolute', top:-8, left:0, right:0, textAlign:'center',
+                  fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)',
+                  background:'var(--surface)', borderRadius:4, padding:'1px 0' }}>
                   {String(h).padStart(2,'0')}:00
                 </span>
               </div>
