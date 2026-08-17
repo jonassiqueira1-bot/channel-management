@@ -56,7 +56,11 @@ function rowToTask(row) {
     tipo:          row.tipo || cf.tipo || 'ligação',
     status:        row.status || 'pendente',
     prioridade:    row.prioridade || 'media',
-    prazo:            row.prazo || '',
+    // prazo não existe como campo preenchível no formulário — só é setado via
+    // importação CSV. O formulário real pede "Data e Hora de Início"
+    // (custom_fields.data_inicio), então prazo cai pra ele quando ausente —
+    // sem isso, toda tarefa criada pela UI ficava fora da grade do Calendário.
+    prazo:            row.prazo || row.custom_fields?.data_inicio?.slice(0, 10) || '',
     data_inicio:      row.custom_fields?.data_inicio || '',
     responsavel:      row.responsavel || '',
     responsavel_id:   row.custom_fields?.responsavel_id || null,
