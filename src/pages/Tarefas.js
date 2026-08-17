@@ -1152,15 +1152,31 @@ const HORA_RANGE_PADRAO = { inicio: 0, fim: 24 }
 
 // Popover da engrenagem — define a faixa de horários exibida nas visões
 // Semana/Semana útil (ex: 08–18h), otimizando o uso da altura disponível.
-function ConfigHorarioPopover({ horaRange, onSave, onClose }) {
+const POPOVER_LARGURA = 250
+
+function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef }) {
   const [inicio, setInicio] = useState(horaRange.inicio)
   const [fim, setFim] = useState(horaRange.fim)
+  const [pos, setPos] = useState(null) // { top, left } em px, calculado a partir do botão âncora
+
+  // Calcula a posição a partir do botão real (em vez de ancorar por
+  // left/right relativo) — assim nunca fica escondido atrás da sidebar
+  // (quando ela empurra o conteúdo) nem cortado na borda direita da tela.
+  useEffect(() => {
+    const el = anchorRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - POPOVER_LARGURA - 8)
+    setPos({ top: r.bottom + 6, left })
+  }, [anchorRef])
+
   const selectStyle = { width:'100%', padding:'6px 8px', border:'1px solid var(--border)', borderRadius:6,
     background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)' }
   return (
     <>
       <div style={{ position:'fixed', inset:0, zIndex:1199 }} onClick={onClose}/>
-      <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:'calc(100% + 6px)', left:0, zIndex:1200, width:250,
+      <div onClick={e => e.stopPropagation()} style={{ position:'fixed', top: pos?.top ?? 0, left: pos?.left ?? 0,
+        visibility: pos ? 'visible' : 'hidden', zIndex:1200, width:POPOVER_LARGURA,
         background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
         boxShadow:'0 8px 24px rgba(0,0,0,0.14)', padding:14 }}>
         <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>Faixa de horários exibida</div>
@@ -1215,6 +1231,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
   const [semPrazoAberto, setSemPrazoAberto] = useLocalState('tarefas:calendario_semprazo_aberto_v1', true)
   const [horaRange, setHoraRange] = useLocalState('tarefas:calendario_hora_range_v1', HORA_RANGE_PADRAO)
   const [configAberta, setConfigAberta] = useState(false)
+  const configBtnRef = useRef(null)
 
   const tarefasFiltradas = useMemo(() => {
     if (!meusFiltro || !sessao) return tarefas
@@ -1335,13 +1352,13 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
         {/* Engrenagem — faixa de horários (só afeta Semana/Semana útil) */}
         {visao !== 'mes' && (
           <div style={{ position:'relative', flexShrink:0 }}>
-            <button onClick={() => setConfigAberta(o => !o)} title="Faixa de horários exibida"
+            <button ref={configBtnRef} onClick={() => setConfigAberta(o => !o)} title="Faixa de horários exibida"
               style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
                 background: configAberta ? 'var(--surface2)' : 'var(--surface)', cursor:'pointer', fontSize:14 }}>
               ⚙
             </button>
             {configAberta && (
-              <ConfigHorarioPopover horaRange={horaRange} onSave={setHoraRange} onClose={() => setConfigAberta(false)} />
+              <ConfigHorarioPopover horaRange={horaRange} onSave={setHoraRange} onClose={() => setConfigAberta(false)} anchorRef={configBtnRef} />
             )}
           </div>
         )}
