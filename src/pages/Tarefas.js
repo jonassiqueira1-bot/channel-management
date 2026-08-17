@@ -90,7 +90,7 @@ const ENTIDADE_TIPOS = [
 
 const EMPTY_FORM = {
   titulo:'', descricao:'', tipo:'ligação', status:'pendente', prioridade:'media',
-  prazo:'',
+  prazo:'', data_inicio:'',
   responsavel_id: null, responsavel_nome: '',
   contato_id: null, contato_nome: '', contato_empresa: '',
   entidade_tipo: null, entidade_id: null, entidade_nome: '',
@@ -737,6 +737,8 @@ const k = {
 const DIAS_SEMANA = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb']
 const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro']
 
+function dataParaStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
+
 // Popup listando todas as tarefas de um dia — só abre automaticamente quando
 // o dia tem mais de 3 tarefas (senão os 3 chips já visíveis na célula bastam).
 function DiaTarefasPopup({ dataStr, tarefas, onEdit, onNew, onClose }) {
@@ -847,15 +849,313 @@ function CelulaDia({ data, dataStr, tarefasDia, isHoje, hoje8, borderRight, bord
   )
 }
 
+// ─── Grade por hora (visões Semana / Semana útil) ─────────────────────────────
+const HORAS = Array.from({ length: 24 }, (_, h) => h)
+const ALTURA_HORA = 48 // px por hora
+const DURACAO_PADRAO_MIN = 45 // tarefa só tem horário de início — usa duração fixa pra desenhar o bloco
+
+function horaDecimal(dataInicio) {
+  const t = dataInicio && dataInicio.split('T')[1]
+  if (!t) return null
+  const [h, m] = t.split(':').map(Number)
+  return h + (m || 0) / 60
+}
+
+// Distribui tarefas com horário sobreposto em raias lado a lado (algoritmo guloso)
+function organizarEmRaias(itens) {
+  const ordenados = [...itens].sort((a, b) => a._hora - b._hora)
+  const finsRaia = []
+  const posicionados = ordenados.map(t => {
+    const fim = t._hora + DURACAO_PADRAO_MIN / 60
+    let raia = finsRaia.findIndex(f => f <= t._hora)
+    if (raia === -1) { raia = finsRaia.length; finsRaia.push(fim) }
+    else finsRaia[raia] = fim
+    return { ...t, _raia: raia }
+  })
+  const totalRaias = finsRaia.length || 1
+  return posicionados.map(t => ({ ...t, _totalRaias: totalRaias }))
+}
+
+// Mede a altura de um container via ResizeObserver — usado pra "encaixar" a
+// faixa de horários configurada na altura disponível, sem precisar rolar.
+function useAlturaContainer(ref, ativo) {
+  const [altura, setAltura] = useState(0)
+  useEffect(() => {
+    if (!ativo || !ref.current) return
+    const el = ref.current
+    const obs = new ResizeObserver(entries => {
+      const h = entries[0]?.contentRect?.height
+      if (h) setAltura(h)
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [ativo, ref])
+  return altura
+}
+
+// Bloco de uma tarefa na grade por hora — componente de módulo (não aninhado
+// dentro de GradeHoras) porque precisa manter a MESMA identidade entre
+// renders: como recebe Pointer Capture no pointerdown, se fosse recriado a
+// cada render (ex: a cada pointermove durante o arraste) o React desmontaria
+// o elemento que segurava a captura e o gesto de arrastar quebraria no meio.
+function BlocoTarefa({ t, dataStr, fantasma, hoje8, agoraHoraDecimal, horaBase, alturaHora, onEdit, onIniciar, onMover, onSoltar }) {
+  const [hover, setHover] = useState(false)
+  const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+  const passado = (dataStr < hoje8 || (dataStr === hoje8 && t._hora < agoraHoraDecimal))
+    && t.status !== 'concluida' && t.status !== 'cancelada'
+  const largura = 100 / t._totalRaias
+  const h = Math.floor(t._hora), m = Math.round((t._hora % 1) * 60)
+  return (
+    <div
+      onClick={e => { e.stopPropagation(); if (!fantasma) onEdit(t) }}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
+      style={{ position:'absolute', top:(t._hora - horaBase) * alturaHora + 1,
+        height: (DURACAO_PADRAO_MIN / 60) * alturaHora - 2,
+        left:`calc(${t._raia * largura}% + 2px)`, width:`calc(${largura}% - 4px)`,
+        background: passado ? '#FEE2E2' : cfg.bg, color: passado ? '#991B1B' : cfg.text,
+        borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`, borderRadius:4,
+        opacity: fantasma ? 0.85 : 1, boxShadow: fantasma ? '0 4px 12px rgba(0,0,0,0.2)' : 'none',
+        fontSize:10, fontWeight:600, padding:'2px 5px', overflow:'hidden',
+        cursor: fantasma ? 'grabbing' : 'pointer', zIndex: fantasma ? 3 : 1 }}>
+      <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight: fantasma ? 0 : 12 }}>
+        {String(h).padStart(2,'0')}:{String(m).padStart(2,'0')} {t.titulo}
+      </span>
+      {/* Alça de arrastar — só aparece no hover, no canto direito. O resto do card abre a edição. */}
+      {!fantasma && (
+        <div
+          onPointerDown={e => { e.stopPropagation(); onIniciar(e, t, dataStr) }}
+          onPointerMove={onMover}
+          onPointerUp={onSoltar}
+          onClick={e => e.stopPropagation()}
+          title="Arrastar para reagendar"
+          style={{ position:'absolute', top:0, right:0, bottom:0, width:13,
+            display:'flex', alignItems:'center', justifyContent:'center',
+            cursor:'grab', opacity: hover ? 1 : 0, transition:'opacity .12s',
+            background:'rgba(0,0,0,0.10)', touchAction:'none' }}>
+          <span style={{ fontSize:8, lineHeight:1 }}>⋮⋮</span>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function GradeHoras({ dias, porDia, hoje8, horaRange, onEdit, onNew, onReschedule }) {
+  const scrollRef = useRef(null)
+  const rangeCustom = !(horaRange.inicio === 0 && horaRange.fim === 24)
+  const horasVisiveis = HORAS.filter(h => h >= horaRange.inicio && h < horaRange.fim)
+  const alturaMedida = useAlturaContainer(scrollRef, rangeCustom)
+  // Faixa padrão (24h): altura fixa + rolagem. Faixa customizada: altura
+  // calculada pra "otimizar" — preencher o espaço disponível sem rolar.
+  const alturaHora = rangeCustom && alturaMedida > 0
+    ? Math.max(28, alturaMedida / horasVisiveis.length)
+    : ALTURA_HORA
+
+  useEffect(() => {
+    // faixa padrão: abre já rolado pro começo do horário comercial, em vez de 00:00
+    if (!rangeCustom && scrollRef.current) scrollRef.current.scrollTop = 7 * ALTURA_HORA
+  }, [rangeCustom])
+
+  const agora = new Date()
+  const agoraDataStr = dataParaStr(agora)
+  const agoraHoraDecimal = agora.getHours() + agora.getMinutes() / 60
+
+  // Arrastar um bloco pra reagendar — usa Pointer Capture no próprio bloco,
+  // então o move/up continuam chegando nele mesmo que o cursor saia da
+  // célula original (sem precisar de listener em document).
+  const [drag, setDrag] = useState(null) // { tarefa, origDataStr, startY, startHora, novaHora, novoDataStr } | null
+
+  function iniciarArraste(e, t, dataStrOrigem) {
+    e.stopPropagation()
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ tarefa: t, origDataStr: dataStrOrigem, startY: e.clientY, startHora: t._hora, novaHora: t._hora, novoDataStr: dataStrOrigem })
+  }
+  function moverArraste(e) {
+    if (!drag) return
+    const deltaHora = (e.clientY - drag.startY) / alturaHora
+    const snap = Math.round((drag.startHora + deltaHora) * 4) / 4 // snap de 15min
+    const novaHora = Math.min(23.75, Math.max(0, snap))
+    const alvo = document.elementFromPoint(e.clientX, e.clientY)?.closest('[data-dia]')
+    setDrag(d => d && ({ ...d, novaHora, novoDataStr: alvo?.dataset.dia || d.novoDataStr }))
+  }
+  function soltarArraste() {
+    if (!drag) return
+    if (drag.novaHora !== drag.startHora || drag.novoDataStr !== drag.origDataStr) {
+      const hh = String(Math.floor(drag.novaHora)).padStart(2, '0')
+      const mm = String(Math.round((drag.novaHora % 1) * 60)).padStart(2, '0')
+      onReschedule(drag.tarefa, `${drag.novoDataStr}T${hh}:${mm}`)
+    }
+    setDrag(null)
+  }
+
+  return (
+    <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
+      {/* Tarefas sem horário definido — faixa "dia inteiro" fixa no topo */}
+      <div style={{ display:'grid', gridTemplateColumns:`52px repeat(${dias.length},1fr)`,
+        borderBottom:'1px solid var(--border)', flexShrink:0 }}>
+        <div/>
+        {dias.map(data => {
+          const dataStr = dataParaStr(data)
+          const diaInteiro = (porDia[dataStr] || []).filter(t => horaDecimal(t.data_inicio) === null)
+          return (
+            <div key={dataStr} style={{ padding:'4px 6px', borderLeft:'1px solid var(--border2)', minHeight:26 }}>
+              {diaInteiro.slice(0, 2).map(t => {
+                const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+                return (
+                  <div key={t.id} onClick={() => onEdit(t)}
+                    title={t.titulo}
+                    style={{ fontSize:10, padding:'2px 6px', borderRadius:4, marginBottom:2,
+                      background:cfg.bg, color:cfg.text, fontWeight:600, cursor:'pointer',
+                      overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>
+                    {tipoIcon(t.tipo)} {t.titulo}
+                  </div>
+                )
+              })}
+              {diaInteiro.length > 2 && (
+                <div style={{ fontSize:9, color:'var(--text-muted)' }}>+{diaInteiro.length - 2}</div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Corpo com rolagem própria (faixa padrão) ou já ajustado à altura disponível (faixa customizada) */}
+      <div ref={scrollRef} style={{ flex:1, minHeight:0, overflowY:'auto' }}>
+        <div style={{ display:'grid', gridTemplateColumns:`52px repeat(${dias.length},1fr)` }}>
+          {/* Coluna de horas */}
+          <div>
+            {horasVisiveis.map(h => (
+              <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)', position:'relative' }}>
+                <span style={{ position:'absolute', top:-6, right:6, fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+                  {String(h).padStart(2,'0')}:00
+                </span>
+              </div>
+            ))}
+          </div>
+
+          {/* Colunas dos dias */}
+          {dias.map(data => {
+            const dataStr = dataParaStr(data)
+            // durante o arraste, a tarefa arrastada sai da lista normal desta
+            // coluna — ela é redesenhada como "fantasma" na posição do drag
+            const semArrastada = drag ? (porDia[dataStr] || []).filter(t => t.id !== drag.tarefa.id) : (porDia[dataStr] || [])
+            const comHorario = semArrastada
+              .map(t => ({ ...t, _hora: horaDecimal(t.data_inicio) }))
+              .filter(t => t._hora !== null)
+            const posicionadas = organizarEmRaias(comHorario)
+            const mostrarAgora = dataStr === agoraDataStr
+
+            return (
+              <div key={dataStr} data-dia={dataStr}
+                style={{ position:'relative', borderLeft:'1px solid var(--border2)', cursor:'pointer' }}
+                onClick={e => {
+                  const rect = e.currentTarget.getBoundingClientRect()
+                  const h = Math.min(horaRange.fim - 1, Math.max(horaRange.inicio,
+                    horaRange.inicio + Math.floor((e.clientY - rect.top) / alturaHora)))
+                  onNew({ prazo: dataStr, data_inicio: `${dataStr}T${String(h).padStart(2,'0')}:00` })
+                }}>
+                {horasVisiveis.map(h => (
+                  <div key={h} style={{ height:alturaHora, borderTop:'1px solid var(--border2)' }}/>
+                ))}
+
+                {mostrarAgora && agoraHoraDecimal >= horaRange.inicio && agoraHoraDecimal < horaRange.fim && (
+                  <div style={{ position:'absolute', left:0, right:0, top:(agoraHoraDecimal - horaRange.inicio) * alturaHora, zIndex:2 }}>
+                    <div style={{ borderTop:'2px solid #EF4444', position:'relative' }}>
+                      <span style={{ position:'absolute', left:-4, top:-4, width:8, height:8, borderRadius:'50%', background:'#EF4444' }}/>
+                    </div>
+                  </div>
+                )}
+
+                {posicionadas.map(t => (
+                  <BlocoTarefa key={t.id} t={t} dataStr={dataStr} hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
+                    horaBase={horaRange.inicio} alturaHora={alturaHora}
+                    onEdit={onEdit} onIniciar={iniciarArraste} onMover={moverArraste} onSoltar={soltarArraste} />
+                ))}
+
+                {drag && drag.novoDataStr === dataStr && (
+                  <BlocoTarefa
+                    t={{ ...drag.tarefa, _hora: drag.novaHora, _raia: 0, _totalRaias: 1 }}
+                    dataStr={dataStr} hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
+                    horaBase={horaRange.inicio} alturaHora={alturaHora}
+                    onEdit={onEdit} onIniciar={iniciarArraste} onMover={moverArraste} onSoltar={soltarArraste} fantasma />
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const HORA_RANGE_PADRAO = { inicio: 0, fim: 24 }
+
+// Popover da engrenagem — define a faixa de horários exibida nas visões
+// Semana/Semana útil (ex: 08–18h), otimizando o uso da altura disponível.
+function ConfigHorarioPopover({ horaRange, onSave, onClose }) {
+  const [inicio, setInicio] = useState(horaRange.inicio)
+  const [fim, setFim] = useState(horaRange.fim)
+  const selectStyle = { width:'100%', padding:'6px 8px', border:'1px solid var(--border)', borderRadius:6,
+    background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)' }
+  return (
+    <>
+      <div style={{ position:'fixed', inset:0, zIndex:1199 }} onClick={onClose}/>
+      <div onClick={e => e.stopPropagation()} style={{ position:'absolute', top:'calc(100% + 6px)', right:0, zIndex:1200, width:250,
+        background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
+        boxShadow:'0 8px 24px rgba(0,0,0,0.14)', padding:14 }}>
+        <div style={{ fontSize:12, fontWeight:700, color:'var(--text)', marginBottom:4 }}>Faixa de horários exibida</div>
+        <div style={{ fontSize:11, color:'var(--text-muted)', marginBottom:10, lineHeight:1.4 }}>
+          Ajusta a grade das visões Semana e Semana útil pra caber melhor o horário que você usa, sem precisar rolar.
+        </div>
+        <div style={{ display:'flex', gap:8, alignItems:'flex-end', marginBottom:12 }}>
+          <div style={{ flex:1 }}>
+            <label style={{ fontSize:10, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Início</label>
+            <select value={inicio} onChange={e => setInicio(Number(e.target.value))} style={selectStyle}>
+              {HORAS.map(h => <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>)}
+            </select>
+          </div>
+          <span style={{ color:'var(--text-muted)', paddingBottom:7 }}>–</span>
+          <div style={{ flex:1 }}>
+            <label style={{ fontSize:10, color:'var(--text-muted)', display:'block', marginBottom:3 }}>Fim</label>
+            <select value={fim} onChange={e => setFim(Number(e.target.value))} style={selectStyle}>
+              {HORAS.filter(h => h > 0).concat(24).map(h => <option key={h} value={h}>{String(h).padStart(2,'0')}:00</option>)}
+            </select>
+          </div>
+        </div>
+        {fim <= inicio && (
+          <div style={{ fontSize:11, color:'#DC2626', marginBottom:8 }}>O fim precisa ser depois do início.</div>
+        )}
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={() => { setInicio(HORA_RANGE_PADRAO.inicio); setFim(HORA_RANGE_PADRAO.fim) }}
+            style={{ flex:1, padding:'7px 0', border:'1px solid var(--border)', borderRadius:7, background:'none',
+              color:'var(--text-muted)', fontSize:12, cursor:'pointer', fontFamily:'var(--font)' }}>
+            Padrão (24h)
+          </button>
+          <button onClick={() => { if (fim > inicio) { onSave({ inicio, fim }); onClose() } }}
+            disabled={fim <= inicio}
+            style={{ flex:1, padding:'7px 0', border:'none', borderRadius:7,
+              background: fim > inicio ? 'var(--accent)' : 'var(--border)', color:'#fff', fontSize:12, fontWeight:600,
+              cursor: fim > inicio ? 'pointer' : 'not-allowed', fontFamily:'var(--font)' }}>
+            Aplicar
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
 const VISOES_CAL = [{ v:'mes', l:'Mês' }, { v:'semana', l:'Semana' }, { v:'semana_util', l:'Semana útil' }]
 
-function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
+function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule }) {
   const hoje = new Date()
   const [refDate, setRefDate] = useState(hoje)
   const [visao, setVisao] = useLocalState('tarefas:calendario_visao_v1', 'mes') // 'mes' | 'semana' | 'semana_util'
   const [meusFiltro, setMeusFiltro] = useState(true) // padrão: só as do usuário logado
   const [diaPopup, setDiaPopup] = useState(null) // { dataStr, tarefas } | null
   const [semPrazoAberto, setSemPrazoAberto] = useLocalState('tarefas:calendario_semprazo_aberto_v1', true)
+  const [horaRange, setHoraRange] = useLocalState('tarefas:calendario_hora_range_v1', HORA_RANGE_PADRAO)
+  const [configAberta, setConfigAberta] = useState(false)
 
   const tarefasFiltradas = useMemo(() => {
     if (!meusFiltro || !sessao) return tarefas
@@ -878,8 +1178,6 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 
   const hoje8 = hoje.toISOString().slice(0,10)
   const semPrazo = tarefasFiltradas.filter(t => !t.prazo && t.status !== 'concluida' && t.status !== 'cancelada')
-
-  function toDataStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 
   // Monta as células e o título do período conforme a visão ativa
   const { celulas, linhas, colunas, diasSemanaLabels, titulo } = useMemo(() => {
@@ -919,7 +1217,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
     }
   }
 
-  const maxVisiveis = visao === 'mes' ? 3 : 8
+  const maxVisiveis = 3 // só usado na visão Mês — Semana/Semana útil usam a grade por hora
 
   const segmented = { display:'flex', border:'1px solid var(--border)', borderRadius:8, overflow:'hidden', flexShrink:0 }
   const segBtn = (ativo) => ({ padding:'6px 14px', border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
@@ -974,45 +1272,89 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
             </span>
           ))}
         </div>
+
+        {/* Engrenagem — faixa de horários (só afeta Semana/Semana útil) */}
+        {visao !== 'mes' && (
+          <div style={{ position:'relative', flexShrink:0 }}>
+            <button onClick={() => setConfigAberta(o => !o)} title="Faixa de horários exibida"
+              style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
+                background: configAberta ? 'var(--surface2)' : 'var(--surface)', cursor:'pointer', fontSize:14 }}>
+              ⚙
+            </button>
+            {configAberta && (
+              <ConfigHorarioPopover horaRange={horaRange} onSave={setHoraRange} onClose={() => setConfigAberta(false)} />
+            )}
+          </div>
+        )}
       </div>
 
       {/* Grade do calendário — preenche a altura disponível, nunca estoura a tela */}
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column',
         background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
-        {/* Cabeçalho dias da semana */}
-        <div style={{ display:'grid', gridTemplateColumns:`repeat(${colunas},1fr)`,
-          borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
-          {diasSemanaLabels.map(d => (
-            <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11,
-              fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
-              {d}
+        {visao === 'mes' ? (
+          <>
+            {/* Cabeçalho dias da semana */}
+            <div style={{ display:'grid', gridTemplateColumns:`repeat(${colunas},1fr)`,
+              borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
+              {diasSemanaLabels.map(d => (
+                <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11,
+                  fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                  {d}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        {/* Células */}
-        <div style={{ flex:1, minHeight:0, display:'grid',
-          gridTemplateColumns:`repeat(${colunas},1fr)`, gridTemplateRows:`repeat(${linhas},1fr)` }}>
-          {celulas.map((data, idx) => {
-            const col = idx % colunas
-            const row = Math.floor(idx / colunas)
-            if (!data) {
-              return (
-                <div key={`b-${idx}`} style={{ minWidth:0, minHeight:0,
-                  borderRight: col < colunas - 1 ? '1px solid var(--border2)' : 'none',
-                  borderBottom: row < linhas - 1 ? '1px solid var(--border2)' : 'none',
-                  background:'var(--surface2)', opacity:.5 }}/>
-              )
-            }
-            const dataStr = toDataStr(data)
-            return (
-              <CelulaDia key={dataStr} data={data} dataStr={dataStr} tarefasDia={porDia[dataStr] || []}
-                isHoje={dataStr === hoje8} hoje8={hoje8} maxVisiveis={maxVisiveis}
-                borderRight={col < colunas - 1} borderBottom={row < linhas - 1}
-                onEdit={onEdit} onNew={onNew} onAbrirPopup={setDiaPopup} />
-            )
-          })}
-        </div>
+            {/* Células */}
+            <div style={{ flex:1, minHeight:0, display:'grid',
+              gridTemplateColumns:`repeat(${colunas},1fr)`, gridTemplateRows:`repeat(${linhas},1fr)` }}>
+              {celulas.map((data, idx) => {
+                const col = idx % colunas
+                const row = Math.floor(idx / colunas)
+                if (!data) {
+                  return (
+                    <div key={`b-${idx}`} style={{ minWidth:0, minHeight:0,
+                      borderRight: col < colunas - 1 ? '1px solid var(--border2)' : 'none',
+                      borderBottom: row < linhas - 1 ? '1px solid var(--border2)' : 'none',
+                      background:'var(--surface2)', opacity:.5 }}/>
+                  )
+                }
+                const dataStr = dataParaStr(data)
+                return (
+                  <CelulaDia key={dataStr} data={data} dataStr={dataStr} tarefasDia={porDia[dataStr] || []}
+                    isHoje={dataStr === hoje8} hoje8={hoje8} maxVisiveis={maxVisiveis}
+                    borderRight={col < colunas - 1} borderBottom={row < linhas - 1}
+                    onEdit={onEdit} onNew={onNew} onAbrirPopup={setDiaPopup} />
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Cabeçalho dias da semana — com número do dia, já que a grade por hora não repete */}
+            <div style={{ display:'grid', gridTemplateColumns:`52px repeat(${colunas},1fr)`,
+              borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
+              <div/>
+              {celulas.map(data => {
+                const dataStr = dataParaStr(data)
+                const isHoje = dataStr === hoje8
+                return (
+                  <div key={dataStr} style={{ padding:'6px 0 8px', textAlign:'center', borderLeft:'1px solid var(--border2)' }}>
+                    <div style={{ fontSize:10.5, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
+                      {DIAS_SEMANA[data.getDay()]}
+                    </div>
+                    <span style={{ display:'inline-flex', alignItems:'center', justifyContent:'center', marginTop:2,
+                      width:24, height:24, borderRadius:'50%', fontSize:13, fontWeight: isHoje ? 800 : 400,
+                      background: isHoje ? 'var(--accent)' : 'none', color: isHoje ? '#fff' : 'var(--text-soft)' }}>
+                      {data.getDate()}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+            <GradeHoras dias={celulas} porDia={porDia} hoje8={hoje8} horaRange={horaRange}
+              onEdit={onEdit} onNew={onNew} onReschedule={onReschedule} />
+          </>
+        )}
       </div>
 
       {/* Tarefas sem prazo — colapsável, com rolagem própria (nunca estoura a tela) */}
@@ -1077,8 +1419,12 @@ export default function Tarefas() {
   const [form, setForm]           = useState(null)
   const [errs, setErrs]           = useState({})
 
-  function openNew(status) {
-    setForm({ ...EMPTY_FORM, ...(status ? { status } : {}) })
+  // `overrides` vem do Kanban como string de status, ou do Calendário como
+  // objeto de campos a pré-preencher (ex: { prazo, data_inicio } ao clicar
+  // num dia/horário vazio).
+  function openNew(overrides) {
+    const extra = typeof overrides === 'string' ? { status: overrides } : (overrides || {})
+    setForm({ ...EMPTY_FORM, ...extra })
     setEditItem({ _new: true })
   }
   function openEdit(tarefa) {
@@ -1086,6 +1432,11 @@ export default function Tarefas() {
     setEditItem(tarefa)
   }
   function closeSlideOver() { setEditItem(null); setForm(null) }
+
+  // Reagendar por arrastar-e-soltar na grade por hora — salva direto, sem abrir o formulário
+  function handleReschedule(tarefa, novaDataInicio) {
+    saveTarefa({ ...tarefa, data_inicio: novaDataInicio, prazo: novaDataInicio.slice(0, 10) })
+  }
 
   function handleSave() {
     if (!form?.titulo?.trim())      { setErrs({ titulo: 'Título é obrigatório' }); return }
@@ -1305,7 +1656,7 @@ export default function Tarefas() {
           </div>
         </div>
         <div style={{ flex:1, minHeight:0, overflow:'hidden', padding:20 }}>
-          <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} />
+          <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} onReschedule={handleReschedule} />
         </div>
         {slideOver}
       </div>
