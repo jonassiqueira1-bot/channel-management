@@ -790,12 +790,72 @@ function DiaTarefasPopup({ dataStr, tarefas, onEdit, onNew, onClose }) {
   )
 }
 
+// Uma célula-dia da grade — usada tanto na visão Mês quanto Semana/Semana útil.
+// `maxVisiveis` varia conforme a visão: semana tem menos colunas → mais altura
+// por célula → cabe mais tarefa antes de precisar do "+N mais".
+function CelulaDia({ data, dataStr, tarefasDia, isHoje, hoje8, borderRight, borderBottom, maxVisiveis, onEdit, onNew, onAbrirPopup }) {
+  return (
+    <div
+      style={{ minWidth:0, minHeight:0, padding:'6px 8px', cursor:'pointer', overflow:'hidden',
+        borderRight: borderRight ? '1px solid var(--border2)' : 'none',
+        borderBottom: borderBottom ? '1px solid var(--border2)' : 'none',
+        background: isHoje ? 'var(--accent-glow)' : 'var(--surface)',
+        transition:'background .15s', display:'flex', flexDirection:'column' }}
+      onClick={() => tarefasDia.length > maxVisiveis ? onAbrirPopup({ dataStr, tarefas: tarefasDia }) : onNew({ prazo: dataStr })}
+      onMouseEnter={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface2)' }}
+      onMouseLeave={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface)' }}>
+
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4, flexShrink:0 }}>
+        <span style={{ fontSize:13, fontWeight: isHoje ? 800 : 400,
+          width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
+          background: isHoje ? 'var(--accent)' : 'none',
+          color: isHoje ? '#fff' : 'var(--text-soft)' }}>
+          {data.getDate()}
+        </span>
+        {tarefasDia.length > 0 && (
+          <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
+            {tarefasDia.length}
+          </span>
+        )}
+      </div>
+
+      <div style={{ display:'flex', flexDirection:'column', gap:2, overflow:'hidden' }}>
+        {tarefasDia.slice(0, maxVisiveis).map(t => {
+          const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+          const passado = dataStr < hoje8 && t.status !== 'concluida' && t.status !== 'cancelada'
+          return (
+            <div key={t.id}
+              onClick={e => { e.stopPropagation(); onEdit(t) }}
+              title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
+              style={{ fontSize:10, padding:'2px 6px', borderRadius:4,
+                background: passado ? '#FEE2E2' : cfg.bg,
+                color:       passado ? '#991B1B' : cfg.text,
+                fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
+                borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`,
+                cursor:'pointer', lineHeight:1.5, flexShrink:0 }}>
+              {tipoIcon(t.tipo)} {t.titulo}
+            </div>
+          )
+        })}
+        {tarefasDia.length > maxVisiveis && (
+          <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', paddingLeft:4, flexShrink:0 }}>
+            +{tarefasDia.length - maxVisiveis} mais
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+const VISOES_CAL = [{ v:'mes', l:'Mês' }, { v:'semana', l:'Semana' }, { v:'semana_util', l:'Semana útil' }]
+
 function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
   const hoje = new Date()
-  const [ano,  setAno]  = useState(hoje.getFullYear())
-  const [mes,  setMes]  = useState(hoje.getMonth())
+  const [refDate, setRefDate] = useState(hoje)
+  const [visao, setVisao] = useLocalState('tarefas:calendario_visao_v1', 'mes') // 'mes' | 'semana' | 'semana_util'
   const [meusFiltro, setMeusFiltro] = useState(true) // padrão: só as do usuário logado
   const [diaPopup, setDiaPopup] = useState(null) // { dataStr, tarefas } | null
+  const [semPrazoAberto, setSemPrazoAberto] = useLocalState('tarefas:calendario_semprazo_aberto_v1', true)
 
   const tarefasFiltradas = useMemo(() => {
     if (!meusFiltro || !sessao) return tarefas
@@ -816,40 +876,73 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
     return map
   }, [tarefasFiltradas])
 
-  // Dias do mês
-  const primeiroDia = new Date(ano, mes, 1)
-  const ultimoDia   = new Date(ano, mes + 1, 0)
-  const diasNoMes   = ultimoDia.getDate()
-  const offsetInicio = primeiroDia.getDay() // 0=Dom
-
-  function navMes(delta) {
-    let nm = mes + delta, na = ano
-    if (nm < 0)  { nm = 11; na-- }
-    if (nm > 11) { nm = 0;  na++ }
-    setMes(nm); setAno(na)
-  }
-
   const hoje8 = hoje.toISOString().slice(0,10)
-
-  // sem prazo do usuário
   const semPrazo = tarefasFiltradas.filter(t => !t.prazo && t.status !== 'concluida' && t.status !== 'cancelada')
 
+  function toDataStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
+
+  // Monta as células e o título do período conforme a visão ativa
+  const { celulas, linhas, colunas, diasSemanaLabels, titulo } = useMemo(() => {
+    if (visao === 'mes') {
+      const ano = refDate.getFullYear(), mes = refDate.getMonth()
+      const primeiroDia   = new Date(ano, mes, 1)
+      const ultimoDia     = new Date(ano, mes + 1, 0)
+      const diasNoMes     = ultimoDia.getDate()
+      const offsetInicio  = primeiroDia.getDay() // 0=Dom
+      const totalCelulas  = offsetInicio + diasNoMes
+      const linhas        = Math.ceil(totalCelulas / 7)
+      const cels = []
+      for (let i = 0; i < offsetInicio; i++) cels.push(null)
+      for (let d = 1; d <= diasNoMes; d++) cels.push(new Date(ano, mes, d))
+      while (cels.length < linhas * 7) cels.push(null)
+      return { celulas: cels, linhas, colunas: 7, diasSemanaLabels: DIAS_SEMANA, titulo: `${MESES[mes]} ${ano}` }
+    }
+    // semana / semana_util — semana começa no domingo que contém refDate
+    const dow = refDate.getDay()
+    const domingo = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate() - dow)
+    const dias = visao === 'semana_util'
+      ? Array.from({ length: 5 }, (_, i) => new Date(domingo.getFullYear(), domingo.getMonth(), domingo.getDate() + 1 + i))
+      : Array.from({ length: 7 }, (_, i) => new Date(domingo.getFullYear(), domingo.getMonth(), domingo.getDate() + i))
+    const primeiro = dias[0], ultimo = dias[dias.length - 1]
+    const titulo = primeiro.getMonth() === ultimo.getMonth()
+      ? `${primeiro.getDate()} – ${ultimo.getDate()} de ${MESES[primeiro.getMonth()]} ${primeiro.getFullYear()}`
+      : `${primeiro.getDate()} de ${MESES[primeiro.getMonth()]} – ${ultimo.getDate()} de ${MESES[ultimo.getMonth()]} ${ultimo.getFullYear()}`
+    const labels = visao === 'semana_util' ? DIAS_SEMANA.slice(1, 6) : DIAS_SEMANA
+    return { celulas: dias, linhas: 1, colunas: dias.length, diasSemanaLabels: labels, titulo }
+  }, [visao, refDate])
+
+  function navegar(delta) {
+    if (visao === 'mes') {
+      setRefDate(d => new Date(d.getFullYear(), d.getMonth() + delta, 1))
+    } else {
+      setRefDate(d => new Date(d.getFullYear(), d.getMonth(), d.getDate() + delta * 7))
+    }
+  }
+
+  const maxVisiveis = visao === 'mes' ? 3 : 8
+
+  const segmented = { display:'flex', border:'1px solid var(--border)', borderRadius:8, overflow:'hidden', flexShrink:0 }
+  const segBtn = (ativo) => ({ padding:'6px 14px', border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
+    fontFamily:'var(--font)', whiteSpace:'nowrap',
+    background: ativo ? 'var(--accent)' : 'var(--surface)',
+    color:       ativo ? '#fff'          : 'var(--text-muted)' })
+
   return (
-    <div style={{ display:'flex', flexDirection:'column', gap:16 }}>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0, gap:12 }}>
       {/* Barra superior */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
-        {/* Nav mês */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap', flexShrink:0 }}>
+        {/* Navegação do período */}
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <button onClick={() => navMes(-1)}
+          <button onClick={() => navegar(-1)}
             style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
               background:'var(--surface)', cursor:'pointer', fontSize:16, color:'var(--text-soft)' }}>‹</button>
-          <span style={{ fontSize:16, fontWeight:700, color:'var(--text)', minWidth:160, textAlign:'center' }}>
-            {MESES[mes]} {ano}
+          <span style={{ fontSize:15, fontWeight:700, color:'var(--text)', minWidth:180, textAlign:'center' }}>
+            {titulo}
           </span>
-          <button onClick={() => navMes(1)}
+          <button onClick={() => navegar(1)}
             style={{ width:32, height:32, border:'1px solid var(--border)', borderRadius:7,
               background:'var(--surface)', cursor:'pointer', fontSize:16, color:'var(--text-soft)' }}>›</button>
-          <button onClick={() => { setMes(hoje.getMonth()); setAno(hoje.getFullYear()) }}
+          <button onClick={() => setRefDate(new Date())}
             style={{ height:32, padding:'0 12px', border:'1px solid var(--border)', borderRadius:7,
               background:'var(--surface)', cursor:'pointer', fontSize:12, color:'var(--text-soft)', fontFamily:'var(--font)' }}>
             Hoje
@@ -858,23 +951,24 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
 
         <div style={{ flex:1 }}/>
 
+        {/* Visão: Mês / Semana / Semana útil */}
+        <div style={segmented}>
+          {VISOES_CAL.map(opt => (
+            <button key={opt.v} onClick={() => setVisao(opt.v)} style={segBtn(visao === opt.v)}>{opt.l}</button>
+          ))}
+        </div>
+
         {/* Filtro: minhas / todas */}
-        <div style={{ display:'flex', border:'1px solid var(--border)', borderRadius:8, overflow:'hidden' }}>
+        <div style={segmented}>
           {[{v:true,l:'Minhas'},{v:false,l:'Todas'}].map(opt => (
-            <button key={String(opt.v)} onClick={() => setMeusFiltro(opt.v)}
-              style={{ padding:'6px 14px', border:'none', cursor:'pointer', fontSize:12, fontWeight:600,
-                fontFamily:'var(--font)',
-                background: meusFiltro===opt.v ? 'var(--accent)' : 'var(--surface)',
-                color:       meusFiltro===opt.v ? '#fff'          : 'var(--text-muted)' }}>
-              {opt.l}
-            </button>
+            <button key={String(opt.v)} onClick={() => setMeusFiltro(opt.v)} style={segBtn(meusFiltro === opt.v)}>{opt.l}</button>
           ))}
         </div>
 
         {/* Legenda status */}
-        <div style={{ display:'flex', gap:10, alignItems:'center' }}>
+        <div style={{ display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
           {Object.entries(STATUS_CFG).map(([k, cfg]) => (
-            <span key={k} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)' }}>
+            <span key={k} style={{ display:'flex', alignItems:'center', gap:4, fontSize:11, color:'var(--text-muted)', whiteSpace:'nowrap' }}>
               <span style={{ width:8, height:8, borderRadius:'50%', background:cfg.dot, display:'inline-block' }}/>
               {cfg.label}
             </span>
@@ -882,12 +976,13 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
         </div>
       </div>
 
-      {/* Grade do calendário */}
-      <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
+      {/* Grade do calendário — preenche a altura disponível, nunca estoura a tela */}
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column',
+        background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, overflow:'hidden' }}>
         {/* Cabeçalho dias da semana */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)',
-          borderBottom:'1px solid var(--border)', background:'var(--surface2)' }}>
-          {DIAS_SEMANA.map(d => (
+        <div style={{ display:'grid', gridTemplateColumns:`repeat(${colunas},1fr)`,
+          borderBottom:'1px solid var(--border)', background:'var(--surface2)', flexShrink:0 }}>
+          {diasSemanaLabels.map(d => (
             <div key={d} style={{ padding:'8px 0', textAlign:'center', fontSize:11,
               fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.05em' }}>
               {d}
@@ -896,117 +991,63 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew }) {
         </div>
 
         {/* Células */}
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(7,1fr)' }}>
-          {/* Offset inicial */}
-          {Array.from({ length: offsetInicio }, (_, i) => (
-            <div key={`off-${i}`} style={{ minHeight:100, borderRight:'1px solid var(--border2)',
-              borderBottom:'1px solid var(--border2)', background:'var(--surface2)', opacity:.5 }}/>
-          ))}
-
-          {/* Dias do mês */}
-          {Array.from({ length: diasNoMes }, (_, i) => {
-            const dia = i + 1
-            const dataStr = `${ano}-${String(mes+1).padStart(2,'0')}-${String(dia).padStart(2,'0')}`
-            const isHoje  = dataStr === hoje8
-            const col     = (offsetInicio + i) % 7
-            const tarefasDia = porDia[dataStr] || []
-            const isUltimaColunaLinha = col === 6
-
+        <div style={{ flex:1, minHeight:0, display:'grid',
+          gridTemplateColumns:`repeat(${colunas},1fr)`, gridTemplateRows:`repeat(${linhas},1fr)` }}>
+          {celulas.map((data, idx) => {
+            const col = idx % colunas
+            const row = Math.floor(idx / colunas)
+            if (!data) {
+              return (
+                <div key={`b-${idx}`} style={{ minWidth:0, minHeight:0,
+                  borderRight: col < colunas - 1 ? '1px solid var(--border2)' : 'none',
+                  borderBottom: row < linhas - 1 ? '1px solid var(--border2)' : 'none',
+                  background:'var(--surface2)', opacity:.5 }}/>
+              )
+            }
+            const dataStr = toDataStr(data)
             return (
-              <div key={dia}
-                style={{ minHeight:100, padding:'6px 8px', cursor:'pointer',
-                  borderRight: isUltimaColunaLinha ? 'none' : '1px solid var(--border2)',
-                  borderBottom:'1px solid var(--border2)',
-                  background: isHoje ? 'var(--accent-glow)' : 'var(--surface)',
-                  transition:'background .15s' }}
-                onClick={() => tarefasDia.length > 3 ? setDiaPopup({ dataStr, tarefas: tarefasDia }) : onNew({ prazo: dataStr })}
-                onMouseEnter={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface2)' }}
-                onMouseLeave={e => { if (!isHoje) e.currentTarget.style.background = 'var(--surface)' }}>
-
-                {/* Número do dia */}
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:4 }}>
-                  <span style={{ fontSize:13, fontWeight: isHoje ? 800 : 400,
-                    color: isHoje ? 'var(--accent)' : 'var(--text-soft)',
-                    width:22, height:22, borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center',
-                    background: isHoje ? 'var(--accent)' : 'none',
-                    color: isHoje ? '#fff' : 'var(--text-soft)' }}>
-                    {dia}
-                  </span>
-                  {tarefasDia.length > 0 && (
-                    <span style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)' }}>
-                      {tarefasDia.length}
-                    </span>
-                  )}
-                </div>
-
-                {/* Tarefas do dia (max 3, depois +N) */}
-                <div style={{ display:'flex', flexDirection:'column', gap:2 }}>
-                  {tarefasDia.slice(0,3).map(t => {
-                    const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
-                    const passado = dataStr < hoje8 && t.status !== 'concluida' && t.status !== 'cancelada'
-                    return (
-                      <div key={t.id}
-                        onClick={e => { e.stopPropagation(); onEdit(t) }}
-                        title={`${t.titulo}${t.responsavel_nome ? ` · ${t.responsavel_nome}` : ''}`}
-                        style={{ fontSize:10, padding:'2px 6px', borderRadius:4,
-                          background: passado ? '#FEE2E2' : cfg.bg,
-                          color:       passado ? '#991B1B' : cfg.text,
-                          fontWeight:600, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
-                          borderLeft:`3px solid ${passado?'#EF4444':cfg.dot}`,
-                          cursor:'pointer', lineHeight:1.5 }}>
-                        {tipoIcon(t.tipo)} {t.titulo}
-                      </div>
-                    )
-                  })}
-                  {tarefasDia.length > 3 && (
-                    <div style={{ fontSize:10, color:'var(--text-muted)', fontFamily:'var(--mono)', paddingLeft:4 }}>
-                      +{tarefasDia.length - 3} mais
-                    </div>
-                  )}
-                </div>
-              </div>
+              <CelulaDia key={dataStr} data={data} dataStr={dataStr} tarefasDia={porDia[dataStr] || []}
+                isHoje={dataStr === hoje8} hoje8={hoje8} maxVisiveis={maxVisiveis}
+                borderRight={col < colunas - 1} borderBottom={row < linhas - 1}
+                onEdit={onEdit} onNew={onNew} onAbrirPopup={setDiaPopup} />
             )
           })}
-
-          {/* Completar última linha */}
-          {(() => {
-            const total = offsetInicio + diasNoMes
-            const resto = total % 7 === 0 ? 0 : 7 - (total % 7)
-            return Array.from({ length: resto }, (_, i) => (
-              <div key={`fim-${i}`} style={{ minHeight:100,
-                borderRight: i < resto - 1 ? '1px solid var(--border2)' : 'none',
-                borderBottom:'none', background:'var(--surface2)', opacity:.5 }}/>
-            ))
-          })()}
         </div>
       </div>
 
-      {/* Tarefas sem prazo */}
+      {/* Tarefas sem prazo — colapsável, com rolagem própria (nunca estoura a tela) */}
       {semPrazo.length > 0 && (
-        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, padding:'14px 18px' }}>
-          <div style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase',
-            letterSpacing:'0.06em', marginBottom:10 }}>
-            Sem prazo definido ({semPrazo.length})
-          </div>
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            {semPrazo.map(t => {
-              const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
-              return (
-                <div key={t.id} onClick={() => onEdit(t)}
-                  style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
-                    background:'var(--surface2)', borderRadius:8, cursor:'pointer',
-                    border:'1px solid var(--border2)', transition:'border-color .15s' }}
-                  onMouseEnter={e => e.currentTarget.style.borderColor='var(--accent)'}
-                  onMouseLeave={e => e.currentTarget.style.borderColor='var(--border2)'}>
-                  <span style={{ fontSize:15 }}>{tipoIcon(t.tipo)}</span>
-                  <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)' }}>{t.titulo}</span>
-                  {t.responsavel_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
-                  <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text, fontWeight:600 }}>{cfg.label}</span>
-                  <PrioridadeBadge prioridade={t.prioridade}/>
-                </div>
-              )
-            })}
-          </div>
+        <div style={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10, flexShrink:0,
+          maxHeight: semPrazoAberto ? 220 : 40, overflow:'hidden', transition:'max-height .15s' }}>
+          <button onClick={() => setSemPrazoAberto(o => !o)}
+            style={{ width:'100%', display:'flex', alignItems:'center', justifyContent:'space-between',
+              padding:'10px 18px', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)' }}>
+            <span style={{ fontSize:12, fontWeight:700, color:'var(--text-muted)', textTransform:'uppercase', letterSpacing:'0.06em' }}>
+              Sem prazo definido ({semPrazo.length})
+            </span>
+            <span style={{ fontSize:11, color:'var(--text-muted)' }}>{semPrazoAberto ? '▲' : '▼'}</span>
+          </button>
+          {semPrazoAberto && (
+            <div style={{ overflowY:'auto', maxHeight:170, padding:'0 18px 14px', display:'flex', flexDirection:'column', gap:6 }}>
+              {semPrazo.map(t => {
+                const cfg = STATUS_CFG[t.status] || STATUS_CFG.pendente
+                return (
+                  <div key={t.id} onClick={() => onEdit(t)}
+                    style={{ display:'flex', alignItems:'center', gap:10, padding:'8px 12px',
+                      background:'var(--surface2)', borderRadius:8, cursor:'pointer',
+                      border:'1px solid var(--border2)', transition:'border-color .15s', flexShrink:0 }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor='var(--accent)'}
+                    onMouseLeave={e => e.currentTarget.style.borderColor='var(--border2)'}>
+                    <span style={{ fontSize:15 }}>{tipoIcon(t.tipo)}</span>
+                    <span style={{ flex:1, fontSize:13, fontWeight:600, color:'var(--text)' }}>{t.titulo}</span>
+                    {t.responsavel_nome && <span style={{ fontSize:11, color:'var(--text-muted)' }}>👤 {t.responsavel_nome}</span>}
+                    <span style={{ fontSize:11, padding:'2px 8px', borderRadius:20, background:cfg.bg, color:cfg.text, fontWeight:600 }}>{cfg.label}</span>
+                    <PrioridadeBadge prioridade={t.prioridade}/>
+                  </div>
+                )
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -1263,7 +1304,7 @@ export default function Tarefas() {
             </button>
           </div>
         </div>
-        <div style={{ flex:1, overflow:'auto', padding:20 }}>
+        <div style={{ flex:1, minHeight:0, overflow:'hidden', padding:20 }}>
           <CalendarioView tarefas={tarefas} sessao={sessao} onEdit={openEdit} onNew={openNew} />
         </div>
         {slideOver}
