@@ -12,7 +12,7 @@ import { useContacts } from '../hooks/useContacts'
 import { useUsuarios } from '../hooks/useUsuarios'
 import { useContracts } from '../hooks/useContracts'
 import { useProjects } from '../hooks/useProjects'
-import { STORAGE_KEY as TIPOS_ATIVIDADE_KEY } from './settings/TiposAcao'
+import { useTiposAcao } from '../hooks/useTiposAcao'
 import { useProfile } from '../hooks/useProfile'
 
 // Oportunidades inline (até existir mockOportunidades.js independente)
@@ -1521,10 +1521,16 @@ export default function Tarefas() {
   const { profile: sessao } = useProfile()
   const { tarefas, save: saveTarefa, remove: deleteTarefa, bulkSetStatus: bulkTarefaStatus } = useTasks()
   const { registrar: log } = useAuditLog()
-  const [tiposAtividade] = useLocalState(TIPOS_ATIVIDADE_KEY, [])
+  // useTiposAcao() é o catálogo real (Supabase) — o mesmo usado pela tela
+  // Configurações > Tipos de Ação e por Ações.js. useLocalState(STORAGE_KEY)
+  // só reflete esse catálogo em modo mock (sem sessão); com sessão real ele
+  // fica parado no que quer que tenha ficado em localStorage por acaso,
+  // desconectado do catálogo de verdade — por isso tipos configurados pelo
+  // usuário nunca apareciam aqui.
+  const { tipos: tiposAtividade } = useTiposAcao()
   const tiposTarefa = useMemo(
     () => {
-      const lista = tiposAtividade.filter(t => t.uso === 'tarefa' || t.uso === 'ambos')
+      const lista = tiposAtividade.filter(t => t.ativo !== false && (t.uso === 'tarefa' || t.uso === 'ambos'))
       return lista.length ? lista : TIPOS_TAREFA_DEFAULT
     },
     [tiposAtividade]
