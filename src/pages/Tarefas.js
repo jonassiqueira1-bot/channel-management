@@ -893,12 +893,27 @@ function useAlturaContainer(ref, ativo) {
   return altura
 }
 
+// Calcula a posição de um popover a partir do botão-âncora real (em vez de
+// ancorar por left/right relativo) — assim nunca fica escondido atrás da
+// sidebar (quando ela empurra o conteúdo) nem cortado na borda da tela.
+function useAnchoredPos(anchorRef, largura) {
+  const [pos, setPos] = useState(null)
+  useEffect(() => {
+    const el = anchorRef.current
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    const left = Math.min(Math.max(8, r.left), window.innerWidth - largura - 8)
+    setPos({ top: r.bottom + 6, left })
+  }, [anchorRef, largura])
+  return pos
+}
+
 // Bloco de uma tarefa na grade por hora — componente de módulo (não aninhado
 // dentro de GradeHoras) porque precisa manter a MESMA identidade entre
 // renders: como recebe Pointer Capture no pointerdown, se fosse recriado a
 // cada render (ex: a cada pointermove durante o arraste) o React desmontaria
 // o elemento que segurava a captura e o gesto de arrastar quebraria no meio.
-function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, horaEfetiva, duracaoEfetiva,
+function BlocoTarefa({ t, dataStr, dataDia, tiposTarefa, colIdx, numDias, raia, totalRaias, horaEfetiva, duracaoEfetiva,
   hoje8, agoraHoraDecimal, horaBase, alturaHora, arrastando, redimensionando,
   onEdit, onIniciarDrag, onMoverDrag, onSoltarDrag, onIniciarResize, onMoverResize, onSoltarResize }) {
   const [hover, setHover] = useState(false)
@@ -929,7 +944,7 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
         fontSize:10, fontWeight:600, padding:'2px 5px', overflow:'hidden',
         cursor: arrastando ? 'grabbing' : 'pointer', zIndex: ativo ? 3 : 1 }}>
       <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', paddingRight:12 }}>
-        {String(h).padStart(2,'0')}:{String(m).padStart(2,'0')} {t.titulo}
+        {tipoIcon(t.tipo, tiposTarefa)} {String(h).padStart(2,'0')}:{String(m).padStart(2,'0')} {t.titulo}
       </span>
       {mostraResponsavel && (
         <span style={{ display:'block', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap',
@@ -965,7 +980,7 @@ function BlocoTarefa({ t, dataStr, dataDia, colIdx, numDias, raia, totalRaias, h
   )
 }
 
-function GradeHoras({ dias, porDia, hoje8, horaRange, duracaoPorTipo, onEdit, onNew, onReschedule }) {
+function GradeHoras({ dias, porDia, hoje8, horaRange, duracaoPorTipo, tiposTarefa, onEdit, onNew, onReschedule }) {
   // Duração padrão de um compromisso sem duracao_min explícita: usa o valor
   // configurado pro tipo da tarefa (engrenagem), com fallback pro padrão geral.
   function duracaoDefault(t) {
@@ -1144,7 +1159,7 @@ function GradeHoras({ dias, porDia, hoje8, horaRange, duracaoPorTipo, onEdit, on
                 const duracaoEfetiva = redimensionando ? resize.novaDuracao : duracaoDefault(t)
                 const dataDia = arrastando ? drag.novoDataStr : dataStr
                 return (
-                  <BlocoTarefa key={t.id} t={t} dataStr={dataStr} dataDia={dataDia}
+                  <BlocoTarefa key={t.id} t={t} dataStr={dataStr} dataDia={dataDia} tiposTarefa={tiposTarefa}
                     colIdx={colIdxEfetivo} numDias={dias.length} raia={t._raia} totalRaias={t._totalRaias}
                     horaEfetiva={horaEfetiva} duracaoEfetiva={duracaoEfetiva}
                     hoje8={hoje8} agoraHoraDecimal={agoraHoraDecimal}
@@ -1172,18 +1187,7 @@ const POPOVER_LARGURA = 250
 function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef, tiposTarefa, duracaoPorTipo, onChangeDuracaoPorTipo }) {
   const [inicio, setInicio] = useState(horaRange.inicio)
   const [fim, setFim] = useState(horaRange.fim)
-  const [pos, setPos] = useState(null) // { top, left } em px, calculado a partir do botão âncora
-
-  // Calcula a posição a partir do botão real (em vez de ancorar por
-  // left/right relativo) — assim nunca fica escondido atrás da sidebar
-  // (quando ela empurra o conteúdo) nem cortado na borda direita da tela.
-  useEffect(() => {
-    const el = anchorRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    const left = Math.min(Math.max(8, r.left), window.innerWidth - POPOVER_LARGURA - 8)
-    setPos({ top: r.bottom + 6, left })
-  }, [anchorRef])
+  const pos = useAnchoredPos(anchorRef, POPOVER_LARGURA)
 
   const selectStyle = { width:'100%', padding:'6px 8px', border:'1px solid var(--border)', borderRadius:6,
     background:'var(--surface)', color:'var(--text)', fontSize:12, fontFamily:'var(--font)' }
@@ -1267,6 +1271,50 @@ function ConfigHorarioPopover({ horaRange, onSave, onClose, anchorRef, tiposTare
   )
 }
 
+const FILTRO_POPOVER_LARGURA = 220
+
+// Popover genérico de filtro por checklist (Tipo, Responsável) — mesmo
+// padrão de posicionamento âncora-real usado pela engrenagem.
+function FiltroChecklistPopover({ titulo, options, selecionados, onChange, onClose, anchorRef }) {
+  const pos = useAnchoredPos(anchorRef, FILTRO_POPOVER_LARGURA)
+  function toggle(value) {
+    onChange(selecionados.includes(value) ? selecionados.filter(v => v !== value) : [...selecionados, value])
+  }
+  return (
+    <>
+      <div style={{ position:'fixed', inset:0, zIndex:1199 }} onClick={onClose}/>
+      <div onClick={e => e.stopPropagation()} style={{ position:'fixed', top: pos?.top ?? 0, left: pos?.left ?? 0,
+        visibility: pos ? 'visible' : 'hidden', zIndex:1200, width:FILTRO_POPOVER_LARGURA,
+        background:'var(--surface)', border:'1px solid var(--border)', borderRadius:10,
+        boxShadow:'0 8px 24px rgba(0,0,0,0.14)', padding:10 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:6 }}>
+          <span style={{ fontSize:12, fontWeight:700, color:'var(--text)' }}>{titulo}</span>
+          {selecionados.length > 0 && (
+            <button onClick={() => onChange([])}
+              style={{ fontSize:11, color:'var(--accent)', background:'none', border:'none', cursor:'pointer', fontFamily:'var(--font)' }}>
+              Limpar
+            </button>
+          )}
+        </div>
+        <div style={{ display:'flex', flexDirection:'column', gap:2, maxHeight:220, overflowY:'auto' }}>
+          {options.length === 0 ? (
+            <div style={{ fontSize:12, color:'var(--text-muted)', padding:'6px 0' }}>Nada pra filtrar ainda.</div>
+          ) : options.map(o => {
+            const checked = selecionados.includes(o.value)
+            return (
+              <label key={o.value} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 6px', borderRadius:6,
+                cursor:'pointer', background: checked ? 'color-mix(in srgb, var(--accent) 8%, transparent)' : 'transparent' }}>
+                <input type="checkbox" checked={checked} onChange={() => toggle(o.value)} />
+                <span style={{ fontSize:12, color:'var(--text)', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }}>{o.label}</span>
+              </label>
+            )
+          })}
+        </div>
+      </div>
+    </>
+  )
+}
+
 const VISOES_CAL = [{ v:'mes', l:'Mês' }, { v:'semana', l:'Semana' }, { v:'semana_util', l:'Semana útil' }]
 
 function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule, tiposTarefa, duracaoPorTipo, onChangeDuracaoPorTipo }) {
@@ -1280,13 +1328,36 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule, tiposTar
   const [configAberta, setConfigAberta] = useState(false)
   const configBtnRef = useRef(null)
 
+  // Filtros por Tipo e Responsável — além do Minhas/Todas
+  const [filtroTipos, setFiltroTipos] = useLocalState('tarefas:calendario_filtro_tipos_v1', [])
+  const [filtroResponsaveis, setFiltroResponsaveis] = useLocalState('tarefas:calendario_filtro_responsaveis_v1', [])
+  const [tipoFiltroAberto, setTipoFiltroAberto] = useState(false)
+  const [respFiltroAberto, setRespFiltroAberto] = useState(false)
+  const tipoBtnRef = useRef(null)
+  const respBtnRef = useRef(null)
+
+  const tipoOpts = useMemo(
+    () => (tiposTarefa || []).map(t => ({ value: t.slug || t.key || t.id, label: `${t.icon || ''} ${t.label}`.trim() })),
+    [tiposTarefa]
+  )
+  const responsavelOpts = useMemo(() => {
+    const map = new Map()
+    tarefas.forEach(t => { if (t.responsavel_id && (t.responsavel_nome || t.responsavel)) map.set(t.responsavel_id, t.responsavel_nome || t.responsavel) })
+    return [...map.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label))
+  }, [tarefas])
+
   const tarefasFiltradas = useMemo(() => {
-    if (!meusFiltro || !sessao) return tarefas
-    return tarefas.filter(t =>
-      t.responsavel_id === sessao.id ||
-      String(t.responsavel_nome || t.responsavel || '').toLowerCase().includes((sessao.nome||'').toLowerCase())
-    )
-  }, [tarefas, meusFiltro, sessao])
+    let base = tarefas
+    if (meusFiltro && sessao) {
+      base = base.filter(t =>
+        t.responsavel_id === sessao.id ||
+        String(t.responsavel_nome || t.responsavel || '').toLowerCase().includes((sessao.nome||'').toLowerCase())
+      )
+    }
+    if (filtroTipos.length) base = base.filter(t => filtroTipos.includes(t.tipo))
+    if (filtroResponsaveis.length) base = base.filter(t => filtroResponsaveis.includes(t.responsavel_id))
+    return base
+  }, [tarefas, meusFiltro, sessao, filtroTipos, filtroResponsaveis])
 
   // Agrupa tarefas por data de prazo (YYYY-MM-DD)
   const porDia = useMemo(() => {
@@ -1386,6 +1457,36 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule, tiposTar
           ))}
         </div>
 
+        {/* Filtro: tipo de tarefa */}
+        <div style={{ position:'relative', flexShrink:0 }}>
+          <button ref={tipoBtnRef} onClick={() => setTipoFiltroAberto(o => !o)}
+            style={{ height:32, padding:'0 10px', border:'1px solid var(--border)', borderRadius:7,
+              background: filtroTipos.length ? 'color-mix(in srgb, var(--accent) 10%, var(--surface))' : (tipoFiltroAberto ? 'var(--surface2)' : 'var(--surface)'),
+              color: filtroTipos.length ? 'var(--accent)' : 'var(--text-soft)',
+              cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+            Tipo{filtroTipos.length ? ` (${filtroTipos.length})` : ''}
+          </button>
+          {tipoFiltroAberto && (
+            <FiltroChecklistPopover titulo="Filtrar por tipo" options={tipoOpts} selecionados={filtroTipos}
+              onChange={setFiltroTipos} onClose={() => setTipoFiltroAberto(false)} anchorRef={tipoBtnRef} />
+          )}
+        </div>
+
+        {/* Filtro: responsável */}
+        <div style={{ position:'relative', flexShrink:0 }}>
+          <button ref={respBtnRef} onClick={() => setRespFiltroAberto(o => !o)}
+            style={{ height:32, padding:'0 10px', border:'1px solid var(--border)', borderRadius:7,
+              background: filtroResponsaveis.length ? 'color-mix(in srgb, var(--accent) 10%, var(--surface))' : (respFiltroAberto ? 'var(--surface2)' : 'var(--surface)'),
+              color: filtroResponsaveis.length ? 'var(--accent)' : 'var(--text-soft)',
+              cursor:'pointer', fontSize:12, fontWeight:600, fontFamily:'var(--font)', whiteSpace:'nowrap' }}>
+            Responsável{filtroResponsaveis.length ? ` (${filtroResponsaveis.length})` : ''}
+          </button>
+          {respFiltroAberto && (
+            <FiltroChecklistPopover titulo="Filtrar por responsável" options={responsavelOpts} selecionados={filtroResponsaveis}
+              onChange={setFiltroResponsaveis} onClose={() => setRespFiltroAberto(false)} anchorRef={respBtnRef} />
+          )}
+        </div>
+
         {/* Legenda status */}
         <div style={{ display:'flex', gap:10, alignItems:'center', flexShrink:0 }}>
           {Object.entries(STATUS_CFG).map(([k, cfg]) => (
@@ -1476,7 +1577,7 @@ function CalendarioView({ tarefas, sessao, onEdit, onNew, onReschedule, tiposTar
               })}
             </div>
             <GradeHoras dias={celulas} porDia={porDia} hoje8={hoje8} horaRange={horaRange} duracaoPorTipo={duracaoPorTipo}
-              onEdit={onEdit} onNew={onNew} onReschedule={onReschedule} />
+              tiposTarefa={tiposTarefa} onEdit={onEdit} onNew={onNew} onReschedule={onReschedule} />
           </>
         )}
       </div>
